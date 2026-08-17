@@ -1,0 +1,10 @@
+# NetConfig service environment  (/etc/default/netconfig)
+NETCONFIG_HOME=/var/lib/netconfig
+
+# Optional: auto-unlock the credential vault for the web service on start.
+# Storing the master here is less secure than unlocking via the console;
+# leave commented unless you accept that trade-off.
+#NETCONFIG_MASTER=change-me
+
+# Optional: override the ssh client binary if not on the default PATH.
+#NETCONFIG_SSH=/usr/bin/ssh

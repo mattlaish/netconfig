@@ -1,0 +1,10 @@
+[Unit]
+Description=Weekly NetConfig configuration backup
+
+[Timer]
+OnCalendar=Sun *-*-* 02:00:00
+RandomizedDelaySec=300
+Persistent=true
+
+[Install]
+WantedBy=timers.target

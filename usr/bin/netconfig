@@ -1,0 +1,11 @@
+#!/usr/bin/python3.12
+import os
+import sys
+# Default the data dir so `sudo netconfig ...` (without -E) still finds the
+# installed vault/inventory instead of a stray ./netconfig-data. An explicit
+# NETCONFIG_HOME (env or /etc/default/netconfig) always wins.
+os.environ.setdefault("NETCONFIG_HOME", "/var/lib/netconfig")
+sys.path.insert(0, "/opt/netconfig")
+from netconfig.cli import main
+if __name__ == "__main__":
+    main()
