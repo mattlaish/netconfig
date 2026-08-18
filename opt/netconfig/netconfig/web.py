@@ -744,12 +744,13 @@ Local console \u00b7 bind 127.0.0.1 \u00b7 front with WAF for TLS</div>
                                f'<button style="padding:4px 12px">Collect</button></form>')
             _typ = " ".join(f'<span class="badge b-dim">{t.capitalize()}</span>'
                             for t in sorted(_dtypes(d)))
+            snmp_cell = snmp or '<span class=muted>\u2014</span>'
             rows.append(f"""<tr>
 <td><a href="/device?name={_q(d['name'])}">{html.escape(d['name'])}</a>{en}</td>
 <td class="muted">{html.escape(d['host'])}:{d['port']}</td>
 <td>{_typ}</td>
 <td>{html.escape(d['platform'])}</td>
-<td>{st}</td><td>{snmp or '<span class=muted>\u2014</span>'}</td>
+<td>{st}</td><td>{snmp_cell}</td>
 <td class="muted">{last}</td><td class="right">{collect_btn}</td></tr>""")
         table = ("<table><tr><th>Device</th><th>Address</th><th>Type</th><th>Platform</th>"
                  "<th>Config</th><th>SNMP</th><th>Last collected</th><th></th></tr>"

@@ -16,7 +16,8 @@ layout.
   `etc/`, `usr/`, and `var/`.
 - The application is a standard-library-only Python package. It uses the system
   OpenSSH client through a PTY for device access and SQLite for persistent state.
-- No functional source changes have been made during baseline review.
+- The Python web-console compatibility blocker is fixed in `web.py`, and the
+  documented runtime now matches the Python 3.12 launcher and AlmaLinux 10 target.
 
 ## Architecture Baseline
 - `usr/bin/netconfig`: installed launcher; adds `/opt/netconfig` to `sys.path`
@@ -70,57 +71,49 @@ Notes:
   and RPM installation require a Linux integration environment and test devices
   or protocol fakes.
 
-## Test and Environment Results (2026-08-17)
-- Host runtime: macOS, Python 3.9.6, OpenSSH 10.3p1.
-- `python3 selftest.py`: all checks through monitoring passed (crypto vectors,
-  vault, store/traversal protection, scrubbing, SNMP codecs/key derivation,
-  users/RBAC, automation, compliance, drift, groups, interface samples,
-  concurrent DB use, rename/retention, SHA-2/AES variants, and alert engine).
-  The suite then aborted while importing `netconfig.web`; it did not execute the
-  final settings-page checks or print `ALL PASS`.
-- `compileall` with redirected cache: all modules compile except `web.py`.
-- `python3 -m netconfig.cli --help` and `platforms`: successful on Python 3.9.6.
-- `Manager` initialization against a temporary directory: successful.
-- No live network-device, SNMP-agent, web-server, systemd, RPM, or end-to-end
-  approval/execution test was performed.
+## Test and Environment Results (2026-08-18)
+- Current development host: Windows, Python 3.12.13. Target integration host:
+  AlmaLinux 10.2, Python 3.12.13.
+- The full bundled self-test completes with `RESULT: ALL PASS` after the web
+  compatibility fix, including the settings-subpage tests.
+- `compileall` passes for all application modules and `selftest.py`.
+- All 28 Python files pass parsing with Python 3.9 grammar mode; Python 3.12+ is
+  nevertheless the supported deployment contract, matching AlmaLinux 10 and the
+  installed launcher.
+- CLI `--help` cannot run on the Windows host because the intended Unix-only SSH
+  transport imports `pty`/`termios`. It previously passed on macOS and should be
+  rechecked on AlmaLinux.
+- No new live network-device, SNMP-agent, web-server, systemd, RPM, or end-to-end
+  approval/execution test was performed in this task.
 
 ## Known Issues and Gaps
-1. **Python compatibility / web blocker:** `netconfig/web.py:753` embeds a string
-   containing `\\u2014` inside an f-string expression. Python 3.9 rejects this with
-   `SyntaxError: f-string expression part cannot include a backslash`. This makes
-   the web console unusable and prevents the bundled self-test from completing
-   on the documented minimum Python version.
-2. **Runtime contract is inconsistent:** `INSTALL.md` says Python 3.9+, while the
-   installed launcher has a hard-coded `#!/usr/bin/python3.12` shebang. Python
-   3.12 was not available on the review host, so the installed launcher itself
-   could not be exercised.
-3. **Packaging source is incomplete:** the RPM spec, source archive/build script,
+1. **Packaging source is incomplete:** the RPM spec, source archive/build script,
    and original RPM are absent. A reproducible next RPM cannot currently be
    built from this repository alone.
-4. **Documentation/layout drift:** `INSTALL.md` advertises an absent `install.sh`
+2. **Documentation/layout drift:** `INSTALL.md` advertises an absent `install.sh`
    and `/opt/netconfig/bin/netconfig`, but the payload contains
    `usr/bin/netconfig`. It also retains a v1 section saying the product is not a
    push tool, not multi-user, and logs into the web UI with the vault password;
    later v2 documentation and current code describe approval-based writes,
    user/RBAC login, and a separately unlocked vault.
-5. **Executable metadata gap:** Git records `usr/bin/netconfig` as mode `100644`,
+3. **Executable metadata gap:** Git records `usr/bin/netconfig` as mode `100644`,
    not executable. The extracted filesystem modes are generally `0664`; RPM mode
    metadata was not preserved by the import and must be recovered/defined before
    packaging.
-6. **Integration coverage is missing:** the self-test is broad but is a single
+4. **Integration coverage is missing:** the self-test is broad but is a single
    script and does not cover real OpenSSH/device prompts, real vendor SNMP,
    HTTP request flows, systemd sandbox behavior, installation/upgrade, or RPM
    output. Existing docs explicitly note that configuration push was tested only
    with a fake Cisco device/local sshd and that real vendor behavior varies.
-7. **Platform-dependent module:** `transport.py` imports `pty`; runtime support is
+5. **Platform-dependent module:** `transport.py` imports `pty`; runtime support is
    Unix-specific. Linux remains the intended deployment target.
 
 ## Important Decisions
 - Preserve the extracted filesystem layout until packaging sources are
   reconstructed; make application changes under `opt/netconfig/` and packaging
   changes under their payload paths.
-- Treat Python 3.9 compatibility as the documented contract unless the project
-  deliberately raises the minimum and updates launcher, docs, and tests together.
+- Python 3.12+ is the supported runtime, aligned with AlmaLinux 10.2 and the
+  installed `/usr/bin/python3.12` launcher.
 - Keep tests offline and isolated by default; do not point collection, push,
   remediation, SNMP, monitoring, or NetFlow checks at production equipment.
 - Do not treat the numerous defensive `except ...: pass` blocks as unfinished
@@ -136,18 +129,20 @@ Notes:
   syntax failure.
 - Removed the temporary untracked `netconfig-data/` generated by a CLI smoke
   check; no runtime data or user files were retained or modified.
+- Fixed the dashboard f-string compatibility blocker in `web.py`.
+- Reconciled the documented runtime requirement to Python 3.12+.
+- Re-ran grammar, compile and offline self-tests successfully on 2026-08-18.
 
 ## In Progress
-No implementation is in progress. Baseline review is complete.
+No implementation is in progress. The compatibility fix is complete and remains
+uncommitted for the user to handle with Git.
 
 ## Recommended Next Step
-Make the smallest source fix to the Python 3.9-incompatible f-string in
-`netconfig/web.py`, then rerun the full self-test and compile check with an
-isolated temporary data/cache directory. If that passes, reconcile and enforce
-the supported Python version across the launcher and documentation. Afterward,
-reconstruct the RPM spec/build inputs and add a Linux packaging/integration test
-before making broader functional changes.
+Reconstruct the RPM spec/build inputs for AlmaLinux 10.2, explicitly restore
+payload ownership and executable modes, and add a Linux packaging/integration
+test. Also reconcile the stale installation and v1 documentation noted above.
 
 ## Last Verified
-2026-08-17 in the repository working tree on macOS with Python 3.9.6. Only
-`AI_HANDOFF.md` was intentionally changed by this baseline task.
+2026-08-18 in the repository working tree on Windows with Python 3.12.13.
+`web.py`, `INSTALL.md`, and this handoff are intentionally modified and remain
+uncommitted for the user to manage with Git.

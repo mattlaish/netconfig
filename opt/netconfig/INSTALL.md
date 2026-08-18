@@ -14,7 +14,7 @@ Override any path: `PREFIX=`, `BINDIR=`, `NETCONFIG_HOME=`, `NETCONFIG_USER=`. R
 Zero-dependency network configuration manager. Logs into your devices over SSH,
 runs commands, and archives text copies of their configs with versioned diffs.
 
-- **Runtime:** Python 3.9+ (developed on 3.12). No pip packages. Python stdlib only.
+- **Runtime:** Python 3.12+. No pip packages. Python stdlib only.
 - **System requirement:** the OpenSSH client (`ssh`) must be on `PATH`. On Debian:
   `sudo apt-get install openssh-client`. That's the *only* non-Python dependency,
   and it's there because stdlib has no SSH client — see the note below.
