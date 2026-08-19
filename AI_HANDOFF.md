@@ -29,9 +29,29 @@ layout.
 - Uploaded vendor MIBs now drive bounded collection, not only name mapping:
   resolved enterprise `OBJECT-TYPE` definitions are matched to each device's
   `sysObjectID`, walked at a safe cadence, persisted, and shown on its SNMP page.
+- Net-SNMP Linux collection now accounts for its split namespace: a device with
+  sysObjectID enterprise 8072 can collect uploaded definitions below Net-SNMP
+  8072, UCD-SNMP 2021, and standard HOST-RESOURCES `.1.3.6.1.2.1.25`. The UI
+  distinguishes no matching definitions from a matched tree returning no data.
+- System and application compliance no longer inherit a misleading binary-only
+  network-config result model. Live probe failures can be `unknown`, application
+  health is retained as unscored operational evidence, and only devices without
+  failures or unknowns count as compliant. System checks distinguish explicitly
+  monitored SMB/RDP exposure; application checks now collect response headers,
+  cipher strength, and active TLS 1.0/1.1 probes, then audit HSTS, nosniff, CSP,
+  certificate validity/expiry, and legacy TLS without false prerequisite passes.
+- The authenticated top bar now includes a persisted Light/Dark theme toggle.
+  The low-glare dark palette covers the shared page chrome, panels, tables,
+  forms, settings navigation, diffs, badges, login/error pages, and SNMP charts;
+  browser preference is used until the user explicitly selects a theme.
 - SNMPv3 polling reuses engine discovery and RFC 3414 localized keys throughout
   each device poll instead of recomputing the 1 MB password-to-key operation for
   every OID, addressing the observed single-poller-thread CPU saturation pattern.
+- Reproducible RPM source engineering now exists under `packaging/`: an EL10
+  `netconfig.spec`, source/binary/SRPM build script, static RPM inspector,
+  installed-package smoke test, and build/test instructions. Release `-15` exposed
+  a CRLF launcher/shebang failure after Windows-to-Alma transfer; the normalized
+  rebuild is intentionally release `-16` so `dnf upgrade` will replace it.
 
 ## Architecture Baseline
 - `usr/bin/netconfig`: installed launcher; adds `/opt/netconfig` to `sys.path`
@@ -58,9 +78,12 @@ layout.
 - `usr/lib/systemd/system/`: web service and weekly backup service/timer.
 
 ## Build and Test Procedures
-There is currently no source build definition: no RPM spec, `pyproject.toml`,
-`setup.py`, requirements file, Makefile, tox/pytest configuration, or CI config.
-The imported payload is directly runnable in its installed filesystem layout.
+The reconstructed RPM source is under `packaging/`. On AlmaLinux 10, install
+`rpm-build` and `python3.12`, then run `packaging/build-rpm.sh`; it creates an
+unsigned `-16` noarch RPM and SRPM in the project root. Inspect with
+`packaging/inspect-rpm.sh` and validate an installed copy with
+`packaging/smoke-installed.sh`. There is still no pyproject/setup, tox/pytest,
+or CI configuration because the application remains a direct stdlib payload.
 
 Safe local checks:
 
@@ -85,12 +108,15 @@ Notes:
   and RPM installation require a Linux integration environment and test devices
   or protocol fakes.
 
-## Test and Environment Results (2026-08-18)
+## Test and Environment Results (2026-08-19)
 - Current development host: Windows, Python 3.12.13. Target integration host:
   AlmaLinux 10.2, Python 3.12.13.
 - The full bundled self-test completes with `RESULT: ALL PASS` after the web
   compatibility and SNMP/MIB work, including settings-subpage and new MIB
-  automap/source/diagnostic tests.
+  automap/source/diagnostic tests, Net-SNMP/UCD/HOST-RESOURCES root matching,
+  compliance unknown-state handling, TLS prerequisite handling, and unscored
+  application-health evidence. Theme persistence and dark-style presence are
+  also covered by the bundled self-test.
 - `compileall` passes for all application modules and `selftest.py`.
 - All 28 Python files pass parsing with Python 3.9 grammar mode; Python 3.12+ is
   nevertheless the supported deployment contract, matching AlmaLinux 10 and the
@@ -98,35 +124,47 @@ Notes:
 - CLI `--help` cannot run on the Windows host because the intended Unix-only SSH
   transport imports `pty`/`termios`. It previously passed on macOS and should be
   rechecked on AlmaLinux.
-- No new live network-device, SNMP-agent, web-server, systemd, RPM, or end-to-end
-  approval/execution test was performed in this task.
+- Packaging payload/spec/script static checks pass on Windows. Release `-15` was
+  built and installed on AlmaLinux, but its Windows CRLF launcher caused systemd
+  `203/EXEC`; normalizing `/usr/bin/netconfig` recovered the service. Release
+  `-16` contains the permanent build/spec regression fix but is not yet built.
+  No new live network-device/SNMP-agent or end-to-end integration test ran.
+- Final GitHub-push preparation completed without running any Git command:
+  Python 3.12 compileall and the full offline self-test pass; the 47-file
+  workspace contains no runtime database, cache, RPM/SRPM, private key,
+  certificate, high-confidence API token, or file larger than 5 MB. Secret-like
+  matches are documented placeholders only. `.gitignore` now excludes Python
+  caches, local databases/vaults/MIB indexes, environment/secrets, logs, and RPM
+  build outputs. The source `/usr/bin/netconfig` launcher itself is now LF-only,
+  in addition to the existing build/spec normalization defense.
 
 ## Known Issues and Gaps
-1. **Packaging source is incomplete:** the RPM spec, source archive/build script,
-   and original RPM are absent. A reproducible next RPM cannot currently be
-   built from this repository alone.
-2. **Documentation/layout drift:** `INSTALL.md` advertises an absent `install.sh`
-   and `/opt/netconfig/bin/netconfig`, but the payload contains
-   `usr/bin/netconfig`. It also retains a v1 section saying the product is not a
+1. **Packaging integration is unverified:** the reconstructed spec/build scripts
+  need a clean `-16` rebuild and an installed `-15` to `-16` upgrade verification
+  on AlmaLinux 10.2. Signing identity and release GPG keys remain undefined.
+2. **Documentation drift remains:** the RPM quick-install and manual launcher
+   paths are corrected, but `INSTALL.md` still retains a v1 section saying the product is not a
    push tool, not multi-user, and logs into the web UI with the vault password;
    later v2 documentation and current code describe approval-based writes,
    user/RBAC login, and a separately unlocked vault.
-3. **Executable metadata gap:** Git records `usr/bin/netconfig` as mode `100644`,
-   not executable. The extracted filesystem modes are generally `0664`; RPM mode
-   metadata was not preserved by the import and must be recovered/defined before
-   packaging.
+3. **Source executable metadata gap:** the extracted workspace does not preserve
+   executable bits. The spec installs `/usr/bin/netconfig` as `0755`, and the
+   Alma build instructions explicitly chmod packaging scripts before use.
 4. **Integration coverage is missing:** the self-test is broad but is a single
    script and does not cover real OpenSSH/device prompts, real vendor SNMP,
    HTTP request flows, systemd sandbox behavior, installation/upgrade, or RPM
    output. Existing docs explicitly note that configuration push was tested only
    with a fake Cisco device/local sshd and that real vendor behavior varies.
 5. **Platform-dependent module:** `transport.py` imports `pty`; runtime support is
-   Unix-specific. Linux remains the intended deployment target.
+  Unix-specific. Linux remains the intended deployment target.
+6. **Final Linux packaging validation remains:** Windows static checks confirm
+   `2.0.0-16.el10`, payload presence, launcher shebang/LF, and documentation
+   consistency, but Bash syntax validation, RPM build/inspection, installation,
+   and live endpoint/device integration still require AlmaLinux 10.2.
 
 ## Important Decisions
-- Preserve the extracted filesystem layout until packaging sources are
-  reconstructed; make application changes under `opt/netconfig/` and packaging
-  changes under their payload paths.
+- Preserve the extracted filesystem layout; make application changes under
+  `opt/netconfig/` and packaging changes under `packaging/` or payload paths.
 - Python 3.12+ is the supported runtime, aligned with AlmaLinux 10.2 and the
   installed `/usr/bin/python3.12` launcher.
 - Keep tests offline and isolated by default; do not point collection, push,
@@ -161,18 +199,27 @@ Notes:
 - Added offline tests for vendor-root matching/isolation, value persistence,
   SNMPv3 localized-key reuse, and engine-discovery reuse. Full self-test and
   Python 3.12 compile pass after these changes.
+- Reconstructed the previously missing RPM spec/build flow with systemd
+  lifecycle macros, service user creation, explicit modes/ownership,
+  `%config(noreplace)`, and runtime-data exclusion. Windows static packaging
+  checks pass; no RPM was built locally because this host has no RPM toolchain.
+- Replaced the stale `install.sh` quick-install documentation with the EL10 RPM
+  procedure and corrected the manual launcher path.
 
 ## In Progress
 No implementation is in progress. The compatibility and SNMP/MIB visibility
 work is complete and remains uncommitted for the user to handle with Git.
 
 ## Recommended Next Step
-Validate the expanded SNMP/MIB pages and reduced SNMPv3 CPU use against one real
-AlmaLinux-hosted device and representative vendor MIB dependency set. Then reconstruct the RPM spec/build
-inputs for AlmaLinux 10.2, restore payload ownership/executable modes, and add a
-Linux packaging/integration test.
+On an AlmaLinux 10 build/test VM, run `packaging/build-rpm.sh`, inspect the
+resulting `-16` binary RPM/SRPM, upgrade the recovered `-15` installation, and run
+`packaging/smoke-installed.sh`. Then validate the expanded SNMP/MIB pages and
+reduced SNMPv3 CPU use against a real device and representative vendor MIB set.
 
 ## Last Verified
-2026-08-18 in the repository working tree on Windows with Python 3.12.13.
-`manager.py`, `mib.py`, `web.py`, `selftest.py`, `INSTALL.md`, and this handoff
-are intentionally modified and remain uncommitted for the user to manage with Git.
+2026-08-19 in the repository working tree on Windows with Python 3.12.13.
+Application modules, `selftest.py`, `INSTALL.md`, the new `packaging/` tree, and
+this handoff are intentionally modified and remain uncommitted for the user to
+manage with Git. Final validation used no Git operations. An existing
+`git-save-push.ps1` helper remains in the workspace and contains interactive
+add/commit/push commands; it was inspected for secrets but was not executed.

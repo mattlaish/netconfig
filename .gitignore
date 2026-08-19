@@ -4,15 +4,44 @@
 # Python
 __pycache__/
 *.pyc
+*.pyo
 .venv/
 venv/
+.pytest_cache/
+.mypy_cache/
 
-# Secrets / local config
+# Secrets / local runtime state
 .env
+.env.*
+!.env.example
 *.pem
 *.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.db
+*.sqlite
+*.sqlite3
+*.vault
+.mibindex.json
+netconfig-data/
 
 # Editors / logs
 .vscode/
 .idea/
 *.log
+*.tmp
+*.bak
+
+# RPM/build outputs
+build/
+dist/
+RPMS/
+SRPMS/
+SOURCES/
+SPECS/
+BUILD/
+BUILDROOT/
+*.rpm
+*.srpm

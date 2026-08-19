@@ -38,21 +38,31 @@ from . import automation as _automation
 _CSS = """
 :root{
   --navy:#181048; --navy90:#232059; --navy10:#E8E8F0;
+  --solid:#181048; --solid-hover:#232059; --surface:#fff; --text:#26282B;
+  --row-alt:#FAFBFD; --line:#E6E8EE;
   --red:#C02020; --red10:#F9E9EA; --grey:#595959; --border:#C9CDD6;
   --bg:#F2F3F7; --warn:#8A5A00; --warn10:#FBF3E2; --ok:#1E6641; --ok10:#EAF3EE;
   --radius:8px;
   --font:"Noto Sans","Noto Sans TC","Segoe UI","Microsoft JhengHei","PingFang TC",Arial,sans-serif;
   --mono:ui-monospace,"DejaVu Sans Mono",Menlo,Consolas,monospace;
 }
+html[data-theme="dark"]{
+  color-scheme:dark;
+  --navy:#A9B8FF; --navy90:#33447C; --navy10:#252E48;
+  --solid:#26376C; --solid-hover:#334A8C; --surface:#171C29; --text:#E8ECF5;
+  --row-alt:#1B2231; --line:#30394B;
+  --red:#FF858B; --red10:#43262D; --grey:#ADB6C8; --border:#3B4559;
+  --bg:#10141E; --warn:#F0C36A; --warn10:#42361F; --ok:#72D6A2; --ok10:#1B3B30;
+}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:#26282B;font-family:var(--font);font-size:15px;line-height:1.5}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);font-size:15px;line-height:1.5}
 a{color:var(--navy);text-decoration:none}a:hover{text-decoration:underline}
 /* topbar */
 header{display:flex;justify-content:space-between;align-items:center;gap:16px;
-  background:#fff;border-bottom:3px solid var(--red);padding:10px 22px;flex-wrap:wrap}
+  background:var(--surface);border-bottom:3px solid var(--red);padding:10px 22px;flex-wrap:wrap}
 .brand{display:flex;align-items:center;gap:14px;color:var(--navy);font-weight:700;font-size:16px}
 .brand .logo{display:inline-flex;align-items:center;justify-content:center;
-  width:36px;height:36px;background:var(--navy);color:#fff;border-radius:7px;
+  width:36px;height:36px;background:var(--solid);color:#fff;border-radius:7px;
   font-weight:800;font-size:13px;letter-spacing:.02em}
 .brand .appname{border-left:1px solid var(--border);padding-left:14px}
 .brand span{color:var(--navy)}
@@ -62,7 +72,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:16px;
 .role{background:var(--navy10);color:var(--navy);border-radius:10px;padding:1px 8px;
   font-size:11px;margin-left:4px;font-weight:600;text-transform:uppercase}
 /* nav */
-nav{background:var(--navy);display:flex;flex-wrap:wrap;padding:0 22px}
+nav{background:var(--solid);display:flex;flex-wrap:wrap;padding:0 22px}
 nav a{color:#fff;padding:11px 14px;font-size:14px;border-bottom:3px solid transparent}
 nav a:hover{background:var(--navy90);border-bottom-color:var(--red);text-decoration:none}
 /* layout */
@@ -70,15 +80,15 @@ main{max-width:1280px;margin:22px auto;padding:0 22px}
 h1{color:var(--navy);font-size:22px;margin:6px 0 14px;font-weight:700}
 h2{color:var(--navy);font-size:15px;margin:0 0 10px;font-weight:700}
 h3{color:var(--navy);font-size:14px;font-weight:700;margin:10px 0 6px}
-.panel{background:#fff;border:1px solid var(--border);border-radius:var(--radius);
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
   padding:18px;margin-bottom:18px}
 /* tables */
-table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--border);
+table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);
   border-radius:var(--radius);overflow:hidden;font-size:14px}
 th,td{text-align:left;padding:9px 12px;vertical-align:top}
-th{background:var(--navy);color:#fff;font-weight:600;font-size:13px}
-td{border-top:1px solid #E6E8EE}
-tbody tr:nth-child(even) td{background:#FAFBFD}
+th{background:var(--solid);color:#fff;font-weight:600;font-size:13px}
+td{border-top:1px solid var(--line)}
+tbody tr:nth-child(even) td{background:var(--row-alt)}
 /* badges */
 .badge{display:inline-block;border-radius:10px;padding:1px 9px;font-size:11.5px;font-weight:600;
   background:var(--navy10);color:var(--navy);white-space:nowrap}
@@ -86,27 +96,27 @@ tbody tr:nth-child(even) td{background:#FAFBFD}
 .b-bad{background:var(--red10);color:var(--red)}
 .b-chg{background:var(--warn10);color:var(--warn)}
 .b-dim{background:#EDEEF0;color:var(--grey)}
-.b-brass{background:var(--navy);color:#fff}
+.b-brass{background:var(--solid);color:#fff}
 /* buttons */
-button,.btn{display:inline-block;background:var(--navy);color:#fff;border:1px solid var(--navy);
+button,.btn{display:inline-block;background:var(--solid);color:#fff;border:1px solid var(--solid);
   border-radius:6px;padding:8px 14px;font-family:var(--font);font-size:14px;font-weight:600;
   cursor:pointer;text-decoration:none}
-button:hover,.btn:hover{background:var(--navy90);text-decoration:none}
-button.ghost,.btn.ghost{background:#fff;border-color:var(--border);color:var(--grey)}
+button:hover,.btn:hover{background:var(--solid-hover);text-decoration:none}
+button.ghost,.btn.ghost{background:var(--surface);border-color:var(--border);color:var(--grey)}
 button.ghost:hover,.btn.ghost:hover{background:var(--navy10);color:var(--navy)}
-button.danger{background:#fff;border-color:var(--red);color:var(--red)}
+button.danger{background:var(--surface);border-color:var(--red);color:var(--red)}
 button.danger:hover{background:var(--red10)}
 button:disabled{opacity:.5;cursor:not-allowed}
 /* code / diff */
-pre{background:#fff;border:1px solid var(--border);border-radius:6px;padding:14px;overflow:auto;
-  font:12.5px/1.5 var(--mono);color:#26282B;max-height:70vh}
+pre{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:14px;overflow:auto;
+  font:12.5px/1.5 var(--mono);color:var(--text);max-height:70vh}
 code{background:var(--navy10);padding:1px 6px;border-radius:4px;font-size:.92em}
 pre.diff .add{color:var(--ok);background:var(--ok10)}
 pre.diff .del{color:var(--red);background:var(--red10)}
 pre.diff .hdr{color:var(--navy);font-weight:700}
 /* forms */
-input,select,textarea{width:100%;background:#fff;border:1px solid var(--border);border-radius:6px;
-  padding:8px 10px;color:#26282B;font-size:14px;margin-bottom:12px;font-family:var(--font)}
+input,select,textarea{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:6px;
+  padding:8px 10px;color:var(--text);font-size:14px;margin-bottom:12px;font-family:var(--font)}
 textarea{font-family:var(--mono);font-size:13px;min-height:120px}
 input:focus,select:focus,textarea:focus{outline:2px solid var(--navy);outline-offset:1px;border-color:var(--navy)}
 label{display:block;font-size:13px;color:var(--navy);font-weight:600;margin-bottom:4px}
@@ -117,12 +127,12 @@ label{display:block;font-size:13px;color:var(--navy);font-weight:600;margin-bott
 .right{text-align:right}
 .row{display:flex;gap:16px;flex-wrap:wrap}.row>*{flex:1;min-width:220px}
 .settings-shell{display:grid;grid-template-columns:220px minmax(0,1fr);gap:18px;align-items:start}
-.settings-menu{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:8px;
+.settings-menu{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:8px;
   position:sticky;top:12px}
 .settings-menu a{display:block;padding:10px 12px;border-radius:6px;color:var(--grey);font-size:14px;
   font-weight:600;margin:2px 0}
 .settings-menu a:hover{background:var(--navy10);color:var(--navy);text-decoration:none}
-.settings-menu a.active{background:var(--navy);color:#fff}
+.settings-menu a.active{background:var(--solid);color:#fff}
 .settings-content .panel{margin-bottom:0}
 @media(max-width:760px){.settings-shell{grid-template-columns:1fr}.settings-menu{position:static;
   display:flex;gap:4px;overflow-x:auto}.settings-menu a{white-space:nowrap}}
@@ -135,14 +145,42 @@ label{display:block;font-size:13px;color:var(--navy);font-weight:600;margin-bott
 .sev-high{color:var(--red)}.sev-medium{color:var(--warn)}.sev-low{color:var(--grey)}
 /* login */
 .login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg)}
-.login{width:420px;max-width:92vw;background:#fff;border:1px solid var(--border);
+.login{width:420px;max-width:92vw;background:var(--surface);border:1px solid var(--border);
   border-top:4px solid var(--red);border-radius:10px;padding:34px 38px}
 .login .brand{display:flex;justify-content:center;color:var(--navy);font-size:18px;margin-bottom:4px}
 .login .sub{text-align:center;color:var(--grey);font-size:12px;margin-bottom:22px;letter-spacing:.04em}
 /* footer */
 .footer{max-width:1280px;margin:26px auto;padding:12px 22px;color:var(--grey);font-size:12px;
   border-top:1px solid var(--border);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+html[data-theme="dark"] [data-idx],html[data-theme="dark"] [data-idx] svg{
+  background:var(--surface)!important}
+html[data-theme="dark"] [data-idx] svg text{fill:var(--grey)!important}
+html[data-theme="dark"] [data-idx] svg line{stroke:var(--border)!important}
+.theme-toggle{white-space:nowrap;padding:5px 11px!important}
 """
+
+_THEME_JS = """<script>
+(function(){
+  var key='netconfig-theme', root=document.documentElement;
+  function preferred(){
+    var saved=localStorage.getItem(key);
+    if(saved==='dark'||saved==='light') return saved;
+    return window.matchMedia&&window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';
+  }
+  function paint(theme){
+    root.setAttribute('data-theme',theme);
+    var b=document.getElementById('theme-toggle');
+    if(b){b.textContent=theme==='dark'?'Light theme':'Dark theme';
+      b.setAttribute('aria-pressed',theme==='dark'?'true':'false');}
+  }
+  window.netconfigToggleTheme=function(){
+    var next=root.getAttribute('data-theme')==='dark'?'light':'dark';
+    localStorage.setItem(key,next); paint(next);
+  };
+  paint(preferred());
+  document.addEventListener('DOMContentLoaded',function(){paint(root.getAttribute('data-theme')||preferred());});
+})();
+</script>"""
 
 _SESSIONS = {}   # token -> {username, role, csrf, created}
 
@@ -494,6 +532,9 @@ class Console(http.server.BaseHTTPRequestHandler):
         return (f'<div class="top-right">{vault}'
                 f'<span class="who"><b>{html.escape(sess["username"])}</b>'
                 f'<span class="role">{html.escape(sess["role"])}</span></span>'
+                f'<button type=button id="theme-toggle" class="ghost theme-toggle" '
+                f'onclick="netconfigToggleTheme()" aria-label="Toggle color theme" '
+                f'aria-pressed="false">Dark theme</button>'
                 f'<form method=post action="/logout" style="display:inline;margin:0">'
                 f'{self._csrf_field()}<button class=ghost style="padding:5px 12px">Sign out</button>'
                 f'</form></div>')
@@ -504,7 +545,7 @@ class Console(http.server.BaseHTTPRequestHandler):
         right = self._topright(sess) if sess else ""
         return f"""<!doctype html><html><head><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1">
-<title>{html.escape(title)} \u00b7 NetConfig</title><style>{_CSS}</style></head><body>
+<title>{html.escape(title)} \u00b7 NetConfig</title><style>{_CSS}</style>{_THEME_JS}</head><body>
 <header><div class="brand"><span class="logo">EH</span>
 <span class="appname">Net<span>Config</span> \u00b7 Network Configuration</span></div>{right}</header>
 {nav}
@@ -561,7 +602,7 @@ class Console(http.server.BaseHTTPRequestHandler):
                     "<br><code>sudo chown -R netconfig:netconfig /var/lib/netconfig</code><br>"
                     "then <code>sudo systemctl restart netconfig-web</code>.</p>")
         body = (f'<!doctype html><html><head><meta charset=utf-8><title>Error</title>'
-                f'<style>{_CSS}</style></head><body><div class="login-wrap"><div class="panel" '
+                f'<style>{_CSS}</style>{_THEME_JS}</head><body><div class="login-wrap"><div class="panel" '
                 f'style="max-width:640px"><h2 style="color:var(--bad)">Server error</h2>'
                 f'<p class="muted">The request failed. Details:</p>'
                 f'<pre>{html.escape(msg)}</pre>{hint}</div></div></body></html>')
@@ -665,11 +706,11 @@ class Console(http.server.BaseHTTPRequestHandler):
                     '<div class="err">No users yet. Create the first admin:<br>'
                     '<code>netconfig user add &lt;name&gt; --role admin</code></div></div></div>')
             return self._send(f"<!doctype html><html><head><meta charset=utf-8>"
-                              f"<style>{_CSS}</style></head><body>{body}</body></html>")
+                              f"<style>{_CSS}</style>{_THEME_JS}</head><body>{body}</body></html>")
         err = f'<div class="err">{html.escape(error)}</div>' if error else ""
         body = f"""<!doctype html><html><head><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1">
-<title>Sign in \u00b7 NetConfig</title><style>{_CSS}</style></head><body>
+<title>Sign in \u00b7 NetConfig</title><style>{_CSS}</style>{_THEME_JS}</head><body>
 <div class="login-wrap"><div class="panel login">
 <div class="brand">Net<span>Config</span></div>
 <div class="sub">Security Operations \u00b7 v{APP_VERSION}</div>{err}
@@ -2276,14 +2317,21 @@ The client secret is stored in the vault.</p>
             content = (f'<table><tr><th>Source MIB</th><th>Resolved name</th><th>Raw OID</th>'
                        f'<th>Value</th><th>Collected</th></tr>{rows}</table>')
         else:
-            content = ('<p class="muted">No vendor values collected yet. Upload a vendor MIB '
-                       'containing OBJECT-TYPE definitions, then use <b>Poll now</b>. Collection '
-                       'only follows the enterprise identified by this device\'s sysObjectID.</p>')
+            if status.get("roots", 0):
+                content = ('<p class="muted">Matching MIB collection trees were found, but the '
+                           'SNMP agent returned no values below them. This usually means those '
+                           'modules are not exposed by the device or the SNMP view denies them; '
+                           'an uploaded MIB defines names but does not enable data on the agent.'
+                           '</p>')
+            else:
+                content = ('<p class="muted">No collection tree matches this device yet. Upload '
+                           'MIB files containing resolved OBJECT-TYPE definitions, then use '
+                           '<b>Poll now</b>.</p>')
         error = status.get("error", "")
         error_html = (f'<p class="err">Some roots failed: {html.escape(error)}</p>' if error else "")
         summary = (f'{len(values)} value(s) from {status.get("roots", 0)} bounded root(s)'
                    + (f' · last collection {_fmt_ts(status.get("ts"))}' if status else ''))
-        return (f'<div class="panel"><h2>Vendor MIB data</h2>'
+        return (f'<div class="panel"><h2>Extended MIB data</h2>'
                 f'<p class="muted">Automatically collected from uploaded MIB definitions. '
                 f'{summary}. Background vendor walks run no more than once every five minutes '
                 f'and keep at most 400 values per device.</p>{error_html}{content}</div>')
@@ -2795,7 +2843,8 @@ The client secret is stored in the vault.</p>
                        f'\u00b7 {_fmt_ts(last["ts"])}</h2>'
                        f'<p>Compliant devices: <b>{t["compliant_devices"]}/{t["device_count"]}</b> \u00b7 '
                        f'checks passed <span class="badge b-ok">{t["pass"]}</span> '
-                       f'failed <span class="badge b-bad">{t["fail"]}</span></p></div>')
+                       f'failed <span class="badge b-bad">{t["fail"]}</span> '
+                       f'unknown <span class="badge b-dim">{t.get("unknown", 0)}</span></p></div>')
             dev_html = ""
             for dr in rep["devices"]:
                 if dr.get("skipped"):
@@ -2804,16 +2853,21 @@ The client secret is stored in the vault.</p>
                     continue
                 rrows = ""
                 for r in dr["results"]:
-                    b = "b-ok" if r["status"] == "pass" else "b-bad"
+                    b = ("b-ok" if r["status"] == "pass" else
+                         "b-bad" if r["status"] == "fail" else "b-dim")
                     ev = html.escape(r["evidence"][:80]) if r["evidence"] else ""
                     rem = "" if r["status"] == "pass" else f'<div class="muted" style="margin-top:4px">\u21b3 {html.escape(r["remediation"])}</div>'
+                    kind = ('<br><span class="muted">operational evidence \u00b7 not scored</span>'
+                            if not r.get("scored", True) else '')
                     rrows += (f'<tr><td><span class="sev-{r["severity"]}">\u25cf</span> {html.escape(r["title"])}<br>'
-                              f'<span class=muted>{html.escape(r["id"])} \u00b7 {html.escape(r["refs"])}</span>{rem}</td>'
+                              f'<span class=muted>{html.escape(r["id"])} \u00b7 {html.escape(r["refs"])}</span>{kind}{rem}</td>'
                               f'<td class=muted>{ev}</td>'
                               f'<td><span class="badge {b}">{r["status"]}</span></td></tr>')
-                dh = "b-ok" if dr["failed"] == 0 else "b-bad"
+                dh = ("b-bad" if dr["failed"] else
+                      "b-dim" if dr.get("unknown", 0) else "b-ok")
                 dev_html += (f'<div class="panel"><h2>{html.escape(dr["device"])} '
-                             f'<span class="badge {dh}">{dr["passed"]} pass / {dr["failed"]} fail</span></h2>'
+                             f'<span class="badge {dh}">{dr["passed"]} pass / {dr["failed"]} fail / '
+                             f'{dr.get("unknown", 0)} unknown</span></h2>'
                              f'<table><tr><th>Control</th><th>Evidence</th><th></th></tr>{rrows}</table></div>')
             report_html = summary + dev_html
         self._send(self._page("Compliance", controls + report_html, sess, flash=flash))

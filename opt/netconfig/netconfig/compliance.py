@@ -119,10 +119,13 @@ _RULES = [
 ]
 
 
-def _r(rid, title, standard, severity, ok, evidence, remediation, refs=""):
+def _r(rid, title, standard, severity, ok, evidence, remediation, refs="",
+       status=None, scored=True, category="security"):
+    if status is None:
+        status = "unknown" if ok is None else ("pass" if ok else "fail")
     return {"id": rid, "title": title, "standard": standard, "severity": severity,
-            "status": "pass" if ok else "fail", "evidence": evidence,
-            "remediation": remediation, "refs": refs}
+            "status": status, "evidence": evidence, "remediation": remediation,
+            "refs": refs, "scored": bool(scored), "category": category}
 
 
 def evaluate_system(dev, standard=None):
@@ -133,25 +136,34 @@ def evaluate_system(dev, standard=None):
     host = dev.get("host")
     checks = portmon.check_ports(host, "tcp/23, tcp/21, tcp/3389, tcp/445, tcp/22", timeout=1.5)
     state = {(c["proto"], c["port"]): c["state"] for c in checks}
+    approved = set(portmon.parse_ports(dev.get("monitor_ports") or ""))
 
     def openp(port):
         return state.get(("tcp", port)) == "open"
+    def closedp(port):
+        value = state.get(("tcp", port))
+        return True if value in ("closed", "filtered") else (False if value == "open" else None)
+    def evidence(port):
+        return f"tcp/{port} {state.get(('tcp', port), 'no result')}"
     out = [
         _r("SYS-TELNET", "Telnet (tcp/23) not exposed", "ISO 27001", "high",
-           not openp(23), "tcp/23 open" if openp(23) else "closed/filtered",
+           closedp(23), evidence(23),
            "Disable Telnet; use SSH. Close tcp/23 / firewall it.", "A.9.4.2 / A.13.1.1"),
         _r("SYS-FTP", "FTP (tcp/21) not exposed", "PCI-DSS", "high",
-           not openp(21), "tcp/21 open" if openp(21) else "closed/filtered",
+           closedp(21), evidence(21),
            "Disable FTP; use SFTP/SCP. Close tcp/21.", "2.2.2"),
-        _r("SYS-SMB", "SMB (tcp/445) not exposed", "ISO 27001", "medium",
-           not openp(445), "tcp/445 open" if openp(445) else "closed/filtered",
-           "Do not expose SMB to untrusted networks; restrict to management VLAN.",
+        _r("SYS-SMB", "SMB exposure is explicitly monitored", "ISO 27001", "medium",
+           (True if openp(445) and ("tcp", 445) in approved else closedp(445)),
+           evidence(445) + ("; approved in monitored ports" if ("tcp", 445) in approved else ""),
+           "Add an approved SMB service to monitored ports, or restrict tcp/445.",
            "A.13.1.1"),
-        _r("SYS-RDP", "RDP (tcp/3389) not exposed", "PCI-DSS", "medium",
-           not openp(3389), "tcp/3389 open" if openp(3389) else "closed/filtered",
-           "Restrict RDP to a jump host / VPN; do not expose directly.", "1.3"),
+        _r("SYS-RDP", "RDP exposure is explicitly monitored", "PCI-DSS", "medium",
+           (True if openp(3389) and ("tcp", 3389) in approved else closedp(3389)),
+           evidence(3389) + ("; approved in monitored ports" if ("tcp", 3389) in approved else ""),
+           "Add an approved RDP service to monitored ports, or restrict tcp/3389.", "1.3"),
         _r("SYS-SSH", "SSH (tcp/22) reachable for management", "ISO 27001", "low",
-           openp(22), "reachable" if openp(22) else "not reachable",
+           (True if openp(22) else (False if state.get(("tcp", 22)) in
+                                    ("closed", "filtered") else None)), evidence(22),
            "Ensure secure management access (SSH) is available.", "A.9.4.2"),
     ]
     return [x for x in out if not standard or x["standard"] == standard]
@@ -164,7 +176,8 @@ def evaluate_application(dev, standard=None):
     spec = (dev.get("monitor_urls") or "").strip() or f"https://{dev.get('host')}/"
     results = appmon.check_all(spec, dev.get("host"), timeout=5.0)
     if not results:
-        return []
+        return [_r("APP-REACHABLE", "Application audit completed", "ISO 27001", "high",
+                   None, "no endpoint results", "Check the endpoint configuration and DNS.")]
     https = [r for r in results if r["url"].lower().startswith("https://")]
     http_only = [r for r in results if r["url"].lower().startswith("http://")]
     tls = [r.get("tls") for r in https if r.get("tls")]
@@ -172,6 +185,31 @@ def evaluate_application(dev, standard=None):
     soon = [t for t in valid if t.get("expires_days") is not None and t["expires_days"] < 30]
     weak = [t for t in valid if t.get("version") in ("SSLv3", "TLSv1", "TLSv1.1")]
     unhealthy = [r for r in results if not r.get("ok")]
+    response_results = [r for r in results if r.get("status") is not None]
+    legacy = [state for t in tls for state in (t.get("legacy_protocols") or {}).values()]
+    cipher_bits = [t.get("cipher_bits") for t in tls if t.get("cipher_bits") is not None]
+    html_results = [r for r in response_results
+                    if "text/html" in (r.get("headers") or {}).get("content-type", "").lower()]
+
+    if not https or len(valid) != len(https):
+        expiry_ok = None
+    elif any(t.get("expires_days") is None for t in valid):
+        expiry_ok = None
+    else:
+        expiry_ok = not soon
+    if not tls or not legacy or any(x is None for x in legacy):
+        legacy_ok = None
+    else:
+        legacy_ok = not any(legacy)
+    if not tls or len(cipher_bits) != len(tls):
+        cipher_ok = None
+    else:
+        cipher_ok = all(bits >= 128 for bits in cipher_bits)
+
+    def all_header(rows, name):
+        if not rows:
+            return None
+        return all(bool((r.get("headers") or {}).get(name)) for r in rows)
 
     out = [
         _r("APP-HTTPS-ONLY", "All endpoints use HTTPS", "PCI-DSS", "high",
@@ -182,14 +220,38 @@ def evaluate_application(dev, standard=None):
            f"{len(https) - len(valid)} invalid of {len(https)}" if https else "no HTTPS endpoints",
            "Install a valid, trusted certificate matching the hostname.", "A.10.1.1 / A.14.1.2"),
         _r("APP-CERT-EXPIRY", "No certificate expiring within 30 days", "ISO 27001", "medium",
-           not soon, f"{len(soon)} cert(s) expiring <30d" if soon else "ok",
+           expiry_ok, (f"{len(soon)} cert(s) expiring <30d" if soon else
+                       ("expiry unavailable until TLS validates" if expiry_ok is None else "ok")),
            "Renew certificates well before expiry; automate renewal.", "A.10.1.2"),
-        _r("APP-TLS-VERSION", "TLS 1.2+ enforced", "PCI-DSS", "high",
-           not weak, f"{len(weak)} endpoint(s) on legacy TLS" if weak else "TLS 1.2+",
+        _r("APP-TLS-VERSION", "TLS 1.0/1.1 rejected", "PCI-DSS", "high",
+           legacy_ok, ("legacy TLS accepted" if any(x is True for x in legacy) else
+                       ("legacy TLS probe inconclusive" if legacy_ok is None else "legacy TLS rejected")),
            "Disable SSLv3/TLS 1.0/1.1; require TLS 1.2 or higher.", "4.2.1"),
+        _r("APP-TLS-CIPHER", "TLS cipher strength is at least 128 bits", "PCI-DSS", "high",
+           cipher_ok, ", ".join(str(x) for x in cipher_bits) + " bits" if cipher_bits else
+           "cipher unavailable", "Enable modern AEAD cipher suites and forward secrecy.", "4.2.1"),
+        _r("APP-HSTS", "HTTPS responses enable HSTS", "ISO 27001", "medium",
+           all_header([r for r in response_results if r["url"].lower().startswith("https://")],
+                      "strict-transport-security"),
+           "Strict-Transport-Security present on all HTTPS responses" if
+           all_header([r for r in response_results if r["url"].lower().startswith("https://")],
+                      "strict-transport-security") else "HSTS missing or unavailable",
+           "Add a Strict-Transport-Security header after confirming HTTPS-only operation.",
+           "A.8.20"),
+        _r("APP-NOSNIFF", "Responses prevent MIME sniffing", "ISO 27001", "low",
+           all((r.get("headers") or {}).get("x-content-type-options", "").lower() == "nosniff"
+               for r in response_results) if response_results else None,
+           "X-Content-Type-Options: nosniff required",
+           "Return `X-Content-Type-Options: nosniff` on application responses.", "A.8.26"),
+        _r("APP-CSP", "HTML responses define a content security policy", "ISO 27001", "medium",
+           all_header(html_results, "content-security-policy"),
+           "Content-Security-Policy required for HTML" if html_results else "no HTML response",
+           "Define a restrictive Content-Security-Policy for HTML pages.", "A.8.26",
+           status="not_applicable" if not html_results else None),
         _r("APP-HEALTH", "All monitored endpoints healthy", "ISO 27001", "medium",
            not unhealthy, f"{len(unhealthy)} endpoint(s) unhealthy" if unhealthy else "all healthy",
-           "Investigate non-2xx/unreachable endpoints.", "A.12.1.3"),
+           "Investigate non-2xx/unreachable endpoints.", "A.12.1.3",
+           scored=False, category="operational"),
     ]
     return [x for x in out if not standard or x["standard"] == standard]
 
@@ -257,18 +319,26 @@ def evaluate_fleet(store, devices, standard=None):
                                 "types": sorted(types), "passed": 0, "failed": 0,
                                 "skipped": True, "results": []})
             continue
-        p = sum(1 for r in res if r["status"] == "pass")
-        f = sum(1 for r in res if r["status"] == "fail")
+        scored = [r for r in res if r.get("scored", True)]
+        p = sum(1 for r in scored if r["status"] == "pass")
+        f = sum(1 for r in scored if r["status"] == "fail")
+        u = sum(1 for r in scored if r["status"] == "unknown")
+        na = sum(1 for r in scored if r["status"] == "not_applicable")
         tot_pass += p
         tot_fail += f
         dev_reports.append({"device": d["name"], "platform": d["platform"],
                             "types": sorted(types), "passed": p, "failed": f,
+                            "unknown": u, "not_applicable": na,
                             "skipped": False, "results": res})
+    tot_unknown = sum(r.get("unknown", 0) for r in dev_reports)
+    tot_na = sum(r.get("not_applicable", 0) for r in dev_reports)
     return {
         "devices": dev_reports,
         "totals": {"pass": tot_pass, "fail": tot_fail,
-                   "checks": tot_pass + tot_fail,
+                   "unknown": tot_unknown, "not_applicable": tot_na,
+                   "checks": tot_pass + tot_fail + tot_unknown,
                    "compliant_devices": sum(1 for r in dev_reports
-                                            if not r["skipped"] and r["failed"] == 0),
+                                            if not r["skipped"] and r["failed"] == 0 and
+                                            r.get("unknown", 0) == 0),
                    "device_count": sum(1 for r in dev_reports if not r["skipped"])},
     }

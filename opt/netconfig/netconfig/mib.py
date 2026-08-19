@@ -54,6 +54,13 @@ _DEF = re.compile(
 _TOKEN = re.compile(r"([a-zA-Z][\w-]*)\((\d+)\)|([a-zA-Z][\w-]*)|(\d+)")
 _OBJECT_TYPE = re.compile(r"([a-zA-Z][\w-]*)\s+OBJECT-TYPE\b")
 
+# A Net-SNMP Linux agent identifies itself below enterprise 8072, while much
+# of its useful host telemetry is exposed in the UCD tree and the standard
+# HOST-RESOURCES tree.
+_NET_SNMP_ENTERPRISE = "1.3.6.1.4.1.8072"
+_UCD_SNMP_ENTERPRISE = "1.3.6.1.4.1.2021"
+_HOST_RESOURCES = "1.3.6.1.2.1.25"
+
 
 def _strip_comments(text):
     # SMI comments run from -- to end of line (or next --)
@@ -211,7 +218,9 @@ class MibIndex:
                 object_names = set()
             for name in sorted(object_names):
                 oid = self.name_to_oid.get(name)
-                if (oid and oid.startswith("1.3.6.1.4.1.") and
+                if (oid and (oid.startswith("1.3.6.1.4.1.") or
+                             oid == _HOST_RESOURCES or
+                             oid.startswith(_HOST_RESOURCES + ".")) and
                         first_source.get(name) == fn):
                     self.collection_objects.append(
                         {"name": name, "oid": oid, "source": fn})
@@ -293,39 +302,28 @@ class MibIndex:
     def collection_roots(self, sysobjectid, max_roots=12):
         """Bounded vendor walk roots derived from uploaded OBJECT-TYPE entries.
 
-        Only objects in the device's own enterprises.<vendor> branch qualify.
-        Roots are kept reasonably specific so a MIB upload never triggers a walk
-        of the complete private-enterprises tree.
+        Normally only objects in the device's own enterprises.<vendor> branch
+        qualify. Net-SNMP Linux agents are an exception: sysObjectID is below
+        8072 while host data also lives below UCD-SNMP 2021 and the standard
+        HOST-RESOURCES-MIB tree.
         """
         raw = str(sysobjectid or "").lstrip(".")
         match = re.match(r"^1\.3\.6\.1\.4\.1\.(\d+)(?:\.|$)", raw)
         if not match:
             return []
         vendor_prefix = "1.3.6.1.4.1." + match.group(1)
-        by_source = {}
-        for obj in self.collection_objects:
-            oid = obj.get("oid", "")
-            if oid == vendor_prefix or oid.startswith(vendor_prefix + "."):
-                by_source.setdefault(obj.get("source", "Uploaded MIB"), []).append(oid)
+        allowed = [vendor_prefix]
+        if vendor_prefix == _NET_SNMP_ENTERPRISE:
+            allowed = [_NET_SNMP_ENTERPRISE, _UCD_SNMP_ENTERPRISE, _HOST_RESOURCES]
 
         roots = []
-        for source in sorted(by_source):
-            oids = sorted(set(by_source[source]), key=lambda o: [int(x) for x in o.split(".")])
-            if not oids:
+        for prefix in allowed:
+            matched = [obj for obj in self.collection_objects
+                       if obj.get("oid", "") == prefix or
+                       obj.get("oid", "").startswith(prefix + ".")]
+            if not matched:
                 continue
-            split = [oid.split(".") for oid in oids]
-            common = []
-            for parts in zip(*split):
-                if len(set(parts)) != 1:
-                    break
-                common.append(parts[0])
-            if len(common) >= 9:
-                candidates = [".".join(common)]
-            else:
-                candidates = sorted({".".join(parts[:min(9, len(parts))]) for parts in split},
-                                    key=lambda o: [int(x) for x in o.split(".")])
-            for root in candidates:
-                roots.append({"root": root, "source": source,
-                              "objects": sum(1 for oid in oids
-                                             if oid == root or oid.startswith(root + "."))})
+            sources = sorted(set(obj.get("source", "Uploaded MIB") for obj in matched))
+            roots.append({"root": prefix, "source": ", ".join(sources[:4]),
+                          "objects": len(matched)})
         return roots[:max(1, int(max_roots))]

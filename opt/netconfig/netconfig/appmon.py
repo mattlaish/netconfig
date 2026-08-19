@@ -29,6 +29,46 @@ def _name(seq):
 def check_tls(host, port=443, timeout=5.0):
     """TLS handshake with verification. Reports validity, days-to-expiry, issuer."""
     out = {"checked": True, "valid": False}
+    # First collect protocol/cipher details without verification.  Verification
+    # is performed separately below so a broken chain does not hide the other
+    # TLS posture evidence.
+    try:
+        detail_ctx = ssl._create_unverified_context()
+        with socket.create_connection((host, port), timeout=timeout) as sock:
+            with detail_ctx.wrap_socket(sock, server_hostname=host) as ss:
+                out["version"] = ss.version()
+                cipher = ss.cipher()
+                if cipher:
+                    out["cipher"] = cipher[0]
+                    out["cipher_bits"] = cipher[2]
+    except Exception as e:
+        out["handshake_error"] = str(e)
+
+    legacy = {}
+    for label, attr in (("TLSv1", "TLSv1"), ("TLSv1.1", "TLSv1_1")):
+        ver = getattr(getattr(ssl, "TLSVersion", object()), attr, None)
+        if ver is None:
+            legacy[label] = None
+            continue
+        try:
+            probe = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            probe.check_hostname = False
+            probe.verify_mode = ssl.CERT_NONE
+            probe.minimum_version = ver
+            probe.maximum_version = ver
+            try:
+                probe.set_ciphers("DEFAULT:@SECLEVEL=0")
+            except ssl.SSLError:
+                pass
+            with socket.create_connection((host, port), timeout=timeout) as sock:
+                with probe.wrap_socket(sock, server_hostname=host):
+                    legacy[label] = True
+        except ssl.SSLError:
+            legacy[label] = False
+        except Exception:
+            legacy[label] = None
+    out["legacy_protocols"] = legacy
+
     ctx = ssl.create_default_context()
     try:
         with socket.create_connection((host, port), timeout=timeout) as sock:
@@ -64,9 +104,15 @@ def check_http(url, timeout=5.0, expect=None):
         with urllib.request.urlopen(req, timeout=timeout, context=ctx) as r:
             out["status"] = getattr(r, "status", r.getcode())
             out["ms"] = round((time.time() - t0) * 1000)
+            out["final_url"] = r.geturl()
+            out["headers"] = {k.lower(): v for k, v in r.headers.items()}
+            out["set_cookies"] = r.headers.get_all("Set-Cookie") or []
     except urllib.error.HTTPError as e:
         out["status"] = e.code
         out["ms"] = round((time.time() - t0) * 1000)
+        out["final_url"] = e.geturl()
+        out["headers"] = {k.lower(): v for k, v in e.headers.items()}
+        out["set_cookies"] = e.headers.get_all("Set-Cookie") or []
     except Exception as e:
         out["status"] = None
         out["ms"] = round((time.time() - t0) * 1000)

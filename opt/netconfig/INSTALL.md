@@ -1,15 +1,18 @@
 # NetConfig — Install & Operations
 
-## Quick install (install.sh)
+## Quick install (AlmaLinux 10 RPM)
 
 ```bash
-tar xzf netconfig.tar.gz && cd netconfig
-sudo ./install.sh          # installs to /opt/netconfig, symlinks the launcher,
-                           # creates /var/lib/netconfig (owned by you, mode 700),
-                           # and persists NETCONFIG_HOME for shells + systemd/cron
+sudo dnf install ./netconfig-2.0.0-16.el10.noarch.rpm
+sudo systemctl enable --now netconfig-web.service netconfig-backup.timer
 ```
 
-Override any path: `PREFIX=`, `BINDIR=`, `NETCONFIG_HOME=`, `NETCONFIG_USER=`. Re-running `install.sh` upgrades the code in place and never touches the data directory. Manual steps are below if you'd rather not use the script.
+The RPM installs code under `/opt/netconfig`, the launcher at
+`/usr/bin/netconfig`, creates the `netconfig` service account and the protected
+`/var/lib/netconfig` data directory, and installs the web and backup systemd
+units. Upgrades retain runtime data and preserve a locally edited
+`/etc/default/netconfig`. See `packaging/README.md` in the source tree for the
+reproducible RPM/SRPM build and test procedure.
 
 Zero-dependency network configuration manager. Logs into your devices over SSH,
 runs commands, and archives text copies of their configs with versioned diffs.
@@ -32,14 +35,12 @@ Practical consequence: OpenSSH's config, host-key handling, and algorithm suppor
 are what actually govern the connection. That's a feature (battle-tested crypto),
 but it means old gear may need the `--legacy` flag (below).
 
-## 2. Install
+## 2. Manual source install (development only)
 
 ```bash
-tar xzf netconfig.tar.gz
-cd netconfig
 sudo mkdir -p /opt/netconfig
-sudo cp -r netconfig bin /opt/netconfig/
-sudo ln -sf /opt/netconfig/bin/netconfig /usr/local/bin/netconfig
+sudo cp -r opt/netconfig/. /opt/netconfig/
+sudo install -m 0755 usr/bin/netconfig /usr/bin/netconfig
 
 # pick a data directory (holds inventory DB, vault, configs, sessions)
 export NETCONFIG_HOME=/var/lib/netconfig

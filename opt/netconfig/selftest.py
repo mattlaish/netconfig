@@ -164,6 +164,30 @@ _br = compliance.evaluate_device(_bad, "cisco_ios")
 check("clean config passes all", all(r["status"] == "pass" for r in _gr))
 check("telnet flagged", any(r["id"] == "PCI-2.2.2-TELNET" and r["status"] == "fail" for r in _br))
 check("default community flagged", any(r["id"] == "PCI-2.1-DEFCOMM" and r["status"] == "fail" for r in _br))
+from netconfig import portmon as _portmon, appmon as _appmon
+_old_ports, _old_apps = _portmon.check_ports, _appmon.check_all
+try:
+    _portmon.check_ports = lambda *a, **k: [
+        {"proto": "tcp", "port": p, "state": "error"}
+        for p in (21, 22, 23, 445, 3389)]
+    _sr = compliance.evaluate_system({"host": "bad.invalid", "monitor_ports": ""})
+    check("system probe errors are unknown, never false passes",
+          all(r["status"] == "unknown" for r in _sr))
+    _appmon.check_all = lambda *a, **k: [{
+        "url": "https://app.invalid/", "status": None, "ok": False,
+        "tls": {"valid": False, "legacy_protocols": {"TLSv1": None,
+                                                        "TLSv1.1": None}}}]
+    _ar = compliance.evaluate_application(
+        {"host": "app.invalid", "monitor_urls": "https://app.invalid/"})
+    _by_id = {r["id"]: r for r in _ar}
+    check("invalid TLS cannot falsely pass expiry or protocol checks",
+          _by_id["APP-CERT-EXPIRY"]["status"] == "unknown" and
+          _by_id["APP-TLS-VERSION"]["status"] == "unknown")
+    check("application health evidence is not compliance-scored",
+          _by_id["APP-HEALTH"]["status"] == "fail" and
+          not _by_id["APP-HEALTH"]["scored"])
+finally:
+    _portmon.check_ports, _appmon.check_all = _old_ports, _old_apps
 
 print("baseline / drift:")
 _d = tempfile.mkdtemp()
@@ -348,6 +372,10 @@ finally:
 
 print("settings subpages:")
 from netconfig import web as _web
+check("dark theme stylesheet and persisted toggle are present",
+      'data-theme="dark"' in _web._CSS and
+      "netconfig-theme" in _web._THEME_JS and
+      "netconfigToggleTheme" in _web._THEME_JS)
 class _FakeAudit:
     def audit(self, *args):
         pass
@@ -428,9 +456,26 @@ END
           any(row["name"] == "duplicateNode" for row in _idx.conflicts))
     _roots = _idx.collection_roots("1.3.6.1.4.1.424242.99")
     check("uploaded OBJECT-TYPE produces a matching vendor collection root",
-          len(_roots) == 1 and _roots[0]["root"] == "1.3.6.1.4.1.424242.1")
+          len(_roots) == 1 and _roots[0]["root"] == "1.3.6.1.4.1.424242")
     check("different vendor sysObjectID cannot trigger the uploaded MIB",
           _idx.collection_roots("1.3.6.1.4.1.9.1") == [])
+    _linux_mibs = """LINUX-TEST-MIB DEFINITIONS ::= BEGIN
+netSnmpRoot OBJECT IDENTIFIER ::= { enterprises 8072 }
+netSnmpMetric OBJECT-TYPE SYNTAX INTEGER ::= { netSnmpRoot 99 }
+ucdRoot OBJECT IDENTIFIER ::= { enterprises 2021 }
+ucdMetric OBJECT-TYPE SYNTAX INTEGER ::= { ucdRoot 99 }
+host OBJECT IDENTIFIER ::= { mib-2 25 }
+hostMetric OBJECT-TYPE SYNTAX INTEGER ::= { host 99 }
+END
+"""
+    with open(os.path.join(_mib_dir, "LINUX-TEST-MIB.mib"), "w", encoding="utf-8") as _fh:
+        _fh.write(_linux_mibs)
+    _idx.rebuild()
+    _linux_roots = {row["root"] for row in
+                    _idx.collection_roots("1.3.6.1.4.1.8072.3.2.10")}
+    check("Net-SNMP Linux collection includes Net-SNMP, UCD and host resources",
+          _linux_roots == {"1.3.6.1.4.1.8072", "1.3.6.1.4.1.2021",
+                           "1.3.6.1.2.1.25"})
     _loaded = mib.MibIndex(_mib_dir)
     check("cached MIB diagnostics reload",
           _loaded.load() and _loaded.resolve_detail("1.3.6.1.4.1.424242.1.0")["source"] ==
