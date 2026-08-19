@@ -566,7 +566,7 @@ def cmd_snmp(m, args):
         targets = [args.name] if args.name else [d["name"] for d in m.inv.all()
                                                  if d.get("snmp_version")]
         for name in targets:
-            res = m.snmp_poll(name)
+            res = m.snmp_poll(name, vendor_force=True)
             if res.get("ok"):
                 ic = res.get("interfaces")
                 ic = f", {ic} interfaces" if isinstance(ic, int) else ""

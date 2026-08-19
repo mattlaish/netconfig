@@ -52,6 +52,7 @@ _DEF = re.compile(
     r".*?::=\s*\{([^}]*)\}", re.S)
 
 _TOKEN = re.compile(r"([a-zA-Z][\w-]*)\((\d+)\)|([a-zA-Z][\w-]*)|(\d+)")
+_OBJECT_TYPE = re.compile(r"([a-zA-Z][\w-]*)\s+OBJECT-TYPE\b")
 
 
 def _strip_comments(text):
@@ -148,27 +149,83 @@ class MibIndex:
         self.cache_path = cache_path or os.path.join(mib_dir, ".mibindex.json")
         self.name_to_oid = dict(_ROOTS)
         self.oid_to_name = {}
+        self.name_source = {}
+        self.file_stats = {}
+        self.conflicts = []
+        self.collection_objects = []
         self._sorted = []
 
     def rebuild(self):
         texts = []
+        file_defs = {}
         if os.path.isdir(self.mib_dir):
-            for fn in os.listdir(self.mib_dir):
+            for fn in sorted(os.listdir(self.mib_dir)):
                 if fn.startswith("."):
                     continue
                 try:
                     with open(os.path.join(self.mib_dir, fn), encoding="utf-8",
                               errors="replace") as f:
-                        texts.append(f.read())
+                        text = f.read()
+                    texts.append(text)
+                    file_defs[fn] = parse_defs(text)
                 except OSError:
                     continue
         self.name_to_oid, self.oid_to_name = build_index(texts)
+        first_source = {}
+        conflicts_by_file = {fn: [] for fn in file_defs}
+        self.conflicts = []
+        for fn, defs in file_defs.items():
+            for name in defs:
+                if name in first_source:
+                    conflict = {"name": name, "winner": first_source[name], "duplicate": fn}
+                    self.conflicts.append(conflict)
+                    conflicts_by_file[fn].append(name)
+                    conflicts_by_file[first_source[name]].append(name)
+                else:
+                    first_source[name] = fn
+        self.name_source = {
+            name: fn for name, fn in first_source.items()
+            if name in self.name_to_oid
+        }
+        self.file_stats = {}
+        for fn, defs in file_defs.items():
+            won = [name for name in defs if first_source.get(name) == fn]
+            resolved = [name for name in won if name in self.name_to_oid]
+            unresolved = [name for name in won if name not in self.name_to_oid]
+            self.file_stats[fn] = {
+                "definitions": len(defs),
+                "resolved": len(resolved),
+                "unresolved": len(unresolved),
+                "unresolved_names": unresolved[:50],
+                "conflicts": len(set(conflicts_by_file.get(fn, []))),
+                "conflict_names": sorted(set(conflicts_by_file.get(fn, [])))[:50],
+                "collectible": 0,
+            }
+        self.collection_objects = []
+        for fn, defs in file_defs.items():
+            try:
+                with open(os.path.join(self.mib_dir, fn), encoding="utf-8",
+                          errors="replace") as f:
+                    object_names = set(_OBJECT_TYPE.findall(_strip_comments(f.read())))
+            except OSError:
+                object_names = set()
+            for name in sorted(object_names):
+                oid = self.name_to_oid.get(name)
+                if (oid and oid.startswith("1.3.6.1.4.1.") and
+                        first_source.get(name) == fn):
+                    self.collection_objects.append(
+                        {"name": name, "oid": oid, "source": fn})
+                    self.file_stats[fn]["collectible"] += 1
         self._sorted = sorted(self.oid_to_name.keys(),
                               key=lambda o: len(o.split(".")), reverse=True)
         try:
             with open(self.cache_path, "w", encoding="utf-8") as f:
                 json.dump({"name_to_oid": self.name_to_oid,
-                           "oid_to_name": self.oid_to_name}, f)
+                           "oid_to_name": self.oid_to_name,
+                           "name_source": self.name_source,
+                           "file_stats": self.file_stats,
+                           "conflicts": self.conflicts,
+                           "collection_objects": self.collection_objects}, f)
         except OSError:
             pass
         return len(self.name_to_oid)
@@ -181,6 +238,14 @@ class MibIndex:
             self.oid_to_name = d.get("oid_to_name", {})
             if "sysDescr" not in self.name_to_oid:   # stale cache from before the standard seed
                 return False
+            has_mibs = (os.path.isdir(self.mib_dir) and any(
+                not fn.startswith(".") for fn in os.listdir(self.mib_dir)))
+            if has_mibs and ("file_stats" not in d or "collection_objects" not in d):
+                return False
+            self.name_source = d.get("name_source", {})
+            self.file_stats = d.get("file_stats", {})
+            self.conflicts = d.get("conflicts", [])
+            self.collection_objects = d.get("collection_objects", [])
             self._sorted = sorted(self.oid_to_name.keys(),
                                   key=lambda o: len(o.split(".")), reverse=True)
             return True
@@ -199,6 +264,68 @@ class MibIndex:
                 return self.oid_to_name[base] + rest
         return oid
 
+    def resolve_detail(self, oid):
+        """Return the resolved name plus the uploaded MIB that supplied it."""
+        raw = str(oid).lstrip(".")
+        base = raw if raw in self.oid_to_name else None
+        if base is None:
+            for candidate in self._sorted:
+                if raw.startswith(candidate + "."):
+                    base = candidate
+                    break
+        if base is None:
+            return {"oid": raw, "name": raw, "base_oid": "", "source": "", "mapped": False}
+        leaf = self.oid_to_name[base]
+        suffix = raw[len(base):]
+        return {"oid": raw, "name": leaf + suffix, "base_oid": base,
+                "source": self.name_source.get(leaf, "Built-in standard MIB"),
+                "mapped": True}
+
     def lookup(self, name):
         """Name -> numeric OID (or None)."""
         return self.name_to_oid.get(name)
+
+    def lookup_detail(self, name):
+        oid = self.lookup(name)
+        return {"name": name, "oid": oid,
+                "source": self.name_source.get(name, "Built-in standard MIB") if oid else ""}
+
+    def collection_roots(self, sysobjectid, max_roots=12):
+        """Bounded vendor walk roots derived from uploaded OBJECT-TYPE entries.
+
+        Only objects in the device's own enterprises.<vendor> branch qualify.
+        Roots are kept reasonably specific so a MIB upload never triggers a walk
+        of the complete private-enterprises tree.
+        """
+        raw = str(sysobjectid or "").lstrip(".")
+        match = re.match(r"^1\.3\.6\.1\.4\.1\.(\d+)(?:\.|$)", raw)
+        if not match:
+            return []
+        vendor_prefix = "1.3.6.1.4.1." + match.group(1)
+        by_source = {}
+        for obj in self.collection_objects:
+            oid = obj.get("oid", "")
+            if oid == vendor_prefix or oid.startswith(vendor_prefix + "."):
+                by_source.setdefault(obj.get("source", "Uploaded MIB"), []).append(oid)
+
+        roots = []
+        for source in sorted(by_source):
+            oids = sorted(set(by_source[source]), key=lambda o: [int(x) for x in o.split(".")])
+            if not oids:
+                continue
+            split = [oid.split(".") for oid in oids]
+            common = []
+            for parts in zip(*split):
+                if len(set(parts)) != 1:
+                    break
+                common.append(parts[0])
+            if len(common) >= 9:
+                candidates = [".".join(common)]
+            else:
+                candidates = sorted({".".join(parts[:min(9, len(parts))]) for parts in split},
+                                    key=lambda o: [int(x) for x in o.split(".")])
+            for root in candidates:
+                roots.append({"root": root, "source": source,
+                              "objects": sum(1 for oid in oids
+                                             if oid == root or oid.startswith(root + "."))})
+        return roots[:max(1, int(max_roots))]

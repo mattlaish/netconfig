@@ -256,6 +256,25 @@ CREATE TABLE IF NOT EXISTS mac_table (
     ts      REAL,
     PRIMARY KEY (device, mac)
 );
+
+-- ---- uploaded-MIB-driven vendor values ------------------------------------
+CREATE TABLE IF NOT EXISTS mib_values (
+    device     TEXT NOT NULL,
+    oid        TEXT NOT NULL,
+    name       TEXT NOT NULL DEFAULT '',
+    value      TEXT NOT NULL DEFAULT '',
+    mib_source TEXT NOT NULL DEFAULT '',
+    ts         REAL,
+    PRIMARY KEY (device, oid)
+);
+CREATE INDEX IF NOT EXISTS idx_mib_values_device ON mib_values(device, mib_source, name);
+CREATE TABLE IF NOT EXISTS mib_poll_status (
+    device  TEXT PRIMARY KEY,
+    ts      REAL,
+    objects INTEGER NOT NULL DEFAULT 0,
+    roots   INTEGER NOT NULL DEFAULT 0,
+    error   TEXT NOT NULL DEFAULT ''
+);
 """
 
 # Additive column migrations: (table, column, coldef). Applied only if absent.
@@ -479,6 +498,38 @@ class Database:
     def get_mac_table(self, device):
         return [dict(r) for r in self.conn.execute(
             "SELECT * FROM mac_table WHERE device=? ORDER BY ifdescr, mac", (device,)).fetchall()]
+
+    def set_mib_values(self, device, entries, roots=0, error=""):
+        import time
+        now = time.time()
+        lock = getattr(self.conn, "lock", None)
+        if lock:
+            lock.acquire()
+        try:
+            self.conn.execute("DELETE FROM mib_values WHERE device=?", (device,))
+            for entry in entries:
+                self.conn.execute(
+                    "INSERT OR REPLACE INTO mib_values "
+                    "(device, oid, name, value, mib_source, ts) VALUES (?,?,?,?,?,?)",
+                    (device, entry.get("oid", ""), entry.get("name", ""),
+                     str(entry.get("value", "")), entry.get("mib_source", ""), now))
+            self.conn.execute(
+                "INSERT OR REPLACE INTO mib_poll_status (device, ts, objects, roots, error) "
+                "VALUES (?,?,?,?,?)", (device, now, len(entries), int(roots), error or ""))
+            self.conn.commit()
+        finally:
+            if lock:
+                lock.release()
+
+    def get_mib_values(self, device, limit=800):
+        return [dict(r) for r in self.conn.execute(
+            "SELECT * FROM mib_values WHERE device=? "
+            "ORDER BY mib_source, name, oid LIMIT ?", (device, int(limit))).fetchall()]
+
+    def get_mib_poll_status(self, device):
+        row = self.conn.execute(
+            "SELECT * FROM mib_poll_status WHERE device=?", (device,)).fetchone()
+        return dict(row) if row else None
 
     def close(self):
         self.conn.close()

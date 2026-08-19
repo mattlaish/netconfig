@@ -8,7 +8,7 @@ import shutil
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from netconfig import aead, scrub, aes, snmp, compliance, automation
+from netconfig import aead, scrub, aes, snmp, compliance, automation, mib
 from netconfig.vault import Vault
 from netconfig.store import ConfigStore
 from netconfig.db import Database
@@ -300,6 +300,27 @@ _eid=bytes.fromhex("80001f8880e9630000d61f9d00")
 _k=_sx.password_to_key("privpassword1", _eid, __import__("hashlib").sha1)
 check("AES-192 key extended to 24 bytes", len(_sx._extend_priv_key(_k,_eid,__import__("hashlib").sha1,24))==24)
 check("AES-256 key extended to 32 bytes", len(_sx._extend_priv_key(_k,_eid,__import__("hashlib").sha1,32))==32)
+_orig_ptk = _sx.password_to_key
+_ptk_calls = []
+_sx.password_to_key = lambda password, engine, ctor: (_ptk_calls.append((password, engine)) or b"k" * 32)
+try:
+    _vp = _sx.V3Params("u", auth_proto="sha256", auth_pass="a",
+                       priv_proto="aes256", priv_pass="p")
+    _sx._localized_for(_vp, _eid)
+    _sx._localized_for(_vp, _eid)
+    check("SNMPv3 localized keys cached across OIDs", len(_ptk_calls) == 2)
+finally:
+    _sx.password_to_key = _orig_ptk
+_orig_discover = _sx._discover_engine
+_discover_calls = []
+_sx._discover_engine = lambda *args: (_discover_calls.append(args) or (_eid, 1, 2))
+try:
+    _ep = _sx.V3Params("u")
+    _sx._engine_for(_ep, "10.0.0.1", 161, 1, 0)
+    _sx._engine_for(_ep, "10.0.0.1", 161, 1, 0)
+    check("SNMPv3 engine discovery cached per target", len(_discover_calls) == 1)
+finally:
+    _sx._discover_engine = _orig_discover
 
 print("monitor alerts engine:")
 _d3 = tempfile.mkdtemp()
@@ -372,6 +393,58 @@ check("left menu renders every settings topic",
           for key in ("general", "snmp", "netflow", "monitoring", "email")))
 check("selected subpage hides unrelated fields",
       'name="netflow_port"' in _rendered[0] and 'name="smtp_host"' not in _rendered[0])
+
+print("MIB automap + diagnostics:")
+_mib_dir = tempfile.mkdtemp()
+try:
+    _vendor_mib = """TEST-MIB DEFINITIONS ::= BEGIN
+testRoot OBJECT IDENTIFIER ::= { enterprises 424242 }
+testMetric OBJECT-TYPE
+    SYNTAX INTEGER
+    ::= { testRoot 1 }
+duplicateNode OBJECT IDENTIFIER ::= { testRoot 2 }
+orphanMetric OBJECT IDENTIFIER ::= { missingParent 1 }
+END
+"""
+    _duplicate_mib = """TEST-DUP-MIB DEFINITIONS ::= BEGIN
+duplicateNode OBJECT IDENTIFIER ::= { enterprises 999999 }
+END
+"""
+    with open(os.path.join(_mib_dir, "TEST-MIB.mib"), "w", encoding="utf-8") as _fh:
+        _fh.write(_vendor_mib)
+    with open(os.path.join(_mib_dir, "TEST-DUP-MIB.mib"), "w", encoding="utf-8") as _fh:
+        _fh.write(_duplicate_mib)
+    _idx = mib.MibIndex(_mib_dir)
+    _idx.rebuild()
+    _resolved = _idx.resolve_detail("1.3.6.1.4.1.424242.1.0")
+    check("uploaded MIB maps OID and preserves instance suffix",
+          _resolved["name"] == "testMetric.0")
+    check("resolved OID reports its source MIB",
+          _resolved["source"] == "TEST-MIB.mib")
+    check("per-file diagnostics report unresolved parents",
+          _idx.file_stats["TEST-MIB.mib"]["unresolved"] == 1 and
+          "orphanMetric" in _idx.file_stats["TEST-MIB.mib"]["unresolved_names"])
+    check("duplicate definitions are reported as conflicts",
+          any(row["name"] == "duplicateNode" for row in _idx.conflicts))
+    _roots = _idx.collection_roots("1.3.6.1.4.1.424242.99")
+    check("uploaded OBJECT-TYPE produces a matching vendor collection root",
+          len(_roots) == 1 and _roots[0]["root"] == "1.3.6.1.4.1.424242.1")
+    check("different vendor sysObjectID cannot trigger the uploaded MIB",
+          _idx.collection_roots("1.3.6.1.4.1.9.1") == [])
+    _loaded = mib.MibIndex(_mib_dir)
+    check("cached MIB diagnostics reload",
+          _loaded.load() and _loaded.resolve_detail("1.3.6.1.4.1.424242.1.0")["source"] ==
+          "TEST-MIB.mib" and _loaded.file_stats["TEST-MIB.mib"]["unresolved"] == 1)
+    _dbm = Database(os.path.join(_mib_dir, "mib-values.db"))
+    _dbm.set_mib_values("d1", [{"oid": "1.3.6.1.4.1.424242.1.0",
+                                  "name": "testMetric.0", "value": "42",
+                                  "mib_source": "TEST-MIB.mib"}], roots=1)
+    check("vendor MIB values and poll status persist",
+          _dbm.get_mib_values("d1")[0]["value"] == "42" and
+          _dbm.get_mib_poll_status("d1")["objects"] == 1)
+    _dbm.close()
+finally:
+    shutil.rmtree(_mib_dir)
 
 print()
 print("RESULT:", "ALL PASS" if fails == 0 else f"{fails} FAILURE(S)")

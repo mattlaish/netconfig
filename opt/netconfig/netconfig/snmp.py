@@ -259,7 +259,7 @@ def _udp_exchange(host, port, payload, timeout, retries=1):
 
 
 def get_v3(host, params, oids, port=161, timeout=2.0, retries=1):
-    engine = _discover_engine(host, port, timeout, retries)
+    engine = _engine_for(params, host, port, timeout, retries)
     return _v3_request(host, params, oids, GET_REQUEST, engine, port, timeout, retries)
 
 
@@ -293,7 +293,7 @@ def walk_table(host, columns, *, version="v2c", community="public", v3=None,
             for idx, d in part.items():
                 merged.setdefault(idx, {}).update(d)
         return merged
-    engine = _discover_engine(host, port, timeout, retries) if version == "v3" else None
+    engine = _engine_for(v3, host, port, timeout, retries) if version == "v3" else None
     active = [[c, c] for c in columns]
     rows = {}
     guard = 0
@@ -453,21 +453,30 @@ def _extend_priv_key(kul, engine_id, hash_ctor, keylen):
     return bytes(key[:keylen])
 
 
+def _localized_for(params, engine_id):
+    """Return cached USM keys for one engine (RFC 3414 KDF is intentionally costly)."""
+    cached = params._localized_keys.get(engine_id)
+    ctor, tag_len = _AUTH[params.auth_proto]
+    if cached:
+        return ctor, tag_len, cached[0], cached[1]
+    auth_key = password_to_key(params.auth_pass, engine_id, ctor)
+    priv_key = None
+    if params.priv_proto:
+        keylen = _PRIV_KEYLEN[params.priv_proto]
+        base = password_to_key(params.priv_pass, engine_id, ctor)
+        priv_key = base[:keylen] if len(base) >= keylen else \
+            _extend_priv_key(base, engine_id, ctor, keylen)
+    params._localized_keys[engine_id] = (auth_key, priv_key)
+    return ctor, tag_len, auth_key, priv_key
+
+
 def _v3_request(host, params, oids, pdu_tag, engine, port=161, timeout=2.0, retries=1):
     engine_id, boots, etime = engine
     hash_ctor = None
     auth_key = priv_key = None
     tl = 12
-    keylen = 16
     if params.auth_proto:
-        ctor, tl = _AUTH[params.auth_proto]
-        hash_ctor = ctor
-        auth_key = password_to_key(params.auth_pass, engine_id, ctor)
-        if params.priv_proto:
-            keylen = _PRIV_KEYLEN[params.priv_proto]
-            base = password_to_key(params.priv_pass, engine_id, ctor)
-            priv_key = base[:keylen] if len(base) >= keylen else \
-                _extend_priv_key(base, engine_id, ctor, keylen)
+        hash_ctor, tl, auth_key, priv_key = _localized_for(params, engine_id)
 
     msg_id = struct.unpack(">I", os.urandom(4))[0] & 0x7FFFFFFF
     scoped = enc_seq(enc_octet(engine_id), enc_octet(b""),
@@ -600,6 +609,8 @@ class V3Params:
         self.auth_pass = auth_pass
         self.priv_proto = _norm_priv(priv_proto)          # aes128|aes192|aes256
         self.priv_pass = priv_pass or auth_pass
+        self._localized_keys = {}
+        self._engines = {}
         if self.priv_proto and not self.auth_proto:
             raise SNMPError("priv requires auth (authPriv)")
 
@@ -654,6 +665,16 @@ def _discover_engine(host, port, timeout, retries):
     return engine_id, boots, etime
 
 
+def _engine_for(params, host, port, timeout, retries):
+    """Discover an SNMPv3 engine once per target for this poll operation."""
+    key = (str(host), int(port))
+    engine = params._engines.get(key)
+    if engine is None:
+        engine = _discover_engine(host, port, timeout, retries)
+        params._engines[key] = engine
+    return engine
+
+
 # ---- high-level: poll system group -------------------------------------
 def _fmt_value(val):
     """Render a decoded SNMP value for display."""
@@ -672,7 +693,7 @@ def walk_subtree(host, root, *, version="v2c", community="public", v3=None,
                  port=161, timeout=2.0, retries=1, max_vars=400):
     """Walk every OID under `root` via GETNEXT (one at a time, like snmpwalk).
     Returns a list of (oid, value_str). Bounded by max_vars."""
-    engine = _discover_engine(host, port, timeout, retries) if version == "v3" else None
+    engine = _engine_for(v3, host, port, timeout, retries) if version == "v3" else None
     root = root.lstrip(".")
     cur = "." + root
     out = []

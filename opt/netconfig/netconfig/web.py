@@ -850,16 +850,20 @@ Local console \u00b7 bind 127.0.0.1 \u00b7 front with WAF for TLS</div>
         if fx:
             _oid = (fx.get("sysobjectid") or "").strip()
             if _oid:
-                _resolved = self.manager.mibindex.resolve(_oid)
+                _mapping = self.manager.mibindex.resolve_detail(_oid)
+                _resolved = _mapping["name"]
+                _source = _mapping["source"]
+                _source_html = (f' <span class="muted">MIB: {html.escape(_source)}</span>'
+                                if _source else "")
                 _clean = _resolved.lstrip(".")
                 if _resolved and _clean != _oid.lstrip("."):
                     if re.search(r"[A-Za-z][\w-]*\.\d", _resolved):   # name + numeric tail = partial
                         _oid_cell = (f'<b>{html.escape(_resolved)}</b> '
                                      f'<span class="muted">{html.escape(_oid)} \u00b7 upload the '
-                                     f'vendor MIB to fully name it</span>')
+                                     f'vendor MIB to fully name it</span>{_source_html}')
                     else:                                             # fully named
                         _oid_cell = (f'<b>{html.escape(_resolved)}</b> '
-                                     f'<span class="muted">{html.escape(_oid)}</span>')
+                                     f'<span class="muted">{html.escape(_oid)}</span>{_source_html}')
                 else:
                     _oid_cell = (f'<code>{html.escape(_oid)}</code> '
                                  f'<span class="muted">(no MIB match)</span>')
@@ -872,6 +876,7 @@ Local console \u00b7 bind 127.0.0.1 \u00b7 front with WAF for TLS</div>
                          f'<tr><th>sysDescr</th><td>{html.escape(fx["sysdescr"])}</td></tr>'
                          f'{_oid_row}'
                          f'<tr><th>Uptime</th><td>{html.escape(fx["uptime"])}</td></tr>'
+                         f'<tr><th>Contact</th><td>{html.escape(fx.get("contact", ""))}</td></tr>'
                          f'<tr><th>Location</th><td>{html.escape(fx["location"])}</td></tr>'
                          f'<tr><th>Polled</th><td>{_fmt_ts(fx["last_polled"])}</td></tr></table>')
         snmp_btn = ""
@@ -948,7 +953,7 @@ Local console \u00b7 bind 127.0.0.1 \u00b7 front with WAF for TLS</div>
                    f'The weekly backup keeps the newest {self.manager.settings.get("backup_keep",5)} per device.</p>'
                    f'<table><tr><th>Snapshot</th><th>SHA-256</th><th></th></tr>{vrows}</table></div>')
         if "network" in _dt:
-            inner += self._mac_port_section(dev)
+            inner += self._arp_section(dev) + self._mac_port_section(dev)
         self._send(self._page(f"Device \u00b7 {name}", inner, sess))
 
     # ---- device create / edit / delete / run ----------------------------
@@ -1048,14 +1053,15 @@ Local console \u00b7 bind 127.0.0.1 \u00b7 front with WAF for TLS</div>
 <form method=post action="/device-save">{self._csrf_field()}
 <div class="row">
   <div><label>Name</label>{name_field}</div>
-  <div><label>Host / IP</label><input name=host value="{v('host')}" placeholder="10.0.0.11"></div>
-  <div style="max-width:120px"><label>SSH port</label><input name=port value="{v('port','22')}"></div>
+  <div><label id=host_label>Host / IP</label><input name=host value="{v('host')}" placeholder="10.0.0.11"></div>
+  <div id=ssh_port_field style="max-width:120px"><label>SSH port</label><input name=port value="{v('port','22')}"></div>
 </div>
 <div class="row">
   <div><label>Device type</label><div style="padding-top:6px">{type_checks}</div></div>
-  <div><label>Platform</label><select name=platform>{plats}</select></div>
+  <div id=platform_field><label>Platform</label><select name=platform>{plats}</select></div>
   <div><label>Tags (comma-separated)</label><input name=tags value="{html.escape(tags)}" placeholder="core, dc1"></div>
 </div>
+<div id=credentials_section>
 <h2 style="margin-top:14px">Credentials</h2>
 <p class="muted">Point the device at existing vault secrets (recommended). Pick one and its
 stored settings appear below — the vault keeps the passwords.{vault_hint}</p>
@@ -1095,6 +1101,7 @@ stored settings appear below — the vault keeps the passwords.{vault_hint}</p>
   <div><label>v3 priv proto</label><select id=snmp_priv_proto name=snmp_priv_proto>{priv_opts}</select></div>
   <div><label>v3 priv pass<span id=set_snmp_priv_pass>{sset('snmp_priv_pass')}</span></label><input type=password name=snmp_priv_pass></div>
 </div></details>
+</div>
 <div id=netflow_section style="display:none">
 <h2 style="margin-top:14px">NetFlow</h2>
 <p class="muted">Receive NetFlow exports from this device. The collector listens on
@@ -1125,12 +1132,21 @@ an optional expected status code. HTTPS URLs also get a TLS certificate check
   var boxes=document.querySelectorAll('input[name=device_type]'),
       nf=document.getElementById('netflow_section'),
       pm=document.getElementById('portmon_section'),
-      am=document.getElementById('appmon_section');
+      am=document.getElementById('appmon_section'),
+      sshPort=document.getElementById('ssh_port_field'),
+      platform=document.getElementById('platform_field'),
+      credentials=document.getElementById('credentials_section'),
+      hostLabel=document.getElementById('host_label');
   function has(v){{ for(var i=0;i<boxes.length;i++){{ if(boxes[i].value===v&&boxes[i].checked) return true; }} return false; }}
   function upd(){{
+    var managed=has('system')||has('network');
     if(nf) nf.style.display=has('network')?'block':'none';
     if(pm) pm.style.display=has('system')?'block':'none';
-    if(am) am.style.display=has('application')?'block':'none'; }}
+    if(am) am.style.display=has('application')?'block':'none';
+    if(sshPort) sshPort.style.display=managed?'block':'none';
+    if(platform) platform.style.display=managed?'block':'none';
+    if(credentials) credentials.style.display=managed?'block':'none';
+    if(hostLabel) hostLabel.textContent=managed?'Host / IP':'Primary hostname / FQDN'; }}
   for(var i=0;i<boxes.length;i++) boxes[i].addEventListener('change',upd);
   upd();
 }})();
@@ -1773,6 +1789,7 @@ The client secret is stored in the vault.</p>
                 nm = (f'<b>{html.escape(r["name"])}</b>' if is_named
                       else f'<span class="muted">{html.escape(r["name"])}</span>')
                 rows += (f'<tr><td>{nm}</td><td class="muted"><code>{html.escape(r["oid"])}</code></td>'
+                         f'<td>{html.escape(r.get("mib_source", "") or "Unmapped")}</td>'
                          f'<td>{html.escape(r["value"][:200])}</td></tr>')
             note = (f'{len(data)} object(s) walked \u00b7 <b>{named}</b> resolved to names by the '
                     f'uploaded MIBs (raw numeric = no MIB defines that OID yet).')
@@ -1781,7 +1798,7 @@ The client secret is stored in the vault.</p>
                         'credentials/reachability need checking.')
         except Exception as e:
             note = f'<span class="err">Walk failed: {html.escape(str(e))}</span>'
-        table = (f'<table><tr><th>Name (via MIB automap)</th><th>OID</th><th>Value</th></tr>'
+        table = (f'<table><tr><th>Resolved name</th><th>Raw OID</th><th>Source MIB</th><th>Value</th></tr>'
                  f'{rows}</table>' if rows else "")
         return (f'<div class="panel"><h2>SNMP data \u2014 walked &amp; named</h2>'
                 f'<p class="muted">Everything the agent returns under a subtree, with each OID '
@@ -1810,22 +1827,38 @@ The client secret is stored in the vault.</p>
                             f'<button>Poll now</button></form>')
             facts_tbl = ""
             if fx:
+                raw_oid = (fx.get("sysobjectid") or "").strip()
+                oid_map = m.mibindex.resolve_detail(raw_oid) if raw_oid else None
+                model = ""
+                if oid_map:
+                    model = (f'<b>{html.escape(oid_map["name"])}</b><br>'
+                             f'<code>{html.escape(raw_oid)}</code>'
+                             + (f' <span class="muted">MIB: {html.escape(oid_map["source"])}</span>'
+                                if oid_map["source"] else ' <span class="muted">Unmapped</span>'))
                 facts_tbl = (f'<table>'
                              f'<tr><th>Reachable</th><td>{"yes" if fx.get("reachable") else "no"}</td>'
                              f'<th>sysName</th><td>{html.escape(fx.get("sysname",""))}</td></tr>'
                              f'<tr><th>Uptime</th><td>{html.escape(fx.get("uptime",""))}</td>'
                              f'<th>Polled</th><td>{_fmt_ts(fx.get("last_polled"))}</td></tr>'
                              f'<tr><th>Descr</th><td colspan=3>{html.escape(fx.get("sysdescr",""))}</td></tr>'
+                             f'<tr><th>sysObjectID</th><td colspan=3>{model or "—"}</td></tr>'
+                             f'<tr><th>Contact</th><td>{html.escape(fx.get("contact","")) or "—"}</td>'
+                             f'<th>Location</th><td>{html.escape(fx.get("location","")) or "—"}</td></tr>'
+                             f'<tr><th>Last error</th><td colspan=3>{html.escape(fx.get("error", "")) or "—"}</td></tr>'
                              f'</table>')
             iftbl = self._interface_table(device) or '<p class="muted">No interface data yet \u2014 poll the device.</p>'
             graph = self._live_graph(device) if dev.get("snmp_version") else ""
             walk_panel = self._snmp_walk_panel(device, q) if dev.get("snmp_version") else ""
+            vendor_panel = self._vendor_mib_section(device) if dev.get("snmp_version") else ""
             inner = (f'<div class="panel"><h2>{html.escape(device)} \u00b7 SNMP '
                      f'<a class="btn ghost" href="/snmp" style="float:right;padding:4px 12px">All devices</a></h2>'
                      f'{poll_btn}{facts_tbl}</div>'
                      f'{graph}'
                      f'{walk_panel}'
+                     f'{vendor_panel}'
                      f'<div class="panel"><h2>Interfaces</h2>{iftbl}</div>')
+            if "network" in _dtypes(dev):
+                inner += self._arp_section(dev) + self._mac_port_section(dev)
             return self._send(self._page(f"SNMP \u00b7 {device}", inner, sess))
 
         # fleet view
@@ -2035,6 +2068,7 @@ The client secret is stored in the vault.</p>
     def _mib_page(self, q, sess):
         d = self._mib_dir()
         files = sorted(os.listdir(d)) if os.path.isdir(d) else []
+        idx = self.manager.mibindex
         rows = ""
         for fn in files:
             path = os.path.join(d, fn)
@@ -2044,6 +2078,18 @@ The client secret is stored in the vault.</p>
                 size = os.path.getsize(path)
             except OSError:
                 continue
+            stats = idx.file_stats.get(fn, {})
+            unresolved = stats.get("unresolved_names", [])
+            mapping = (f'<span class="badge b-ok">{stats.get("resolved", 0)} resolved</span> '
+                       f'<span class="badge b-ok">{stats.get("collectible", 0)} collectible</span> '
+                       f'<span class="badge {"b-chg" if stats.get("unresolved", 0) else "b-dim"}">'
+                       f'{stats.get("unresolved", 0)} unresolved</span> '
+                       f'<span class="badge {"b-chg" if stats.get("conflicts", 0) else "b-dim"}">'
+                       f'{stats.get("conflicts", 0)} conflicts</span>')
+            if unresolved:
+                mapping += (f'<div class="muted" style="margin-top:4px">Missing parents: '
+                            f'{html.escape(", ".join(unresolved[:8]))}'
+                            f'{" …" if len(unresolved) > 8 else ""}</div>')
             dele = ""
             if _can(sess["role"], "manage_devices"):
                 dele = (f'<form method=post action="/mib-delete" style="display:inline" '
@@ -2053,6 +2099,7 @@ The client secret is stored in the vault.</p>
             rows += (f'<tr><td><b>{html.escape(fn)}</b></td>'
                      f'<td>{html.escape(info["module"] or "\u2014")}</td>'
                      f'<td>{info["objects"]} objects, {info["nodes"]} nodes</td>'
+                     f'<td>{mapping}</td>'
                      f'<td class=muted>{max(size // 1024, 1)} KB</td>'
                      f'<td class=right>{dele}</td></tr>')
         up = ""
@@ -2064,33 +2111,45 @@ The client secret is stored in the vault.</p>
                   f'{self._csrf_field()}'
                   f'<input type=file name=mibfile multiple accept=".mib,.txt,.my,.mib.txt">'
                   f'<button>Upload</button></form></div>')
-        idx = self.manager.mibindex
-        n_names = max(len(idx.name_to_oid) - 20, 0)  # minus seeded roots
+        n_names = len(idx.name_source)
+        n_collectible = len(idx.collection_objects)
+        unresolved_total = sum(v.get("unresolved", 0) for v in idx.file_stats.values())
         lookup_q = (q.get("q") or [""])[0].strip()
         lookup_html = ""
         if lookup_q:
             if re.match(r"^[\d.]+$", lookup_q):
+                detail = idx.resolve_detail(lookup_q)
                 lookup_html = (f'<p style="margin-top:8px"><code>{html.escape(lookup_q)}</code> '
-                               f'\u2192 <b>{html.escape(idx.resolve(lookup_q))}</b></p>')
+                               f'\u2192 <b>{html.escape(detail["name"])}</b> '
+                               f'<span class="muted">Source: '
+                               f'{html.escape(detail["source"] or "Unmapped")}</span></p>')
             else:
-                oid = idx.lookup(lookup_q)
+                detail = idx.lookup_detail(lookup_q)
+                oid = detail["oid"]
                 lookup_html = (f'<p style="margin-top:8px"><b>{html.escape(lookup_q)}</b> \u2192 '
-                               + (f'<code>{html.escape(oid)}</code>' if oid else '<span class="muted">not found</span>')
+                               + (f'<code>{html.escape(oid)}</code> <span class="muted">Source: '
+                                  f'{html.escape(detail["source"])}</span>' if oid else
+                                  '<span class="muted">not found</span>')
                                + '</p>')
         automap = (f'<div class="panel"><h2>Automap index</h2>'
                    f'<p class="muted">Uploaded MIBs are compiled into a global OID\u2194name index '
-                   f'(<b>{len(idx.oid_to_name)}</b> OIDs, {n_names} named objects) that resolves '
-                   f'names automatically in SNMP views \u2014 no per-device selection.</p>'
+                   f'(<b>{n_names}</b> uploaded definitions resolved, {unresolved_total} unresolved, '
+                   f'{len(idx.conflicts)} conflicts, <b>{n_collectible}</b> vendor OBJECT-TYPE '
+                   f'definitions collectible) that resolves names and drives bounded vendor polling '
+                   f'automatically \u2014 no per-device selection.</p>'
                    f'<form method=get action="/mib" style="display:flex;gap:8px;max-width:560px">'
                    f'<input name=q placeholder="resolve an OID or name, e.g. 1.3.6.1.2.1.1.1.0 or ifDescr" '
                    f'value="{html.escape(lookup_q)}"><button class=ghost>Look up</button></form>'
                    f'{lookup_html}</div>')
         body = (up + automap
                 + f'<div class="panel"><h2>MIB library \u00b7 {len(files)} file(s)</h2>'
-                f'<table><tr><th>File</th><th>Module</th><th>Contents</th><th>Size</th><th></th></tr>'
-                f'{rows or "<tr><td colspan=5 class=muted>No MIBs uploaded yet.</td></tr>"}</table>'
-                f'<p class="muted" style="margin-top:8px">Uploaded MIBs are parsed for module name '
-                f'and object counts. Name\u2194OID resolution in SNMP views is on the roadmap.</p></div>')
+                f'<table><tr><th>File</th><th>Module</th><th>Contents</th><th>Mapping</th>'
+                f'<th>Size</th><th></th></tr>'
+                f'{rows or "<tr><td colspan=6 class=muted>No MIBs uploaded yet.</td></tr>"}</table>'
+                f'<p class="muted" style="margin-top:8px">Resolved definitions are used immediately '
+                f'in SNMP walk results and sysObjectID model mapping. Unresolved definitions usually '
+                f'mean a parent or imported MIB is missing; upload that dependency and the index '
+                f'rebuilds automatically.</p></div>')
         self._send(self._page("MIB", body, sess))
 
     def _netflow_section(self, dev):
@@ -2188,6 +2247,46 @@ The client secret is stored in the vault.</p>
                 f'show certificate validity and days to expiry.</p>'
                 f'<table><tr><th>Endpoint</th><th>HTTP</th><th>Time</th><th>TLS cert</th></tr>'
                 f'{rows}</table></div>')
+
+    def _arp_section(self, dev):
+        entries = self.manager.db.get_arp(dev["name"])
+        rows = "".join(
+            f'<tr><td>{html.escape(e.get("ip", ""))}</td>'
+            f'<td><code>{html.escape(e.get("mac", ""))}</code></td>'
+            f'<td class="muted">{html.escape(str(e.get("ifindex", "")))}</td>'
+            f'<td class="muted">{_fmt_ts(e.get("ts"))}</td></tr>'
+            for e in entries)
+        table = (f'<table><tr><th>IP address</th><th>MAC address</th>'
+                 f'<th>Interface index</th><th>Collected</th></tr>{rows}</table>' if rows else
+                 '<p class="muted">No ARP entries collected yet.</p>')
+        return (f'<div class="panel"><h2>ARP table · {len(entries)} entries</h2>'
+                f'<p class="muted">Auto-collected from IP-MIB during SNMP polling.</p>{table}</div>')
+
+    def _vendor_mib_section(self, device):
+        values = self.manager.db.get_mib_values(device)
+        status = self.manager.db.get_mib_poll_status(device) or {}
+        rows = "".join(
+            f'<tr><td>{html.escape(v.get("mib_source", "") or "Uploaded MIB")}</td>'
+            f'<td><b>{html.escape(v.get("name", ""))}</b></td>'
+            f'<td class="muted"><code>{html.escape(v.get("oid", ""))}</code></td>'
+            f'<td>{html.escape(str(v.get("value", ""))[:300])}</td>'
+            f'<td class="muted">{_fmt_ts(v.get("ts"))}</td></tr>'
+            for v in values)
+        if rows:
+            content = (f'<table><tr><th>Source MIB</th><th>Resolved name</th><th>Raw OID</th>'
+                       f'<th>Value</th><th>Collected</th></tr>{rows}</table>')
+        else:
+            content = ('<p class="muted">No vendor values collected yet. Upload a vendor MIB '
+                       'containing OBJECT-TYPE definitions, then use <b>Poll now</b>. Collection '
+                       'only follows the enterprise identified by this device\'s sysObjectID.</p>')
+        error = status.get("error", "")
+        error_html = (f'<p class="err">Some roots failed: {html.escape(error)}</p>' if error else "")
+        summary = (f'{len(values)} value(s) from {status.get("roots", 0)} bounded root(s)'
+                   + (f' · last collection {_fmt_ts(status.get("ts"))}' if status else ''))
+        return (f'<div class="panel"><h2>Vendor MIB data</h2>'
+                f'<p class="muted">Automatically collected from uploaded MIB definitions. '
+                f'{summary}. Background vendor walks run no more than once every five minutes '
+                f'and keep at most 400 values per device.</p>{error_html}{content}</div>')
 
     def _mac_port_section(self, dev):
         macs = self.manager.db.get_mac_table(dev["name"])
@@ -2845,13 +2944,13 @@ The client secret is stored in the vault.</p>
         if not self.manager.vault_ready():
             return self._dashboard(sess, flash="Vault locked \u2014 unlock to poll SNMP.")
         if (form.get("all") or [""])[0] == "1":
-            res = self.manager.snmp_poll_all()
+            res = self.manager.snmp_poll_all(vendor_force=True)
             ok = sum(1 for r in res.values() if r.get("ok"))
             self.manager.db.audit(sess["username"], "snmp_poll_all", "",
                                   f"{ok}/{len(res)} reachable")
             return self._redirect("/snmp")
         name = (form.get("name") or [""])[0]
-        res = self.manager.snmp_poll(name)
+        res = self.manager.snmp_poll(name, vendor_force=True)
         self.manager.db.audit(sess["username"], "snmp_poll", name,
                               "ok" if res.get("ok") else res.get("error", "fail"))
         if (form.get("back") or [""])[0] == "snmp":

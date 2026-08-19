@@ -18,6 +18,20 @@ layout.
   OpenSSH client through a PTY for device access and SQLite for persistent state.
 - The Python web-console compatibility blocker is fixed in `web.py`, and the
   documented runtime now matches the Python 3.12 launcher and AlmaLinux 10 target.
+- SNMP device views now expose all currently persisted system facts, interfaces,
+  ARP and MAC/bridge data, while live walks show resolved names, raw OIDs, values,
+  and the uploaded MIB file responsible for each mapping.
+- The MIB library now reports per-file resolved/unresolved definitions and name
+  conflicts; its lookup results also identify the mapping source.
+- The device editor now treats a pure Application device as an endpoint monitor:
+  it labels the target as a primary hostname/FQDN and hides SSH port, platform,
+  and credential controls. Those controls return for mixed System/Network types.
+- Uploaded vendor MIBs now drive bounded collection, not only name mapping:
+  resolved enterprise `OBJECT-TYPE` definitions are matched to each device's
+  `sysObjectID`, walked at a safe cadence, persisted, and shown on its SNMP page.
+- SNMPv3 polling reuses engine discovery and RFC 3414 localized keys throughout
+  each device poll instead of recomputing the 1 MB password-to-key operation for
+  every OID, addressing the observed single-poller-thread CPU saturation pattern.
 
 ## Architecture Baseline
 - `usr/bin/netconfig`: installed launcher; adds `/opt/netconfig` to `sys.path`
@@ -75,7 +89,8 @@ Notes:
 - Current development host: Windows, Python 3.12.13. Target integration host:
   AlmaLinux 10.2, Python 3.12.13.
 - The full bundled self-test completes with `RESULT: ALL PASS` after the web
-  compatibility fix, including the settings-subpage tests.
+  compatibility and SNMP/MIB work, including settings-subpage and new MIB
+  automap/source/diagnostic tests.
 - `compileall` passes for all application modules and `selftest.py`.
 - All 28 Python files pass parsing with Python 3.9 grammar mode; Python 3.12+ is
   nevertheless the supported deployment contract, matching AlmaLinux 10 and the
@@ -132,17 +147,32 @@ Notes:
 - Fixed the dashboard f-string compatibility blocker in `web.py`.
 - Reconciled the documented runtime requirement to Python 3.12+.
 - Re-ran grammar, compile and offline self-tests successfully on 2026-08-18.
+- Expanded the SNMP device page with contact, location, last error, model/OID
+  source, ARP table, and MAC/bridge table using already-collected data.
+- Connected uploaded MIB definitions to visible walk/lookup source attribution
+  and added per-file missing-parent and duplicate-name diagnostics.
+- Added offline tests for uploaded OID mapping, instance suffixes, source MIBs,
+  unresolved parents, duplicate definitions, and cached diagnostic reloads.
+- Simplified the pure-Application device form without changing stored fields or
+  HTTP/TLS monitoring behavior; Python 3.12 compile and full self-test still pass.
+- Added bounded MIB-driven vendor polling: maximum 12 roots and 400 values per
+  device, no more often than every five minutes in the background; manual Poll
+  forces a refresh. New SQLite tables retain current values and poll status.
+- Added offline tests for vendor-root matching/isolation, value persistence,
+  SNMPv3 localized-key reuse, and engine-discovery reuse. Full self-test and
+  Python 3.12 compile pass after these changes.
 
 ## In Progress
-No implementation is in progress. The compatibility fix is complete and remains
-uncommitted for the user to handle with Git.
+No implementation is in progress. The compatibility and SNMP/MIB visibility
+work is complete and remains uncommitted for the user to handle with Git.
 
 ## Recommended Next Step
-Reconstruct the RPM spec/build inputs for AlmaLinux 10.2, explicitly restore
-payload ownership and executable modes, and add a Linux packaging/integration
-test. Also reconcile the stale installation and v1 documentation noted above.
+Validate the expanded SNMP/MIB pages and reduced SNMPv3 CPU use against one real
+AlmaLinux-hosted device and representative vendor MIB dependency set. Then reconstruct the RPM spec/build
+inputs for AlmaLinux 10.2, restore payload ownership/executable modes, and add a
+Linux packaging/integration test.
 
 ## Last Verified
 2026-08-18 in the repository working tree on Windows with Python 3.12.13.
-`web.py`, `INSTALL.md`, and this handoff are intentionally modified and remain
-uncommitted for the user to manage with Git.
+`manager.py`, `mib.py`, `web.py`, `selftest.py`, `INSTALL.md`, and this handoff
+are intentionally modified and remain uncommitted for the user to manage with Git.

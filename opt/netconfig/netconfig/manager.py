@@ -16,6 +16,7 @@ the one that's powered off; each device's outcome is logged to the run table.
 
 import os
 import concurrent.futures
+import time
 
 from . import config as _cfg
 from . import automation as _auto
@@ -382,10 +383,48 @@ class Manager:
                                    max_vars=max_vars)
         out = []
         for oid, val in pairs:
-            out.append({"oid": oid, "name": self.mibindex.resolve(oid), "value": val})
+            mapped = self.mibindex.resolve_detail(oid)
+            out.append({"oid": oid, "name": mapped["name"], "value": val,
+                        "mib_source": mapped["source"], "mapped": mapped["mapped"]})
         return out
 
-    def snmp_poll(self, device_name, interfaces=True):
+    def _poll_vendor_mibs(self, device_name, dev, facts, version, community, v3, port,
+                          force=False):
+        """Collect uploaded-MIB OBJECT-TYPE values with strict load limits."""
+        roots = self.mibindex.collection_roots(facts.get("sysobjectid", ""), max_roots=12)
+        if not roots:
+            self.db.set_mib_values(device_name, [], roots=0)
+            return {"objects": 0, "roots": 0, "skipped": "no matching vendor MIB objects"}
+        previous = self.db.get_mib_poll_status(device_name)
+        min_interval = max(300, int(self.settings.get("snmp_poll_interval", 0) or 0) * 10)
+        if (not force and previous and
+                time.time() - float(previous.get("ts") or 0) < min_interval):
+            return {"objects": previous.get("objects", 0),
+                    "roots": previous.get("roots", 0), "skipped": "not due"}
+
+        found = {}
+        errors = []
+        total_limit = 400
+        for spec in roots:
+            remaining = total_limit - len(found)
+            if remaining <= 0:
+                break
+            try:
+                pairs = _snmp.walk_subtree(
+                    dev["host"], spec["root"], version=version, community=community,
+                    v3=v3, port=port, timeout=self.settings.get("snmp_timeout", 2.0),
+                    max_vars=min(80, remaining))
+                for oid, value in pairs:
+                    detail = self.mibindex.resolve_detail(oid)
+                    found[oid] = {"oid": oid, "name": detail["name"], "value": value,
+                                  "mib_source": detail["source"] or spec["source"]}
+            except Exception as exc:
+                errors.append(f'{spec["source"]} {spec["root"]}: {exc}')
+        error = "; ".join(errors[:5])
+        self.db.set_mib_values(device_name, list(found.values()), roots=len(roots), error=error)
+        return {"objects": len(found), "roots": len(roots), "error": error}
+
+    def snmp_poll(self, device_name, interfaces=True, vendor_force=False):
         dev = self.inv.get(device_name)
         if not dev:
             return {"ok": False, "error": "unknown device"}
@@ -395,6 +434,9 @@ class Manager:
                                       community=community, v3=v3,
                                       timeout=self.settings.get("snmp_timeout", 2.0))
             self.inv.set_facts(device_name, **facts)
+            vendor_result = self._poll_vendor_mibs(
+                device_name, dev, facts, version, community, v3, port,
+                force=vendor_force)
             iface_count = None
             if interfaces:
                 try:
@@ -422,17 +464,18 @@ class Manager:
                 except Exception as e:
                     # system poll succeeded; interface walk is best-effort
                     iface_count = f"iface walk failed: {e}"
-            return {"ok": True, "interfaces": iface_count, **facts}
+            return {"ok": True, "interfaces": iface_count,
+                    "vendor_mib": vendor_result, **facts}
         except Exception as e:
             self.inv.set_facts(device_name, reachable=False, error=str(e))
             return {"ok": False, "error": str(e)}
 
-    def snmp_poll_all(self):
+    def snmp_poll_all(self, vendor_force=False):
         """Poll every SNMP-enabled device. Returns {device: result}."""
         out = {}
         for d in self.inv.all():
             if d.get("snmp_version"):
-                out[d["name"]] = self.snmp_poll(d["name"])
+                out[d["name"]] = self.snmp_poll(d["name"], vendor_force=vendor_force)
         return out
 
     def close(self):
