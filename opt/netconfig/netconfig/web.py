@@ -24,6 +24,7 @@ import re
 import os
 import secrets
 import socketserver
+import sys
 import threading
 import time
 import urllib.parse
@@ -733,8 +734,9 @@ Local console \u00b7 bind 127.0.0.1 \u00b7 front with WAF for TLS</div>
         _SESSIONS[token] = {"username": u["username"], "role": u["role"],
                             "csrf": secrets.token_urlsafe(24), "created": time.time()}
         self.manager.db.audit(u["username"], "login", "console", "")
+        secure = "; Secure" if self.manager.settings.get("cookie_secure") else ""
         self._redirect("/", headers=[
-            ("Set-Cookie", f"ncsid={token}; HttpOnly; SameSite=Strict; Path=/")])
+            ("Set-Cookie", f"ncsid={token}; HttpOnly; SameSite=Strict; Path=/{secure}")])
 
     def _do_logout(self):
         tok, _ = self._session()
