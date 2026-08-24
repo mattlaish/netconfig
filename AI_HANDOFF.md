@@ -1,7 +1,8 @@
 # AI Development Handoff
 
 ## Project
-NetConfig (`netconfig-2.0.0-14`)
+NetConfig (reconstructed from `netconfig-2.0.0-14`; current packaging target
+`netconfig-2.0.0-16.el10`)
 
 ## Objective
 Continue development and improvement of the NetConfig platform from the
@@ -14,8 +15,8 @@ After a completed development stage or README/handover/version-document update,
 the final user feedback must end with `YYYY-MM-DD HH:MM:SS UTC+8 (Taiwan)`.
 
 ## Current Status
-- The repository contains one commit (`eab14e1`, initial import) on `main`,
-  tracking `origin/main`.
+- Repository synchronization and Git history are managed manually by the user.
+  AI agents must not run Git synchronization, staging, commit, or push commands.
 - This is an extracted RPM filesystem payload, not a conventional build tree.
   Application code is under `opt/netconfig/`; RPM integration files are under
   `etc/`, `usr/`, and `var/`.
@@ -143,6 +144,107 @@ Notes:
   build outputs. The source `/usr/bin/netconfig` launcher itself is now LF-only,
   in addition to the existing build/spec normalization defense.
 
+## Planned Feature: Config Archive Full-Text Search
+
+Selected as the next development task (2026-08-21). The archive is already
+plain, greppable text, but nothing in the product can answer estate-wide
+questions such as "which devices still permit Telnet" or "where does
+`snmp-server community public` still appear". Compliance answers this only for
+its own fixed rule set; there is no free-form query path, in the CLI or the web
+console.
+
+### Scope
+- Search every device's stored configuration, optionally across retained
+  history, from both the CLI and the web console.
+- Read-only. No new collection, no device contact, no configuration change.
+
+### Design
+- **`store.py` (core):** add `ConfigStore.search(pattern, *, devices=None,
+  regex=False, ignore_case=True, scope="current", context=0, max_per_device,
+  max_total)`. Return per-device hits carrying the version stamp, line number,
+  matched line, and optional context lines. First extract the path-validation
+  logic from `read_version` into a private helper that returns a validated
+  snapshot path. Both `read_version` and the new search implementation must use
+  this helper. Search files line by line from the validated path and stop at the
+  configured bounds; never load the complete archive into memory.
+- **`scope`:** `current` (default, one file per device), `all` (every retained
+  snapshot), or `baseline`.
+- **No index in v1.** Retention defaults to 30 versions per device, so a
+  bounded linear scan is adequate at expected fleet sizes and preserves the
+  "text files, not a blob DB" property that `store.py` documents as a
+  deliberate design choice. Measure before adding a SQLite FTS index in
+  `db.py`; if one is ever added, treat it as an optimisation with a rebuild
+  path, never as the source of truth.
+- **`cli.py`:** `netconfig search <pattern> [--device|--group|--tag]
+  [--all-versions] [--regex] [--case] [--context N] [--json]`, wired with the
+  existing `sub.add_parser(...).set_defaults(func=...)` convention and
+  resolving targets through `inventory` the way `bulk` does. Exit non-zero on
+  no match so it composes in shell pipelines.
+- **`web.py`:** add `/search` to the `routes` map in `_route_get`, gated by
+  `_require_auth()` plus the `view` capability. Group results by device, each
+  hit linking to the existing `/raw` and `/diff` pages. Add the entry to the
+  top navigation.
+
+### Security constraints (must not be skipped)
+- Archived configs contain live secrets. `scrub.py` is off by default and its
+  own docstring says to treat raw configs as sensitive regardless. Search
+  therefore exposes what `/raw` already exposes and must not widen it: gate it
+  on the same capability, and decide explicitly whether `viewer` should be able
+  to sweep the whole estate for `password 7`. Recommended: keep `view` for
+  parity with `/raw`, plus a settings toggle that masks secret-looking matches
+  in results by reusing the `scrub` rules.
+- The regex arrives from an HTTP form. Cap pattern length, reject pathological
+  input, compile once, and enforce match/file/time budgets to bound ReDoS and
+  runaway scans. Plain substring is the default; regex is opt-in.
+- `sessions/` transcripts (mode 0600) are out of scope for v1. Do not search
+  them.
+- Record estate-wide searches in the audit trail, consistent with the
+  append-only audit convention already used for workflow actions.
+
+### Test plan (fully offline)
+Extend `selftest.py` with a temporary `ConfigStore` holding several devices and
+versions: substring and regex matches, case sensitivity, context lines, scope
+selection, bound enforcement, no-match and empty-archive cases, rejection of
+traversal-shaped version stamps through the search path, and scrubbed versus
+unscrubbed content. No device, network, or RPM toolchain is required, so this
+feature is verifiable end to end in a plain Linux session.
+
+### Other candidates considered
+Reviewed against the current code and rejected for now, recorded so they are
+not re-derived: negation-aware remediation (the largest real gap --
+`manager._remediation_lines` cannot remove added lines, so drift correction is
+incomplete; should be paired with a `reload in` / `commit confirmed`
+auto-rollback guard before it touches live gear); LLDP/CDP neighbour discovery
+and topology (no `lldp`/`cdp`/`neighbor` handling exists anywhere); restore of
+an arbitrary archived version (`read_version` exists, nothing pushes it back);
+a syslog receiver driving event-triggered collection (`netflow.Collector` is a
+reusable bounded UDP listener pattern); and a read-only REST API with scoped
+tokens (session-cookie auth only today).
+
+## Test and Environment Results (2026-08-21, Linux session)
+- Verified in a Linux container with Python 3.12.3 at `/usr/bin/python3.12`;
+  that container's default `python3` is 3.11.15.
+- `python3.12 selftest.py` reports `RESULT: ALL PASS`.
+- `python3.12 -m compileall` passes for all 27 modules and `selftest.py`.
+- `PYTHONPATH=opt/netconfig python3.12 -m netconfig.cli --help` runs
+  successfully. This closes the previously open item that CLI help could not be
+  exercised on the Windows host: the Unix-only `pty`/`termios` imports resolve
+  normally on Linux.
+- Under Python 3.11, `web.py` fails to compile at line 947 (a backslash inside
+  an f-string expression). This is expected and not a regression -- PEP 701
+  permits it from 3.12 onward -- and it confirms the documented 3.12+ runtime
+  contract. Checks in a mixed-version environment must call `python3.12`
+  explicitly.
+- No CR characters anywhere in the tree; `usr/bin/netconfig` is LF with a
+  `#!/usr/bin/python3.12` shebang, and `packaging/netconfig.spec` is at release
+  `16%{?dist}` with `-15` and `-16` changelog entries present.
+- `rpmbuild`, `rpm` and `dnf` are absent from this container, so the `-16` RPM
+  build, inspection, and upgrade verification remain blocked here and still
+  require the AlmaLinux 10.2 VM.
+- These checks modified no files: bytecode was redirected outside the
+  repository and no runtime data directory was created.
+
+
 ## Known Issues and Gaps
 1. **Packaging integration is unverified:** the reconstructed spec/build scripts
   need a clean `-16` rebuild and an installed `-15` to `-16` upgrade verification
@@ -212,19 +314,35 @@ Notes:
   procedure and corrected the manual launcher path.
 
 ## In Progress
-No implementation is in progress. The compatibility and SNMP/MIB visibility
-work is complete and remains uncommitted for the user to handle with Git.
+
+No implementation is currently in progress. The compatibility and SNMP/MIB
+visibility work is complete. Config archive full-text search is specified
+above but has not been implemented.
 
 ## Recommended Next Step
-On an AlmaLinux 10 build/test VM, run `packaging/build-rpm.sh`, inspect the
-resulting `-16` binary RPM/SRPM, upgrade the recovered `-15` installation, and run
+
+Implement the config archive full-text search feature specified above:
+
+1. Add `ConfigStore.search` and offline tests in `selftest.py`.
+2. Add the `netconfig search` CLI subcommand.
+3. Add the `/search` web page.
+
+This feature is self-contained and read-only, and can be developed without
+access to network devices or an RPM build environment.
+
+The AlmaLinux packaging and hardware validation remain pending. On an
+AlmaLinux 10 build/test VM, run `packaging/build-rpm.sh`, inspect the resulting
+binary RPM and SRPM, upgrade the existing installation, and run
 `packaging/smoke-installed.sh`. Then validate the expanded SNMP/MIB pages and
-reduced SNMPv3 CPU use against a real device and representative vendor MIB set.
+reduced SNMPv3 CPU use against a real device and a representative vendor MIB
+set.
 
 ## Last Verified
-2026-08-20 in the repository working tree on Windows with Python 3.12.13.
-Application modules, `selftest.py`, `INSTALL.md`, the new `packaging/` tree, and
-this handoff are intentionally modified and remain uncommitted for the user to
-manage with Git. Final validation used no Git operations. An existing
-`git-save-push.ps1` helper remains in the workspace and contains interactive
-add/commit/push commands; it was inspected for secrets but was not executed.
+
+The application passed the full offline self-test, `compileall`, and CLI
+`--help` validation in a Linux Python 3.12.3 session on 2026-08-21. Earlier
+Windows validation used Python 3.12.13 and included the application modules,
+`selftest.py`, installation documentation, and reconstructed RPM packaging
+files.
+
+Git synchronization and repository history remain under the user's control.

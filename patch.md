@@ -45,6 +45,37 @@ current-state, and next-task handoff; this file is the authoritative delta log.
 - Recommended next step:
 ```
 
+## PATCH-20260824-01 — Post-merge handoff reconciliation
+
+- **Status:** Ready for integration.
+- **Target release:** Development-process documentation for
+  `netconfig-2.0.0-16.el10`; no application release change.
+- **Scope:** Reconciles `AI_HANDOFF.md` after the user merged the GitHub Claude
+  handoff changes with the newer local development record.
+- **Files changed:** `AI_HANDOFF.md` and `patch.md`.
+- **User-visible behavior:** None; this is handoff/version-ledger maintenance.
+- **Data/schema impact:** None.
+- **Packaging/upgrade impact:** None. The handoff now distinguishes the original
+  reconstructed `-14` RPM from the current `-16.el10` packaging target.
+- **Security impact:** The planned full-text-search design now requires a shared
+  validated snapshot-path helper before line-by-line archive access, preserving
+  the existing traversal protection without loading whole snapshots into memory.
+- **Validation completed:** Confirmed that no merge-conflict markers remain;
+  verified the `-16.el10` target against `packaging/netconfig.spec`; confirmed
+  the documented 27 package modules; and confirmed the merged `cookie_secure`,
+  `Secure` session-cookie, and `import sys` changes are present in application
+  code. No Git command was run.
+- **Validation outstanding:** Application tests were not rerun because this
+  patch changes documentation only. AlmaLinux RPM and live-device validation
+  remain outstanding as recorded below.
+- **Known risks/limitations:** Repository commit/branch state is deliberately
+  not asserted because Git synchronization is controlled by the user.
+- **Rollback notes:** Revert this ledger entry and the three corresponding
+  handoff wording corrections; there is no runtime or data rollback.
+- **Recommended next step:** Let the user complete the current Git merge, then
+  implement the bounded config archive full-text search described in the
+  handoff or perform the pending AlmaLinux `-16` packaging validation.
+
 ## PATCH-20260820-02 — Taiwan-time completion feedback rule
 
 - **Status:** Complete.
