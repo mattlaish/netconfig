@@ -8,6 +8,11 @@ Continue development and improvement of the NetConfig platform from the
 reconstructed RPM payload while preserving its existing behavior and packaging
 layout.
 
+`patch.md` is now the required chronological patch/version ledger. Future AI
+work must read and update it together with this overall handoff.
+After a completed development stage or README/handover/version-document update,
+the final user feedback must end with `YYYY-MM-DD HH:MM:SS UTC+8 (Taiwan)`.
+
 ## Current Status
 - The repository contains one commit (`eab14e1`, initial import) on `main`,
   tracking `origin/main`.
@@ -130,7 +135,7 @@ Notes:
   `-16` contains the permanent build/spec regression fix but is not yet built.
   No new live network-device/SNMP-agent or end-to-end integration test ran.
 - Final GitHub-push preparation completed without running any Git command:
-  Python 3.12 compileall and the full offline self-test pass; the 47-file
+  Python 3.12 compileall and the full offline self-test pass; the 50-file
   workspace contains no runtime database, cache, RPM/SRPM, private key,
   certificate, high-confidence API token, or file larger than 5 MB. Secret-like
   matches are documented placeholders only. `.gitignore` now excludes Python
@@ -217,7 +222,7 @@ resulting `-16` binary RPM/SRPM, upgrade the recovered `-15` installation, and r
 reduced SNMPv3 CPU use against a real device and representative vendor MIB set.
 
 ## Last Verified
-2026-08-19 in the repository working tree on Windows with Python 3.12.13.
+2026-08-20 in the repository working tree on Windows with Python 3.12.13.
 Application modules, `selftest.py`, `INSTALL.md`, the new `packaging/` tree, and
 this handoff are intentionally modified and remain uncommitted for the user to
 manage with Git. Final validation used no Git operations. An existing
