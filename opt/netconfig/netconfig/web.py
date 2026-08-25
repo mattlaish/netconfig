@@ -183,6 +183,49 @@ _THEME_JS = """<script>
 })();
 </script>"""
 
+# Dashboard: collapsible per-type device groups + a client-side search that
+# filters rows by name / IP / tag. No external libraries; degrades to plain
+# collapsed groups when JS is off.
+_DASH_JS = """<style>
+.devgroup{margin:10px 0;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.devgroup>summary{cursor:pointer;padding:10px 14px;font-weight:600;font-size:16px;
+  list-style:none;user-select:none}
+.devgroup>summary::-webkit-details-marker{display:none}
+.devgroup>summary::before{content:'\\25B8';display:inline-block;width:1em;
+  color:var(--muted);transition:transform .15s}
+.devgroup[open]>summary::before{transform:rotate(90deg)}
+.devgroup>table{margin:0}
+</style><script>
+(function(){
+  var box=document.getElementById('devsearch');
+  if(!box) return;
+  var groups=[].slice.call(document.querySelectorAll('.devgroup'));
+  var noRes=document.getElementById('devnoresults');
+  function apply(){
+    var q=box.value.trim().toLowerCase();
+    var terms=q.split(/\\s+/).filter(Boolean);
+    var anyVisible=false;
+    groups.forEach(function(g){
+      var rows=[].slice.call(g.querySelectorAll('tr.devrow')), shown=0;
+      rows.forEach(function(r){
+        var hay=r.getAttribute('data-search')||'';
+        var match=terms.every(function(t){return hay.indexOf(t)>=0;});
+        r.style.display=match?'':'none';
+        if(match) shown++;
+      });
+      if(terms.length===0){ g.style.display=''; g.open=false; }
+      else{ g.style.display=shown?'':'none'; g.open=shown>0; }
+      if(shown>0) anyVisible=true;
+      var c=g.querySelector('.devcount');
+      if(c) c.textContent=terms.length?(shown+' / '+rows.length):rows.length;
+    });
+    if(noRes) noRes.style.display=(terms.length&&!anyVisible)?'':'none';
+  }
+  box.addEventListener('input',apply);
+  apply();
+})();
+</script>"""
+
 _SESSIONS = {}   # token -> {username, role, csrf, created}
 
 # Vanilla-JS live line chart: polls /snmp-series and redraws an inline SVG. No
@@ -760,8 +803,7 @@ Local console \u00b7 bind 127.0.0.1 \u00b7 front with WAF for TLS</div>
         devices = m.inv.all()
         metas = {d["device"]: d for d in m.store.devices()}
         facts = m.inv.all_facts()
-        rows = []
-        for d in devices:
+        def make_row(d):
             meta = metas.get(d["name"], {})
             last = _fmt_ts(meta.get("last_collected"))
             has_cfg = m.store.current(d["name"]) is not None
@@ -788,17 +830,51 @@ Local console \u00b7 bind 127.0.0.1 \u00b7 front with WAF for TLS</div>
             _typ = " ".join(f'<span class="badge b-dim">{t.capitalize()}</span>'
                             for t in sorted(_dtypes(d)))
             snmp_cell = snmp or '<span class=muted>\u2014</span>'
-            rows.append(f"""<tr>
+            tags = d.get("tags") or []
+            # name (partial), IP/host, and tags are what the search box matches on
+            blob = " ".join([d["name"], d["host"]] + [str(t) for t in tags]).lower()
+            return f"""<tr class="devrow" data-search="{html.escape(blob, quote=True)}">
 <td><a href="/device?name={_q(d['name'])}">{html.escape(d['name'])}</a>{en}</td>
 <td class="muted">{html.escape(d['host'])}:{d['port']}</td>
 <td>{_typ}</td>
 <td>{html.escape(d['platform'])}</td>
 <td>{st}</td><td>{snmp_cell}</td>
-<td class="muted">{last}</td><td class="right">{collect_btn}</td></tr>""")
-        table = ("<table><tr><th>Device</th><th>Address</th><th>Type</th><th>Platform</th>"
-                 "<th>Config</th><th>SNMP</th><th>Last collected</th><th></th></tr>"
-                 + "".join(rows) + "</table>") if rows else \
-                '<p class="muted">No devices. Add one with <code>netconfig device add</code>.</p>'
+<td class="muted">{last}</td><td class="right">{collect_btn}</td></tr>"""
+
+        _thead = ("<table><tr><th>Device</th><th>Address</th><th>Type</th><th>Platform</th>"
+                  "<th>Config</th><th>SNMP</th><th>Last collected</th><th></th></tr>")
+        # Group by device type; a device with more than one type appears in each
+        # of its groups. Groups are collapsed by default.
+        by_type = {"network": [], "system": [], "application": []}
+        for d in devices:
+            for t in _dtypes(d):
+                if t in by_type:
+                    by_type[t].append(d)
+        groups_html = ""
+        for t, label in (("network", "Network"), ("system", "System"),
+                         ("application", "Application")):
+            ds = by_type[t]
+            if not ds:
+                continue
+            body = _thead + "".join(make_row(d) for d in ds) + "</table>"
+            groups_html += (
+                f'<details class="devgroup">'
+                f'<summary>{label} \u00b7 <span class="devcount">{len(ds)}</span></summary>'
+                f'{body}</details>')
+        if devices:
+            search_box = (
+                '<div class="panel" style="padding:10px 14px">'
+                '<input id="devsearch" type="search" autocomplete="off" '
+                'placeholder="Search devices by name, IP address, or tag\u2026" '
+                'style="width:100%;box-sizing:border-box;padding:9px 12px;font-size:15px">'
+                '</div>')
+            no_results = ('<p id="devnoresults" class="muted" '
+                          'style="display:none">No devices match your search.</p>')
+            listing = groups_html + no_results
+        else:
+            search_box = ""
+            listing = ('<p class="muted">No devices. Add one with '
+                       '<code>netconfig device add</code>.</p>')
         vault_panel = ""
         if not m.vault_ready() and _can(sess["role"], "unlock_vault"):
             vault_panel = (f'<div class="panel"><h2>Vault locked</h2>'
@@ -822,10 +898,10 @@ Local console \u00b7 bind 127.0.0.1 \u00b7 front with WAF for TLS</div>
             # keep both on the right, add-device first
             header_actions = (add_dev
                               + collect_all.replace('style="margin-left:auto"', 'style="margin-left:10px"'))
-        inner = f"""{vault_panel}<div class="panel">
+        inner = f"""{vault_panel}{search_box}<div class="panel">
 <div style="display:flex;align-items:center;margin-bottom:12px">
 <h2 style="border:none;margin:0">Inventory \u00b7 {len(devices)} devices</h2>{header_actions}</div>
-{table}</div>"""
+{listing}</div>{_DASH_JS}"""
         self._send(self._page("Devices", inner, sess, flash=flash))
 
     def _device_page(self, q, sess):
