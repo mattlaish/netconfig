@@ -232,16 +232,32 @@ try:
     import time as _t
     _t.sleep(1.05)
     grown = [dict(base[0], in_octets=1000 + 125000, out_octets=2000 + 250000)]
-    _inv.set_interfaces("d", grown)                    # second sample -> rate computed
+    written = _inv.set_interfaces("d", grown)           # second sample -> rate computed
     row = _inv.get_interfaces("d")[0]
     check("second poll computes a positive in-rate", row["in_bps"] and row["in_bps"] > 0)
     samples = _inv.get_samples("d")
     check("time-series sample recorded for the graph",
           "1" in samples and len(samples["1"]["points"]) >= 1)
+    check("set_interfaces returns computed samples for history backend",
+          isinstance(written, list) and len(written) == 1 and written[0][0] == "1"
+          and written[0][2] is not None)
     check("interface_counts reports up/total", _inv.interface_counts().get("d") == (1, 1))
     _db.close()
 finally:
     shutil.rmtree(_d)
+
+print("interface history backend selection (optional PostgreSQL):")
+from netconfig import ifhistory as _ifh
+from netconfig import config as _ifhcfg
+_base = dict(_ifhcfg.DEFAULT_SETTINGS)
+check("disabled by default -> no backend", _ifh.get_backend(_base) is None)
+check("enabled but no DSN -> no backend",
+      _ifh.get_backend(dict(_base, if_history_enabled=True)) is None)
+_be = _ifh.get_backend(dict(_base, if_history_enabled=True,
+                            if_history_dsn="host=127.0.0.1 dbname=x"))
+# construction stays lazy: a backend object exists without importing psycopg
+check("enabled + DSN -> PgHistory built lazily (no driver import)",
+      _be is not None and _be.__class__.__name__ == "PgHistory")
 
 print("concurrent DB access (poller + requests):")
 _d = tempfile.mkdtemp()

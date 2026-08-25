@@ -183,6 +183,49 @@ _THEME_JS = """<script>
 })();
 </script>"""
 
+# Dashboard: collapsible per-type device groups + a client-side search that
+# filters rows by name / IP / tag. No external libraries; degrades to plain
+# collapsed groups when JS is off.
+_DASH_JS = """<style>
+.devgroup{margin:10px 0;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.devgroup>summary{cursor:pointer;padding:10px 14px;font-weight:600;font-size:16px;
+  list-style:none;user-select:none}
+.devgroup>summary::-webkit-details-marker{display:none}
+.devgroup>summary::before{content:'\\25B8';display:inline-block;width:1em;
+  color:var(--muted);transition:transform .15s}
+.devgroup[open]>summary::before{transform:rotate(90deg)}
+.devgroup>table{margin:0}
+</style><script>
+(function(){
+  var box=document.getElementById('devsearch');
+  if(!box) return;
+  var groups=[].slice.call(document.querySelectorAll('.devgroup'));
+  var noRes=document.getElementById('devnoresults');
+  function apply(){
+    var q=box.value.trim().toLowerCase();
+    var terms=q.split(/\\s+/).filter(Boolean);
+    var anyVisible=false;
+    groups.forEach(function(g){
+      var rows=[].slice.call(g.querySelectorAll('tr.devrow')), shown=0;
+      rows.forEach(function(r){
+        var hay=r.getAttribute('data-search')||'';
+        var match=terms.every(function(t){return hay.indexOf(t)>=0;});
+        r.style.display=match?'':'none';
+        if(match) shown++;
+      });
+      if(terms.length===0){ g.style.display=''; g.open=false; }
+      else{ g.style.display=shown?'':'none'; g.open=shown>0; }
+      if(shown>0) anyVisible=true;
+      var c=g.querySelector('.devcount');
+      if(c) c.textContent=terms.length?(shown+' / '+rows.length):rows.length;
+    });
+    if(noRes) noRes.style.display=(terms.length&&!anyVisible)?'':'none';
+  }
+  box.addEventListener('input',apply);
+  apply();
+})();
+</script>"""
+
 _SESSIONS = {}   # token -> {username, role, csrf, created}
 
 # Vanilla-JS live line chart: polls /snmp-series and redraws an inline SVG. No
@@ -191,10 +234,11 @@ _GRAPH_JS = """
 <script>
 (function(){
   var DEV=__DEV__, IV=__IV__, NS='http://www.w3.org/2000/svg';
-  var data={}, monitored=[];
+  var data={}, monitored=[], MODE='live';
   var charts=document.getElementById('charts'),
       addsel=document.getElementById('ifadd'),
       addbtn=document.getElementById('addbtn'),
+      modeSel=document.getElementById('ifmode'),
       statusEl=document.getElementById('livestatus');
   charts.style.cssText='display:grid;grid-template-columns:repeat(2,max-content);'
     +'gap:12px;justify-content:start;align-items:start';
@@ -263,18 +307,28 @@ _GRAPH_JS = """
   }
   function drawAll(){ monitored.forEach(drawChart); }
   function refresh(){
-    fetch('/snmp-series?device='+encodeURIComponent(DEV)).then(function(r){return r.json();}).then(function(j){
+    var url = (MODE==='history')
+      ? '/snmp-history?device='+encodeURIComponent(DEV)
+      : '/snmp-series?device='+encodeURIComponent(DEV);
+    fetch(url).then(function(r){return r.json();}).then(function(j){
       data={}; (j.interfaces||[]).forEach(function(it){ data[it.ifindex]=it; });
       if(!monitored.length){ var k=Object.keys(data)[0]; if(k) addChart(k); }
       drawAll(); buildOptions();
-      statusEl.textContent='live \u00b7 '+new Date().toLocaleTimeString();
+      if(MODE==='history'){
+        statusEl.textContent = (j.enabled===false) ? 'history backend not configured'
+          : (j.error ? 'history error: '+j.error
+             : (j.hours||24)+'h history \u00b7 '+new Date().toLocaleTimeString());
+      } else {
+        statusEl.textContent='live \u00b7 '+new Date().toLocaleTimeString();
+      }
     }).catch(function(){ statusEl.textContent='(waiting for samples)'; });
   }
   addbtn.addEventListener('click',function(){ if(addsel.value) addChart(addsel.value); });
+  if(modeSel){ modeSel.addEventListener('change',function(){ MODE=modeSel.value; refresh(); }); }
   var seedEl=document.getElementById('ifseed');
   if(seedEl){ try{ JSON.parse(seedEl.textContent).forEach(function(it){ data[it.ifindex]=it; });
     var k=Object.keys(data)[0]; if(k) addChart(k); }catch(e){} }
-  refresh(); setInterval(refresh, Math.max(IV,3)*1000);
+  refresh(); setInterval(function(){ if(MODE==='live') refresh(); }, Math.max(IV,3)*1000);
 })();
 </script>
 """
@@ -631,6 +685,7 @@ class Console(http.server.BaseHTTPRequestHandler):
             "/alerts": lambda s: self._alerts_page(q, s),
             "/snmp": lambda s: self._snmp_page(q, s),
             "/snmp-series": lambda s: self._snmp_series(q, s),
+            "/snmp-history": lambda s: self._snmp_history(q, s),
             "/secret-info": lambda s: self._secret_info(q, s),
             "/vault": lambda s: self._vault_page(q, s),
             "/settings": lambda s: self._settings_page_v2(s, q=q),
@@ -760,8 +815,7 @@ Local console \u00b7 bind 127.0.0.1 \u00b7 front with WAF for TLS</div>
         devices = m.inv.all()
         metas = {d["device"]: d for d in m.store.devices()}
         facts = m.inv.all_facts()
-        rows = []
-        for d in devices:
+        def make_row(d):
             meta = metas.get(d["name"], {})
             last = _fmt_ts(meta.get("last_collected"))
             has_cfg = m.store.current(d["name"]) is not None
@@ -788,17 +842,51 @@ Local console \u00b7 bind 127.0.0.1 \u00b7 front with WAF for TLS</div>
             _typ = " ".join(f'<span class="badge b-dim">{t.capitalize()}</span>'
                             for t in sorted(_dtypes(d)))
             snmp_cell = snmp or '<span class=muted>\u2014</span>'
-            rows.append(f"""<tr>
+            tags = d.get("tags") or []
+            # name (partial), IP/host, and tags are what the search box matches on
+            blob = " ".join([d["name"], d["host"]] + [str(t) for t in tags]).lower()
+            return f"""<tr class="devrow" data-search="{html.escape(blob, quote=True)}">
 <td><a href="/device?name={_q(d['name'])}">{html.escape(d['name'])}</a>{en}</td>
 <td class="muted">{html.escape(d['host'])}:{d['port']}</td>
 <td>{_typ}</td>
 <td>{html.escape(d['platform'])}</td>
 <td>{st}</td><td>{snmp_cell}</td>
-<td class="muted">{last}</td><td class="right">{collect_btn}</td></tr>""")
-        table = ("<table><tr><th>Device</th><th>Address</th><th>Type</th><th>Platform</th>"
-                 "<th>Config</th><th>SNMP</th><th>Last collected</th><th></th></tr>"
-                 + "".join(rows) + "</table>") if rows else \
-                '<p class="muted">No devices. Add one with <code>netconfig device add</code>.</p>'
+<td class="muted">{last}</td><td class="right">{collect_btn}</td></tr>"""
+
+        _thead = ("<table><tr><th>Device</th><th>Address</th><th>Type</th><th>Platform</th>"
+                  "<th>Config</th><th>SNMP</th><th>Last collected</th><th></th></tr>")
+        # Group by device type; a device with more than one type appears in each
+        # of its groups. Groups are collapsed by default.
+        by_type = {"network": [], "system": [], "application": []}
+        for d in devices:
+            for t in _dtypes(d):
+                if t in by_type:
+                    by_type[t].append(d)
+        groups_html = ""
+        for t, label in (("network", "Network"), ("system", "System"),
+                         ("application", "Application")):
+            ds = by_type[t]
+            if not ds:
+                continue
+            body = _thead + "".join(make_row(d) for d in ds) + "</table>"
+            groups_html += (
+                f'<details class="devgroup">'
+                f'<summary>{label} \u00b7 <span class="devcount">{len(ds)}</span></summary>'
+                f'{body}</details>')
+        if devices:
+            search_box = (
+                '<div class="panel" style="padding:10px 14px">'
+                '<input id="devsearch" type="search" autocomplete="off" '
+                'placeholder="Search devices by name, IP address, or tag\u2026" '
+                'style="width:100%;box-sizing:border-box;padding:9px 12px;font-size:15px">'
+                '</div>')
+            no_results = ('<p id="devnoresults" class="muted" '
+                          'style="display:none">No devices match your search.</p>')
+            listing = groups_html + no_results
+        else:
+            search_box = ""
+            listing = ('<p class="muted">No devices. Add one with '
+                       '<code>netconfig device add</code>.</p>')
         vault_panel = ""
         if not m.vault_ready() and _can(sess["role"], "unlock_vault"):
             vault_panel = (f'<div class="panel"><h2>Vault locked</h2>'
@@ -822,10 +910,10 @@ Local console \u00b7 bind 127.0.0.1 \u00b7 front with WAF for TLS</div>
             # keep both on the right, add-device first
             header_actions = (add_dev
                               + collect_all.replace('style="margin-left:auto"', 'style="margin-left:10px"'))
-        inner = f"""{vault_panel}<div class="panel">
+        inner = f"""{vault_panel}{search_box}<div class="panel">
 <div style="display:flex;align-items:center;margin-bottom:12px">
 <h2 style="border:none;margin:0">Inventory \u00b7 {len(devices)} devices</h2>{header_actions}</div>
-{table}</div>"""
+{listing}</div>{_DASH_JS}"""
         self._send(self._page("Devices", inner, sess, flash=flash))
 
     def _device_page(self, q, sess):
@@ -1985,6 +2073,38 @@ The client secret is stored in the vault.</p>
                    "interfaces": interfaces}
         self._send(json.dumps(payload), ctype="application/json")
 
+    def _snmp_history(self, q, sess):
+        """24h (configurable) interface throughput from the optional history
+        backend. Same JSON shape as _snmp_series so the graph JS is reused;
+        `enabled: false` tells the client no backend is configured."""
+        device = (q.get("device") or [""])[0]
+        m = self.manager
+        backend = m._history_backend()
+        if backend is None:
+            return self._send(json.dumps(
+                {"device": device, "enabled": False, "interfaces": []}),
+                ctype="application/json")
+        hours = float(m.settings.get("if_history_hours", 24) or 24)
+        bucket = int(m.settings.get("if_history_bucket_seconds", 60) or 60)
+        try:
+            series = backend.read(device, hours=hours, bucket_seconds=bucket)
+        except Exception as e:
+            return self._send(json.dumps(
+                {"device": device, "enabled": True, "error": str(e),
+                 "interfaces": []}), ctype="application/json")
+        # descriptions come from the live SQLite stats so labels stay current
+        descrs = {str(i["ifindex"]): i.get("descr", "")
+                  for i in m.inv.get_interfaces(device)}
+
+        def _idx(k):
+            return int(k) if str(k).isdigit() else 0
+        interfaces = [{"ifindex": k, "descr": descrs.get(str(k), k),
+                       "points": v["points"][-2000:]}
+                      for k, v in sorted(series.items(), key=lambda kv: _idx(kv[0]))]
+        payload = {"device": device, "enabled": True, "now": time.time(),
+                   "hours": hours, "interfaces": interfaces}
+        self._send(json.dumps(payload), ctype="application/json")
+
     def _live_graph(self, device):
         iv = int(self.manager.settings.get("snmp_poll_interval", 0) or 0)
         refresh = iv if iv > 0 else 5
@@ -2000,13 +2120,21 @@ The client secret is stored in the vault.</p>
                 for k, v in sorted(series.items(), key=lambda kv: _idx(kv[0]))]
         seed_json = json.dumps(seed).replace("<", "\\u003c")
         js = _GRAPH_JS.replace("__DEV__", json.dumps(device)).replace("__IV__", str(refresh))
-        return (f'<div class="panel"><h2>Live interface throughput '
+        hist_hours = int(self.manager.settings.get("if_history_hours", 24) or 24)
+        mode_ctrl = ""
+        if self.manager._history_backend() is not None:
+            mode_ctrl = (
+                f'<select id=ifmode style="margin:0;flex:0 0 auto">'
+                f'<option value="live">Live throughput</option>'
+                f'<option value="history">{hist_hours}h history</option></select>')
+        return (f'<div class="panel"><h2>Interface throughput '
                 f'<span id=livestatus class=muted style="float:right;font-weight:400"></span></h2>'
                 f'<div id=charts></div>'
                 f'<div id=addrow style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap">'
+                f'{mode_ctrl}'
                 f'<select id=ifadd style="margin:0;max-width:300px;flex:0 0 auto"></select>'
                 f'<button type=button class=ghost id=addbtn style="padding:6px 12px">+ Add interface</button>'
-                f'<span class="muted">Add interfaces to watch live \u2014 they tile two per row '
+                f'<span class="muted">Add interfaces to watch \u2014 they tile two per row '
                 f'(2\u00d71, then 2\u00d72\u2026); resets when you leave the page.</span></div>'
                 f'<p class="muted" style="margin-top:8px">'
                 f'<span style="color:var(--ok)">\u25cf inbound</span> \u00b7 '

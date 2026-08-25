@@ -244,6 +244,7 @@ class Inventory:
         or wrap, where the delta would be negative). Atomic under the DB lock so
         a concurrent reader never sees the table mid-rebuild."""
         now = time.time()
+        written = []
         lock = getattr(self._conn, "lock", None)
         with (lock if lock is not None else contextlib.nullcontext()):
             prior = {r["ifindex"]: r for r in self._conn.execute(
@@ -274,9 +275,13 @@ class Inventory:
                     self._conn.execute(
                         "INSERT INTO interface_samples (device, ifindex, ts, in_bps, out_bps) "
                         "VALUES (?,?,?,?,?)", (device, idx, now, in_bps, out_bps))
+                    written.append((idx, r.get("descr", ""), in_bps, out_bps, now))
             cutoff = now - float(history_seconds or 1800)
             self._conn.execute("DELETE FROM interface_samples WHERE ts < ?", (cutoff,))
             self._conn.commit()
+        # samples that got a computed rate this poll, for an optional long-term
+        # history backend (see manager.snmp_poll / ifhistory).
+        return written
 
     def get_samples(self, device, since=None):
         """Return {ifindex: {descr, points: [[ts, in_bps, out_bps], ...]}}."""

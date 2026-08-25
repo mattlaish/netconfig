@@ -58,6 +58,11 @@ DEFAULT_SETTINGS = {
     "snmp_port": 161,
     "snmp_poll_interval": 0,           # seconds; >0 enables the background poller
     "snmp_history_seconds": 1800,      # rolling window kept for live graphs
+    "if_history_enabled": False,       # persist long interface throughput history
+    "if_history_dsn": "",              # PostgreSQL connection string (psycopg) for
+                                       # the history store; empty disables it
+    "if_history_hours": 24,            # retention / default history window (hours)
+    "if_history_bucket_seconds": 60,   # downsample bucket for 24h history reads
     "backup_keep": 5,                  # config copies kept per device by the weekly backup
     "netflow_enabled": False,          # run the NetFlow collector in the console
     "netflow_port": 2055,              # UDP port to receive NetFlow exports

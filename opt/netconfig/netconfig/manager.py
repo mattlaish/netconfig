@@ -21,6 +21,7 @@ import time
 from . import config as _cfg
 from . import automation as _auto
 from . import snmp as _snmp
+from . import ifhistory as _ifhistory
 from .db import Database
 from .inventory import Inventory
 from .users import Users
@@ -99,6 +100,10 @@ class Manager:
             enabled=self.settings["record_sessions"],
             do_scrub=self.settings["scrub_sessions"])
         self._vault_unlocked = False
+        # optional long-term interface-history backend (PostgreSQL); rebuilt when
+        # the relevant settings change. None when disabled or unconfigured.
+        self._ifhist = None
+        self._ifhist_key = None
         from . import mib as _mib
         self.mibindex = _mib.MibIndex(os.path.join(str(self.paths.home), "mibs"))
         if not self.mibindex.load():
@@ -424,6 +429,17 @@ class Manager:
         self.db.set_mib_values(device_name, list(found.values()), roots=len(roots), error=error)
         return {"objects": len(found), "roots": len(roots), "error": error}
 
+    def _history_backend(self):
+        """Current interface-history backend, rebuilt if its settings changed.
+        Returns None when disabled or unconfigured."""
+        key = (bool(self.settings.get("if_history_enabled")),
+               (self.settings.get("if_history_dsn") or "").strip(),
+               self.settings.get("if_history_hours", 24))
+        if key != self._ifhist_key:
+            self._ifhist_key = key
+            self._ifhist = _ifhistory.get_backend(self.settings)
+        return self._ifhist
+
     def snmp_poll(self, device_name, interfaces=True, vendor_force=False):
         dev = self.inv.get(device_name)
         if not dev:
@@ -443,10 +459,17 @@ class Manager:
                     ifs = _snmp.poll_interfaces(
                         dev["host"], port=port, version=version, community=community,
                         v3=v3, timeout=self.settings.get("snmp_timeout", 2.0))
-                    self.inv.set_interfaces(
+                    samples = self.inv.set_interfaces(
                         device_name, ifs,
                         history_seconds=self.settings.get("snmp_history_seconds", 1800))
                     iface_count = len(ifs)
+                    backend = self._history_backend()
+                    if backend is not None and samples:
+                        # best-effort: a history-store failure must never abort a poll
+                        try:
+                            backend.write(device_name, samples)
+                        except Exception:
+                            pass
                     if "network" in _dtypes_m(dev):
                         try:
                             ifdescr = {str(i["ifindex"]): i.get("descr", "") for i in ifs}
