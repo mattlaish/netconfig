@@ -234,10 +234,11 @@ _GRAPH_JS = """
 <script>
 (function(){
   var DEV=__DEV__, IV=__IV__, NS='http://www.w3.org/2000/svg';
-  var data={}, monitored=[];
+  var data={}, monitored=[], MODE='live';
   var charts=document.getElementById('charts'),
       addsel=document.getElementById('ifadd'),
       addbtn=document.getElementById('addbtn'),
+      modeSel=document.getElementById('ifmode'),
       statusEl=document.getElementById('livestatus');
   charts.style.cssText='display:grid;grid-template-columns:repeat(2,max-content);'
     +'gap:12px;justify-content:start;align-items:start';
@@ -306,18 +307,28 @@ _GRAPH_JS = """
   }
   function drawAll(){ monitored.forEach(drawChart); }
   function refresh(){
-    fetch('/snmp-series?device='+encodeURIComponent(DEV)).then(function(r){return r.json();}).then(function(j){
+    var url = (MODE==='history')
+      ? '/snmp-history?device='+encodeURIComponent(DEV)
+      : '/snmp-series?device='+encodeURIComponent(DEV);
+    fetch(url).then(function(r){return r.json();}).then(function(j){
       data={}; (j.interfaces||[]).forEach(function(it){ data[it.ifindex]=it; });
       if(!monitored.length){ var k=Object.keys(data)[0]; if(k) addChart(k); }
       drawAll(); buildOptions();
-      statusEl.textContent='live \u00b7 '+new Date().toLocaleTimeString();
+      if(MODE==='history'){
+        statusEl.textContent = (j.enabled===false) ? 'history backend not configured'
+          : (j.error ? 'history error: '+j.error
+             : (j.hours||24)+'h history \u00b7 '+new Date().toLocaleTimeString());
+      } else {
+        statusEl.textContent='live \u00b7 '+new Date().toLocaleTimeString();
+      }
     }).catch(function(){ statusEl.textContent='(waiting for samples)'; });
   }
   addbtn.addEventListener('click',function(){ if(addsel.value) addChart(addsel.value); });
+  if(modeSel){ modeSel.addEventListener('change',function(){ MODE=modeSel.value; refresh(); }); }
   var seedEl=document.getElementById('ifseed');
   if(seedEl){ try{ JSON.parse(seedEl.textContent).forEach(function(it){ data[it.ifindex]=it; });
     var k=Object.keys(data)[0]; if(k) addChart(k); }catch(e){} }
-  refresh(); setInterval(refresh, Math.max(IV,3)*1000);
+  refresh(); setInterval(function(){ if(MODE==='live') refresh(); }, Math.max(IV,3)*1000);
 })();
 </script>
 """
@@ -674,6 +685,7 @@ class Console(http.server.BaseHTTPRequestHandler):
             "/alerts": lambda s: self._alerts_page(q, s),
             "/snmp": lambda s: self._snmp_page(q, s),
             "/snmp-series": lambda s: self._snmp_series(q, s),
+            "/snmp-history": lambda s: self._snmp_history(q, s),
             "/secret-info": lambda s: self._secret_info(q, s),
             "/vault": lambda s: self._vault_page(q, s),
             "/settings": lambda s: self._settings_page_v2(s, q=q),
@@ -2061,6 +2073,38 @@ The client secret is stored in the vault.</p>
                    "interfaces": interfaces}
         self._send(json.dumps(payload), ctype="application/json")
 
+    def _snmp_history(self, q, sess):
+        """24h (configurable) interface throughput from the optional history
+        backend. Same JSON shape as _snmp_series so the graph JS is reused;
+        `enabled: false` tells the client no backend is configured."""
+        device = (q.get("device") or [""])[0]
+        m = self.manager
+        backend = m._history_backend()
+        if backend is None:
+            return self._send(json.dumps(
+                {"device": device, "enabled": False, "interfaces": []}),
+                ctype="application/json")
+        hours = float(m.settings.get("if_history_hours", 24) or 24)
+        bucket = int(m.settings.get("if_history_bucket_seconds", 60) or 60)
+        try:
+            series = backend.read(device, hours=hours, bucket_seconds=bucket)
+        except Exception as e:
+            return self._send(json.dumps(
+                {"device": device, "enabled": True, "error": str(e),
+                 "interfaces": []}), ctype="application/json")
+        # descriptions come from the live SQLite stats so labels stay current
+        descrs = {str(i["ifindex"]): i.get("descr", "")
+                  for i in m.inv.get_interfaces(device)}
+
+        def _idx(k):
+            return int(k) if str(k).isdigit() else 0
+        interfaces = [{"ifindex": k, "descr": descrs.get(str(k), k),
+                       "points": v["points"][-2000:]}
+                      for k, v in sorted(series.items(), key=lambda kv: _idx(kv[0]))]
+        payload = {"device": device, "enabled": True, "now": time.time(),
+                   "hours": hours, "interfaces": interfaces}
+        self._send(json.dumps(payload), ctype="application/json")
+
     def _live_graph(self, device):
         iv = int(self.manager.settings.get("snmp_poll_interval", 0) or 0)
         refresh = iv if iv > 0 else 5
@@ -2076,13 +2120,21 @@ The client secret is stored in the vault.</p>
                 for k, v in sorted(series.items(), key=lambda kv: _idx(kv[0]))]
         seed_json = json.dumps(seed).replace("<", "\\u003c")
         js = _GRAPH_JS.replace("__DEV__", json.dumps(device)).replace("__IV__", str(refresh))
-        return (f'<div class="panel"><h2>Live interface throughput '
+        hist_hours = int(self.manager.settings.get("if_history_hours", 24) or 24)
+        mode_ctrl = ""
+        if self.manager._history_backend() is not None:
+            mode_ctrl = (
+                f'<select id=ifmode style="margin:0;flex:0 0 auto">'
+                f'<option value="live">Live throughput</option>'
+                f'<option value="history">{hist_hours}h history</option></select>')
+        return (f'<div class="panel"><h2>Interface throughput '
                 f'<span id=livestatus class=muted style="float:right;font-weight:400"></span></h2>'
                 f'<div id=charts></div>'
                 f'<div id=addrow style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap">'
+                f'{mode_ctrl}'
                 f'<select id=ifadd style="margin:0;max-width:300px;flex:0 0 auto"></select>'
                 f'<button type=button class=ghost id=addbtn style="padding:6px 12px">+ Add interface</button>'
-                f'<span class="muted">Add interfaces to watch live \u2014 they tile two per row '
+                f'<span class="muted">Add interfaces to watch \u2014 they tile two per row '
                 f'(2\u00d71, then 2\u00d72\u2026); resets when you leave the page.</span></div>'
                 f'<p class="muted" style="margin-top:8px">'
                 f'<span style="color:var(--ok)">\u25cf inbound</span> \u00b7 '
