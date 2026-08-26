@@ -3,13 +3,28 @@
 This directory reconstructs the missing RPM source/build inputs. It builds an
 unsigned test binary RPM and SRPM without using Git or including runtime data.
 
+
+## Prepare the source on Windows
+
+When the working copy is on Windows and the RPM will be built on AlmaLinux,
+create a clean transfer bundle in the project root (not under `dist`):
+
+```powershell
+cd "C:\Users\mattlai\Projects\netconfig"
+.\packaging\prepare-transfer.ps1
+```
+
+This produces `netconfig-2.0.0-16-rpm-build-source.zip`. Transfer that one ZIP
+file to the AlmaLinux build host. The bundle contains only the application
+payload, RPM tooling, and development/handover documents; it excludes Git data,
+runtime state, Python caches, and previous RPM outputs.
+
 ## Build host preparation
 
 Use an AlmaLinux 10 build host or disposable VM, not the production server:
 
 ```bash
 sudo dnf install rpm-build python3.12
-cd /path/to/netconfig
 chmod +x packaging/*.sh
 ./packaging/build-rpm.sh
 ```
