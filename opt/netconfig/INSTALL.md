@@ -372,7 +372,93 @@ the RFC 3414 test vector.
 
 **Live interface stats.** Set an SNMP version on a device and NetConfig can walk its interface table (status, speed, in/out octets, errors) and compute in/out bit-rates between polls. The console's SNMP page shows a per-interface **live graph**. For continuous updates without clicking, set `snmp_poll_interval` (Settings, or settings.json) to e.g. 15 seconds — a background poller then samples every SNMP-enabled device while the console runs and the vault is unlocked, and the graph redraws itself. `snmp_history_seconds` controls how much history the graph keeps. This is a lightweight middle ground between on-demand polling and a full always-on NMS; for long-term time-series, feed the samples to the SIEM.
 
-## H. Self-test
+## H. Interface history (PostgreSQL, optional)
+
+The live interface graph keeps only a short in-memory/SQLite window
+(`snmp_history_seconds`, ~30 min). For a **24h history** view on the SNMP page,
+NetConfig can persist per-interface throughput to a PostgreSQL database. This is
+**entirely optional**: leave it off and everything else — including the live
+graph — works exactly as before with no extra dependency. Only enable it if you
+want the longer history.
+
+When enabled, NetConfig stores just the rate samples (device, ifindex, ts,
+in/out bps) in a single table it creates for itself; it never creates the
+database or touches any other table. The connection password is kept in the
+vault, like the SMTP/O365 secrets, never in `settings.json`.
+
+**1. Install the psycopg 3 driver — into the console's own interpreter.**
+The launcher runs under `/usr/bin/python3.12`, so the driver must be importable
+by *that* interpreter, system-wide (a `pip --user` install is invisible to the
+sandboxed `netconfig` service user):
+
+```bash
+sudo /usr/bin/python3.12 -m pip install "psycopg[binary]"
+# verify with the SAME interpreter the console uses:
+/usr/bin/python3.12 -c "import psycopg; print(psycopg.__version__)"
+```
+
+The module must be `psycopg` (version 3). `psycopg2` is a different package and
+is not used. If Settings → Database reports `No module named 'psycopg'` while
+`pip show psycopg` looks fine, the driver went into a different interpreter or
+user path than `/usr/bin/python3.12` — reinstall with the command above.
+
+**2. Install and start PostgreSQL** (skip if you already have a server):
+
+```bash
+sudo dnf install -y postgresql-server postgresql
+sudo postgresql-setup --initdb
+sudo systemctl enable --now postgresql
+```
+
+**3. Create the role and database.** Become the `postgres` OS user and open a
+SQL shell (if your prompt already shows `[postgres@... ]$` you are that user, so
+just run `psql`):
+
+```bash
+sudo -u postgres psql
+```
+```sql
+CREATE ROLE netconfig LOGIN PASSWORD 'choose-a-strong-one';
+CREATE DATABASE netconfig OWNER netconfig;
+GRANT ALL ON DATABASE netconfig TO netconfig;
+\q
+```
+Change the password later with `ALTER ROLE netconfig PASSWORD '...';` (or `\password netconfig` to be prompted without it hitting shell history).
+
+**4. Allow password auth over TCP.** NetConfig connects to `127.0.0.1`, but the
+default `pg_hba.conf` uses `ident`/`peer` there and will reject the password.
+Find the file, set the `127.0.0.1/32` and `::1/128` `host` lines to
+`scram-sha-256`, and reload:
+
+```bash
+sudo -u postgres psql -tAc 'SHOW hba_file;'   # prints the path to edit
+sudo systemctl reload postgresql
+# sanity check the login before touching the app:
+psql "host=127.0.0.1 port=5432 dbname=netconfig user=netconfig password=..." -c '\conninfo'
+```
+
+If PostgreSQL runs on a *different* host from the console, also set
+`listen_addresses` in `postgresql.conf`, open the firewall, and add a `pg_hba`
+line for the console's IP; use SSL mode `require` in step 5.
+
+**5. Point NetConfig at it.** In the web console, **Settings → Database**: enter
+host, port (5432), database (`netconfig`), username (`netconfig`), password, and
+SSL mode (`disable` on the same host, `require` across a network); tick
+**enabled** and **Save**. Saving validates the connection and creates the
+`netconfig_if_history` table if it is missing — the green banner reports "table
+created" or "already present". The **Test connection & create table** button
+does the same without saving. (Equivalent `settings.json` keys, if you prefer:
+`if_history_enabled`, `pg_host`, `pg_port`, `pg_dbname`, `pg_user`, `pg_sslmode`,
+`if_history_hours`, `if_history_bucket_seconds`; the password still goes through
+the vault via the console.)
+
+**6. Collect and view.** History accrues only while the background poller runs,
+so set `snmp_poll_interval` > 0 (Settings → SNMP) and keep the vault unlocked
+(the poller reads the DB password from it). Then a device's SNMP page shows a
+**Live / 24h history** selector next to "Add interface"; the 24h view fills in
+as polls accumulate.
+
+## I. Self-test
 
 ```bash
 python3 selftest.py
@@ -383,7 +469,7 @@ Runs offline vectors and round-trips: ChaCha20-Poly1305 (RFC 8439), AES
 store/diff, RBAC, variable substitution, compliance, baseline/drift, and group
 resolution. No network or devices required.
 
-## I. Honest limits (recap)
+## J. Honest limits (recap)
 
 - Config push/remediation write to live devices; tested against a fake device +
   local sshd, not real hospital gear. Verify per platform.
