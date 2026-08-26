@@ -1,6 +1,6 @@
 Name:           netconfig
 Version:        2.0.0
-Release:        16%{?dist}
+Release:        17%{?dist}
 Summary:        Network configuration and security operations console
 License:        Proprietary
 BuildArch:      noarch
@@ -92,3 +92,9 @@ exit 0
 - Add bounded uploaded-MIB-driven vendor SNMP collection and visibility
 - Reuse SNMPv3 localized keys and engine discovery to reduce poller CPU use
 - Simplify pure-Application device settings
+
+* Wed Aug 26 2026 NetConfig Engineering <noreply@localhost> - 2.0.0-17
+- Add dashboard device grouping and search
+- Add 24-hour interface history graph
+- Add optional PostgreSQL interface-history storage and database settings
+- Include the latest GitHub and Claude branch updates
