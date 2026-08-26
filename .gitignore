@@ -45,3 +45,4 @@ BUILD/
 BUILDROOT/
 *.rpm
 *.srpm
+netconfig-*-rpm-build-source.zip
