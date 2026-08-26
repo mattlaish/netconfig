@@ -256,8 +256,13 @@ check("enabled but no DSN -> no backend",
 _be = _ifh.get_backend(dict(_base, if_history_enabled=True,
                             if_history_dsn="host=127.0.0.1 dbname=x"))
 # construction stays lazy: a backend object exists without importing psycopg
-check("enabled + DSN -> PgHistory built lazily (no driver import)",
+check("enabled + legacy DSN -> PgHistory built lazily (no driver import)",
       _be is not None and _be.__class__.__name__ == "PgHistory")
+check("enabled + discrete host/dbname -> PgHistory built lazily",
+      _ifh.get_backend(dict(_base, if_history_enabled=True, pg_host="db",
+                            pg_dbname="nc")).__class__.__name__ == "PgHistory")
+check("enabled + host but no dbname -> no backend",
+      _ifh.get_backend(dict(_base, if_history_enabled=True, pg_host="db")) is None)
 
 print("concurrent DB access (poller + requests):")
 _d = tempfile.mkdtemp()

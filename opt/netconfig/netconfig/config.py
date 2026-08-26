@@ -59,10 +59,17 @@ DEFAULT_SETTINGS = {
     "snmp_poll_interval": 0,           # seconds; >0 enables the background poller
     "snmp_history_seconds": 1800,      # rolling window kept for live graphs
     "if_history_enabled": False,       # persist long interface throughput history
-    "if_history_dsn": "",              # PostgreSQL connection string (psycopg) for
-                                       # the history store; empty disables it
     "if_history_hours": 24,            # retention / default history window (hours)
     "if_history_bucket_seconds": 60,   # downsample bucket for 24h history reads
+    # PostgreSQL connection for the history store (Settings -> Database). The
+    # password is kept in the vault, never here. if_history_dsn is a legacy
+    # single-string override; when set it wins over the discrete columns.
+    "pg_host": "",
+    "pg_port": 5432,
+    "pg_dbname": "",
+    "pg_user": "",
+    "pg_sslmode": "prefer",            # disable|allow|prefer|require|verify-ca|verify-full
+    "if_history_dsn": "",
     "backup_keep": 5,                  # config copies kept per device by the weekly backup
     "netflow_enabled": False,          # run the NetFlow collector in the console
     "netflow_port": 2055,              # UDP port to receive NetFlow exports
