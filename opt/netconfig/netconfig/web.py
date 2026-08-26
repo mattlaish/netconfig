@@ -741,6 +741,7 @@ class Console(http.server.BaseHTTPRequestHandler):
             "/alert-rule-delete": lambda: self._do_alert_rule_delete(form, sess),
             "/smtp-test": lambda: self._do_smtp_test(form, sess),
             "/oauth-test": lambda: self._do_oauth_test(form, sess),
+            "/db-test": lambda: self._do_db_test(form, sess),
             "/vault-create": lambda: self._do_vault_create(form, sess),
             "/vault-secret-save": lambda: self._do_vault_secret_save(form, sess),
             "/vault-secret-delete": lambda: self._do_vault_secret_delete(form, sess),
@@ -1576,7 +1577,7 @@ an optional expected status code. HTTPS URLs also get a TLS certificate check
         section = (q.get("section") or ["general"])[0]
         sections = (("general", "General & SSH"), ("snmp", "SNMP polling"),
                     ("netflow", "NetFlow"), ("monitoring", "Monitoring"),
-                    ("email", "Email & OAuth"))
+                    ("email", "Email & OAuth"), ("db", "Database"))
         if section not in dict(sections):
             section = "general"
         s = self.manager.settings
@@ -1631,7 +1632,7 @@ an optional expected status code. HTTPS URLs also get a TLS certificate check
 {form}<div class="row">{field("monitor_poll_interval","Monitor poll interval (s)","0 = off; e.g. 60 enables background polling")}
 {field("monitor_history_days","Monitor history retention (days)")}</div>
 <button>Save monitoring settings</button></form></div>"""
-        else:
+        elif section == "email":
             from . import mailer as _mailer
             from . import oauth as _oauth
             smtp_pw_set = o365_secret_set = False
@@ -1661,6 +1662,37 @@ an optional expected status code. HTTPS URLs also get a TLS certificate check
 <button>Save email settings</button>
 <button formaction="/smtp-test" formmethod="post" class=ghost style="margin-left:8px">Send test email</button>
 <button formaction="/oauth-test" formmethod="post" class=ghost style="margin-left:8px">Test O365 sign-in</button></form></div>"""
+
+        elif section == "db":
+            from . import ifhistory as _ifh
+            pg_pw_set = False
+            if self.manager.vault_ready():
+                try:
+                    pg_pw_set = bool(self.manager.vault.get_secret(
+                        _ifh.VAULT_SECRET).get("password"))
+                except Exception:
+                    pass
+            sslmodes = "".join(
+                f'<option value="{v}"{" selected" if s.get("pg_sslmode")==v else ""}>{v}</option>'
+                for v in ("disable", "allow", "prefer", "require", "verify-ca", "verify-full"))
+            content = f"""<div class="panel"><h2>Database</h2>
+<p class="muted">Optional PostgreSQL store for long-term interface throughput
+history (the SNMP page's 24h graph). When off, live graphs still work from the
+built-in SQLite store. Saving a new configuration validates the connection and
+creates the <code>{_ifh._TABLE}</code> table if it does not yet exist.</p>
+{form}<div class="row"><div><label>Interface history store</label>
+<label style="color:var(--txt);font-weight:400"><input type=checkbox name=if_history_enabled value=1 style="width:auto" {"checked" if s.get("if_history_enabled") else ""}> enabled (requires the psycopg driver on the server)</label></div></div>
+<div class="row">{field("pg_host","Host","hostname or IP of the PostgreSQL server")}
+{field("pg_port","Port","default 5432")}{field("pg_dbname","Database name")}</div>
+<div class="row">{field("pg_user","Username")}
+<div><label>Password{" ✓ set" if pg_pw_set else ""}</label>
+<input type=password name=pg_password placeholder="kept in vault; blank keeps current"></div>
+<div><label>SSL mode</label><select name=pg_sslmode>{sslmodes}</select>
+<div class=muted>require or stronger for TLS to the DB</div></div></div>
+<div class="row">{field("if_history_hours","History retention (hours)","also the default graph window; e.g. 24")}
+{field("if_history_bucket_seconds","Downsample bucket (s)","points are averaged into buckets this wide")}</div>
+<button>Save database settings</button>
+<button formaction="/db-test" formmethod="post" class=ghost style="margin-left:8px">Test connection &amp; create table</button></form></div>"""
 
         body = (f'<h1>Settings</h1><p class="muted" style="margin-bottom:14px">Stored in '
                 f'<code>settings.json</code> in the data directory.</p><div class="settings-shell">'
@@ -1808,7 +1840,7 @@ The client secret is stored in the vault.</p>
         s = self.manager.settings
         g = lambda k: (form.get(k) or [""])[0].strip()
         section = g("section") or "general"
-        valid_sections = {"general", "snmp", "netflow", "monitoring", "email"}
+        valid_sections = {"general", "snmp", "netflow", "monitoring", "email", "db"}
         if section not in valid_sections:
             section = "general"
 
@@ -1816,10 +1848,11 @@ The client secret is stored in the vault.</p>
             "general": ("web_bind", "host_key_policy"),
             "email": ("smtp_host", "smtp_user", "smtp_from", "smtp_to",
                       "o365_tenant", "o365_client_id", "o365_authority", "o365_scope"),
+            "db": ("pg_host", "pg_dbname", "pg_user", "pg_sslmode"),
         }.get(section, ())
         for key in string_keys:
             value = g(key)
-            if value or section == "email":
+            if value or section in ("email", "db"):
                 s[key] = value
 
         int_keys = {
@@ -1829,6 +1862,7 @@ The client secret is stored in the vault.</p>
             "netflow": ("netflow_port", "netflow_max_flows"),
             "monitoring": ("monitor_poll_interval", "monitor_history_days"),
             "email": ("smtp_port",),
+            "db": ("pg_port", "if_history_hours", "if_history_bucket_seconds"),
         }.get(section, ())
         for key in int_keys:
             if g(key):
@@ -1867,11 +1901,39 @@ The client secret is stored in the vault.</p>
                         self.manager.vault.set_secret(_oauth.O365_SECRET, client_secret=secret)
                 except Exception:
                     pass
+        elif section == "db":
+            from . import ifhistory as _ifh
+            s["if_history_enabled"] = bool(form.get("if_history_enabled"))
+            pw = (form.get("pg_password") or [""])[0]
+            if pw:
+                try:
+                    if self.manager.vault_ready():
+                        self.manager.vault.set_secret(_ifh.VAULT_SECRET, password=pw)
+                except Exception:
+                    pass
 
         _config.save_settings(self.manager.paths, s)
         self.manager.db.audit(sess["username"], "settings_save", section, "")
-        return self._settings_page_v2(
-            sess, q={"section": [section]}, flash=f"{dict((('general','General & SSH'),('snmp','SNMP polling'),('netflow','NetFlow'),('monitoring','Monitoring'),('email','Email & OAuth')))[section]} settings saved.")
+        labels = {"general": "General & SSH", "snmp": "SNMP polling",
+                  "netflow": "NetFlow", "monitoring": "Monitoring",
+                  "email": "Email & OAuth", "db": "Database"}
+        flash = f"{labels[section]} settings saved."
+        # On a new/changed DB config, validate the connection and create the
+        # history table if it is missing, reporting the outcome to the admin.
+        if section == "db" and s.get("if_history_enabled"):
+            self.manager._ifhist_key = None  # force rebuild with new settings
+            backend = self.manager._history_backend()
+            if backend is None:
+                flash += " History is enabled but no host/database is set."
+            else:
+                res = backend.ensure_ready()
+                if res["ok"]:
+                    flash += (" Connected — history table created."
+                              if res["created"]
+                              else " Connected — history table already present.")
+                else:
+                    flash += f" Connection failed: {res['error']}"
+        return self._settings_page_v2(sess, q={"section": [section]}, flash=flash)
 
     # ---- SNMP fleet + interface stats -----------------------------------
     def _interface_table(self, device):
@@ -2948,6 +3010,38 @@ The client secret is stored in the vault.</p>
         else:
             msg = "O365 OAuth failed: " + (err or "unknown error")
         return self._settings_page_v2(sess, q={"section": ["email"]}, flash=msg)
+
+    def _do_db_test(self, form, sess):
+        """Validate the PostgreSQL history connection using the values currently
+        on the form (falling back to saved settings / the vault password) and
+        create the history table if it is missing."""
+        if not _can(sess["role"], "settings"):
+            return self._settings_page_v2(sess, q={"section": ["db"]}, flash="Not permitted.")
+        from . import ifhistory as _ifh
+        g = lambda k: (form.get(k) or [""])[0].strip()
+        s = dict(self.manager.settings)
+        for k in ("pg_host", "pg_dbname", "pg_user", "pg_sslmode"):
+            if g(k):
+                s[k] = g(k)
+        if g("pg_port"):
+            try:
+                s["pg_port"] = int(g("pg_port"))
+            except ValueError:
+                pass
+        pw = (form.get("pg_password") or [""])[0] or self.manager._pg_password()
+        backend = _ifh.build_backend(s, password=pw)
+        if backend is None:
+            return self._settings_page_v2(
+                sess, q={"section": ["db"]},
+                flash="Set at least a host and database name first.")
+        res = backend.ensure_ready()
+        if res["ok"]:
+            msg = ("Connection OK \u2014 history table created."
+                   if res["created"]
+                   else "Connection OK \u2014 history table already present.")
+        else:
+            msg = "Connection failed: " + (res["error"] or "unknown error")
+        return self._settings_page_v2(sess, q={"section": ["db"]}, flash=msg)
 
     def _compliance_page(self, q, sess, flash=None):
         standard = (q.get("standard") or [""])[0] or None

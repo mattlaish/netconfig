@@ -429,15 +429,29 @@ class Manager:
         self.db.set_mib_values(device_name, list(found.values()), roots=len(roots), error=error)
         return {"objects": len(found), "roots": len(roots), "error": error}
 
+    def _pg_password(self):
+        """DB password from the vault (like the SMTP/O365 secrets), or "" when
+        the vault is locked or no password is stored."""
+        try:
+            if self._vault_unlocked:
+                return self.vault.get_secret(_ifhistory.VAULT_SECRET).get("password") or ""
+        except Exception:
+            pass
+        return ""
+
     def _history_backend(self):
-        """Current interface-history backend, rebuilt if its settings changed.
-        Returns None when disabled or unconfigured."""
+        """Current interface-history backend, rebuilt if its settings (or the
+        resolved DB password) changed. Returns None when disabled/unconfigured."""
+        pw = self._pg_password()
         key = (bool(self.settings.get("if_history_enabled")),
                (self.settings.get("if_history_dsn") or "").strip(),
-               self.settings.get("if_history_hours", 24))
+               self.settings.get("pg_host"), self.settings.get("pg_port"),
+               self.settings.get("pg_dbname"), self.settings.get("pg_user"),
+               self.settings.get("pg_sslmode"),
+               self.settings.get("if_history_hours", 24), bool(pw))
         if key != self._ifhist_key:
             self._ifhist_key = key
-            self._ifhist = _ifhistory.get_backend(self.settings)
+            self._ifhist = _ifhistory.get_backend(self.settings, password=pw)
         return self._ifhist
 
     def snmp_poll(self, device_name, interfaces=True, vendor_force=False):
