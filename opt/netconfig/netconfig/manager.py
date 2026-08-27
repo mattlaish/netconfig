@@ -192,6 +192,10 @@ class Manager:
         device = self.inv.get(device_name)
         if not device:
             return CollectionResult(device_name, False, message="unknown device")
+        if not (_dtypes_m(device) & {"system", "network"}):
+            return CollectionResult(
+                device_name, False,
+                message="application-only endpoint has no SSH configuration to collect")
         tp = None
         try:
             tp, enable_pw = self._connect(device)
@@ -225,6 +229,8 @@ class Manager:
     def collect_all(self, only_enabled=True):
         results = []
         for dev in self.inv.all(only_enabled=only_enabled):
+            if not (_dtypes_m(dev) & {"system", "network"}):
+                continue
             results.append(self.collect(dev["name"]))
         return results
 

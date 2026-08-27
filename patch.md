@@ -45,6 +45,56 @@ current-state, and next-task handoff; this file is the authoritative delta log.
 - Recommended next step:
 ```
 
+## PATCH-20260827-01 — Pure Application device isolation
+
+- **Status:** Ready for integration.
+- **Target release:** Planned `netconfig-2.0.0-17.el10`; the RPM spec release
+  bump is intentionally not part of this focused application patch and remains
+  outstanding before the next package build.
+- **Scope:** Prevents Application-only inventory entries from inheriting or
+  displaying network-device platform, SSH, configuration archive, and SNMP
+  behavior.
+- **Files changed:** `opt/netconfig/netconfig/web.py`,
+  `opt/netconfig/netconfig/manager.py`, `opt/netconfig/selftest.py`,
+  `AI_HANDOFF.md`, and `patch.md`.
+- **User-visible behavior:** A pure Application device shows its primary
+  hostname, type, and application endpoint status only. Platform, Auth, SNMP
+  facts, Collect/Current raw, Run command, Current configuration, drift/diff,
+  and Config backups are omitted. Dashboard rows likewise omit stale platform,
+  SSH port, config, SNMP, and per-device collect controls. Mixed Application +
+  System/Network entries retain the normal management UI.
+- **Data/schema impact:** No schema change. Saving a pure Application device
+  normalizes its inventory row to platform `generic`, internal placeholder port
+  22, empty SSH/enable/SNMP references, disabled SSH/archive/NetFlow flags, and
+  empty system-port monitoring while preserving application URLs, notes, tags,
+  and enabled state.
+- **Packaging/upgrade impact:** Application code changes require a rebuilt RPM.
+  Because `-16` build material already exists and newer functionality has since
+  landed, the next package should bump the embedded spec Release to `-17`
+  before rebuilding; renaming an RPM file is not sufficient.
+- **Security impact:** Hidden browser controls are now disabled and, critically,
+  the server independently rejects forged management values for Application-only
+  saves. Bulk SSH config collection skips endpoint-only devices.
+- **Validation completed:** Windows Python 3.12.13 `compileall` passed and the
+  full offline self-test reports `RESULT: ALL PASS`. New tests cover hostile
+  hidden-field submission, detail-page isolation without config/SNMP reads,
+  dashboard suppression of stale management data, and client-side disabling of
+  hidden controls. Reverse-regression tests confirm a System-only device still
+  preserves platform, SSH/SNMP references, port and archive options when saved;
+  renders all management sections on its detail page; and retains platform,
+  address/port, stored-config, SNMP, and Collect indicators on the dashboard.
+- **Validation outstanding:** Browser verification and installed RPM testing on
+  AlmaLinux 10.2; mixed-type and live application endpoint regression checks.
+- **Known risks/limitations:** Existing inventory rows are not migrated
+  destructively. Their old platform/secret/SNMP references remain stored but
+  ignored and hidden until the operator edits and saves the pure Application
+  entry. Existing config archives and vault secrets are deliberately retained.
+- **Rollback notes:** Revert the five files listed above. No database rollback
+  is required; inventory normalization occurs only when a device is saved.
+- **Recommended next step:** Verify one existing and one newly created pure
+  Application device in the browser, then bump the spec to release `-17`, build
+  the RPM on AlmaLinux, and run the installed smoke/self-tests.
+
 ## PATCH-20260824-01 — Post-merge handoff reconciliation
 
 - **Status:** Ready for integration.

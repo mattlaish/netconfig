@@ -56,9 +56,13 @@ Never:
   and the uploaded MIB file responsible for each mapping.
 - The MIB library now reports per-file resolved/unresolved definitions and name
   conflicts; its lookup results also identify the mapping source.
-- The device editor now treats a pure Application device as an endpoint monitor:
-  it labels the target as a primary hostname/FQDN and hides SSH port, platform,
-  and credential controls. Those controls return for mixed System/Network types.
+- Pure Application devices are endpoint monitors, not managed network devices.
+  Their form labels the target as a primary hostname/FQDN, hides and disables
+  SSH/SNMP/platform/archive controls, and the server rejects forged or stale
+  management values by normalizing the platform to `generic` and clearing
+  management references. Their dashboard/detail views omit port, platform,
+  auth, collection, current config, SNMP facts, and config backups; bulk config
+  collection skips them. Mixed System/Network types retain management features.
 - Uploaded vendor MIBs now drive bounded collection, not only name mapping:
   resolved enterprise `OBJECT-TYPE` definitions are matched to each device's
   `sysObjectID`, walked at a safe cadence, persisted, and shown on its SNMP page.
@@ -339,6 +343,11 @@ tokens (session-cookie auth only today).
   checks pass; no RPM was built locally because this host has no RPM toolchain.
 - Replaced the stale `install.sh` quick-install documentation with the EL10 RPM
   procedure and corrected the manual launcher path.
+- Corrected pure Application isolation end to end: hidden form values can no
+  longer save `arista_eos` or SSH/SNMP state, management-only device-page and
+  dashboard data is omitted, and bulk config collection skips endpoint-only
+  entries. Existing archives and vault secrets are retained; resaving an
+  existing pure Application device normalizes its inventory row.
 
 ## In Progress
 
@@ -366,10 +375,13 @@ set.
 
 ## Last Verified
 
-The application passed the full offline self-test, `compileall`, and CLI
-`--help` validation in a Linux Python 3.12.3 session on 2026-08-21. Earlier
-Windows validation used Python 3.12.13 and included the application modules,
-`selftest.py`, installation documentation, and reconstructed RPM packaging
-files.
+2026-08-27 on Windows with Python 3.12.13: `compileall` and the full bundled
+offline self-test pass, including Application-only save normalization, endpoint
+detail/dashboard isolation, hidden-control submission prevention, and
+System-only reverse-regression coverage confirming that management fields,
+detail panels, dashboard data, SNMP/config visibility, and collect controls are
+preserved. The earlier Linux Python 3.12.3 compile, self-test, and CLI-help
+results remain the latest Linux validation. Live web/RPM verification on
+AlmaLinux remains outstanding.
 
 Git synchronization and repository history remain under the user's control.

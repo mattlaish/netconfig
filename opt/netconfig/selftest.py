@@ -5,6 +5,7 @@ import os
 import sys
 import tempfile
 import shutil
+import inspect
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -442,6 +443,233 @@ check("left menu renders every settings topic",
           for key in ("general", "snmp", "netflow", "monitoring", "email")))
 check("selected subpage hides unrelated fields",
       'name="netflow_port"' in _rendered[0] and 'name="smtp_host"' not in _rendered[0])
+
+print("application-only device isolation:")
+class _CaptureInventory:
+    def __init__(self):
+        self.saved = None
+    def get(self, name):
+        return None
+    def upsert(self, **kwargs):
+        self.saved = kwargs
+class _AppSaveManager:
+    def __init__(self):
+        self.inv = _CaptureInventory()
+        self.db = _FakeAudit()
+    def vault_ready(self):
+        raise AssertionError("application-only save must not access the vault")
+_app_save = object.__new__(_web.Console)
+_app_save.manager = _AppSaveManager()
+_app_save._redirect = lambda url: url
+_app_save._dashboard = lambda *args, **kwargs: kwargs
+_app_save._do_device_save({
+    "name": ["portal"], "host": ["app.example.test"],
+    "device_type": ["application"], "platform": ["arista_eos"],
+    "port": ["2222"], "secret_ref": ["ssh-secret"],
+    "snmp_ref": ["snmp-secret"], "enable_ref": ["enable-secret"],
+    "ssh_username": ["admin"], "snmp_version": ["v3"],
+    "use_key": ["1"], "legacy": ["1"], "scrub": ["1"],
+    "netflow": ["1"], "monitor_ports": ["tcp/22"],
+    "monitor_urls": ["https://app.example.test/"], "enabled": ["1"],
+}, {"username": "tester", "role": "admin"})
+_saved_app = _app_save.manager.inv.saved
+check("application-only save rejects hidden SSH/SNMP/platform values",
+      _saved_app["platform"] == "generic" and _saved_app["port"] == 22 and
+      _saved_app["secret_ref"] == "" and _saved_app["enable_ref"] == "" and
+      _saved_app["snmp_ref"] == "" and _saved_app["snmp_version"] == "" and
+      not _saved_app["use_key"] and not _saved_app["legacy"] and
+      not _saved_app["scrub"] and not _saved_app["netflow"] and
+      _saved_app["monitor_ports"] == "" and
+      _saved_app["monitor_urls"] == "https://app.example.test/")
+
+class _NoConfigStore:
+    def __getattr__(self, name):
+        raise AssertionError(f"application-only page must not access config store: {name}")
+class _AppInventory:
+    device = {
+        "name": "portal", "host": "app.example.test", "port": 22,
+        "platform": "arista_eos", "device_type": "application",
+        "use_key": False, "legacy": False, "scrub": False,
+        "snmp_version": "v3", "enabled": True,
+    }
+    def get(self, name):
+        return dict(self.device) if name == "portal" else None
+    def get_facts(self, name):
+        raise AssertionError("application-only page must not read SNMP facts")
+class _AppPageManager:
+    def __init__(self):
+        self.inv = _AppInventory()
+        self.store = _NoConfigStore()
+        self.settings = {"backup_keep": 5}
+_app_page = object.__new__(_web.Console)
+_app_page.manager = _AppPageManager()
+_app_page._page = lambda title, body, sess, flash=None: body
+_app_page._csrf_field = lambda: '<input type=hidden name=csrf value="test">'
+_app_page._appmon_section = lambda dev: '<div id="application-status">APPSTATUS</div>'
+_app_rendered = []
+_app_page._send = lambda body, *args, **kwargs: _app_rendered.append(body)
+_app_page._device_page({"name": ["portal"]}, {"username": "tester", "role": "admin"})
+_app_html = _app_rendered[0]
+_forbidden_app_sections = ("Platform", "Auth", "SNMP facts", "Collect now",
+                           "Current raw", "Current configuration", "Config backups",
+                           "Run command")
+check("application-only page shows endpoint identity and application status",
+      "Primary hostname" in _app_html and "Application" in _app_html and
+      "APPSTATUS" in _app_html)
+check("application-only page hides config, SNMP and SSH management sections",
+      all(label not in _app_html for label in _forbidden_app_sections))
+check("hidden device-form sections disable their controls",
+      "controls[i].disabled=!on" in inspect.getsource(_web.Console._device_form))
+class _AppDashboardStore:
+    def devices(self):
+        return []
+    def current(self, name):
+        raise AssertionError("application-only dashboard row must not read current config")
+    def drift(self, name):
+        raise AssertionError("application-only dashboard row must not read drift")
+class _AppDashboardInventory(_AppInventory):
+    def all(self):
+        return [dict(self.device)]
+    def all_facts(self):
+        return {"portal": {"reachable": True, "sysname": "wrong-snmp-data"}}
+class _AppDashboardManager:
+    def __init__(self):
+        self.inv = _AppDashboardInventory()
+        self.store = _AppDashboardStore()
+    def vault_ready(self):
+        return True
+_app_dashboard = object.__new__(_web.Console)
+_app_dashboard.manager = _AppDashboardManager()
+_app_dashboard._page = lambda title, body, sess, flash=None: body
+_app_dashboard._csrf_field = lambda: '<input type=hidden name=csrf value="test">'
+_dashboard_rendered = []
+_app_dashboard._send = lambda body, *args, **kwargs: _dashboard_rendered.append(body)
+_app_dashboard._dashboard({"username": "tester", "role": "admin"})
+_dashboard_html = _dashboard_rendered[0]
+check("application-only dashboard row hides stale platform, port, config and SNMP data",
+      "arista_eos" not in _dashboard_html and "app.example.test:22" not in _dashboard_html and
+      "wrong-snmp-data" not in _dashboard_html and
+      '<span class="badge b-ok">stored</span>' not in _dashboard_html)
+if os.name == "nt" and "pty" not in sys.modules:
+    import types as _types
+    sys.modules["pty"] = _types.ModuleType("pty")
+from netconfig.manager import Manager as _Manager
+class _ManagerInventory:
+    def get(self, name):
+        return {"name": name, "device_type": "application"}
+    def all(self, only_enabled=False):
+        return [{"name": "portal", "device_type": "application"},
+                {"name": "switch", "device_type": "network"}]
+_collect_manager = object.__new__(_Manager)
+_collect_manager.inv = _ManagerInventory()
+_collect_result = _collect_manager.collect("portal")
+check("direct config collection rejects application-only endpoint",
+      not _collect_result.ok and "no SSH configuration" in _collect_result.message)
+_collect_manager.collect = lambda name: name
+check("bulk config collection skips application-only endpoint",
+      _collect_manager.collect_all() == ["switch"])
+
+print("system-only device regression:")
+_system_save = object.__new__(_web.Console)
+_system_save.manager = _AppSaveManager()
+_system_save._redirect = lambda url: url
+_system_save._dashboard = lambda *args, **kwargs: kwargs
+_system_save._do_device_save({
+    "name": ["server"], "host": ["10.0.0.20"],
+    "device_type": ["system"], "platform": ["arista_eos"],
+    "port": ["2222"], "secret_ref": ["ssh-secret"],
+    "snmp_ref": ["snmp-secret"], "enable_ref": ["enable-secret"],
+    "snmp_version": ["v3"], "use_key": ["1"], "legacy": ["1"],
+    "scrub": ["1"], "monitor_ports": ["tcp/22, tcp/443"],
+    "enabled": ["1"],
+}, {"username": "tester", "role": "admin"})
+_saved_system = _system_save.manager.inv.saved
+check("system-only save preserves management fields",
+      _saved_system["platform"] == "arista_eos" and
+      _saved_system["port"] == 2222 and
+      _saved_system["secret_ref"] == "ssh-secret" and
+      _saved_system["enable_ref"] == "enable-secret" and
+      _saved_system["snmp_ref"] == "snmp-secret" and
+      _saved_system["snmp_version"] == "v3" and
+      _saved_system["use_key"] and _saved_system["legacy"] and
+      _saved_system["scrub"] and
+      _saved_system["monitor_ports"] == "tcp/22, tcp/443")
+
+class _SystemStore:
+    def current(self, name):
+        return "hostname server\n"
+    def versions(self, name):
+        return [{"stamp": "20260827T010203Z.cfg", "hash": "a" * 64}]
+    def drift(self, name):
+        return {"baselined": False, "drifted": False, "diff": ""}
+    def get_baseline(self, name):
+        return None
+class _SystemInventory:
+    device = {
+        "name": "server", "host": "10.0.0.20", "port": 2222,
+        "platform": "arista_eos", "device_type": "system",
+        "use_key": True, "legacy": True, "scrub": True,
+        "snmp_version": "v3", "enabled": True,
+    }
+    def get(self, name):
+        return dict(self.device) if name == "server" else None
+    def get_facts(self, name):
+        return None
+class _SystemPageManager:
+    def __init__(self):
+        self.inv = _SystemInventory()
+        self.store = _SystemStore()
+        self.settings = {"backup_keep": 5}
+_system_page = object.__new__(_web.Console)
+_system_page.manager = _SystemPageManager()
+_system_page._page = lambda title, body, sess, flash=None: body
+_system_page._csrf_field = lambda: '<input type=hidden name=csrf value="test">'
+_system_page._interface_table = lambda name: ""
+_system_page._portmon_section = lambda dev: '<div id="system-status">SYSTEMSTATUS</div>'
+_system_rendered = []
+_system_page._send = lambda body, *args, **kwargs: _system_rendered.append(body)
+_system_page._device_page({"name": ["server"]},
+                          {"username": "tester", "role": "admin"})
+_system_html = _system_rendered[0]
+_required_system_sections = ("Address", "Platform", "Auth", "SNMP facts",
+                             "Collect now", "Current raw", "Current configuration",
+                             "Config backups", "Run command", "SYSTEMSTATUS")
+check("system-only page retains every management section",
+      all(label in _system_html for label in _required_system_sections) and
+      "10.0.0.20:2222" in _system_html and "arista_eos" in _system_html)
+
+class _SystemDashboardStore:
+    def devices(self):
+        return [{"device": "server", "last_collected": 1.0}]
+    def current(self, name):
+        return "hostname server\n"
+    def drift(self, name):
+        return {"baselined": False, "drifted": False}
+class _SystemDashboardInventory(_SystemInventory):
+    def all(self):
+        return [dict(self.device)]
+    def all_facts(self):
+        return {"server": {"reachable": True, "sysname": "server-snmp"}}
+class _SystemDashboardManager:
+    def __init__(self):
+        self.inv = _SystemDashboardInventory()
+        self.store = _SystemDashboardStore()
+    def vault_ready(self):
+        return True
+_system_dashboard = object.__new__(_web.Console)
+_system_dashboard.manager = _SystemDashboardManager()
+_system_dashboard._page = lambda title, body, sess, flash=None: body
+_system_dashboard._csrf_field = lambda: '<input type=hidden name=csrf value="test">'
+_system_dashboard_rendered = []
+_system_dashboard._send = lambda body, *args, **kwargs: _system_dashboard_rendered.append(body)
+_system_dashboard._dashboard({"username": "tester", "role": "admin"})
+_system_dashboard_html = _system_dashboard_rendered[0]
+check("system-only dashboard retains platform, port, config, SNMP and collect",
+      "arista_eos" in _system_dashboard_html and
+      "10.0.0.20:2222" in _system_dashboard_html and
+      "server-snmp" in _system_dashboard_html and
+      '<span class="badge b-ok">stored</span>' in _system_dashboard_html and
+      '<button style="padding:4px 12px">Collect</button>' in _system_dashboard_html)
 
 print("MIB automap + diagnostics:")
 _mib_dir = tempfile.mkdtemp()

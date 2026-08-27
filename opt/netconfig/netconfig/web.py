@@ -472,6 +472,11 @@ def _dtypes(dev):
     return ts or {"network"}
 
 
+def _is_managed_device(dev):
+    """True when SSH/config/SNMP management applies to this inventory item."""
+    return bool(_dtypes(dev) & {"system", "network"})
+
+
 def _ok_badge(ok):
     return '<span class="badge b-ok">ok</span>' if ok else '<span class="badge b-bad">fail</span>'
 
@@ -817,17 +822,19 @@ Local console \u00b7 bind 127.0.0.1 \u00b7 front with WAF for TLS</div>
         metas = {d["device"]: d for d in m.store.devices()}
         facts = m.inv.all_facts()
         def make_row(d):
+            managed = _is_managed_device(d)
             meta = metas.get(d["name"], {})
-            last = _fmt_ts(meta.get("last_collected"))
-            has_cfg = m.store.current(d["name"]) is not None
-            st = ('<span class="badge b-ok">stored</span>' if has_cfg
-                  else '<span class="badge b-dim">none</span>')
+            last = _fmt_ts(meta.get("last_collected")) if managed else "—"
+            has_cfg = managed and m.store.current(d["name"]) is not None
+            st = (('<span class="badge b-ok">stored</span>' if has_cfg
+                   else '<span class="badge b-dim">none</span>') if managed
+                  else '<span class="muted">—</span>')
             drift = m.store.drift(d["name"]) if has_cfg else {"baselined": False, "drifted": False}
             if drift["baselined"]:
                 st += (' <span class="badge b-bad">drift</span>' if drift["drifted"]
                        else ' <span class="badge b-ok">baseline</span>')
             en = '' if d["enabled"] else ' <span class="badge b-dim">disabled</span>'
-            fx = facts.get(d["name"], {})
+            fx = facts.get(d["name"], {}) if managed else {}
             snmp = ""
             if fx:
                 snmp = ('<span class="badge b-ok">up</span>' if fx.get("reachable")
@@ -835,7 +842,7 @@ Local console \u00b7 bind 127.0.0.1 \u00b7 front with WAF for TLS</div>
                 if fx.get("sysname"):
                     snmp += f' <span class="muted">{html.escape(fx["sysname"])}</span>'
             collect_btn = ""
-            if _can(sess["role"], "collect"):
+            if managed and _can(sess["role"], "collect"):
                 collect_btn = (f'<form method=post action="/collect" style="display:inline">'
                                f'{self._csrf_field()}<input type=hidden name=name '
                                f'value="{html.escape(d["name"])}">'
@@ -846,11 +853,14 @@ Local console \u00b7 bind 127.0.0.1 \u00b7 front with WAF for TLS</div>
             tags = d.get("tags") or []
             # name (partial), IP/host, and tags are what the search box matches on
             blob = " ".join([d["name"], d["host"]] + [str(t) for t in tags]).lower()
+            address = (f'{html.escape(d["host"])}:{d["port"]}' if managed
+                       else html.escape(d["host"]))
+            platform = html.escape(d["platform"]) if managed else '<span class="muted">—</span>'
             return f"""<tr class="devrow" data-search="{html.escape(blob, quote=True)}">
 <td><a href="/device?name={_q(d['name'])}">{html.escape(d['name'])}</a>{en}</td>
-<td class="muted">{html.escape(d['host'])}:{d['port']}</td>
+<td class="muted">{address}</td>
 <td>{_typ}</td>
-<td>{html.escape(d['platform'])}</td>
+<td>{platform}</td>
 <td>{st}</td><td>{snmp_cell}</td>
 <td class="muted">{last}</td><td class="right">{collect_btn}</td></tr>"""
 
@@ -923,13 +933,16 @@ Local console \u00b7 bind 127.0.0.1 \u00b7 front with WAF for TLS</div>
         dev = m.inv.get(name)
         if not dev:
             return self._send(self._page("Device", '<div class="err">Unknown device.</div>', sess), 404)
-        cur = m.store.current(name)
-        versions = m.store.versions(name)
+        _dt = _dtypes(dev)
+        managed = _is_managed_device(dev)
+        application_only = _dt == {"application"}
+        cur = m.store.current(name) if managed else None
+        versions = m.store.versions(name) if managed else []
         cfg_html = f'<pre>{html.escape(cur)}</pre>' if cur else '<p class="muted">No config stored yet.</p>'
 
-        drift = m.store.drift(name)
+        drift = m.store.drift(name) if managed else None
         drift_html = ""
-        base = m.store.get_baseline(name)
+        base = m.store.get_baseline(name) if managed else None
         base_ctrl = ""
         if _can(sess["role"], "manage_devices") and versions:
             if base:
@@ -977,7 +990,7 @@ Local console \u00b7 bind 127.0.0.1 \u00b7 front with WAF for TLS</div>
             f'<td class="right"><a href="/raw?name={_q(name)}&version={_q(v["stamp"])}" target=_blank>raw</a></td></tr>'
             for v in reversed(versions)) or '<tr><td class="muted" colspan=3>none</td></tr>'
 
-        fx = m.inv.get_facts(name)
+        fx = m.inv.get_facts(name) if managed else None
         snmp_html = ""
         if fx:
             _oid = (fx.get("sysobjectid") or "").strip()
@@ -1018,7 +1031,7 @@ Local console \u00b7 bind 127.0.0.1 \u00b7 front with WAF for TLS</div>
                         f'<button>Poll SNMP</button></form>')
 
         collect_btn = ""
-        if _can(sess["role"], "collect"):
+        if managed and _can(sess["role"], "collect"):
             collect_btn = (f'<form method=post action="/collect" style="margin-top:14px">'
                            f'{self._csrf_field()}<input type=hidden name=name value="{html.escape(name)}">'
                            f'<button>Collect now</button>'
@@ -1028,16 +1041,24 @@ Local console \u00b7 bind 127.0.0.1 \u00b7 front with WAF for TLS</div>
         if _can(sess["role"], "manage_devices"):
             edit_link = (f'<a class="btn ghost" href="/device-new?name={_q(name)}" '
                          f'style="float:right;padding:4px 12px">Edit</a>')
-        meta = f"""<div class="panel"><h2>{html.escape(name)}{edit_link}</h2>
-<table><tr><th>Address</th><td>{html.escape(dev['host'])}:{dev['port']}</td></tr>
-<tr><th>Platform</th><td>{html.escape(dev['platform'])}</td></tr>
-<tr><th>Type</th><td>{html.escape(", ".join(t.capitalize() for t in sorted(_dtypes(dev))))}</td></tr>
-<tr><th>Auth</th><td>{'SSH key' if dev['use_key'] else 'password'}
-{' \u00b7 legacy algos' if dev['legacy'] else ''}{' \u00b7 scrubbed' if dev['scrub'] else ''}</td></tr>
-<tr><th>SNMP</th><td>{html.escape(dev.get('snmp_version') or '\u2014')}</td></tr>
-</table>{collect_btn}{('<div style="margin-top:12px">'+base_ctrl+'</div>') if base_ctrl else ''}</div>"""
+        address = html.escape(dev["host"])
+        address_row = (f'<tr><th>Primary hostname</th><td>{address}</td></tr>'
+                       if application_only else
+                       f'<tr><th>Address</th><td>{address}:{dev["port"]}</td></tr>')
+        managed_rows = ""
+        if managed:
+            managed_rows = (f'<tr><th>Platform</th><td>{html.escape(dev["platform"])}</td></tr>'
+                            f'<tr><th>Auth</th><td>{"SSH key" if dev["use_key"] else "password"}'
+                            f'{" \u00b7 legacy algos" if dev["legacy"] else ""}'
+                            f'{" \u00b7 scrubbed" if dev["scrub"] else ""}</td></tr>'
+                            f'<tr><th>SNMP</th><td>{html.escape(dev.get("snmp_version") or "\u2014")}</td></tr>')
+        base_html = ('<div style="margin-top:12px">' + base_ctrl + '</div>') if base_ctrl else ""
+        meta = (f'<div class="panel"><h2>{html.escape(name)}{edit_link}</h2><table>'
+                f'{address_row}<tr><th>Type</th><td>'
+                f'{html.escape(", ".join(t.capitalize() for t in sorted(_dt)))}</td></tr>'
+                f'{managed_rows}</table>{collect_btn}{base_html}</div>')
         run_panel = ""
-        if _can(sess["role"], "execute"):
+        if managed and _can(sess["role"], "execute"):
             run_panel = (f'<div class="panel"><h2>Run command</h2>'
                          f'<p class="muted">Runs a single command on the device now (audited). '
                          f'For config changes across many devices, use a change request.</p>'
@@ -1045,15 +1066,15 @@ Local console \u00b7 bind 127.0.0.1 \u00b7 front with WAF for TLS</div>
                          f'<input type=hidden name=name value="{html.escape(name)}">'
                          f'<input name=command placeholder="show version" style="margin:0">'
                          f'<div style="flex:0"><button>Run</button></div></form></div>')
-        iface_tbl = self._interface_table(name)
+        iface_tbl = self._interface_table(name) if managed else ""
         iface_section = ""
         if iface_tbl:
             iface_section = (f'<h2 style="margin-top:14px">Interfaces</h2>{iface_tbl}')
         snmp_link = (f'<a class="btn ghost" href="/snmp?device={_q(name)}" '
                      f'style="margin-left:8px;padding:4px 12px">SNMP page</a>') if dev.get("snmp_version") else ""
-        snmp_panel = (f'<div class="panel"><h2>SNMP facts</h2>'
-                      f'{snmp_html or "<p class=muted>Not polled yet.</p>"}'
-                      f'{snmp_btn}{snmp_link}{iface_section}</div>')
+        snmp_panel = ((f'<div class="panel"><h2>SNMP facts</h2>'
+                       f'{snmp_html or "<p class=muted>Not polled yet.</p>"}'
+                       f'{snmp_btn}{snmp_link}{iface_section}</div>') if managed else "")
         # diff of the two most recent stored versions (green added / red deleted)
         lastchange_html = ""
         if len(versions) >= 2:
@@ -1072,18 +1093,19 @@ Local console \u00b7 bind 127.0.0.1 \u00b7 front with WAF for TLS</div>
             lastchange_html = ('<div class="panel"><h2>Changes in last backup</h2>'
                                '<p class="muted">Only one saved copy so far \u2014 a comparison '
                                'appears once the config changes and a second copy is stored.</p></div>')
-        _dt = _dtypes(dev)
         netflow_panel = self._netflow_section(dev) if "network" in _dt else ""
         portmon_panel = self._portmon_section(dev) if "system" in _dt else ""
         appmon_panel = self._appmon_section(dev) if "application" in _dt else ""
-        inner = (meta + run_panel + drift_html + diff_picker
-                 + f'<div class="panel"><h2>Current configuration</h2>{cfg_html}</div>'
-                 + lastchange_html
-                 + snmp_panel + netflow_panel + portmon_panel + appmon_panel
-                 + f'<div class="panel"><h2>Config backups \u00b7 {len(versions)} saved</h2>'
-                   f'<p class="muted">Each snapshot is a saved copy of the running config. '
-                   f'The weekly backup keeps the newest {self.manager.settings.get("backup_keep",5)} per device.</p>'
-                   f'<table><tr><th>Snapshot</th><th>SHA-256</th><th></th></tr>{vrows}</table></div>')
+        management_panels = ""
+        if managed:
+            management_panels = (run_panel + drift_html + diff_picker
+                                 + f'<div class="panel"><h2>Current configuration</h2>{cfg_html}</div>'
+                                 + lastchange_html + snmp_panel
+                                 + f'<div class="panel"><h2>Config backups \u00b7 {len(versions)} saved</h2>'
+                                   f'<p class="muted">Each snapshot is a saved copy of the running config. '
+                                   f'The weekly backup keeps the newest {self.manager.settings.get("backup_keep",5)} per device.</p>'
+                                   f'<table><tr><th>Snapshot</th><th>SHA-256</th><th></th></tr>{vrows}</table></div>')
+        inner = meta + management_panels + netflow_panel + portmon_panel + appmon_panel
         if "network" in _dt:
             inner += self._arp_section(dev) + self._mac_port_section(dev)
         self._send(self._page(f"Device \u00b7 {name}", inner, sess))
@@ -1268,16 +1290,24 @@ an optional expected status code. HTTPS URLs also get a TLS certificate check
       sshPort=document.getElementById('ssh_port_field'),
       platform=document.getElementById('platform_field'),
       credentials=document.getElementById('credentials_section'),
+      managementOptions=document.getElementById('management_options'),
       hostLabel=document.getElementById('host_label');
   function has(v){{ for(var i=0;i<boxes.length;i++){{ if(boxes[i].value===v&&boxes[i].checked) return true; }} return false; }}
+  function toggle(el,on,display){{
+    if(!el) return;
+    el.style.display=on?(display||'block'):'none';
+    var controls=el.querySelectorAll('input,select,textarea,button');
+    for(var i=0;i<controls.length;i++) controls[i].disabled=!on;
+  }}
   function upd(){{
     var managed=has('system')||has('network');
-    if(nf) nf.style.display=has('network')?'block':'none';
-    if(pm) pm.style.display=has('system')?'block':'none';
-    if(am) am.style.display=has('application')?'block':'none';
-    if(sshPort) sshPort.style.display=managed?'block':'none';
-    if(platform) platform.style.display=managed?'block':'none';
-    if(credentials) credentials.style.display=managed?'block':'none';
+    toggle(nf,has('network'));
+    toggle(pm,has('system'));
+    toggle(am,has('application'));
+    toggle(sshPort,managed);
+    toggle(platform,managed);
+    toggle(credentials,managed);
+    toggle(managementOptions,managed,'flex');
     if(hostLabel) hostLabel.textContent=managed?'Host / IP':'Primary hostname / FQDN'; }}
   for(var i=0;i<boxes.length;i++) boxes[i].addEventListener('change',upd);
   upd();
@@ -1316,8 +1346,10 @@ an optional expected status code. HTTPS URLs also get a TLS certificate check
 </script>
 <label>Notes</label><textarea name=notes style="min-height:60px">{v('notes')}</textarea>
 <div style="display:flex;gap:20px;flex-wrap:wrap;margin:6px 0 16px">
-  <label style="color:var(--txt)"><input type=checkbox name=legacy value=1 style="width:auto" {chk('legacy')}> legacy algorithms</label>
-  <label style="color:var(--txt)"><input type=checkbox name=scrub value=1 style="width:auto" {chk('scrub')}> scrub secrets in archive</label>
+  <div id=management_options style="display:flex;gap:20px;flex-wrap:wrap">
+    <label style="color:var(--txt)"><input type=checkbox name=legacy value=1 style="width:auto" {chk('legacy')}> legacy algorithms</label>
+    <label style="color:var(--txt)"><input type=checkbox name=scrub value=1 style="width:auto" {chk('scrub')}> scrub secrets in archive</label>
+  </div>
   <label style="color:var(--txt)"><input type=checkbox name=enabled value=1 style="width:auto" {"checked" if (not editing or d.get('enabled')) else ""}> enabled</label>
 </div>
 <button>{"Save changes" if editing else "Add device"}</button>
@@ -1340,6 +1372,11 @@ an optional expected status code. HTTPS URLs also get a TLS certificate check
         name = g("name").strip()
         if not name:
             return self._dashboard(sess, flash="Device name required.")
+        device_types = [t for t in form.get("device_type", [])
+                        if t in ("system", "network", "application")]
+        if not device_types:
+            device_types = ["network"]
+        application_only = set(device_types) == {"application"}
         orig = g("orig_name").strip()
         if orig and orig != name:
             try:
@@ -1351,7 +1388,7 @@ an optional expected status code. HTTPS URLs also get a TLS certificate check
         except ValueError:
             port = 22
         tags = [t.strip() for t in g("tags").replace(",", " ").split() if t.strip()]
-        snmp_version = g("snmp_version").strip()
+        snmp_version = "" if application_only else g("snmp_version").strip()
         # advanced explicit vault-secret names (optional)
         adv_ssh = g("secret_ref").strip() or None
         adv_snmp = g("snmp_ref").strip() or None
@@ -1374,7 +1411,7 @@ an optional expected status code. HTTPS URLs also get a TLS certificate check
         secret_ref = adv_ssh
         snmp_ref = adv_snmp
         locked_warn = False
-        if ssh_provided or snmp_provided:
+        if not application_only and (ssh_provided or snmp_provided):
             if self.manager.vault_ready():
                 # one auto secret per device holds both SSH and SNMP fields
                 existing_dev = self.manager.inv.get(name) or {}
@@ -1394,19 +1431,26 @@ an optional expected status code. HTTPS URLs also get a TLS certificate check
                     snmp_ref = sname
             else:
                 locked_warn = True
+        if application_only:
+            # Hidden form controls are not a security boundary. A pure
+            # Application entry is an endpoint monitor, never an SSH/SNMP
+            # managed device, so discard stale or forged management values.
+            port = 22                    # neutral internal placeholder; not displayed
+            secret_ref = ""
+            snmp_ref = ""
+            enable_ref = ""
         self.manager.inv.upsert(
             name=name, host=g("host").strip(), port=port,
-            platform=g("platform", "generic"),
-            device_type=(",".join(t for t in form.get("device_type", [])
-                                  if t in ("system", "network", "application")) or "network"),
+            platform="generic" if application_only else (g("platform").strip() or "generic"),
+            device_type=",".join(device_types),
             secret_ref=secret_ref,
             enable_ref=enable_ref,
-            use_key=bool(form.get("use_key")),
-            legacy=bool(form.get("legacy")),
-            scrub=bool(form.get("scrub")),
+            use_key=False if application_only else bool(form.get("use_key")),
+            legacy=False if application_only else bool(form.get("legacy")),
+            scrub=False if application_only else bool(form.get("scrub")),
             enabled=bool(form.get("enabled")),
-            netflow=bool(form.get("netflow")),
-            monitor_ports=g("monitor_ports", ""),
+            netflow=False if application_only else bool(form.get("netflow")),
+            monitor_ports="" if application_only else g("monitor_ports", ""),
             monitor_urls=g("monitor_urls", ""),
             tags=tags, notes=g("notes"),
             snmp_version=snmp_version, snmp_ref=snmp_ref)
