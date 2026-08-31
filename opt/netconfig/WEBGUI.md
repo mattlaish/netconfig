@@ -268,3 +268,19 @@ the last few. Requires `NETCONFIG_MASTER` set so the unattended run can read the
   (routers/hosts have no bridge forwarding table).
 - **500 / blank after upgrade** → restart the service and re-unlock the vault; check
   for a `/etc/default/netconfig.rpmnew` after big upgrades.
+
+---
+
+## Console hardening additions
+
+The console now exposes `/healthz`, `/readyz`, and Prometheus-text `/metrics`, emits structured JSON access/authentication events, throttles repeated failed logins by peer IP + username, and sends additional browser security headers. The enforced CSP is transitional while legacy inline handlers remain; a strict nonce policy is emitted in report-only mode for migration work.
+
+Optional built-in TLS is available without a new runtime dependency:
+
+```bash
+netconfig web --bind 0.0.0.0 --port 8778 \
+  --tls-cert /etc/netconfig/tls/server.crt \
+  --tls-key /etc/netconfig/tls/server.key
+```
+
+Session idle/absolute expiry is a known deferred security item and is intentionally not changed in this hardening slice. See the repository `SECURITY.md` and `ROADMAP.md`.

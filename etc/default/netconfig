@@ -4,7 +4,13 @@ NETCONFIG_HOME=/var/lib/netconfig
 # Optional: auto-unlock the credential vault for the web service on start.
 # Storing the master here is less secure than unlocking via the console;
 # leave commented unless you accept that trade-off.
-#NETCONFIG_MASTER=change-me
 
 # Optional: override the ssh client binary if not on the default PATH.
 #NETCONFIG_SSH=/usr/bin/ssh
+
+# Preferred unattended vault bootstrap: use systemd LoadCredential= so the secret
+# is exposed to the service only under $CREDENTIALS_DIRECTORY/vault-master.
+# Alternative root-only file path (migration/non-systemd):
+#NETCONFIG_MASTER_FILE=/etc/netconfig/vault-master
+# Legacy only; avoid plaintext secrets in environment files:
+#NETCONFIG_MASTER=change-me

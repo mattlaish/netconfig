@@ -15,6 +15,8 @@ vary wildly and guessing is how these tools break in the field.
 
 import re
 
+from . import configmodel
+
 _RE_PW = rb"(?i)password:\s*$"
 _RE_DENIED = rb"(?i)(% access denied|% authentication failed|bad secret|denied)"
 
@@ -39,6 +41,8 @@ class Driver:
     config_enter = ["configure terminal"]
     config_exit = ["end"]
     save_command = None           # persist running->startup, if the platform needs it
+    negation_verb = "no"
+    rollback_guard = None         # cisco_reload | junos_commit_confirmed | None
 
     def initialize(self, tp, enable_password=None):
         """Post-login setup: enter enable (if needed) then disable paging."""
@@ -70,7 +74,7 @@ class Driver:
     def run(self, tp, command):
         return tp.execute(command)
 
-    def apply_lines(self, tp, lines, save=False):
+    def apply_lines(self, tp, lines, save=False, remediation=False):
         """Push config commands. Enters config mode (if the platform has one),
         sends each line, checks each response for an error marker, exits, and
         optionally saves. Returns (output_text, errors[list of (line, snippet)]).
@@ -101,6 +105,56 @@ class Driver:
             return ""
         return tp.execute(self.save_command)
 
+    def remediation_plan(self, baseline, current):
+        if self.name == "juniper_junos":
+            return configmodel.plan_junos_set(baseline, current)
+        return configmodel.plan_indented(
+            baseline, current, negation=self.negation_verb, exit_command="exit")
+
+    def begin_rollback_guard(self, tp):
+        """Arm an automatic rollback before remediation. Fail closed when the
+        platform has no implemented/testable timed rollback primitive."""
+        if self.rollback_guard == "junos_commit_confirmed":
+            # JunOS arms the timer when the candidate is committed in apply_lines.
+            return {"kind": self.rollback_guard, "armed": False}
+        if self.rollback_guard == "cisco_reload":
+            tp.send_line("reload in 5")
+            patterns = [rb"(?i)confirm", rb"(?i)save.*\[yes/no\]", _ANY_PROMPT]
+            for _ in range(3):
+                idx, _m, _raw = tp.expect(patterns, timeout=tp.command_timeout)
+                if idx == 0:
+                    tp.send_line("")
+                    return {"kind": self.rollback_guard, "armed": True}
+                if idx == 1:
+                    tp.send_line("no")
+                    continue
+                if idx == 2:
+                    # Some platforms accept the command without an extra confirm.
+                    return {"kind": self.rollback_guard, "armed": True}
+            raise DriverError("could not confirm automatic reload rollback guard")
+        raise DriverError(
+            f"safe remediation is disabled for {self.name}: no automatic rollback guard")
+
+    def commit_rollback_guard(self, tp, guard, save=False):
+        kind = (guard or {}).get("kind")
+        if kind == "cisco_reload":
+            # Persist only after post-change verification, then cancel the timer.
+            if save:
+                self.save(tp)
+            tp.execute("reload cancel")
+            return
+        if kind == "junos_commit_confirmed":
+            tp.execute("configure", expect=_ANY_PROMPT)
+            tp.execute("commit", expect=_ANY_PROMPT)
+            tp.execute("exit", expect=_ANY_PROMPT)
+            tp.prompt = None
+            tp.discover_prompt()
+            return
+
+    def leave_rollback_guard_armed(self, tp, guard):
+        # Intentionally do not cancel. Timed device rollback is the recovery path.
+        return None
+
 
 class DriverError(Exception):
     pass
@@ -109,6 +163,7 @@ class DriverError(Exception):
 # ---- concrete platforms -------------------------------------------------
 class CiscoIOS(Driver):
     name = "cisco_ios"
+    rollback_guard = "cisco_reload"
     disable_paging = ["terminal length 0"]
     config_command = "show running-config"
     needs_enable = True
@@ -129,6 +184,7 @@ class CiscoNXOS(Driver):
 
 class CiscoASA(Driver):
     name = "cisco_asa"
+    rollback_guard = "cisco_reload"
     disable_paging = ["terminal pager 0"]
     config_command = "show running-config"
     needs_enable = True
@@ -139,6 +195,7 @@ class CiscoASA(Driver):
 
 class AristaEOS(Driver):
     name = "arista_eos"
+    rollback_guard = "cisco_reload"
     disable_paging = ["terminal length 0"]
     config_command = "show running-config"
     needs_enable = True
@@ -149,6 +206,7 @@ class AristaEOS(Driver):
 
 class JuniperJunOS(Driver):
     name = "juniper_junos"
+    rollback_guard = "junos_commit_confirmed"
     disable_paging = ["set cli screen-length 0", "set cli screen-width 0"]
     config_command = "show configuration | display set"
     needs_enable = False  # operational mode can already read config
@@ -157,9 +215,33 @@ class JuniperJunOS(Driver):
     config_exit = ["commit and-quit"]
     save_command = None
 
+    def apply_lines(self, tp, lines, save=False, remediation=False):
+        if not remediation:
+            return super().apply_lines(tp, lines, save=save, remediation=False)
+        out = [tp.execute("configure", expect=_ANY_PROMPT)]
+        errors = []
+        for line in lines:
+            resp = tp.execute(line, expect=_ANY_PROMPT)
+            out.append(resp)
+            if _RE_CFG_ERROR.search(resp):
+                errors.append((line, resp.strip()[:200]))
+        if errors:
+            tp.execute("rollback 0", expect=_ANY_PROMPT)
+            tp.execute("exit", expect=_ANY_PROMPT)
+        else:
+            resp = tp.execute("commit confirmed 5", expect=_ANY_PROMPT)
+            out.append(resp)
+            if _RE_CFG_ERROR.search(resp):
+                errors.append(("commit confirmed 5", resp.strip()[:200]))
+            tp.execute("exit", expect=_ANY_PROMPT)
+        tp.prompt = None
+        tp.discover_prompt()
+        return "\n".join(o for o in out if o), errors
+
 
 class HPComware(Driver):
     name = "hp_comware"
+    negation_verb = "undo"
     disable_paging = ["screen-length disable"]
     config_command = "display current-configuration"
     needs_enable = False

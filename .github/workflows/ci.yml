@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  python-312:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: netconfig
+          POSTGRES_PASSWORD: netconfig
+          POSTGRES_DB: netconfig_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U netconfig"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install quality tools
+        run: python -m pip install --upgrade pip pytest ruff mypy
+      - name: Ruff
+        run: ruff check opt/netconfig/netconfig tests
+      - name: Mypy security/core boundary
+        run: >-
+          mypy
+          opt/netconfig/netconfig/security.py
+          opt/netconfig/netconfig/credentials.py
+          opt/netconfig/netconfig/configmodel.py
+          opt/netconfig/netconfig/observability.py
+          opt/netconfig/netconfig/protocols.py
+          opt/netconfig/netconfig/storage_backend.py
+      - name: Compile all modules
+        run: python -m compileall -q opt/netconfig/netconfig
+      - name: Pytest
+        run: pytest
+      - name: Legacy self-test compatibility
+        run: PYTHONPATH=opt/netconfig python opt/netconfig/selftest.py
+      - name: Install integration services
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openssh-server snmpd
+          python -m pip install 'psycopg[binary]'
+      - name: Configure scripted SSH device
+        run: |
+          sudo cp tests/integration/fake_device_shell.py /usr/local/bin/netconfig-fake-device
+          sudo chmod 0755 /usr/local/bin/netconfig-fake-device
+          echo /usr/local/bin/netconfig-fake-device | sudo tee -a /etc/shells
+          sudo useradd -m -s /usr/local/bin/netconfig-fake-device netops
+          echo 'netops:netconfig' | sudo chpasswd
+          sudo mkdir -p /run/sshd
+          sudo /usr/sbin/sshd -p 2222 -o PasswordAuthentication=yes -o UsePAM=no -o PermitRootLogin=no
+      - name: Configure Net-SNMP fake agent
+        run: |
+          printf 'agentaddress udp:127.0.0.1:1161\nrocommunity public 127.0.0.1\nsysLocation CI\nsysContact netconfig\n' > /tmp/snmpd.conf
+          sudo /usr/sbin/snmpd -f -Lo -C -c /tmp/snmpd.conf > /tmp/snmpd.log 2>&1 &
+          sleep 1
+      - name: Protocol integration tier
+        env:
+          NETCONFIG_INTEGRATION: "1"
+        run: pytest -q tests/integration

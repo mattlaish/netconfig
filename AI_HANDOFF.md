@@ -385,3 +385,9 @@ results remain the latest Linux validation. Live web/RPM verification on
 AlmaLinux remains outstanding.
 
 Git synchronization and repository history remain under the user's control.
+
+## 2026-08-31 hardening slice
+
+A broad engineering/security/remediation hardening slice was added. See `DEVELOPMENT.md`, `SECURITY.md`, and `ROADMAP.md` for canonical details. Important constraint: **do not implement console session expiry in this slice**. Session idle/absolute expiry is explicitly deferred security debt and should be addressed later as a dedicated change with lifecycle/audit/CSRF tests.
+
+Remediation no longer replays the baseline blindly. Execution now requires a non-scrubbed baseline, fetches fresh live state, builds a semantic vendor-aware plan, arms a rollback guard, applies, re-fetches, verifies, and only then confirms/cancels rollback. IOS/ASA/Arista use timed reload and JunOS uses commit-confirmed; other platforms fail closed until a tested guard exists.

@@ -24,6 +24,7 @@ import re
 import os
 import secrets
 import socketserver
+import ssl
 import sys
 import threading
 import time
@@ -35,6 +36,9 @@ from .workflow import Workflow, Scripts
 from .drivers import platforms as _platforms
 from . import config as _config
 from . import automation as _automation
+from .security import LoginThrottle, security_headers
+from .observability import METRICS, event as _obs_event
+from .credentials import service_master_password
 
 _CSS = """
 :root{
@@ -226,7 +230,8 @@ _DASH_JS = """<style>
 })();
 </script>"""
 
-_SESSIONS = {}   # token -> {username, role, csrf, created}
+_SESSIONS = {}   # token -> {username, role, csrf, created}; expiry intentionally deferred
+_LOGIN_THROTTLE = LoginThrottle()
 
 # Vanilla-JS live line chart: polls /snmp-series and redraws an inline SVG. No
 # external libraries. %s = device name (JSON string), %d = refresh seconds.
@@ -511,6 +516,7 @@ def _oper_badge(oper):
 
 class Console(http.server.BaseHTTPRequestHandler):
     manager = None
+    tls_enabled = False
     netflow = None
     server_version = "netconfig-console"
 
@@ -549,8 +555,9 @@ class Console(http.server.BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
-        self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("X-Frame-Options", "DENY")
+        nonce = secrets.token_urlsafe(18)
+        for h, v in security_headers(tls=self.tls_enabled, csp_nonce=nonce):
+            self.send_header(h, v)
         for h, v in (headers or []):
             self.send_header(h, v)
         self.end_headers()
@@ -560,6 +567,9 @@ class Console(http.server.BaseHTTPRequestHandler):
         self._responded = True
         self.send_response(303)
         self.send_header("Location", loc)
+        nonce = secrets.token_urlsafe(18)
+        for h, v in security_headers(tls=self.tls_enabled, csp_nonce=nonce):
+            self.send_header(h, v)
         for h, v in (headers or []):
             self.send_header(h, v)
         self.end_headers()
@@ -625,8 +635,34 @@ class Console(http.server.BaseHTTPRequestHandler):
         got = (form.get("csrf") or [""])[0]
         return secrets.compare_digest(got, sess["csrf"])
 
-    def log_message(self, *a):
-        pass
+    def log_message(self, fmt, *args):
+        _obs_event("http_access", source_ip=self.client_address[0] if self.client_address else "",
+                   method=getattr(self, "command", ""), path=getattr(self, "path", ""),
+                   message=(fmt % args if args else fmt))
+
+    def _client_ip(self):
+        # Deliberately trust only the actual peer. Reverse proxies should preserve
+        # source identity in their own logs unless an explicit trusted-proxy model
+        # is added later.
+        return self.client_address[0] if self.client_address else "unknown"
+
+    def _health(self, ready=False):
+        ok = True
+        detail = {"status": "ok"}
+        if ready:
+            try:
+                self.manager.db.conn.execute("SELECT 1").fetchone()
+            except Exception:
+                ok = False
+            detail.update({"status": "ready" if ok else "not-ready",
+                           "vault_ready": bool(self.manager.vault_ready())})
+        return self._send(json.dumps(detail), 200 if ok else 503,
+                          "application/json; charset=utf-8")
+
+    def _metrics(self):
+        METRICS.set("netconfig_vault_ready", 1 if self.manager.vault_ready() else 0)
+        METRICS.set("netconfig_sessions", len(_SESSIONS))
+        return self._send(METRICS.render(), 200, "text/plain; version=0.0.4; charset=utf-8")
 
     # ---- routing ---------------------------------------------------------
     def do_GET(self):
@@ -674,6 +710,12 @@ class Console(http.server.BaseHTTPRequestHandler):
     def _route_get(self):
         u = urllib.parse.urlparse(self.path)
         q = urllib.parse.parse_qs(u.query)
+        if u.path == "/healthz":
+            return self._health(False)
+        if u.path == "/readyz":
+            return self._health(True)
+        if u.path == "/metrics":
+            return self._metrics()
         if u.path == "/login":
             return self._login_page()
         routes = {
@@ -788,21 +830,38 @@ Local console \u00b7 bind 127.0.0.1 \u00b7 front with WAF for TLS</div>
     def _do_login(self, form):
         user = (form.get("username") or [""])[0].strip()
         pw = (form.get("password") or [""])[0]
+        ip = self._client_ip()
+        retry = _LOGIN_THROTTLE.retry_after(ip, user)
+        if retry:
+            self.manager.db.audit(user or "(blank)", "login_throttled", "console", f"source={ip}")
+            _obs_event("auth_throttled", username=user, source_ip=ip, retry_after=retry)
+            return self._send("<!doctype html><html><body><h1>Too many failed attempts</h1><p>Try again shortly.</p></body></html>",
+                              429, headers=[("Retry-After", str(retry))])
         u = self.manager.users.verify(user, pw)
         if not u:
+            retry = _LOGIN_THROTTLE.failure(ip, user)
+            self.manager.db.audit(user or "(blank)", "login_failure", "console", f"source={ip}")
+            METRICS.inc("netconfig_auth_failures_total")
+            _obs_event("auth_failure", username=user, source_ip=ip)
             return self._login_page(error="Invalid username or password.")
+        _LOGIN_THROTTLE.success(ip, user)
         token = secrets.token_urlsafe(32)
         _SESSIONS[token] = {"username": u["username"], "role": u["role"],
                             "csrf": secrets.token_urlsafe(24), "created": time.time()}
-        self.manager.db.audit(u["username"], "login", "console", "")
-        secure = "; Secure" if self.manager.settings.get("cookie_secure") else ""
+        self.manager.db.audit(u["username"], "login", "console", f"source={ip}")
+        METRICS.inc("netconfig_logins_total")
+        _obs_event("auth_success", username=u["username"], source_ip=ip)
+        secure = "; Secure" if (self.manager.settings.get("cookie_secure") or self.tls_enabled) else ""
         self._redirect("/", headers=[
             ("Set-Cookie", f"ncsid={token}; HttpOnly; SameSite=Strict; Path=/{secure}")])
 
     def _do_logout(self):
-        tok, _ = self._session()
+        tok, sess = self._session()
         _SESSIONS.pop(tok, None)
-        self._redirect("/login", headers=[("Set-Cookie", "ncsid=; Max-Age=0; Path=/")])
+        if sess:
+            self.manager.db.audit(sess["username"], "logout", "console", f"source={self._client_ip()}")
+            _obs_event("auth_logout", username=sess["username"], source_ip=self._client_ip())
+        self._redirect("/login", headers=[("Set-Cookie", "ncsid=; Max-Age=0; HttpOnly; SameSite=Strict; Path=/")])
 
     def _do_unlock(self, form, sess):
         if not _can(sess["role"], "unlock_vault"):
@@ -3341,12 +3400,13 @@ def _check_writable(manager):
 def serve(manager, bind="127.0.0.1", port=8778):
     Console.manager = manager
     _check_writable(manager)
-    env_master = os.environ.get("NETCONFIG_MASTER")
-    if env_master and manager.vault.exists() and not manager.vault_ready():
+    master, master_source = service_master_password()
+    if master and manager.vault.exists() and not manager.vault_ready():
         try:
-            manager.unlock_vault(env_master)
+            manager.unlock_vault(master)
+            _obs_event("vault_service_unlock", source=master_source)
         except ValueError:
-            pass
+            _obs_event("vault_service_unlock_failed", source=master_source)
     stop = threading.Event()
     interval = int(manager.settings.get("snmp_poll_interval", 0) or 0)
     if interval > 0:
@@ -3371,12 +3431,26 @@ def serve(manager, bind="127.0.0.1", port=8778):
                          daemon=True).start()
         print(f"  Monitor poller: every {mon_iv}s (port/http/tls history + alerts)")
     httpd = _Server((bind, port), Console)
-    print(f"NetConfig console on http://{bind}:{port}  (Ctrl-C to stop)")
+    tls_cert = (manager.settings.get("web_tls_cert") or "").strip()
+    tls_key = (manager.settings.get("web_tls_key") or "").strip()
+    if bool(tls_cert) != bool(tls_key):
+        raise RuntimeError("built-in TLS requires both web_tls_cert and web_tls_key")
+    scheme = "http"
+    if tls_cert and tls_key:
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+        ctx.load_cert_chain(tls_cert, tls_key)
+        httpd.socket = ctx.wrap_socket(httpd.socket, server_side=True)
+        Console.tls_enabled = True
+        scheme = "https"
+    else:
+        Console.tls_enabled = False
+    print(f"NetConfig console on {scheme}://{bind}:{port}  (Ctrl-C to stop)")
     if interval > 0:
         print(f"  background SNMP poller: every {interval}s (vault must be unlocked)")
-    if bind not in ("127.0.0.1", "localhost", "::1"):
+    if not Console.tls_enabled and bind not in ("127.0.0.1", "localhost", "::1"):
         print("  WARNING: bound to a non-local address over plain HTTP. "
-              "Front this with the WAF for TLS, or bind 127.0.0.1.")
+              "Enable built-in TLS or front this with the WAF, or bind 127.0.0.1.")
     if manager.users.count() == 0:
         print("  No users yet \u2014 create the first admin: netconfig user add <name> --role admin")
     try:

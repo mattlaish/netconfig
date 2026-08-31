@@ -144,3 +144,12 @@ See **CREDENTIALS.md** for the vault model, adding SSH/SNMP devices (with the Ar
 ## Operating the web console
 
 See **WEBGUI.md** for the full browser walkthrough (sign in, unlock, add devices, collect, diffs/baseline, SNMP live graph, change-approval workflow, compliance, users, settings).
+
+### 2026-08 hardening notes
+
+- Bulk SNMP polling now uses a bounded worker pool (`snmp_workers`, default 8).
+- Remediation computes a fresh semantic plan and vendor negations instead of blindly replaying baseline text; guarded rollback and post-change verification are required.
+- Scrubbed baselines are evidence-only and cannot be used for remediation.
+- The web console supports optional built-in TLS, login throttling/auditing, JSON logs, and health/readiness/metrics endpoints.
+- Unattended vault unlock should use systemd credentials or a protected credential file rather than a plaintext environment variable.
+- Console session expiry remains explicitly deferred; see `SECURITY.md`.

@@ -51,9 +51,12 @@ DEFAULT_SETTINGS = {
     "host_key_policy": "accept-new",   # accept-new | yes | no
     "web_bind": "127.0.0.1",
     "web_port": 8778,
+    "web_tls_cert": "",               # optional PEM certificate for built-in TLS
+    "web_tls_key": "",                # optional PEM private key for built-in TLS
     "cookie_secure": False,            # add Secure to the session cookie; enable when
                                        # the console is fronted by the WAF for TLS
     "bulk_workers": 5,                 # concurrent SSH sessions for bulk jobs
+    "snmp_workers": 8,                 # bounded concurrent SNMP polls
     "snmp_timeout": 2.0,
     "snmp_port": 161,
     "snmp_poll_interval": 0,           # seconds; >0 enables the background poller

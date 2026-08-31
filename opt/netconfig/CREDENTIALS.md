@@ -196,3 +196,16 @@ sudo -u netconfig NETCONFIG_HOME=/var/lib/netconfig NETCONFIG_MASTER='<master>' 
 It prints the resolved parameters, the equivalent `snmpwalk` command to compare, the v3 engine discovery, and every request/response. It also tests the interface table two ways -- multi-varbind GETNEXT (the default) and one OID at a time (like `snmpwalk`) -- and tells you if your agent rejects multi-varbind requests (NetConfig auto-falls back to single-OID walking in that case).
 
 For the web console's background poller, set `NETCONFIG_SNMP_DEBUG=1` in `/etc/default/netconfig`, restart, and read the trace with `journalctl -u netconfig-web -f`.
+---
+
+## Production unattended vault unlock
+
+For long-running polling/backup services, prefer a systemd credential instead of keeping the vault master in `/etc/default/netconfig`:
+
+```ini
+# systemctl edit netconfig-web
+[Service]
+LoadCredential=vault-master:/root/secure/netconfig-vault-master
+```
+
+NetConfig automatically reads `$CREDENTIALS_DIRECTORY/vault-master`. For non-systemd deployments, `NETCONFIG_MASTER_FILE=/root/secure/netconfig-vault-master` is supported; the file is rejected when group/world writable. `NETCONFIG_MASTER` remains a legacy compatibility fallback and is not the recommended production path.

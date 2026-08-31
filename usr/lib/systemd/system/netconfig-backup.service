@@ -8,8 +8,10 @@ Type=oneshot
 User=netconfig
 Group=netconfig
 EnvironmentFile=-/etc/default/netconfig
-# Repair ownership first (runs as root via '+'), then back up as the service user.
-ExecStartPre=+/bin/sh -c 'chown -R netconfig:netconfig /var/lib/netconfig 2>/dev/null || true'
+StateDirectory=netconfig
+StateDirectoryMode=0750
+# For unattended vault access, use a systemd drop-in with LoadCredential=
+# vault-master:/root-or-secret-manager/netconfig-vault-master.
 ExecStart=/usr/bin/netconfig backup --keep 5
-# Needs the vault: set NETCONFIG_MASTER in /etc/default/netconfig, or the run
-# logs a clear "vault locked" message and does nothing.
+# Needs the vault. Prefer systemd LoadCredential; legacy NETCONFIG_MASTER is
+# supported only for compatibility.

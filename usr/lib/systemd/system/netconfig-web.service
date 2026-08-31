@@ -9,10 +9,13 @@ Type=simple
 User=netconfig
 Group=netconfig
 EnvironmentFile=-/etc/default/netconfig
-# Self-heal: if the CLI was ever run as root, its files end up root-owned and the
-# service (running as netconfig) can't write -> unlock/collect fail. Repair on every
-# start. The '+' prefix runs this step as root regardless of User= above.
-ExecStartPre=+/bin/sh -c 'chown -R netconfig:netconfig /var/lib/netconfig 2>/dev/null || true'
+# systemd creates and owns /var/lib/netconfig for the service. Avoid recursive
+# root chown on every start; package/install migration should repair legacy ownership.
+StateDirectory=netconfig
+StateDirectoryMode=0750
+# Optional production secret bootstrap (recommended): add a systemd drop-in with
+# LoadCredential=vault-master:/root-or-secret-manager/netconfig-vault-master
+# NetConfig automatically reads $CREDENTIALS_DIRECTORY/vault-master.
 ExecStart=/usr/bin/netconfig web
 Restart=on-failure
 RestartSec=3
@@ -28,7 +31,7 @@ CapabilityBoundingSet=
 AmbientCapabilities=
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 LockPersonality=true
-MemoryDenyWriteExecute=false
+MemoryDenyWriteExecute=true
 
 [Install]
 WantedBy=multi-user.target

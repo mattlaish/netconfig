@@ -30,34 +30,18 @@ from .store import ConfigStore
 from .session import SessionRecorder
 from .transport import SSHTransport, TransportError, AuthError
 from .drivers import get_driver, DriverError
+from . import configmodel as _configmodel
+from .observability import METRICS, event as _obs_event
 
 
 def _remediation_lines(baseline_text):
-    """Turn a stored baseline config into config-mode command lines.
+    """Legacy compatibility helper returning cleaned baseline commands.
 
-    Honest limitation: a captured 'show running-config' is not a clean config
-    script. This filters the obvious non-command noise (comment markers, blank
-    lines, the "Building configuration" / "Current configuration" / "version"
-    headers) and replays the rest. That cleanly re-asserts additive settings that
-    drifted; it does NOT compute negations, so it will not by itself remove lines
-    that were *added* to a device. Drift *detection* is the always-safe feature;
-    remediation is a best-effort convenience, gated behind approval + opt-in.
+    New remediation uses a fresh running-config plus semantic planning so added
+    rogue lines can be removed. This helper remains for callers/tests that only
+    need normalized baseline text.
     """
-    out = []
-    for raw in baseline_text.splitlines():
-        s = raw.rstrip()
-        st = s.strip()
-        if not st:
-            continue
-        if st == "!" or st.startswith("! "):
-            continue
-        low = st.lower()
-        if low.startswith(("building configuration", "current configuration",
-                           "version ", "boot-start-marker", "boot-end-marker",
-                           "end")):
-            continue
-        out.append(s)
-    return out
+    return _configmodel.clean_lines(baseline_text)
 
 
 class CollectionResult:
@@ -90,8 +74,10 @@ class Manager:
         self.paths = _cfg.Paths(home)
         self.settings = _cfg.load_settings(self.paths)
         self.db = Database(self.paths.inventory_db)
-        self.inv = Inventory(self.db.conn)
-        self.users = Users(self.db.conn)
+        from .storage_backend import StorageBackend
+        self.storage = StorageBackend(self.db)
+        self.inv = Inventory(self.storage.conn)
+        self.users = Users(self.storage.conn)
         self.vault = Vault(self.paths.vault_file)
         self.store = ConfigStore(self.paths.configs_dir,
                                  keep_versions=self.settings["keep_versions"])
@@ -291,12 +277,17 @@ class Manager:
         name = device["name"]
         tp = None
         try:
+            base = None
             if mode == "remediate":
+                if device.get("scrub"):
+                    return {"device": name, "ok": False, "changed": False,
+                            "output": "safe remediation disabled: stored config is scrubbed; "
+                                      "a sanitized baseline cannot be replayed as device config"}
                 base = self.store.baseline_text(name)
                 if base is None:
                     return {"device": name, "ok": False, "changed": False,
                             "output": "no baseline set"}
-                lines = _remediation_lines(base)
+                lines = []  # planned after a fresh live config is collected
                 resolved_unresolved = []
             else:
                 text, unresolved = _auto.substitute(body or "", device, extra_vars)
@@ -313,7 +304,30 @@ class Manager:
             if mode == "command":
                 out = "\n".join(driver.run(tp, c) for c in lines)
                 errors = []
-            else:  # config | remediate
+            elif mode == "remediate":
+                current = driver.fetch_config(tp)
+                plan = driver.remediation_plan(base, current)
+                lines = plan["commands"]
+                if not lines:
+                    return {"device": name, "ok": True, "changed": False,
+                            "output": "already matches baseline"}
+                guard = driver.begin_rollback_guard(tp)
+                try:
+                    out, errors = driver.apply_lines(tp, lines, save=False, remediation=True)
+                    if errors:
+                        raise DriverError("remediation command errors: " +
+                                          "; ".join(f"{l}: {e}" for l, e in errors))
+                    verify = driver.fetch_config(tp)
+                    post = driver.remediation_plan(base, verify)
+                    if post["commands"]:
+                        raise DriverError("post-change verification still differs from baseline")
+                    driver.commit_rollback_guard(tp, guard, save=save)
+                    out = (out + "\n[verified] semantic baseline match").strip()
+                    errors = []
+                except Exception:
+                    driver.leave_rollback_guard_armed(tp, guard)
+                    raise
+            else:  # config
                 out, errors = driver.apply_lines(tp, lines, save=save)
             self.recorder.write(name, tp.transcript)
             ok = not errors
@@ -514,11 +528,39 @@ class Manager:
             return {"ok": False, "error": str(e)}
 
     def snmp_poll_all(self, vendor_force=False):
-        """Poll every SNMP-enabled device. Returns {device: result}."""
+        """Poll every SNMP-enabled device with a bounded worker pool."""
+        devices = [d for d in self.inv.all() if d.get("snmp_version")]
+        workers = max(1, min(int(self.settings.get("snmp_workers", 8) or 8),
+                             max(1, len(devices))))
         out = {}
-        for d in self.inv.all():
-            if d.get("snmp_version"):
-                out[d["name"]] = self.snmp_poll(d["name"], vendor_force=vendor_force)
+        started = time.monotonic()
+        METRICS.set("netconfig_snmp_poll_queue_depth", len(devices))
+        if not devices:
+            return out
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers,
+                                                   thread_name_prefix="snmp") as ex:
+            futs = {ex.submit(self.snmp_poll, d["name"], vendor_force=vendor_force): d
+                    for d in devices}
+            pending = len(futs)
+            for fut in concurrent.futures.as_completed(futs):
+                d = futs[fut]
+                try:
+                    result = fut.result()
+                except Exception as e:
+                    result = {"ok": False, "error": str(e)}
+                out[d["name"]] = result
+                pending -= 1
+                METRICS.set("netconfig_snmp_poll_queue_depth", pending)
+                METRICS.inc("netconfig_snmp_polls_total")
+                if not result.get("ok"):
+                    METRICS.inc("netconfig_snmp_poll_failures_total")
+        failures = sum(1 for r in out.values() if not r.get("ok"))
+        METRICS.set("netconfig_snmp_poll_last_duration_seconds",
+                    time.monotonic() - started)
+        METRICS.set("netconfig_snmp_devices_total", len(devices))
+        METRICS.set("netconfig_snmp_devices_reachable", len(devices) - failures)
+        _obs_event("snmp_poll_all", devices=len(devices), workers=workers,
+                   failures=failures)
         return out
 
     def close(self):

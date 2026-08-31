@@ -18,6 +18,7 @@ import json
 import time
 
 from . import automation as _auto
+from .drivers import get_driver
 
 
 class Scripts:
@@ -107,7 +108,14 @@ class Workflow:
         for d in devices:
             if cr["mode"] == "remediate":
                 base = self.m.store.baseline_text(d["name"])
-                lines = ["(replay baseline)"] if base else ["(no baseline set!)"]
+                current = self.m.store.current(d["name"])
+                if not base:
+                    lines = ["(no baseline set!)"]
+                elif current is None:
+                    lines = ["(no collected current config; execution will fetch live state)"]
+                else:
+                    plan = get_driver(d["platform"]).remediation_plan(base, current)
+                    lines = plan["commands"] or ["(stored current already matches baseline)"]
                 unresolved = []
             else:
                 text, unresolved = _auto.substitute(cr["body"], d)

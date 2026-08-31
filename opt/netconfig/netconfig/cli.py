@@ -369,6 +369,10 @@ def cmd_platforms(m, args):
 
 def cmd_web(m, args):
     from .web import serve
+    if getattr(args, "tls_cert", None):
+        m.settings["web_tls_cert"] = args.tls_cert
+    if getattr(args, "tls_key", None):
+        m.settings["web_tls_key"] = args.tls_key
     serve(m, bind=args.bind or m.settings["web_bind"],
           port=args.port or m.settings["web_port"])
 
@@ -735,6 +739,8 @@ def build_parser():
     rn.add_argument("--limit", type=int, default=50); rn.set_defaults(func=cmd_runs)
 
     w = sub.add_parser("web"); w.add_argument("--bind"); w.add_argument("--port", type=int)
+    w.add_argument("--tls-cert", help="PEM certificate for optional built-in TLS")
+    w.add_argument("--tls-key", help="PEM private key for optional built-in TLS")
     w.set_defaults(func=cmd_web)
 
     # --- v2 ---
