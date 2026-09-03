@@ -35,9 +35,9 @@ from .users import can as _can, roles as _roles
 from .workflow import Workflow, Scripts
 from .drivers import platforms as _platforms
 from . import config as _config
-from . import automation as _automation
 from .security import LoginThrottle, security_headers
 from .observability import METRICS, event as _obs_event
+from .apitokens import ApiTokens
 from .credentials import service_master_password
 
 _CSS = """
@@ -518,6 +518,7 @@ class Console(http.server.BaseHTTPRequestHandler):
     manager = None
     tls_enabled = False
     netflow = None
+    syslog = None
     server_version = "netconfig-console"
 
     @property
@@ -583,7 +584,7 @@ class Console(http.server.BaseHTTPRequestHandler):
         role = sess["role"]
         links = [("/", "Devices"), ("/groups", "Groups"), ("/automation", "Automation"),
                  ("/requests", "Change Requests"), ("/compliance", "Compliance"),
-                 ("/alerts", "Alerts"), ("/snmp", "SNMP")]
+                 ("/alerts", "Alerts"), ("/snmp", "SNMP"), ("/topology", "Topology")]
         if _can(role, "manage_devices"):
             links.append(("/vault", "Vault"))
         links += [("/runs", "Run Log"), ("/audit", "Audit")]
@@ -665,6 +666,45 @@ class Console(http.server.BaseHTTPRequestHandler):
         return self._send(METRICS.render(), 200, "text/plain; version=0.0.4; charset=utf-8")
 
     # ---- routing ---------------------------------------------------------
+    def _api_token(self):
+        # Never accept reusable bearer credentials over cleartext LAN HTTP.
+        # Loopback is allowed for the documented local reverse-proxy pattern.
+        peer = self._client_ip()
+        if not self.tls_enabled and peer not in ("127.0.0.1", "::1", "localhost"):
+            return None
+        auth = self.headers.get("Authorization", "")
+        if not auth.startswith("Bearer "):
+            return None
+        return ApiTokens(self.manager.db.conn).verify(auth[7:].strip())
+
+    def _api_json(self, payload, status=200):
+        import json
+        self._send(json.dumps(payload, indent=2, sort_keys=True), status,
+                   "application/json; charset=utf-8", [("Cache-Control", "no-store")])
+
+    def _handle_api_get(self, path):
+        token = self._api_token()
+        if not token:
+            self._api_json({"error": "invalid_or_missing_bearer_token"}, 401); return True
+        scopes = token["scopes"]
+        routes = {
+            "/api/v1/inventory": ("inventory:read", lambda: self.manager.inv.all()),
+            "/api/v1/topology": ("topology:read", lambda: self.manager.db.get_neighbors()),
+            "/api/v1/drift": ("drift:read", lambda: [dict(device=d["name"], **self.manager.store.drift(d["name"])) for d in self.manager.inv.all()]),
+            "/api/v1/compliance/latest": ("compliance:read", lambda: self.manager.db.conn.execute("SELECT * FROM compliance_runs ORDER BY id DESC LIMIT 1").fetchone()),
+            "/api/v1/audit": ("audit:read", lambda: self.manager.db.recent_audit(200)),
+            "/api/v1/digest/latest": ("compliance:read", lambda: self.manager.db.latest_digest()),
+        }
+        item = routes.get(path)
+        if not item: return False
+        scope, fn = item
+        if scope not in scopes:
+            self._api_json({"error": "insufficient_scope", "required": scope}, 403); return True
+        value = fn()
+        if hasattr(value, "keys") and not isinstance(value, dict): value = dict(value)
+        self.manager.db.audit("api:" + token["name"], "api_read", path, scope)
+        self._api_json(value if value is not None else {}); return True
+
     def do_GET(self):
         self._responded = False
         try:
@@ -709,6 +749,8 @@ class Console(http.server.BaseHTTPRequestHandler):
 
     def _route_get(self):
         u = urllib.parse.urlparse(self.path)
+        if u.path.startswith("/api/v1/") and self._handle_api_get(u.path):
+            return
         q = urllib.parse.parse_qs(u.query)
         if u.path == "/healthz":
             return self._health(False)
@@ -731,6 +773,7 @@ class Console(http.server.BaseHTTPRequestHandler):
             "/compliance": lambda s: self._compliance_page(q, s),
             "/alerts": lambda s: self._alerts_page(q, s),
             "/snmp": lambda s: self._snmp_page(q, s),
+            "/topology": lambda s: self._topology_page(s),
             "/snmp-series": lambda s: self._snmp_series(q, s),
             "/snmp-history": lambda s: self._snmp_history(q, s),
             "/secret-info": lambda s: self._secret_info(q, s),
@@ -768,6 +811,7 @@ class Console(http.server.BaseHTTPRequestHandler):
             "/unlock-vault": lambda: self._do_unlock(form, sess),
             "/collect": lambda: self._do_collect(form, sess),
             "/snmp-poll": lambda: self._do_snmp(form, sess),
+            "/topology-discover": lambda: self._do_topology_discover(form, sess),
             "/device-save": lambda: self._do_device_save(form, sess),
             "/device-delete": lambda: self._do_device_delete(form, sess),
             "/device-run": lambda: self._do_device_run(form, sess),
@@ -1734,7 +1778,13 @@ an optional expected status code. HTTPS URLs also get a TLS certificate check
 <p class="muted">Background port, HTTP and TLS monitoring schedule and retention.</p>
 {form}<div class="row">{field("monitor_poll_interval","Monitor poll interval (s)","0 = off; e.g. 60 enables background polling")}
 {field("monitor_history_days","Monitor history retention (days)")}</div>
+<h3>Event-driven collection &amp; digest</h3>
+<div class="row"><div><label>Syslog change receiver</label><label style="color:var(--txt);font-weight:400"><input type=checkbox name=syslog_enabled value=1 style="width:auto" {"checked" if s.get("syslog_enabled") else ""}> enabled (restart required)</label></div>
+{field("syslog_port","Syslog UDP port","default 5514; forward udp/514 if required")}{field("syslog_queue_size","Syslog queue size")}{field("syslog_debounce_seconds","Change debounce (s)")}</div>
+<div class="row">{field("digest_interval","Compliance/drift digest interval (s)","0 = off; 86400 = daily; uses configured email")}</div>
 <button>Save monitoring settings</button></form></div>"""
+        elif section == "monitoring":
+            s["syslog_enabled"] = bool(form.get("syslog_enabled"))
         elif section == "email":
             from . import mailer as _mailer
             from . import oauth as _oauth
@@ -1963,7 +2013,7 @@ The client secret is stored in the vault.</p>
                         "command_timeout", "bulk_workers"),
             "snmp": ("snmp_port", "snmp_poll_interval", "snmp_history_seconds"),
             "netflow": ("netflow_port", "netflow_max_flows"),
-            "monitoring": ("monitor_poll_interval", "monitor_history_days"),
+            "monitoring": ("monitor_poll_interval", "monitor_history_days", "syslog_port", "syslog_queue_size", "syslog_debounce_seconds", "digest_interval"),
             "email": ("smtp_port",),
             "db": ("pg_port", "if_history_hours", "if_history_bucket_seconds"),
         }.get(section, ())
@@ -3338,6 +3388,53 @@ The client secret is stored in the vault.</p>
             return self._redirect(f"/snmp?device={_q(name)}")
         return self._redirect(f"/device?name={_q(name)}")
 
+    def _topology_page(self, sess):
+        rows = self.manager.db.get_neighbors()
+        devices = sorted({r["device"] for r in rows} | {r.get("neighbor_device", "") for r in rows if r.get("neighbor_device")})
+        unmanaged = [r for r in rows if not r.get("managed_neighbor")]
+        # deterministic circular layout; no client-side dependency.
+        import math
+        nodes = {}
+        count = max(1, len(devices))
+        for i, name in enumerate(devices):
+            angle = (2 * math.pi * i / count) - math.pi / 2
+            nodes[name] = (400 + 270 * math.cos(angle), 300 + 220 * math.sin(angle))
+        svg = ['<svg viewBox="0 0 800 600" role="img" aria-label="Network topology" style="width:100%;min-height:480px">']
+        for r in rows:
+            if not r.get("managed_neighbor") or not r.get("neighbor_device") or r["device"] not in nodes or r["neighbor_device"] not in nodes:
+                continue
+            x1,y1=nodes[r["device"]]; x2,y2=nodes[r["neighbor_device"]]
+            svg.append(f'<line x1="{x1:.0f}" y1="{y1:.0f}" x2="{x2:.0f}" y2="{y2:.0f}" stroke="currentColor" opacity=".35"/>')
+        for name,(x,y) in nodes.items():
+            svg.append(f'<circle cx="{x:.0f}" cy="{y:.0f}" r="34" fill="none" stroke="currentColor"/><text x="{x:.0f}" y="{y+4:.0f}" text-anchor="middle" font-size="12">{html.escape(name)}</text>')
+        svg.append('</svg>')
+        table = ''
+        for r in rows:
+            state = '<span class="badge b-ok">managed</span>' if r.get("managed_neighbor") else '<span class="badge b-bad">UNMANAGED</span>'
+            table += (f'<tr><td>{html.escape(r["device"])}</td><td>{html.escape(r.get("local_port", ""))}</td>'
+                      f'<td>{html.escape(r.get("sys_name") or r.get("chassis_id") or "?")}</td>'
+                      f'<td>{html.escape(r.get("port_id", ""))}</td><td>{html.escape(r.get("protocol", ""))}</td><td>{state}</td></tr>')
+        action = ''
+        if _can(sess["role"], "collect"):
+            action = f'<form method=post action="/topology-discover">{self._csrf_field()}<button>Discover now</button></form>'
+        inner = (f'<div class="panel"><div class="row"><div><b>{len(rows)}</b> neighbour observations · '
+                 f'<b>{len(unmanaged)}</b> unmanaged</div><div>{action}</div></div>{"".join(svg)}</div>'
+                 f'<div class="panel"><table><tr><th>Device</th><th>Local port</th><th>Neighbour</th><th>Remote port</th><th>Protocol</th><th>State</th></tr>'
+                 f'{table or "<tr><td colspan=6 class=muted>No LLDP/CDP neighbours collected yet.</td></tr>"}</table></div>')
+        self._send(self._page("Topology", inner, sess))
+
+    def _do_topology_discover(self, form, sess):
+        if not _can(sess["role"], "collect"):
+            return self._send(self._page("Topology", '<div class="err">Not permitted.</div>', sess), 403)
+        total = unmanaged = 0
+        for d in self.manager.inv.all():
+            if not d.get("snmp_version") and not d.get("secret_ref"):
+                continue
+            rows = self.manager.discover_neighbors(d["name"])
+            total += len(rows); unmanaged += sum(1 for r in rows if r.get("unmanaged"))
+        self.manager.db.audit(sess["username"], "topology_discover", "fleet", f"neighbors={total} unmanaged={unmanaged}")
+        return self._redirect("/topology")
+
     def _do_baseline(self, form, sess, set_it):
         if not _can(sess["role"], "manage_devices"):
             return self._dashboard(sess, flash="Not permitted.")
@@ -3374,7 +3471,6 @@ def _snmp_poller(manager, interval, stop):
 def _check_writable(manager):
     """Warn loudly if the data dir / DB isn't writable by this process -- the most
     common cause of 'works for reads, dies on the first write' (e.g. unlock)."""
-    import time as _t
     home = str(manager.paths.home)
     try:
         probe = os.path.join(home, ".write-test")
@@ -3384,7 +3480,7 @@ def _check_writable(manager):
     except OSError as e:
         print(f"  WARNING: data directory {home} is NOT writable by this user "
               f"({e.__class__.__name__}: {e}).", file=sys.stderr)
-        print(f"           If files here are root-owned (from running the CLI as root), fix with:",
+        print("           If files here are root-owned (from running the CLI as root), fix with:",
               file=sys.stderr)
         print(f"             sudo chown -R netconfig:netconfig {home}", file=sys.stderr)
         return
@@ -3424,6 +3520,24 @@ def serve(manager, bind="127.0.0.1", port=8778):
             print(f"  NetFlow collector: listening on udp/{col.port}")
         except Exception as e:
             print(f"  NetFlow collector NOT started: {e}", file=sys.stderr)
+    Console.syslog = None
+    if manager.settings.get("syslog_enabled"):
+        try:
+            from . import syslog_receiver as _syslog
+            col = _syslog.Collector(manager,
+                bind=manager.settings.get("syslog_bind", "0.0.0.0"),
+                port=int(manager.settings.get("syslog_port", 5514)),
+                queue_size=int(manager.settings.get("syslog_queue_size", 256)),
+                debounce_seconds=int(manager.settings.get("syslog_debounce_seconds", 30)))
+            col.start(); Console.syslog = col
+            print(f"  Syslog collector: listening on udp/{col.port} (change-triggered collection)")
+        except Exception as e:
+            print(f"  Syslog collector NOT started: {e}", file=sys.stderr)
+    digest_iv = int(manager.settings.get("digest_interval", 0) or 0)
+    if digest_iv > 0:
+        from . import digest as _digest
+        threading.Thread(target=_digest.poller, args=(manager, digest_iv, stop), daemon=True).start()
+        print(f"  Compliance/drift digest: every {digest_iv}s")
     mon_iv = int(manager.settings.get("monitor_poll_interval", 0) or 0)
     if mon_iv > 0:
         from . import monitor as _monitor
@@ -3459,4 +3573,6 @@ def serve(manager, bind="127.0.0.1", port=8778):
         print("\nshutting down")
     finally:
         stop.set()
+        if Console.netflow: Console.netflow.stop()
+        if Console.syslog: Console.syslog.stop()
         httpd.shutdown()

@@ -160,8 +160,8 @@ class SSHTransport:
                     f"{self._buf[-200:]!r}")
             try:
                 r, _, _ = select.select([self._fd], [], [], min(remaining, 0.5))
-            except (OSError, ValueError):
-                raise TransportError("transport closed")
+            except (OSError, ValueError) as exc:
+                raise TransportError("transport closed") from exc
             if self._fd in r:
                 try:
                     data = os.read(self._fd, 65536)
@@ -193,7 +193,7 @@ class SSHTransport:
             try:
                 idx, m, _ = self._read_until(patterns, self.connect_timeout)
             except EOFError as e:
-                raise AuthError(f"connection to {self.host} closed during auth: {e}")
+                raise AuthError(f"connection to {self.host} closed during auth: {e}") from e
             if idx == 0:  # host key confirm (only if policy=yes)
                 self._write("yes\n")
             elif idx == 1:  # key passphrase
@@ -269,7 +269,7 @@ class SSHTransport:
         while lines and re.search(r"[>#]\s*$", lines[-1]) and len(lines[-1]) < 90:
             lines.pop()
         # strip any residual pager artifacts
-        cleaned = "\n".join(l for l in lines if not _RE_MORE.search(l.encode()))
+        cleaned = "\n".join(line for line in lines if not _RE_MORE.search(line.encode()))
         return cleaned.strip("\n")
 
     # ---- teardown --------------------------------------------------------

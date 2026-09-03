@@ -322,9 +322,9 @@ netconfig baseline drift dist-sw1        # colorized diff if it drifted
 ```
 
 In the console, a drifted device offers a **Submit remediation request** button
-(mode `remediate`), which — once approved and executed — replays the baseline.
+(mode `remediate`), which — once approved and executed — fetches fresh live state, computes a semantic vendor-aware plan, arms an automatic rollback guard where supported, applies it, then re-fetches and verifies before confirming the change.
 Remediation is best-effort (it re-asserts baseline lines; it does not compute
-negations for lines someone *added*). Treat drift **detection** as the reliable
+vendor negations for added rogue lines on supported grammars. Treat drift **detection** as the universally safe
 control and remediation as a gated convenience.
 
 ## F. Compliance auditing

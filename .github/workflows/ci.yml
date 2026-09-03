@@ -29,6 +29,15 @@ jobs:
           cache: pip
       - name: Install quality tools
         run: python -m pip install --upgrade pip pytest ruff mypy
+      - name: Repository line-ending hygiene
+        shell: bash
+        run: |
+          bad="$(git ls-files --eol | awk '$1 ~ /^i\/(crlf|mixed)$/ {print}')"
+          if [ -n "$bad" ]; then
+            printf '%s\n' "$bad"
+            echo "Tracked CRLF/mixed line endings violate .gitattributes" >&2
+            exit 1
+          fi
       - name: Ruff
         run: ruff check opt/netconfig/netconfig tests
       - name: Mypy security/core boundary

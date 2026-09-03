@@ -40,3 +40,11 @@ Do not silently change this behavior in the current hardening slice. A future de
 - tests for expiry, concurrent requests, CSRF behavior, and clock-boundary cases.
 
 Until that work lands, deployments should treat console token theft as valid for the lifetime of the server process and rely on TLS, host access control, short administrative exposure windows, and explicit logout as compensating controls.
+
+## Read-only API tokens
+
+API bearer tokens are separate from console session cookies. Tokens are generated randomly, stored only as SHA-256 hashes, mapped to an existing NetConfig role, constrained by explicit read scopes, and auditable by token name. The plaintext token is returned only once at creation. The API has no configuration-write endpoints in this slice. Revoke unused tokens promptly. The server refuses bearer-token authentication over cleartext non-loopback HTTP; use built-in TLS or a loopback reverse-proxy backend.
+
+## Syslog-triggered collection boundary
+
+The UDP syslog receiver is disabled by default, bounded by queue size/message size, and defaults to non-privileged udp/5514. A configuration-change event triggers collection only when the UDP peer source IP exactly matches an inventory device. Deployments using relays/NAT must not assume embedded syslog host fields are trusted; trusted-relay identity validation is future work.

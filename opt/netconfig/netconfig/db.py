@@ -268,6 +268,33 @@ CREATE TABLE IF NOT EXISTS mib_values (
     PRIMARY KEY (device, oid)
 );
 CREATE INDEX IF NOT EXISTS idx_mib_values_device ON mib_values(device, mib_source, name);
+
+-- ---- topology / event-driven collection / API -----------------------------
+CREATE TABLE IF NOT EXISTS l2_neighbors (
+    device TEXT NOT NULL, protocol TEXT NOT NULL, local_port TEXT NOT NULL DEFAULT '',
+    local_port_num TEXT NOT NULL DEFAULT '', neighbor_device TEXT NOT NULL DEFAULT '',
+    sys_name TEXT NOT NULL DEFAULT '', chassis_id TEXT NOT NULL DEFAULT '',
+    port_id TEXT NOT NULL DEFAULT '', port_desc TEXT NOT NULL DEFAULT '',
+    sys_desc TEXT NOT NULL DEFAULT '', managed_neighbor INTEGER NOT NULL DEFAULT 0,
+    ts REAL, PRIMARY KEY(device, protocol, local_port, sys_name, chassis_id, port_id)
+);
+CREATE INDEX IF NOT EXISTS idx_l2_neighbors_device ON l2_neighbors(device, ts);
+CREATE TABLE IF NOT EXISTS syslog_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, ts REAL NOT NULL, source TEXT NOT NULL,
+    message TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_syslog_events_ts ON syslog_events(ts);
+CREATE TABLE IF NOT EXISTS api_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL,
+    token_hash TEXT NOT NULL UNIQUE, scopes TEXT NOT NULL DEFAULT '[]', role TEXT NOT NULL DEFAULT 'viewer',
+    created_by TEXT NOT NULL DEFAULT '', created_ts REAL, last_used_ts REAL,
+    disabled INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS digest_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, ts REAL NOT NULL, ok INTEGER NOT NULL,
+    message TEXT NOT NULL DEFAULT '', summary TEXT NOT NULL DEFAULT '{}'
+);
+
 CREATE TABLE IF NOT EXISTS mib_poll_status (
     device  TEXT PRIMARY KEY,
     ts      REAL,
@@ -285,6 +312,7 @@ _MIGRATIONS = [
     ("devices", "netflow", "INTEGER NOT NULL DEFAULT 0"),      # collect NetFlow (network devices)
     ("devices", "monitor_ports", "TEXT NOT NULL DEFAULT ''"),  # tcp/udp ports (system devices)
     ("devices", "monitor_urls", "TEXT NOT NULL DEFAULT ''"),   # http(s) endpoints (application devices)
+    ("api_tokens", "role", "TEXT NOT NULL DEFAULT 'viewer'"),
 ]
 
 
@@ -498,6 +526,45 @@ class Database:
     def get_mac_table(self, device):
         return [dict(r) for r in self.conn.execute(
             "SELECT * FROM mac_table WHERE device=? ORDER BY ifdescr, mac", (device,)).fetchall()]
+
+    def set_neighbors(self, device, entries):
+        import time
+        now = time.time()
+        self.conn.execute("DELETE FROM l2_neighbors WHERE device=?", (device,))
+        for e in entries:
+            self.conn.execute(
+                "INSERT OR REPLACE INTO l2_neighbors "
+                "(device,protocol,local_port,local_port_num,neighbor_device,sys_name,chassis_id,port_id,port_desc,sys_desc,managed_neighbor,ts) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                (device, e.get("protocol",""), e.get("local_port",""), e.get("local_port_num",""),
+                 e.get("neighbor_device",""), e.get("sys_name",""), e.get("chassis_id",""),
+                 e.get("port_id",""), e.get("port_desc",""), e.get("sys_desc",""),
+                 1 if e.get("managed_neighbor") else 0, now))
+        self.conn.commit()
+
+    def get_neighbors(self, device=None):
+        if device:
+            rows = self.conn.execute("SELECT * FROM l2_neighbors WHERE device=? ORDER BY local_port,sys_name", (device,)).fetchall()
+        else:
+            rows = self.conn.execute("SELECT * FROM l2_neighbors ORDER BY device,local_port,sys_name").fetchall()
+        return [dict(r) for r in rows]
+
+    def record_syslog(self, source, message):
+        import time
+        self.conn.execute("INSERT INTO syslog_events(ts,source,message) VALUES (?,?,?)", (time.time(), source, message[:8192]))
+        self.conn.commit()
+
+    def recent_syslog(self, limit=200):
+        return [dict(r) for r in self.conn.execute("SELECT * FROM syslog_events ORDER BY ts DESC LIMIT ?", (int(limit),)).fetchall()]
+
+    def record_digest(self, ok, message, summary):
+        import time
+        self.conn.execute("INSERT INTO digest_runs(ts,ok,message,summary) VALUES (?,?,?,?)", (time.time(), 1 if ok else 0, message, summary))
+        self.conn.commit()
+
+    def latest_digest(self):
+        r = self.conn.execute("SELECT * FROM digest_runs ORDER BY ts DESC LIMIT 1").fetchone()
+        return dict(r) if r else None
 
     def set_mib_values(self, device, entries, roots=0, error=""):
         import time

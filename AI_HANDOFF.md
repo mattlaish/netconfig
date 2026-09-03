@@ -250,7 +250,7 @@ and topology (no `lldp`/`cdp`/`neighbor` handling exists anywhere); restore of
 an arbitrary archived version (`read_version` exists, nothing pushes it back);
 a syslog receiver driving event-triggered collection (`netflow.Collector` is a
 reusable bounded UDP listener pattern); and a read-only REST API with scoped
-tokens (session-cookie auth only today).
+tokens (implemented in the 2026-09-02 read-only API slice).
 
 ## Test and Environment Results (2026-08-21, Linux session)
 - Verified in a Linux container with Python 3.12.3 at `/usr/bin/python3.12`;
@@ -391,3 +391,15 @@ Git synchronization and repository history remain under the user's control.
 A broad engineering/security/remediation hardening slice was added. See `DEVELOPMENT.md`, `SECURITY.md`, and `ROADMAP.md` for canonical details. Important constraint: **do not implement console session expiry in this slice**. Session idle/absolute expiry is explicitly deferred security debt and should be addressed later as a dedicated change with lifecycle/audit/CSRF tests.
 
 Remediation no longer replays the baseline blindly. Execution now requires a non-scrubbed baseline, fetches fresh live state, builds a semantic vendor-aware plan, arms a rollback guard, applies, re-fetches, verifies, and only then confirms/cancels rollback. IOS/ASA/Arista use timed reload and JunOS uses commit-confirmed; other platforms fail closed until a tested guard exists.
+
+## 2026-09-01 CI / EOL hygiene follow-up
+
+- Ruff CI configuration now explicitly ignores only `E702` as the current semicolon house style; identified unused-import, stray-f-string, exception-chaining, and ambiguous-name findings were fixed in source rather than broadly ignored.
+- `.gitattributes` now enforces LF for executable/configuration/source text classes and the current tree was renormalized to LF.
+- CI includes an index line-ending check and pytest includes repository-hygiene assertions.
+- Do not claim local Ruff PASS from this slice: the sandbox had no Ruff installation and could not reach PyPI. GitHub Actions must provide final Ruff evidence.
+- Session lifetime remains intentionally unchanged and deferred as documented security debt.
+
+## 2026-09-02 current implementation delta
+
+The tree now includes LLDP/CDP topology discovery (`topology.py`), persisted neighbour edges and unmanaged-neighbour detection, a dependency-free Topology console, bounded syslog-triggered configuration collection (`syslog_receiver.py`), hashed/scoped read-only bearer API tokens (`apitokens.py` plus `/api/v1/*`), and scheduled compliance/drift email digests (`digest.py`). New SQLite tables are additive: `l2_neighbors`, `syslog_events`, `api_tokens`, and `digest_runs`. API token plaintext is shown only once at CLI creation; only hashes persist. Session expiry is still intentionally deferred and unchanged. Real-device LLDP/CDP and production syslog relay behavior remain deferred validation.

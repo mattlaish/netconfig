@@ -14,7 +14,6 @@ calls Manager.bulk() to do the actual pushing. It never bypasses the manager's
 vault gating.
 """
 
-import json
 import time
 
 from . import automation as _auto

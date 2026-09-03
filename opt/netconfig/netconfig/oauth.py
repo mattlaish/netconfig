@@ -8,7 +8,6 @@ Config keys (in settings):
   o365_enabled, o365_tenant, o365_client_id, o365_authority, o365_scope
 The client secret is held in the vault (reserved secret ``__o365__``).
 """
-import base64
 import json
 import time
 import urllib.error

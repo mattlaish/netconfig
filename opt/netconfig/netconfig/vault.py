@@ -69,8 +69,8 @@ class Vault:
         key = _derive(master_password, salt, iters)
         try:
             pt = aead.decrypt(key, nonce, ct, aad=_MAGIC)
-        except ValueError:
-            raise ValueError("wrong master password or corrupt vault")
+        except ValueError as exc:
+            raise ValueError("wrong master password or corrupt vault") from exc
         self._data = json.loads(pt.decode("utf-8"))
         self._key = key
         self._salt = salt

@@ -35,7 +35,12 @@ third-party library). SNMP, AES, and everything else are implemented in stdlib.
 - **Line-by-line color diff** between *any* two saved versions (green added / red
   deleted), in the console and CLI.
 - **Baseline & drift** — designate a golden version; NetConfig flags when a device
-  drifts and can submit a remediation request that replays the baseline.
+  drifts and can submit a guarded semantic remediation request that computes vendor-aware additions/removals and verifies fresh live state.
+
+- **LLDP/CDP topology** — LLDP-MIB discovery with read-only CDP fallback, persisted fleet edges, and managed/unmanaged-neighbour detection. The console Topology page renders an offline SVG map and flags unmanaged devices on managed switch ports.
+- **Event-driven collection** — optional bounded UDP syslog receiver recognizes common configuration-change events and triggers a debounced immediate archive for the source device.
+- **Read-only JSON API** — scoped bearer tokens (hashed at rest) expose inventory, topology, drift, latest compliance/digest and audit data under `/api/v1/`.
+- **Scheduled compliance & drift digest** — periodic sweep reuses the compliance engine, baselines and SMTP/O365 delivery to email drift/failure summaries without an operator login.
 - **Compliance auditing** — ISO 27001 / PCI-DSS starter rule packs check configs
   (Telnet disabled, login banner, password encryption, SSHv2, logging, NTP, no
   default communities, session timeout) and produce one-click pass/fail reports
@@ -126,9 +131,7 @@ selftest.py      offline vectors + round-trips (run: python3 selftest.py)
 - **Config push & remediation write to live devices.** They were tested against a
   fake Cisco device and a local sshd, **not** against real hospital gear — verify
   on your platforms first and watch `sessions/`.
-- **Remediation replays the baseline** as config lines. That cleanly re-asserts
-  additive drift but does not compute negations, so it will not by itself remove
-  lines that were *added*. Drift *detection + alert* is the always-safe feature;
+- **Remediation is semantic and guarded.** Execution fetches fresh live state, computes vendor-aware additions/removals, arms an automatic rollback guard on supported platforms, applies the plan, re-fetches and verifies before confirming the change. Unsupported rollback platforms fail closed.
   remediation is gated behind approval + explicit opt-in.
 - **Compliance packs are Cisco-IOS-shaped starters**, meant to be extended for
   your estate — passing them is necessary hygiene, not a signed certification.

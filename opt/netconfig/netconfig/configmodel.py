@@ -104,8 +104,8 @@ def plan_indented(baseline, current, *, negation="no", exit_command="exit"):
 
 
 def plan_junos_set(baseline, current):
-    desired = {l.strip() for l in clean_lines(baseline) if l.strip().startswith("set ")}
-    actual = {l.strip() for l in clean_lines(current) if l.strip().startswith("set ")}
+    desired = {line.strip() for line in clean_lines(baseline) if line.strip().startswith("set ")}
+    actual = {line.strip() for line in clean_lines(current) if line.strip().startswith("set ")}
     add = sorted(desired - actual)
     remove = sorted(actual - desired)
     cmds = ["delete " + line[4:] for line in remove] + add

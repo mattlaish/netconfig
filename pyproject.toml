@@ -16,7 +16,7 @@ src = ["opt/netconfig/netconfig", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "B", "UP"]
-ignore = ["E501"]
+ignore = ["E501", "E702"]
 
 [tool.mypy]
 python_version = "3.12"

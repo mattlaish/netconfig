@@ -223,3 +223,13 @@ slice begins; do not mark it complete here without implementation and validation
 11. Reports, exports, and scheduled delivery.
 12. Backup/restore and disaster-recovery verification.
 13. PostgreSQL, distributed pollers, HA, signing, and enterprise deployment.
+
+## PATCH-20260902-01 — Topology, event-driven collection, API and digest
+
+- **Status:** Implemented; live device/event integration testing deferred.
+- **Scope:** LLDP/CDP fleet topology and unmanaged-neighbour detection, bounded syslog-triggered immediate config collection, scoped read-only bearer API, and scheduled compliance/drift email digest.
+- **Data/schema impact:** Additive SQLite tables `l2_neighbors`, `syslog_events`, `api_tokens`, and `digest_runs`; no destructive migration.
+- **Security impact:** API tokens are random and hash-only at rest with explicit read scopes; syslog receiver is disabled by default and bounded, and source correlation fails closed to exact inventory peer IP. No write API was added. Session expiry remains deferred unchanged.
+- **Validation completed:** pytest 19 passed / 3 existing service-gated integration skips; legacy selftest `RESULT: ALL PASS`; compileall passed.
+- **Validation outstanding:** representative real-device LLDP/CDP, production syslog forwarding/relay model, and full GitHub CI (Ruff/mypy/protocol services).
+- **Recommended next step:** add SNMP traps and richer topology identity/VLAN correlation after live validation of this slice.

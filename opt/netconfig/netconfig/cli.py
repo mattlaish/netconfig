@@ -28,10 +28,10 @@ import os
 import sys
 
 from .manager import Manager
+from .apitokens import ApiTokens, VALID_SCOPES
 from .drivers import platforms as _platforms
-from .workflow import Workflow, Scripts
+from .workflow import Workflow
 from . import compliance as _compliance
-from . import automation as _auto
 
 
 def _master(manager, required=True):
@@ -655,6 +655,33 @@ def cmd_audit(m, args):
 
 
 # ---- parser -------------------------------------------------------------
+def cmd_api_token(m, args):
+    tokens = ApiTokens(m.db.conn)
+    if args.action == "create":
+        token_id, raw = tokens.create(args.name, args.scope, created_by=args.actor, role=args.role)
+        m.db.audit(args.actor, "api_token_create", str(token_id), ",".join(args.scope))
+        print(f"id={token_id} name={args.name}")
+        print(raw)
+        print("Save this token now; only its SHA-256 hash is stored.")
+    elif args.action == "list":
+        for row in tokens.list():
+            print(f"{row['id']}	{row['name']}	{row['scopes']}	{'disabled' if row['disabled'] else 'active'}")
+    elif args.action == "revoke":
+        tokens.revoke(args.id); m.db.audit(args.actor, "api_token_revoke", str(args.id), "")
+        print("revoked")
+
+
+def cmd_topology(m, args):
+    if args.discover:
+        names = [args.device] if args.device else [d["name"] for d in m.inv.all() if d.get("snmp_version")]
+        for name in names:
+            rows = m.discover_neighbors(name)
+            print(f"{name}: {len(rows)} neighbour(s)")
+    for n in m.db.get_neighbors(args.device):
+        state = "managed:" + n["neighbor_device"] if n.get("managed_neighbor") else "UNMANAGED"
+        print(f"{n['device']} {n['local_port']} -> {n['sys_name'] or n['chassis_id']} {n['port_id']} [{n['protocol']}] {state}")
+
+
 def build_parser():
     p = argparse.ArgumentParser(prog="netconfig",
                                 description="Zero-dependency network configuration manager")
@@ -808,6 +835,19 @@ def build_parser():
     sns_dbg = sns.add_parser("debug", help="verbose SNMP trace vs snmpwalk")
     sns_dbg.add_argument("name"); sns_dbg.add_argument("--hex", action="store_true", help="include packet hex")
     sn.set_defaults(func=cmd_snmp)
+
+    topo = sub.add_parser("topology", help="show/discover LLDP/CDP neighbours")
+    topo.add_argument("--device"); topo.add_argument("--discover", action="store_true")
+    topo.set_defaults(func=cmd_topology)
+
+    at = sub.add_parser("api-token", help="manage scoped read-only API bearer tokens")
+    ats = at.add_subparsers(dest="action", required=True)
+    atc = ats.add_parser("create"); atc.add_argument("name")
+    atc.add_argument("--scope", action="append", required=True, choices=sorted(VALID_SCOPES))
+    atc.add_argument("--role", default="viewer", choices=["viewer","operator","approver","admin"])
+    ats.add_parser("list")
+    atr = ats.add_parser("revoke"); atr.add_argument("id", type=int)
+    at.set_defaults(func=cmd_api_token)
 
     au = sub.add_parser("audit"); au.add_argument("--limit", type=int, default=100)
     au.set_defaults(func=cmd_audit)

@@ -49,3 +49,13 @@ Status vocabulary: `IMPLEMENTED`, `IMPLEMENTED_TESTING_DEFERRED`, `PLANNED`.
 - **PLANNED** RESTCONF adapter.
 - **PLANNED** gNMI adapter.
 - **PLANNED** capability-based protocol selection per device, preserving CLI for legacy systems.
+
+## Topology, event-driven operations, API and reporting
+
+- **IMPLEMENTED** LLDP-MIB neighbour discovery with persisted edges, read-only CDP CLI fallback, SNMP sysName/inventory correlation, unmanaged-neighbour detection, fleet topology API, and dependency-free SVG Topology console.
+- **IMPLEMENTED** bounded UDP syslog receiver with queue backpressure, source-IP inventory matching, configuration-change pattern matching, per-device debounce, immediate collection, event persistence, and audit evidence.
+- **IMPLEMENTED** read-only `/api/v1` JSON surface with hashed scoped bearer tokens mapped to existing operator roles; token plaintext is returned only at creation and API reads are audited.
+- **IMPLEMENTED** periodic compliance + baseline-drift digest with persisted run evidence and existing SMTP/O365 delivery.
+- **IMPLEMENTED_TESTING_DEFERRED** live LLDP/CDP behavior across representative Cisco/Arista/JunOS/Huawei device images and production syslog forwarding from udp/514 to the non-privileged listener.
+- **PLANNED** SNMP trap receiver for linkDown/coldStart/authFailure and dependency-aware event correlation.
+- **PLANNED** richer topology identity correlation using chassis MAC/serial/system capabilities, VLAN-aware edges, and downstream impact analysis.

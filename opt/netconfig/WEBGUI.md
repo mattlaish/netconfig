@@ -284,3 +284,9 @@ netconfig web --bind 0.0.0.0 --port 8778 \
 ```
 
 Session idle/absolute expiry is a known deferred security item and is intentionally not changed in this hardening slice. See the repository `SECURITY.md` and `ROADMAP.md`.
+
+## Topology, event-driven collection, and API
+
+- **Topology** shows persisted LLDP/CDP neighbour edges. Managed neighbours are matched against inventory name/IP and collected SNMP sysName; unmatched neighbours are explicitly flagged **UNMANAGED**. Operators can run **Discover now** to refresh the fleet.
+- **Settings → Monitoring** enables the bounded syslog receiver (default udp/5514), queue size, debounce window, and scheduled compliance/drift digest interval. A syslog config-change event from a known device triggers an immediate debounced collect.
+- Read-only API tokens are created from the host CLI, not the browser: `netconfig api-token create NAME --role viewer --scope inventory:read --scope topology:read`. Save the printed token immediately; only its hash is retained. Send it as `Authorization: Bearer <token>` to `/api/v1/inventory`, `/api/v1/topology`, `/api/v1/drift`, `/api/v1/compliance/latest`, `/api/v1/digest/latest`, or `/api/v1/audit` when the corresponding scope is granted.

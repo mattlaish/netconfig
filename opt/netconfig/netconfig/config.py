@@ -77,6 +77,12 @@ DEFAULT_SETTINGS = {
     "netflow_enabled": False,          # run the NetFlow collector in the console
     "netflow_port": 2055,              # UDP port to receive NetFlow exports
     "netflow_max_flows": 500,          # recent flows kept per exporter (in memory)
+    "syslog_enabled": False,          # bounded UDP syslog receiver for change-triggered collect
+    "syslog_bind": "0.0.0.0",
+    "syslog_port": 5514,               # non-privileged default; forward udp/514 if desired
+    "syslog_queue_size": 256,
+    "syslog_debounce_seconds": 30,
+    "digest_interval": 0,              # seconds; 0=off, e.g. 86400 daily
     "monitor_poll_interval": 0,        # seconds; 0 = off. Background port/http/tls polling
     "monitor_history_days": 7,         # how long to keep monitor history
     "smtp_enabled": False,             # send alert emails

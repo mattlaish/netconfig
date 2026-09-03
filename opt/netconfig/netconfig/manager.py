@@ -32,6 +32,7 @@ from .transport import SSHTransport, TransportError, AuthError
 from .drivers import get_driver, DriverError
 from . import configmodel as _configmodel
 from .observability import METRICS, event as _obs_event
+from . import topology as _topology
 
 
 def _remediation_lines(baseline_text):
@@ -120,9 +121,9 @@ class Manager:
                 raise RuntimeError(f"vault locked; needed for device {device['name']}")
             try:
                 sec = self.vault.get_secret(ref)
-            except KeyError:
+            except KeyError as exc:
                 raise RuntimeError(
-                    f"{device['name']} points at vault secret '{ref}', which does not exist.")
+                    f"{device['name']} points at vault secret '{ref}', which does not exist.") from exc
             password = sec.get("password")
             key_path = sec.get("key_path")
             key_pass = sec.get("key_passphrase")
@@ -134,6 +135,61 @@ class Manager:
             except KeyError:
                 pass
         return password, key_path, key_pass, enable_pw
+
+    def device_by_host(self, host):
+        needle = str(host or "").strip().lower()
+        for dev in self.inv.all():
+            if str(dev.get("host", "")).strip().lower() == needle:
+                return dev
+        return None
+
+    def topology(self):
+        return self.db.get_neighbors()
+
+    def discover_neighbors(self, device_name):
+        """Discover LLDP over SNMP, with read-only CDP CLI fallback."""
+        dev = self.inv.get(device_name)
+        if not dev:
+            return []
+        entries = []
+        if dev.get("snmp_version"):
+            try:
+                version, community, v3, port = self._snmp_params_for(dev)
+                remote = _snmp.walk_subtree(
+                    dev["host"], _topology.LLDP_REM_BASE, version=version,
+                    community=community, v3=v3, port=port,
+                    timeout=self.settings.get("snmp_timeout", 2.0), max_vars=512)
+                local = _snmp.walk_subtree(
+                    dev["host"], _topology.LLDP_LOC_PORT_DESC, version=version,
+                    community=community, v3=v3, port=port,
+                    timeout=self.settings.get("snmp_timeout", 2.0), max_vars=256)
+                entries = _topology.parse_lldp_walk(remote, local)
+            except Exception as exc:
+                _obs_event("topology_lldp_failed", device=device_name, error=str(exc))
+        if not entries and dev.get("secret_ref") and self.vault_ready():
+            tp = None
+            try:
+                tp, enable_pw = self._connect(dev)
+                driver = get_driver(dev["platform"])
+                tp.discover_prompt(); driver.initialize(tp, enable_password=enable_pw)
+                out = driver.run(tp, "show cdp neighbors detail")
+                entries = _topology.parse_cdp_detail(out)
+            except Exception:
+                entries = []
+            finally:
+                if tp is not None:
+                    tp.close()
+        inventory = []
+        for item in self.inv.all():
+            enriched = dict(item)
+            facts = self.inv.get_facts(item["name"]) or {}
+            enriched["sysname"] = facts.get("sysname", "")
+            inventory.append(enriched)
+        entries = _topology.analyze(entries, inventory)
+        self.db.set_neighbors(device_name, entries)
+        unmanaged = sum(1 for e in entries if e.get("unmanaged"))
+        METRICS.set("netconfig_topology_unmanaged_neighbors", unmanaged)
+        return entries
 
     # ---- core ops --------------------------------------------------------
     def _connect(self, device):
@@ -150,11 +206,11 @@ class Manager:
                 "NETCONFIG_MASTER, or run in a terminal to be prompted; under sudo use `sudo -E`.")
         try:
             sec = self.vault.get_secret(ref)
-        except KeyError:
+        except KeyError as exc:
             raise RuntimeError(
                 f"{name} points at vault secret '{ref}', which does not exist. "
                 f"`--secret` takes a vault label, not a password. Create it with "
-                f"`netconfig vault set {ref} --username U --ask-password`, or fix the device.")
+                f"`netconfig vault set {ref} --username U --ask-password`, or fix the device.") from exc
         username = sec.get("username")
         if not username:
             raise RuntimeError(
@@ -316,7 +372,7 @@ class Manager:
                     out, errors = driver.apply_lines(tp, lines, save=False, remediation=True)
                     if errors:
                         raise DriverError("remediation command errors: " +
-                                          "; ".join(f"{l}: {e}" for l, e in errors))
+                                          "; ".join(f"{line}: {e}" for line, e in errors))
                     verify = driver.fetch_config(tp)
                     post = driver.remediation_plan(base, verify)
                     if post["commands"]:
@@ -332,7 +388,7 @@ class Manager:
             self.recorder.write(name, tp.transcript)
             ok = not errors
             msg = out if ok else (out + "\n[errors] " +
-                                  "; ".join(f"{l}: {e}" for l, e in errors))
+                                  "; ".join(f"{line}: {e}" for line, e in errors))
             return {"device": name, "ok": ok, "changed": bool(lines and mode != "command"),
                     "output": msg}
         except (AuthError, TransportError, DriverError, RuntimeError) as e:
@@ -516,6 +572,7 @@ class Manager:
                                                        ifdescr=ifdescr)
                             self.db.set_arp(device_name, arp)
                             self.db.set_mac_table(device_name, mac)
+                            self.discover_neighbors(device_name)
                         except Exception:
                             pass
                 except Exception as e:

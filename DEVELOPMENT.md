@@ -40,3 +40,50 @@ Console session expiry was **not** implemented in this slice. The current in-mem
 - The old `selftest.py` remains as a compatibility runner while cases are progressively migrated to pytest.
 - The storage abstraction is intentionally thin; the core database is still SQLite/WAL.
 - NETCONF/RESTCONF/gNMI are architecture capabilities, not implemented transports yet.
+
+## 2026-09-01 — CI lint and line-ending hygiene follow-up
+
+### Implemented
+
+- Reconciled Ruff with the existing code style so the CI lint gate is actionable: `E702` (multiple statements separated by semicolons) is now an explicit temporary house-style exception instead of an always-failing gate.
+- Removed confirmed unused imports and cleaned the identified `F541`, `B904`, and `E741` violations rather than suppressing those rule families.
+- Added `.gitattributes` with LF enforcement for Python, shell, systemd units/timers, RPM specs, TOML/YAML, Markdown, and common repository text artifacts.
+- Renormalized repository text files to LF. Local verification found zero CRLF/bare-CR UTF-8 text files after normalization.
+- Added repository-hygiene pytest coverage and a CI index-EOL check so future CRLF regressions are visible.
+
+### Validation
+
+- `python -m compileall -q opt/netconfig/netconfig tests`: PASS.
+- `pytest -q`: PASS (11 passed, 3 integration tests skipped because protocol services are not running locally before this follow-up's new hygiene tests were added; rerun after final packaging records the final count).
+- `PYTHONPATH=opt/netconfig python opt/netconfig/selftest.py`: `RESULT: ALL PASS`.
+- Local Ruff execution remains **NOT RUN** because Ruff is not installed in this sandbox and outbound PyPI access is unavailable. The GitHub Actions Ruff step remains the authoritative validation for the exact configured ruleset.
+
+### Deferred security debt unchanged
+
+- Console idle timeout / absolute session expiry remains deliberately deferred. No session-lifetime behavior was changed in this follow-up; see `SECURITY.md` and `ROADMAP.md`.
+
+## 2026-09-02 — topology, event-driven collection, read-only API, scheduled digest slice
+
+### Implemented
+
+- Added `topology.py` with pure LLDP-MIB and CDP-detail parsers, inventory/SNMP-sysName correlation and explicit unmanaged-neighbour classification.
+- SNMP network polling now persists LLDP topology; when LLDP returns no neighbours and SSH credentials are available, a read-only `show cdp neighbors detail` fallback is attempted.
+- Added a dependency-free `/topology` SVG fleet map and neighbour table plus a manual fleet discovery action.
+- Added `syslog_receiver.py`: bounded UDP queue, 8 KiB message cap, source-IP device correlation, common config-change event matching, per-device debounce, immediate archive trigger, persistent recent events and audit evidence. Default listener is non-privileged udp/5514.
+- Added `apitokens.py` and additive `api_tokens` schema. Tokens are random bearer credentials, stored only as SHA-256 hashes, have an existing NetConfig role plus explicit read scopes, support CLI create/list/revoke, and are audited on API use.
+- Added read-only API endpoints for inventory, topology, drift, latest compliance, latest digest and audit.
+- Added `digest.py`: periodic compliance/drift sweep with persisted digest evidence and SMTP/O365 delivery through the existing mailer. Monitoring settings now expose syslog and digest scheduling.
+- Added additive topology/syslog/digest database tables and focused pytest coverage.
+
+### Validation
+
+- `PYTHONPATH=opt/netconfig pytest -q`: **19 passed, 3 skipped** (the 3 existing protocol-service integration tests remain environment-gated).
+- `PYTHONPATH=opt/netconfig python opt/netconfig/selftest.py`: **RESULT: ALL PASS**.
+- `python -m compileall`: PASS for changed modules and final tree.
+
+### Deferred / not claimed
+
+- No real-device LLDP/CDP lab run was performed in this environment.
+- No production syslog relay/NAT design is claimed; source-IP matching assumes the UDP peer is the managed device. Trusted-relay parsing must be explicit before supporting relayed syslog.
+- SNMP traps are not implemented in this slice.
+- Session idle/absolute expiry remains deliberately deferred security debt and was not changed.
