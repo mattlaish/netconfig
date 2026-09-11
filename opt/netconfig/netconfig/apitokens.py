@@ -1,7 +1,22 @@
 """Hashed, scoped bearer tokens for the read-only API."""
 import hashlib, json, secrets, time
 
-VALID_SCOPES = {"inventory:read", "topology:read", "drift:read", "compliance:read", "audit:read"}
+VALID_SCOPES = {
+    "inventory:read", "topology:read", "endpoint:read", "events:read", "alerts:read", "alerts:write", "reports:read", "reports:write", "drift:read", "compliance:read", "audit:read",
+    "debug:create", "debug:read", "debug:download", "debug:admin",
+    "incident:read", "incident:write", "incident:export",
+    "trace:read", "trace:capture", "protocol:read", "protocol:write",
+}
+
+_SCOPE_MIN_ROLE = {
+    "incident:write": "operator",
+    "incident:export": "operator",
+    "trace:capture": "operator",
+    "alerts:write": "operator",
+    "reports:write": "operator",
+    "protocol:write": "operator",
+}
+_ROLE_LEVEL = {"viewer": 0, "operator": 1, "approver": 2, "admin": 3}
 
 
 def _hash(token): return hashlib.sha256(token.encode()).hexdigest()
@@ -12,6 +27,10 @@ class ApiTokens:
         if role not in {"viewer", "operator", "approver", "admin"}: raise ValueError("invalid role")
         scopes = sorted(set(scopes)); bad = set(scopes) - VALID_SCOPES
         if bad: raise ValueError("invalid scopes: " + ", ".join(sorted(bad)))
+        for scope in scopes:
+            minimum = _SCOPE_MIN_ROLE.get(scope)
+            if minimum and _ROLE_LEVEL[role] < _ROLE_LEVEL[minimum]:
+                raise ValueError(f"scope {scope} requires role {minimum} or higher")
         raw = "nct_" + secrets.token_urlsafe(32)
         cur = self.conn.execute("INSERT INTO api_tokens(name, token_hash, scopes, role, created_by, created_ts, disabled) VALUES (?,?,?,?,?,?,0)",
                                 (name, _hash(raw), json.dumps(scopes), role, created_by, time.time()))

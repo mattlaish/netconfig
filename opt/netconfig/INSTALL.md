@@ -1,9 +1,15 @@
 # NetConfig — Install & Operations
 
+> **Canonical project state — 2026-09-12:** **CURRENT** = Qualification Track **Q-1 — Production Runtime & Service-backed Qualification** (`IMPLEMENTED_TESTING_DEFERRED`). **LATEST FEATURE BASELINE** = Platform Hardening **PH-3 — NETCONF / RESTCONF / gNMI Structured Adapters** (`IMPLEMENTED_TESTING_DEFERRED`). Q-1 implementation is complete in source, but live PostgreSQL/AlmaLinux/systemd/service-backed gates remain explicitly deferred in this environment. No Q-2 is assigned. RPM source Release is `2.0.0-32`.
+
+> **Current continuation pointer:** use the Q-1 full source baseline from 2026-09-12 as the active source. Historical CURRENT/NEXT statements below are chronology only. Execute the remaining Q-1 live gates before any promotion to `TESTED`/`RELEASED`; after Q-1 qualification, perform a fresh roadmap review before assigning Q-2.
+
 ## Quick install (AlmaLinux 10 RPM)
 
+The filename below reflects the current source spec. Do not reuse a previously distributed RPM Release for newer source; bump the Release before a later distributable build.
+
 ```bash
-sudo dnf install ./netconfig-2.0.0-16.el10.noarch.rpm
+sudo dnf install ./netconfig-2.0.0-32.el10.noarch.rpm
 sudo systemctl enable --now netconfig-web.service netconfig-backup.timer
 ```
 
@@ -393,3 +399,44 @@ resolution. No network or devices required.
 - Console is plain HTTP — bind 127.0.0.1, front with the WAF for TLS.
 - Not yet included: signed self-update (`sigupdate`/PAIRING.md), mini-SIEM event
   emission, and a WAF host-routing entry for the console — natural next steps.
+
+
+## Optional D.5 evidence signing
+
+Phase 4D can Ed25519-sign diagnostic and Incident support-case manifests. `/usr/bin/openssl` is a runtime dependency, but no private signing key is included in the package. Create/provision the key outside `/var/lib/netconfig` and source control. For a systemd-managed service, the preferred pattern is a service drop-in containing `LoadCredential=evidence-signing-key.pem:/secure/path/evidence-signing-key.pem`; NetConfig then reads `$CREDENTIALS_DIRECTORY/evidence-signing-key.pem`. For manual/non-systemd runs, `NETCONFIG_EVIDENCE_SIGNING_KEY_FILE` may point at a protected regular PEM file.
+
+Only Ed25519 is accepted and the private-key file must have no group/world permission bits. `netconfig debug signing-status` reports the public SHA-256 SPKI fingerprint without exposing private material. Distribute that fingerprint through an independent trusted channel. `NETCONFIG_EVIDENCE_TRUSTED_FINGERPRINTS` accepts comma-separated trusted fingerprints; overlap old and new pins during a planned key rotation. `NETCONFIG_EVIDENCE_SIGNING_REQUIRED=1` makes new evidence creation fail closed when a signer is unavailable or invalid.
+
+
+---
+
+Historical NI-1 documentation snapshot: `netconfig_network_intelligence_ni1_markdown_refresh_FULL_source_baseline_2026-09-11.zip`. The current baseline is the Q-1 FULL source artifact described by the canonical header.
+
+## PH-2 PostgreSQL core deployment
+
+SQLite remains the default. For PostgreSQL core mode, install a psycopg 3 driver appropriate to the Python 3.12 runtime and configure the PostgreSQL connection under **Settings → Database** (or `settings.json`) with `core_db_backend=postgres`. The password must not be placed in `settings.json`.
+
+Recommended systemd drop-in:
+
+```ini
+[Service]
+LoadCredential=postgres-core-password:/secure/path/netconfig-postgres-password
+```
+
+NetConfig reads `$CREDENTIALS_DIRECTORY/postgres-core-password` before opening the core database. For manual/non-systemd startup, use a root-protected `NETCONFIG_DB_PASSWORD_FILE`. `NETCONFIG_DB_PASSWORD` is legacy fallback only.
+
+Before switching an existing SQLite deployment, configure PostgreSQL, keep `core_db_backend=sqlite`, then run `netconfig storage migrate-sqlite`. The destination application tables must be empty by default. After validating the migration, switch `core_db_backend` to `postgres` and restart. Perform a real backup/restore test before production cutover; PH-2 source tests do not constitute that live qualification.
+
+
+PH-3 optional dependency: install a trusted `gnmic` binary only when gNMI profiles are required. NETCONF uses the existing OpenSSH dependency; RESTCONF uses Python TLS/HTTP. Live vendor interoperability remains a qualification gate.
+
+
+## Q-1 runtime qualification
+
+After installation, run the secret-free preflight as the service account:
+
+```bash
+sudo -u netconfig /usr/bin/netconfig --home /var/lib/netconfig qualify
+```
+
+When PostgreSQL core mode is selected, qualification requires a working psycopg 3 runtime, `pg_dump`, `pg_restore`, the configured PostgreSQL endpoint and the protected pre-vault database credential. Q-1 also provides `netconfig storage backup-postgres` and recovery-safe `netconfig storage restore-postgres`; restore requires SHA-256 verification, the literal confirmation `RESTORE_DATABASE`, and a target database different from the active core database. The restore path is intended for an isolated drill/standby/recovery database, not an in-place hot overwrite.

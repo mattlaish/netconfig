@@ -1,0 +1,667 @@
+{
+  "application": "NetConfig",
+  "application_version": "2.0.0",
+  "source_release": 32,
+  "build_date": "2026-09-12",
+  "current": "Qualification Track Q-1 — Production Runtime & Service-backed Qualification",
+  "latest_feature_baseline": "Platform Hardening PH-3 — NETCONF / RESTCONF / gNMI Structured Adapters",
+  "status": "IMPLEMENTED_TESTING_DEFERRED",
+  "next_action": "Execute deferred Q-1 live gates, then perform a roadmap review; no Q-2 is assigned",
+  "tests": {
+    "repository": "147 passed / 7 skipped",
+    "focused_q1": "11 passed",
+    "focused_ph2": "9 passed",
+    "focused_ph3": "22 passed",
+    "legacy_selftest": "ALL PASS",
+    "compileall": "PASS",
+    "launcher_py_compile": "PASS",
+    "packaging_shell_syntax": "PASS",
+    "source_cr_offenders": "0",
+    "required_executable_modes": "7/7 = 0755",
+    "web_structural_gate": "UNCHANGED (3809 lines / 238409 bytes)",
+    "runtime_preflight_local": "NOT_READY (required ssh executable absent)"
+  },
+  "local_not_run": {
+    "ruff_mypy": "NOT_RUN (quality tools unavailable; isolated environment has no package-name resolution)",
+    "postgres_service_gate": "NOT_RUN (pg_dump/pg_restore and PostgreSQL service tooling unavailable)",
+    "almalinux_rpm_systemd": "NOT_RUN (current host Debian 13, not AlmaLinux 10)",
+    "rpm_build": "NOT_RUN (rpmbuild unavailable)"
+  },
+  "deferred": [
+    "real Q-1 PostgreSQL multi-process/concurrency/leadership/migration/backup-restore qualification",
+    "AlmaLinux 10 RPM build/install/upgrade/restart/reboot/systemd credential qualification",
+    "service-backed OpenSSH/Net-SNMP/PostgreSQL integration tied to the exact artifact",
+    "PostgreSQL HA/failover/PITR and scale/load/failure qualification",
+    "real NETCONF/RESTCONF/gNMI device and representative-vendor interoperability",
+    "NETCONF base:1.1-only/chunked peer qualification",
+    "packaged gnmic and live gNMI TLS/mTLS/auth interoperability",
+    "production credential rotation",
+    "live SMTP/O365 delivery",
+    "session idle/absolute expiry remains explicitly deferred by user"
+  ],
+  "artifact_gate": {
+    "clean_candidate": "PASS",
+    "clean_candidate_sha256": "185039eadf8e8e63a8dad358df35f759a7a1f099d5fa6a3456a50e023920a2b1",
+    "source_identity": "125/125 PASS",
+    "payload_manifests": "121/121 PASS",
+    "zip_crc": "PASS",
+    "path_traversal": "0",
+    "symlinks": "0",
+    "caches": "0",
+    "cr_offenders": "0",
+    "required_executable_modes": "7/7 = 0755",
+    "extracted_repository_tests": "147 passed / 7 skipped",
+    "extracted_focused_q1": "11 passed",
+    "extracted_selftest": "ALL PASS",
+    "extracted_compile_and_shell": "PASS",
+    "final_zip_sha256": "reported externally with delivery"
+  },
+  "payload_file_count": 121,
+  "files": [
+    {
+      "path": ".gitattributes",
+      "sha256": "583817183ab778fd9791eeca67598e12baf14874ef3c0842b478290f1660bd74",
+      "size": 248
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "7c444573559b635724464eb93f6613707a2cf383714b6799b67afc8f63e8d0dc",
+      "size": 3447
+    },
+    {
+      "path": ".gitignore",
+      "sha256": "a351406e5baa081171a8b7965ae9bbb118a161b3588ddbcbf9f3ec0fbcc76efc",
+      "size": 435
+    },
+    {
+      "path": "AGENTS.md",
+      "sha256": "67b19a8dd507db5811728d2985a27b326f576072db98347377c4fd4ce964f4f1",
+      "size": 2050
+    },
+    {
+      "path": "AI_HANDOFF.md",
+      "sha256": "65eac8449fa0c1f572ce23eaca8a19f32d04a2049b09746b4519398d41a9a952",
+      "size": 58992
+    },
+    {
+      "path": "API.md",
+      "sha256": "9abc6330504d3420245973c8221d3dd58d8753d9c593c8954559ae06a654de81",
+      "size": 16923
+    },
+    {
+      "path": "CLAUDE.md",
+      "sha256": "b9e1b3934cc387b67006e82b54d9a6ffdf84dfae38007f7efe392a64dfb4defd",
+      "size": 2183
+    },
+    {
+      "path": "DEVELOPMENT.md",
+      "sha256": "46ed186028e17bf06de80741ca7b2340cf7caf6d70639fc0a90f80aa1d8c4caa",
+      "size": 55323
+    },
+    {
+      "path": "DEV_BASELINE.md",
+      "sha256": "1e15b3658f824d0437271ee29590ecb5166eb57a74672180d5ffe6acc3131ebd",
+      "size": 14828
+    },
+    {
+      "path": "HANDOVER_2026-09-07.md",
+      "sha256": "c58432aaa3bea864ee30a9ac6222249a1d58a5756b005d90e9192aaeb084b1bc",
+      "size": 10835
+    },
+    {
+      "path": "HANDOVER_PROMPT.md",
+      "sha256": "3080643c4efe9d8852ddc6903cd72ee87edfe4072291f68031ded313d1f7080b",
+      "size": 17387
+    },
+    {
+      "path": "README.md",
+      "sha256": "338aebdd2798408ac23bdbfd20c1dc953a5bdbf6ff82f3b7459d8a436614f833",
+      "size": 4256
+    },
+    {
+      "path": "ROADMAP.md",
+      "sha256": "deece6f43fdc13ad573acb5087b44c43494ea5b2e700a428c285d1fc350f92c3",
+      "size": 36369
+    },
+    {
+      "path": "SECURITY.md",
+      "sha256": "c1aa94b98f537b9911c1b9d869f9dc843dc6b27c9f0066b56e19633c93e226d0",
+      "size": 27313
+    },
+    {
+      "path": "TESTING.md",
+      "sha256": "bde33dd6b7c90ac9d7cf262e0e8e425f3aa0d6dfdb67a52782f72cb00e3e63bc",
+      "size": 31976
+    },
+    {
+      "path": "TESTING_RESULT_2026-09-07.md",
+      "sha256": "9fc8bed9fcf176322c928c2b8f8e23601e7968315de434a60f4c5e66eda31588",
+      "size": 5644
+    },
+    {
+      "path": "TESTING_RESULT_2026-09-11.md",
+      "sha256": "57447d6919a14695963baff97b79490e3e901c58eef91c587d53a2a425733343",
+      "size": 22105
+    },
+    {
+      "path": "TESTING_RESULT_2026-09-12.md",
+      "sha256": "92b8031906a03d2b37b22f705c096e57d67333aac3ca53613212c6694cde1f95",
+      "size": 6174
+    },
+    {
+      "path": "etc/default/netconfig",
+      "sha256": "72088444479b18d56f178b07cc26654644bf6d5c74409622f89cca85200ff42b",
+      "size": 1855
+    },
+    {
+      "path": "etc/profile.d/netconfig.sh",
+      "sha256": "306221a608b379d1bddc9c652e8bac947bf9f334df24c9380eae2a075ed396f9",
+      "size": 41
+    },
+    {
+      "path": "opt/netconfig/CREDENTIALS.md",
+      "sha256": "419a58ced7f66266773e12ecf84d31cc193ed26360372759993d89ac4137f7a0",
+      "size": 12484
+    },
+    {
+      "path": "opt/netconfig/INSTALL.md",
+      "sha256": "bf341a50770cabd282e573ece7eba3ed5983534aef316ff1f223670bb4215a0c",
+      "size": 20425
+    },
+    {
+      "path": "opt/netconfig/README.md",
+      "sha256": "f917d74024dd0a16784ae35258e222d745fed032180fcc9e37d147afdb0a3a55",
+      "size": 19393
+    },
+    {
+      "path": "opt/netconfig/WEBGUI.md",
+      "sha256": "f8c4fa433130c1a5e3f85267df60f9b85a6b7afb8a10c69b4eee968c6fc6cc63",
+      "size": 18152
+    },
+    {
+      "path": "opt/netconfig/netconfig/__init__.py",
+      "sha256": "1f2221b1c78ac531ca56184f300a970c42ad0685d453a2059ef96f7367ba739c",
+      "size": 88
+    },
+    {
+      "path": "opt/netconfig/netconfig/aead.py",
+      "sha256": "c39567346f799fbd87b136c1cd423b8b58295ae09bd04264ed3638a622ce7fa7",
+      "size": 4650
+    },
+    {
+      "path": "opt/netconfig/netconfig/aes.py",
+      "sha256": "4184c17c74021d2bcb39f671a49ffe45ed75bbd8ccf9e5409c97fd7db1dbee62",
+      "size": 6095
+    },
+    {
+      "path": "opt/netconfig/netconfig/apitokens.py",
+      "sha256": "aa6452d11f2e0fc2f189e8b2cdf8b5eb6034cf106a6771ec0f1a8641111ee7b2",
+      "size": 2576
+    },
+    {
+      "path": "opt/netconfig/netconfig/appmon.py",
+      "sha256": "fee034e57ab41e0cf44ba1b4c45014aa1176f837834fdd3d0df60f1826946eb0",
+      "size": 6381
+    },
+    {
+      "path": "opt/netconfig/netconfig/automation.py",
+      "sha256": "bbda46cefaaa2368a15cbd3ca9285cdff94a3e4c39bb97b11e05221373543c2e",
+      "size": 3026
+    },
+    {
+      "path": "opt/netconfig/netconfig/caseexport.py",
+      "sha256": "1b5ea692b58a892b82cf38cc987852234bcfbe66ad93c573f362910f999b2e9e",
+      "size": 17555
+    },
+    {
+      "path": "opt/netconfig/netconfig/cli.py",
+      "sha256": "0e816530e99578334a46be6522c99c2958f0f8961ee5839d4d806f25940ec25d",
+      "size": 68742
+    },
+    {
+      "path": "opt/netconfig/netconfig/compliance.py",
+      "sha256": "5adb123b06df11bc0814355cd96c7540e8d0c1cf9300b1b92c0b2ee93c70a0da",
+      "size": 17373
+    },
+    {
+      "path": "opt/netconfig/netconfig/config.py",
+      "sha256": "b6039a3d6ebc0cd8fff9340461eb7b19c8ac40863bb9e96cd0adcfbf0463b775",
+      "size": 6428
+    },
+    {
+      "path": "opt/netconfig/netconfig/configmodel.py",
+      "sha256": "3618736ca091fbbfe6ef8ddf0ee848d6e53ddc5b814d9f452ce8995e5a2cd475",
+      "size": 3771
+    },
+    {
+      "path": "opt/netconfig/netconfig/credentials.py",
+      "sha256": "f523304d11f79284455152d6692835eb8e1b67d923fd6a4c63c6b99024d8acf4",
+      "size": 2353
+    },
+    {
+      "path": "opt/netconfig/netconfig/db.py",
+      "sha256": "a6650cee3817e815b9249ea94ec142c5f5e4a102b49b64132f63ef1f3c654595",
+      "size": 61913
+    },
+    {
+      "path": "opt/netconfig/netconfig/debug.py",
+      "sha256": "9cd762cb5afdda0c7f9aa19035835959906e1019b5eb9bafdf27101b3384bc07",
+      "size": 7717
+    },
+    {
+      "path": "opt/netconfig/netconfig/diagnostic_maintenance.py",
+      "sha256": "ed6b5c3ecdf3de19520de3a38eed8b0d77cf8f6d9887897fc8c1f3a87048c073",
+      "size": 3817
+    },
+    {
+      "path": "opt/netconfig/netconfig/digest.py",
+      "sha256": "c7165baa58fd6d0f7aec876d74cc210e2c7cf6796f7fcf037d7821d635de36bf",
+      "size": 1861
+    },
+    {
+      "path": "opt/netconfig/netconfig/drivers.py",
+      "sha256": "472dd1a0a587d0e28384645fcfe1b550e1706543acb170981700b98ef6403fbd",
+      "size": 10933
+    },
+    {
+      "path": "opt/netconfig/netconfig/evidence_signing.py",
+      "sha256": "a87a81701ed55bf7d69b1adf8a1b0993672d2b02724b32e409f2ab6b335ea4d4",
+      "size": 16767
+    },
+    {
+      "path": "opt/netconfig/netconfig/ifhistory.py",
+      "sha256": "a7d90b10f3a3983a80622393a975a8cd00dd986dfc365a2c7463d32b8de5448f",
+      "size": 8687
+    },
+    {
+      "path": "opt/netconfig/netconfig/incidents.py",
+      "sha256": "d7d5fd26d2b935652916d8029e37bfd77b817c04532530fa8691a3debf4cd3b9",
+      "size": 23305
+    },
+    {
+      "path": "opt/netconfig/netconfig/inventory.py",
+      "sha256": "47c2d266a934d156afc48bae6207499281f7c37a1651f49185ed57ee1dafa907",
+      "size": 14468
+    },
+    {
+      "path": "opt/netconfig/netconfig/mailer.py",
+      "sha256": "dfa905d66aea995790fb2c76b0eee2c807ee7e74b8488f55e5b3542a42654418",
+      "size": 3453
+    },
+    {
+      "path": "opt/netconfig/netconfig/manager.py",
+      "sha256": "dfef1087f79d4bee0bf9c3a776299dbddc57b0cc617450a8cf0f98a083104e9c",
+      "size": 41133
+    },
+    {
+      "path": "opt/netconfig/netconfig/mib.py",
+      "sha256": "1bbd10577b23ba672ff8571c689b71ffc72b9cd75eae45ff6dcf7916b0d68e32",
+      "size": 14592
+    },
+    {
+      "path": "opt/netconfig/netconfig/monitor.py",
+      "sha256": "9655b3c7776d20813ede9e56fba01dee87bfed26ee4b0bdceff8fb0176d1708f",
+      "size": 7279
+    },
+    {
+      "path": "opt/netconfig/netconfig/netflow.py",
+      "sha256": "e6a4b8b189f64670f53d9adb6638018f1a309259ae18adb895ffd70f7d9e6a0c",
+      "size": 7875
+    },
+    {
+      "path": "opt/netconfig/netconfig/network_intelligence.py",
+      "sha256": "388db20769d426917e798c737bf41c7bfe617c1d8454711c590b2a8d30c2ea3d",
+      "size": 6031
+    },
+    {
+      "path": "opt/netconfig/netconfig/oauth.py",
+      "sha256": "14df519ee4f31a4dc9057d63194a4d1695327ac9f35bbe61cf2f5097a32b57d2",
+      "size": 2997
+    },
+    {
+      "path": "opt/netconfig/netconfig/observability.py",
+      "sha256": "62d87e202c16a1b0af9621979acbdee5de5e1f8b68d6ba67fb717446dbf2cd03",
+      "size": 1407
+    },
+    {
+      "path": "opt/netconfig/netconfig/operational_alerts.py",
+      "sha256": "2e302cbfaa0fb80a76697a05a2e7a5b9b0b2f8dfeacaa3a40a7f6d8eeaab485e",
+      "size": 14580
+    },
+    {
+      "path": "opt/netconfig/netconfig/operational_events.py",
+      "sha256": "16d8c338b70461666a7284f2299cc3f7d20f63cd8b07b6de61b09ebb057a985a",
+      "size": 5344
+    },
+    {
+      "path": "opt/netconfig/netconfig/portmon.py",
+      "sha256": "ae1b45c6d3e737e8e1bb208dbdd6442309d95944729ba98ad9fc5b6a87f276be",
+      "size": 3974
+    },
+    {
+      "path": "opt/netconfig/netconfig/postgres_backup.py",
+      "sha256": "ff2ef73c15b1bd065a3896bd77fc794d0f7a7f687eee64540b43909b27d02783",
+      "size": 10229
+    },
+    {
+      "path": "opt/netconfig/netconfig/postgres_core.py",
+      "sha256": "4634521a427f07974aa66c5945045407312b070edad7339211017af1589caf8a",
+      "size": 13492
+    },
+    {
+      "path": "opt/netconfig/netconfig/protocols.py",
+      "sha256": "735036d7d464db2d68989ac598bfcd22e8e3f9d5f47243238aab09c5acf48640",
+      "size": 810
+    },
+    {
+      "path": "opt/netconfig/netconfig/protocoltrace.py",
+      "sha256": "da125482124c49d7a04e983ffa93ad4d41c64f800b4fa6d9d13f60b8b475a21d",
+      "size": 12365
+    },
+    {
+      "path": "opt/netconfig/netconfig/qualification.py",
+      "sha256": "c5ed4945a52dc64d98689bbffc3bc7df33ad7026c6869abe47b4c23c47c51061",
+      "size": 2116
+    },
+    {
+      "path": "opt/netconfig/netconfig/scrub.py",
+      "sha256": "493a6b1afe87d4da0f0a1bf9fcbe5b0ce23b30823356bbcc3b9fc22cba5b6c2b",
+      "size": 2855
+    },
+    {
+      "path": "opt/netconfig/netconfig/security.py",
+      "sha256": "b6507311035803d32fbc351d749b6bf658f5acdb97565a5ffa09d751fe167ac6",
+      "size": 3648
+    },
+    {
+      "path": "opt/netconfig/netconfig/session.py",
+      "sha256": "a67f52fcc9e231057b15e3c38a567f58f43c3c501bedee8450d47e881fe8ea09",
+      "size": 1559
+    },
+    {
+      "path": "opt/netconfig/netconfig/snmp.py",
+      "sha256": "d9fef35d3517b4d5bedadfc24f2366cf4644801b798d013aa75bd8f8bb25426b",
+      "size": 34858
+    },
+    {
+      "path": "opt/netconfig/netconfig/snmp_trap.py",
+      "sha256": "32c6d397d58dda92f224de5aaf37bd44e89515cbc7af8d2e12a1a612ed7dde6b",
+      "size": 8982
+    },
+    {
+      "path": "opt/netconfig/netconfig/storage_backend.py",
+      "sha256": "b143b72b0d2e161d1b773499bffcd38c1d551879ea1fa819fe9b7aadadb46cb5",
+      "size": 890
+    },
+    {
+      "path": "opt/netconfig/netconfig/store.py",
+      "sha256": "eec3aac407d040441fef7ae2d8ca54151bf2f7cb83cf281fce2c16e4fd3aa5d7",
+      "size": 8663
+    },
+    {
+      "path": "opt/netconfig/netconfig/structured_protocols.py",
+      "sha256": "a7b0d3655c4912d958302abf5efe39c33cb505b3bbe981fc1e7e7c223cf69c89",
+      "size": 48026
+    },
+    {
+      "path": "opt/netconfig/netconfig/syslog_receiver.py",
+      "sha256": "3f0ba4c07f680fc56816d949f61ba1ea87939250351b7e5f92968ed19510ab75",
+      "size": 3561
+    },
+    {
+      "path": "opt/netconfig/netconfig/topology.py",
+      "sha256": "55f3e28c56bf1e72e8eacb6c4cef8c257348e936b0654586017381fe208c5be8",
+      "size": 13504
+    },
+    {
+      "path": "opt/netconfig/netconfig/transport.py",
+      "sha256": "e174bcacf1bb1af55774cbd8065b64298684ace939f88c8754226af609f59cf9",
+      "size": 15861
+    },
+    {
+      "path": "opt/netconfig/netconfig/users.py",
+      "sha256": "8d6bbb5f45ab42884f7cf3b015a00f9eaf710ea6173b454adad28019317d78c4",
+      "size": 4887
+    },
+    {
+      "path": "opt/netconfig/netconfig/vault.py",
+      "sha256": "fe93e5877dffa3651ffa888118c3308bdc7b42abb39016f324d83bf1c1855dc9",
+      "size": 5966
+    },
+    {
+      "path": "opt/netconfig/netconfig/web.py",
+      "sha256": "adb9118d226c1695f30343faa6ec6dd9ce5a5457727dd132d3f3832e357f4810",
+      "size": 238409
+    },
+    {
+      "path": "opt/netconfig/netconfig/web_api.py",
+      "sha256": "ec34100bee0d452262b592da176ff1a5daf171fea037079da456a2b62340f63d",
+      "size": 26827
+    },
+    {
+      "path": "opt/netconfig/netconfig/web_ui.py",
+      "sha256": "7d618a223f8cafd715990325178a12edee4ce272ed6bdbc15400e09c95863800",
+      "size": 29090
+    },
+    {
+      "path": "opt/netconfig/netconfig/workflow.py",
+      "sha256": "3ac0f2249911495d61c4a996c6babc93f269a398aceccd7955b49766b6a50ab9",
+      "size": 10359
+    },
+    {
+      "path": "opt/netconfig/selftest.py",
+      "sha256": "d7475f9673b6465722442cc7f07932f303368288688d6936e951edebc4215e17",
+      "size": 34472
+    },
+    {
+      "path": "packaging/README.md",
+      "sha256": "2fbaa640e7088ac5de23b71f0f58c3361a37b25bdc7cc93c57587f619519bdaf",
+      "size": 5509
+    },
+    {
+      "path": "packaging/build-rpm.sh",
+      "sha256": "d6c22cae4ad2b279bc679fe1f995e601e8b80ce63bbad00aa37375ea8a9fd2c8",
+      "size": 1645
+    },
+    {
+      "path": "packaging/inspect-rpm.sh",
+      "sha256": "624ac0d510150a9abf524644c0b1f25cd9fbfe5585855ec2c112353031e680a5",
+      "size": 1376
+    },
+    {
+      "path": "packaging/netconfig.spec",
+      "sha256": "1db1f13f82eeb1f073371c5836a0653f8a21ac8ae7356131191b2d447666f80e",
+      "size": 7989
+    },
+    {
+      "path": "packaging/prepare-transfer.ps1",
+      "sha256": "bb7460582c3fa77934c056c3cf5d0eb347776865708ce12c0698d6838cfe873c",
+      "size": 2894
+    },
+    {
+      "path": "packaging/q1-qualify-almalinux.sh",
+      "sha256": "94838bac1eeb57d22daa0be2131465327e0fe43fb0792eb43196e344be95863f",
+      "size": 2464
+    },
+    {
+      "path": "packaging/q1-qualify-postgres.sh",
+      "sha256": "a7483a8d24636a18ae547e22cc954f6675d63bd7adcbf8cd33f4b711155dafdd",
+      "size": 1165
+    },
+    {
+      "path": "packaging/q1-source-gates.sh",
+      "sha256": "7993587a5396c11949fe6d06e65e33d7c745dde4a301e33003b1b030c16b463c",
+      "size": 1780
+    },
+    {
+      "path": "packaging/smoke-installed.sh",
+      "sha256": "2018805b03c756a0d50af6c2a4908d8414e3982f7b439a559e1fecfcc8a119c6",
+      "size": 1583
+    },
+    {
+      "path": "patch.md",
+      "sha256": "ac4e61bd54166fdfe9166eec68a9ce843bdfcf7c51dc89a84d10fa434bcab2c7",
+      "size": 35887
+    },
+    {
+      "path": "pyproject.toml",
+      "sha256": "ae352a75e84ed0891e5034ec06a313b844df71583513fa02965094a1607be3ab",
+      "size": 615
+    },
+    {
+      "path": "tests/integration/fake_device_shell.py",
+      "sha256": "6363de8460606f4eee7d055cb341dbd820efb502a7555d9f33bc171299c4f129",
+      "size": 655
+    },
+    {
+      "path": "tests/integration/test_postgres_core_live.py",
+      "sha256": "82b763cfc797c54e04b998fd7685ab4ccb0be8927adc464756ab8d71cf185cb5",
+      "size": 8164
+    },
+    {
+      "path": "tests/integration/test_protocol_fakes.py",
+      "sha256": "bf128cd1bc44cc467a51c7ee903cf88d5fc24afc2d149688f122e55261dbcfa2",
+      "size": 1737
+    },
+    {
+      "path": "tests/test_api_tokens.py",
+      "sha256": "fbf2ec9509906d190091392e82079bcb69eefbbfbf96f825d37b99aed9976765",
+      "size": 624
+    },
+    {
+      "path": "tests/test_configmodel.py",
+      "sha256": "3b170580bada4bd297aa04ebf7425bf20768274c3e324e6a054bcabe9541ad3d",
+      "size": 1587
+    },
+    {
+      "path": "tests/test_credentials.py",
+      "sha256": "a2e730e0176dc67747744133a31a6b93a41fb220cd3625e14b5a3b6569d8d6be",
+      "size": 715
+    },
+    {
+      "path": "tests/test_d5_closeout.py",
+      "sha256": "4a8927b38c119551515f7c46b571a671324aafc31ee020940f3c0775622f1433",
+      "size": 4836
+    },
+    {
+      "path": "tests/test_digest.py",
+      "sha256": "2e365f4e5c1b81b635641e61cfb08a52872e3e1a5f0fd58ba71d23a632a08146",
+      "size": 584
+    },
+    {
+      "path": "tests/test_evidence_signing.py",
+      "sha256": "022788290f7de2369b638baad68f2163465423943bfc645092f048cdf7333877",
+      "size": 12888
+    },
+    {
+      "path": "tests/test_incident_web.py",
+      "sha256": "961250c3cb30a19bace50fc740c6194e2b796892b4b3cb3b607e3e4f25caa89a",
+      "size": 10065
+    },
+    {
+      "path": "tests/test_incidents.py",
+      "sha256": "ba27c2cf6fdc57bc14fcd4835330b8c3f129fe031f237a80f1648b7ddc580243",
+      "size": 28294
+    },
+    {
+      "path": "tests/test_legacy_selftest.py",
+      "sha256": "8b2593a1762f084a7826fdf69f4f451b48a0c42961c49700c5e8c979e6c6731a",
+      "size": 506
+    },
+    {
+      "path": "tests/test_network_intelligence.py",
+      "sha256": "9f10210f4d29c89ab87b8803639448a2bccb7fe7a77e1e88260200c6a4e830fc",
+      "size": 7599
+    },
+    {
+      "path": "tests/test_network_intelligence_ni2.py",
+      "sha256": "4302e40746f4aac7e73d647bfc6afd74649a247b03fb42767b025b7a0dce5fa7",
+      "size": 7807
+    },
+    {
+      "path": "tests/test_network_intelligence_ni3.py",
+      "sha256": "822fb7c0d02a7d10e908b693ef6be18cc451e5681ed64ab733ec58f5dff12bbb",
+      "size": 6274
+    },
+    {
+      "path": "tests/test_network_intelligence_ni4.py",
+      "sha256": "f8186f866fb4d56a800c42d12e5977e2a5d6fff16b4042dc0be9060e90b54e6c",
+      "size": 9084
+    },
+    {
+      "path": "tests/test_platform_hardening_ph1.py",
+      "sha256": "365676acf86bf36b99e5ed4348b5235742f25000b4f5f206b9bad5051731ad06",
+      "size": 3664
+    },
+    {
+      "path": "tests/test_platform_hardening_ph2.py",
+      "sha256": "43a9b4cfc66886dfc6f52dc3836b5d7cee5d24a5f442bfd8c3ff4e1824f62ef0",
+      "size": 7581
+    },
+    {
+      "path": "tests/test_platform_hardening_ph3.py",
+      "sha256": "256f8722e439e1b325e263f9ae1bd29c18403f703b210efb7209dd8b217e5167",
+      "size": 21687
+    },
+    {
+      "path": "tests/test_protocol_trace.py",
+      "sha256": "169d2c58ca2839049948b3236ef45b86d7656b378169f13651fa916d3f0aa999",
+      "size": 8445
+    },
+    {
+      "path": "tests/test_protocols_storage.py",
+      "sha256": "a65103d1751058d4201406ac4370eef7af81a6bb413bbe4f6279e83db63b0dd5",
+      "size": 398
+    },
+    {
+      "path": "tests/test_qualification_q1.py",
+      "sha256": "1af5a548564a4a73b29ec65d575fe0f2c66ba4cb5e4133410a11e958106f445f",
+      "size": 9492
+    },
+    {
+      "path": "tests/test_repo_hygiene.py",
+      "sha256": "df1292584aa888caedc02d25a5f67441f937c3d1e963858382683b0530aa0b31",
+      "size": 1036
+    },
+    {
+      "path": "tests/test_security.py",
+      "sha256": "77e0a19f14ad524ab79353d2c47f88db51f8cf36d700b57d96f2b5ef2fa1b86c",
+      "size": 927
+    },
+    {
+      "path": "tests/test_snmp_concurrency.py",
+      "sha256": "ac6d04c9cf15e205e16f851ac4cde9b1153ee651009c0e348d22a6cf9d80c974",
+      "size": 774
+    },
+    {
+      "path": "tests/test_syslog_receiver.py",
+      "sha256": "f301d1899ae200f433f80d266b27e561dd14cb3aca67e45b5b61624ef0fb290f",
+      "size": 1048
+    },
+    {
+      "path": "tests/test_topology.py",
+      "sha256": "e73c5c7788c0838764b730c7e11841b8cd18c24540b090624f76022d64220602",
+      "size": 1168
+    },
+    {
+      "path": "usr/bin/netconfig",
+      "sha256": "845ddc774550d19badbea1e33db5ff85ae4890e25e7f58d29ba86c9f7e8a4e8c",
+      "size": 426
+    },
+    {
+      "path": "usr/lib/systemd/system/netconfig-backup.service",
+      "sha256": "6fbc1b2e686ca9265d6ae3e6eb0393a06ae770d499e723c4d72032ae08bdffc7",
+      "size": 1148
+    },
+    {
+      "path": "usr/lib/systemd/system/netconfig-backup.timer",
+      "sha256": "e9d48c1ae52976b6a373fedecec4643443aaea0310a70bc3bb7f0b578eece86a",
+      "size": 169
+    },
+    {
+      "path": "usr/lib/systemd/system/netconfig-web.service",
+      "sha256": "9fef6a59c86295cd569d32e53eb609ce710d008eccaa761b236000dc57679c63",
+      "size": 1465
+    }
+  ]
+}

@@ -18,6 +18,7 @@ available as a fallback for gear that can't do v3.
 """
 
 import hashlib
+import ipaddress
 import hmac
 import os
 import socket
@@ -26,8 +27,28 @@ import binascii
 import re
 import sys
 import time as _time
+from contextlib import contextmanager
+from contextvars import ContextVar
 
 _DEBUG = int(os.environ.get("NETCONFIG_SNMP_DEBUG", "0") or 0)
+_TRACE_CALLBACK = ContextVar("netconfig_snmp_trace_callback", default=None)
+
+@contextmanager
+def trace_capture(callback):
+    """Attach a context-local metadata-only SNMP trace callback."""
+    token = _TRACE_CALLBACK.set(callback)
+    try:
+        yield
+    finally:
+        _TRACE_CALLBACK.reset(token)
+
+def _trace(event):
+    callback = _TRACE_CALLBACK.get()
+    if callback:
+        try:
+            callback(event)
+        except Exception:
+            pass
 
 
 def set_debug(level):
@@ -247,11 +268,19 @@ def _udp_exchange(host, port, payload, timeout, retries=1):
             t0 = _time.time()
             s.sendto(payload, (host, port))
             data, _ = s.recvfrom(65535)
-            _dbg(1, f"recv {len(data)}B in {(_time.time() - t0) * 1000:.0f}ms")
+            elapsed = (_time.time() - t0) * 1000
+            _dbg(1, f"recv {len(data)}B in {elapsed:.0f}ms")
             _dbg(2, f"  rx {_hx(data)}")
+            _trace({"event_type": "udp_exchange", "operation": "SNMP request", "status": "ok",
+                    "duration_ms": elapsed, "tx_bytes": len(payload), "rx_bytes": len(data),
+                    "host": host, "port": port, "attempt": attempt + 1})
             return data
         except socket.timeout as e:
             last = e
+            elapsed = (_time.time() - t0) * 1000
+            _trace({"event_type": "udp_exchange", "operation": "SNMP request", "status": "timeout",
+                    "duration_ms": elapsed, "tx_bytes": len(payload), "rx_bytes": 0,
+                    "host": host, "port": port, "attempt": attempt + 1})
             _dbg(1, f"timeout after {timeout}s")
         finally:
             s.close()
@@ -324,6 +353,9 @@ def walk_table(host, columns, *, version="v2c", community="public", v3=None,
 IF = {
     "descr": ".1.3.6.1.2.1.2.2.1.2",
     "type": ".1.3.6.1.2.1.2.2.1.3",
+    "phys": ".1.3.6.1.2.1.2.2.1.6",
+    "name": ".1.3.6.1.2.1.31.1.1.1.1",
+    "alias": ".1.3.6.1.2.1.31.1.1.1.18",
     "speed": ".1.3.6.1.2.1.2.2.1.5",
     "admin": ".1.3.6.1.2.1.2.2.1.7",
     "oper": ".1.3.6.1.2.1.2.2.1.8",
@@ -382,6 +414,152 @@ def poll_arp(host, *, port=161, version="v2c", community="public",
     return out
 
 
+def _inet_address(value, addr_type=None):
+    """Best-effort InetAddress -> (family, text) without guessing malformed rows."""
+    try:
+        if isinstance(value, bytes):
+            if len(value) in (4, 16):
+                ip = ipaddress.ip_address(value)
+                return ("ipv4" if ip.version == 4 else "ipv6", str(ip))
+            return ("", "")
+        text = str(value or "").strip()
+        if not text:
+            return ("", "")
+        ip = ipaddress.ip_address(text)
+        return ("ipv4" if ip.version == 4 else "ipv6", str(ip))
+    except ValueError:
+        return ("", "")
+
+
+def poll_ip_neighbors(host, *, port=161, version="v2c", community="public",
+                      v3=None, timeout=2.0, retries=1, ifdescr=None):
+    """IP-MIB ipNetToPhysicalTable, with legacy IPv4 fallback.
+
+    Returns normalized records with source/provenance; malformed or secret-like
+    data is never persisted.
+    """
+    ADDR_TYPE = ".1.3.6.1.2.1.4.35.1.2"
+    NET = ".1.3.6.1.2.1.4.35.1.3"
+    PHYS = ".1.3.6.1.2.1.4.35.1.4"
+    NTYPE = ".1.3.6.1.2.1.4.35.1.6"
+    STATE = ".1.3.6.1.2.1.4.35.1.7"
+    rows = walk_table(host, [ADDR_TYPE, NET, PHYS, NTYPE, STATE], version=version,
+                      community=community, v3=v3, port=port, timeout=timeout, retries=retries)
+    if not rows:
+        rows = walk_table(host, [ADDR_TYPE, NET, PHYS, NTYPE, STATE], version=version,
+                          community=community, v3=v3, port=port, timeout=timeout, retries=retries,
+                          single=True)
+    ifdescr = ifdescr or {}
+    type_map = {1: "other", 2: "invalid", 3: "dynamic", 4: "static", 5: "local"}
+    state_map = {1: "reachable", 2: "stale", 3: "delay", 4: "probe", 5: "invalid",
+                 6: "unknown", 7: "incomplete"}
+    out = []
+    for idx, cols in rows.items():
+        parts = idx.split(".")
+        ifindex = parts[0] if parts else ""
+        family, ip = _inet_address(cols.get(NET), cols.get(ADDR_TYPE))
+        mac = _mac_from_octets(cols.get(PHYS))
+        if not family or not ip or not mac:
+            continue
+        ntype = cols.get(NTYPE)
+        state = cols.get(STATE)
+        out.append({
+            "ip": ip, "address_family": family, "mac": mac, "ifindex": ifindex,
+            "ifdescr": ifdescr.get(str(ifindex), ""),
+            "neighbor_type": type_map.get(ntype, str(ntype or "")),
+            "state": state_map.get(state, str(state or "")),
+            "source": "ipNetToPhysicalTable",
+        })
+    if out:
+        return out
+    # Compatibility fallback for older agents.  This cannot provide IPv6 or
+    # neighbour-state metadata, so provenance remains explicit.
+    for row in poll_arp(host, port=port, version=version, community=community,
+                        v3=v3, timeout=timeout, retries=retries):
+        try:
+            ip = str(ipaddress.ip_address(row.get("ip", "")))
+        except ValueError:
+            continue
+        out.append({
+            "ip": ip, "address_family": "ipv4", "mac": row.get("mac", ""),
+            "ifindex": row.get("ifindex", ""),
+            "ifdescr": ifdescr.get(str(row.get("ifindex", "")), ""),
+            "neighbor_type": "", "state": "", "source": "ipNetToMediaTable",
+        })
+    return out
+
+
+def poll_vlan_fdb(host, *, port=161, version="v2c", community="public",
+                  v3=None, timeout=2.0, retries=1, ifdescr=None):
+    """Q-BRIDGE-MIB FDB with explicit FDB-ID -> VLAN mapping.
+
+    VLAN is emitted only when the Q-BRIDGE mapping is unambiguous.  Shared-VLAN
+    learning contexts therefore remain unresolved rather than being guessed.
+    """
+    FDB_PORT = ".1.3.6.1.2.1.17.7.1.2.2.1.2"
+    FDB_STATUS = ".1.3.6.1.2.1.17.7.1.2.2.1.3"
+    VLAN_FDB_ID = ".1.3.6.1.2.1.17.7.1.4.2.1.3"
+    BP_IFINDEX = ".1.3.6.1.2.1.17.1.4.1.2"
+    fdb = walk_table(host, [FDB_PORT, FDB_STATUS], version=version, community=community,
+                     v3=v3, port=port, timeout=timeout, retries=retries)
+    if not fdb:
+        fdb = walk_table(host, [FDB_PORT, FDB_STATUS], version=version, community=community,
+                         v3=v3, port=port, timeout=timeout, retries=retries, single=True)
+    vlan_rows = walk_table(host, [VLAN_FDB_ID], version=version, community=community,
+                           v3=v3, port=port, timeout=timeout, retries=retries)
+    bp = walk_table(host, [BP_IFINDEX], version=version, community=community,
+                    v3=v3, port=port, timeout=timeout, retries=retries)
+    bp_map = {}
+    for bridge_port, cols in bp.items():
+        try:
+            bp_map[str(bridge_port)] = str(int(cols.get(BP_IFINDEX)))
+        except (TypeError, ValueError):
+            pass
+    fdb_to_vlans = {}
+    for idx, cols in vlan_rows.items():
+        try:
+            vlan = str(int(idx.split(".")[-1]))
+            fdb_id = str(int(cols.get(VLAN_FDB_ID)))
+        except (TypeError, ValueError):
+            continue
+        if 1 <= int(vlan) <= 4094:
+            fdb_to_vlans.setdefault(fdb_id, set()).add(vlan)
+    status_map = {1: "other", 2: "invalid", 3: "learned", 4: "self", 5: "mgmt"}
+    ifdescr = ifdescr or {}
+    out = []
+    for idx, cols in fdb.items():
+        parts = [p for p in idx.split(".") if p]
+        if len(parts) < 7:
+            continue
+        fdb_id = parts[0]
+        mac = _mac_from_oid_tail(".".join(parts[-6:]))
+        bridge_port = cols.get(FDB_PORT)
+        if not mac or bridge_port in (None, ""):
+            continue
+        bridge_port = str(int(bridge_port)) if str(bridge_port).lstrip("-").isdigit() else str(bridge_port)
+        ifindex = bp_map.get(bridge_port, "")
+        vlans = sorted(fdb_to_vlans.get(str(fdb_id), set()), key=lambda x: int(x))
+        vlan_id = vlans[0] if len(vlans) == 1 else ""
+        out.append({
+            "vlan_id": vlan_id, "fdb_id": str(fdb_id), "mac": mac,
+            "bridge_port": bridge_port, "ifindex": ifindex,
+            "ifdescr": ifdescr.get(ifindex, ""),
+            "status": status_map.get(cols.get(FDB_STATUS), str(cols.get(FDB_STATUS) or "")),
+            "source": "Q-BRIDGE-MIB",
+        })
+    if out:
+        return out
+    # Compatibility fallback preserves legacy visibility but deliberately leaves
+    # vlan_id empty because BRIDGE-MIB has no VLAN context.
+    legacy = poll_mac_table(host, port=port, version=version, community=community,
+                            v3=v3, timeout=timeout, retries=retries, ifdescr=ifdescr)
+    return [{
+        "vlan_id": "", "fdb_id": "", "mac": r.get("mac", ""),
+        "bridge_port": r.get("port", ""), "ifindex": r.get("ifindex", ""),
+        "ifdescr": r.get("ifdescr", ""), "status": "", "source": "BRIDGE-MIB",
+    } for r in legacy]
+
+
 def poll_mac_table(host, *, port=161, version="v2c", community="public",
                    v3=None, timeout=2.0, retries=1, ifdescr=None):
     """BRIDGE-MIB dot1dTpFdbTable -> list of {mac, port, ifindex, ifdescr}.
@@ -432,8 +610,10 @@ def poll_interfaces(host, *, port=161, version="v2c", community="public",
         rec = {"ifindex": idx}
         for base, val in r.items():
             key = rev[base]
-            if key == "descr":
-                rec["descr"] = val.decode("utf-8", "replace").strip() if isinstance(val, bytes) else str(val)
+            if key in ("descr", "name", "alias"):
+                rec[key] = val.decode("utf-8", "replace").strip() if isinstance(val, bytes) else ("" if val is None else str(val))
+            elif key == "phys":
+                rec[key] = _mac_from_octets(val)
             elif key in ("admin", "oper"):
                 rec[key] = _IF_STATUS.get(val, str(val))
             else:
@@ -713,6 +893,16 @@ def walk_subtree(host, root, *, version="v2c", community="public", v3=None,
         out.append((noid, _fmt_value(val)))
         cur = oid
     return out
+
+
+def get_oids(host, oids, *, port=161, version="v2c", community="public",
+             v3=None, timeout=2.0, retries=1):
+    """Read an explicit bounded OID set without exposing credential material."""
+    if version == "v3":
+        if v3 is None:
+            raise SNMPError("v3 requested but no credentials given")
+        return get_v3(host, v3, list(oids), port=port, timeout=timeout, retries=retries)
+    return get_v2c(host, community, list(oids), port=port, timeout=timeout, retries=retries)
 
 
 def poll_system(host, *, port=161, version="v2c", community="public",

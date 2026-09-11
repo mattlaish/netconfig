@@ -36,3 +36,26 @@ def service_master_password(env=None):
     if legacy:
         return legacy, "environment-legacy"
     return None, None
+
+
+def postgres_core_password(env=None):
+    """Return (secret, source) for the PH-2 core PostgreSQL connection.
+
+    Precedence: NETCONFIG_DB_PASSWORD_FILE, systemd credential
+    `postgres-core-password`, then legacy NETCONFIG_DB_PASSWORD. The password is
+    needed before the encrypted device vault can be opened, so it intentionally
+    does not live in settings.json or the NetConfig vault.
+    """
+    env = os.environ if env is None else env
+    explicit = env.get("NETCONFIG_DB_PASSWORD_FILE")
+    if explicit:
+        return _read_secret_file(explicit), "file"
+    cred_dir = env.get("CREDENTIALS_DIRECTORY")
+    if cred_dir:
+        candidate = os.path.join(cred_dir, "postgres-core-password")
+        if os.path.isfile(candidate):
+            return _read_secret_file(candidate), "systemd-credential"
+    legacy = env.get("NETCONFIG_DB_PASSWORD")
+    if legacy:
+        return legacy, "environment-legacy"
+    return None, None

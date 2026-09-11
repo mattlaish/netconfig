@@ -17,6 +17,8 @@ rpm -qpl "$RPM_PATH" | grep -qx '/usr/bin/netconfig'
 rpm -qpl "$RPM_PATH" | grep -qx '/usr/lib/systemd/system/netconfig-web.service'
 rpm -qpl "$RPM_PATH" | grep -qx '/usr/lib/systemd/system/netconfig-backup.timer'
 rpm -qpl "$RPM_PATH" | grep -qx '/var/lib/netconfig'
+rpm -qpl "$RPM_PATH" | grep -qx '/opt/netconfig/netconfig/postgres_backup.py'
+rpm -qpl "$RPM_PATH" | grep -qx '/opt/netconfig/netconfig/qualification.py'
 if rpm -qpl "$RPM_PATH" | grep -Eq '(__pycache__|\.py[co]$|/var/lib/netconfig/.+)'; then
     echo "unexpected cache/runtime data in RPM" >&2
     exit 1

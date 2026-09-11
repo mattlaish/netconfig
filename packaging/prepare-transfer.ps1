@@ -7,8 +7,13 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $version = "2.0.0"
-$release = "16"
 $projectRoot = Split-Path -Parent $PSScriptRoot
+$specPath = Join-Path $PSScriptRoot "netconfig.spec"
+$releaseMatch = Select-String -LiteralPath $specPath -Pattern '^Release:\s+([0-9]+)' | Select-Object -First 1
+if (-not $releaseMatch) {
+    throw "Unable to determine RPM Release from $specPath"
+}
+$release = $releaseMatch.Matches[0].Groups[1].Value
 
 if (-not $OutputPath) {
     $OutputPath = Join-Path $projectRoot "netconfig-$version-$release-rpm-build-source.zip"
@@ -32,7 +37,7 @@ $bundleRoot = Join-Path $stage $bundleName
 try {
     New-Item -ItemType Directory -Path $bundleRoot | Out-Null
 
-    foreach ($directory in @("opt", "usr", "etc", "packaging")) {
+    foreach ($directory in @("opt", "usr", "etc", "packaging", "tests", ".github")) {
         $source = Join-Path $projectRoot $directory
         if (-not (Test-Path -LiteralPath $source -PathType Container)) {
             throw "Required directory is missing: $source"
@@ -41,12 +46,24 @@ try {
     }
 
     foreach ($file in @(
+        ".gitattributes",
         ".gitignore",
+        "README.md",
+        "API.md",
+        "TESTING.md",
+        "TESTING_RESULT_2026-09-12.md",
         "AGENTS.md",
         "AI_HANDOFF.md",
         "CLAUDE.md",
         "DEV_BASELINE.md",
-        "patch.md"
+        "DEVELOPMENT.md",
+        "ROADMAP.md",
+        "SECURITY.md",
+        "HANDOVER_2026-09-07.md",
+        "TESTING_RESULT_2026-09-07.md",
+        "HANDOVER_PROMPT.md",
+        "patch.md",
+        "pyproject.toml"
     )) {
         $source = Join-Path $projectRoot $file
         if (Test-Path -LiteralPath $source -PathType Leaf) {

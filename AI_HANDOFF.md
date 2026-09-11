@@ -1,8 +1,22 @@
 # AI Development Handoff
 
+> **Canonical project state — 2026-09-12:** **CURRENT** = Qualification Track **Q-1 — Production Runtime & Service-backed Qualification** (`IMPLEMENTED_TESTING_DEFERRED`). **LATEST FEATURE BASELINE** = Platform Hardening **PH-3 — NETCONF / RESTCONF / gNMI Structured Adapters** (`IMPLEMENTED_TESTING_DEFERRED`). Q-1 implementation is complete in source, but live PostgreSQL/AlmaLinux/systemd/service-backed gates remain explicitly deferred in this environment. No Q-2 is assigned. RPM source Release is `2.0.0-32`.
+
+> **Current continuation pointer:** use the Q-1 full source baseline from 2026-09-12 as the active source. Historical CURRENT/NEXT statements below are chronology only. Execute the remaining Q-1 live gates before any promotion to `TESTED`/`RELEASED`; after Q-1 qualification, perform a fresh roadmap review before assigning Q-2.
+
+## Active continuation — Qualification Q-1
+
+Q-1 is implemented in source and remains `IMPLEMENTED_TESTING_DEFERRED`. Continue from RPM source Release `2.0.0-32`; do not revert `pyproject.toml` to `0.1.0`. The latest feature baseline remains PH-3.
+
+Key Q-1 invariants: PostgreSQL backup/restore is fixed-function only; DB credentials use a short-lived mode-0600 `PGPASSFILE` and never argv; restore requires a verified checksum plus explicit `RESTORE_DATABASE` and may not target the configured active core database; the recovery-safe restore path must not require opening the failed active core first. `netconfig qualify` is configuration-aware. AlmaLinux installation qualification is permitted only on a disposable target with explicit `--install` plus `NETCONFIG_Q1_ALLOW_INSTALL=1`.
+
+Current offline evidence before final package gate: Q-1 focused **11 passed**, full repository **147 passed / 7 skipped**. The four new Q-1 service skips are real PostgreSQL multi-node claim/leadership, session-loss lock release, SQLite migration/sequence repair, and pg_dump/pg_restore recovery. Ruff/mypy, real PostgreSQL tooling, and AlmaLinux 10 are `NOT_RUN` in this environment. No Q-2 is assigned; execute/record Q-1 live gates first, then perform a roadmap review.
+
+Clean Q-1 candidate `netconfig_qualification_q1_candidate_2026-09-12.zip` (SHA-256 `185039eadf8e8e63a8dad358df35f759a7a1f099d5fa6a3456a50e023920a2b1`) passed the artifact gate: ZIP CRC **PASS**; path traversal **0**; symlinks **0**; caches **0**; CR offenders **0**; source/extracted byte identity **125/125 PASS**; payload plus each SHA manifest **121/121 PASS**; required executable modes **7/7 = 0755**; extracted Q-1 focused **11 passed**; extracted full regression **147 passed / 7 skipped**; legacy selftest **ALL PASS**; compileall/launcher py_compile/packaging shell syntax **PASS**.
+
 ## Project
 NetConfig (reconstructed from `netconfig-2.0.0-14`; current packaging target
-`netconfig-2.0.0-16.el10`)
+`netconfig-2.0.0-32.el10` per the current source spec; RPM build/install qualification remains deferred until the Q-1 AlmaLinux gate is run)
 
 ## Objective
 Continue development and improvement of the NetConfig platform from the
@@ -11,36 +25,29 @@ layout.
 
 `patch.md` is now the required chronological patch/version ledger. Future AI
 work must read and update it together with this overall handoff.
+
+For the current concise state, verification evidence, and next development order, read
+`DEV_BASELINE.md`, `TESTING_RESULT_2026-09-11.md`, and `ROADMAP.md` first. The dated
+2026-09-07 handover/testing files are retained as historical context only.
 After a completed development stage or README/handover/version-document update,
 the final user feedback must end with `YYYY-MM-DD HH:MM:SS UTC+8 (Taiwan)`.
 ## AI Git Workflow
 
-AI may perform normal Git operations:
+The user manages Git synchronization/history manually by default. AI agents must not run
+`git pull`, `git fetch`, `git add`, `git commit`, `git push`, branch/history mutation, or
+remote-changing commands unless the user explicitly authorizes Git work in the current chat.
 
-- `git pull`
-- `git add`
-- `git commit`
-- `git push`
-
-Before pushing:
-
-- Run relevant tests and validation checks.
-- Update `AI_HANDOFF.md` with completed work, verification results, and next recommended steps.
-- Review `git diff` and `git status`.
-- Ensure no secrets, credentials, generated binaries, temporary files, or unrelated changes are included.
-
-Never:
-
-- Force push.
-- Rewrite history unless explicitly approved.
-- Delete branches or change remotes without approval.
+When Git work is explicitly authorized, review status/diff first, run relevant tests, update
+`AI_HANDOFF.md` and `patch.md`, keep changes focused, and never force-push or rewrite history
+without explicit approval.
 
 ## Multi-Agent Coordination
 
-- GitHub is the source of truth.
-- Before starting work, synchronize with the latest repository state.
+- Treat the source package/tree supplied by the user in the current chat as the working baseline.
+- GitHub is the upstream source of truth only when the user has already synchronized the tree or explicitly
+  authorizes Git access in the current chat; do not proactively synchronize it yourself.
 - Do not assume another AI agent's uncommitted local changes exist.
-- Do not modify the same repository concurrently with another AI agent unless the work is isolated by branch.
+- Avoid concurrent modification of the same tree by multiple agents unless the user has isolated the work.
 ## Current Status
 - Repository synchronization and Git history are managed manually by the user.
   AI agents must not run Git synchronization, staging, commit, or push commands.
@@ -403,3 +410,265 @@ Remediation no longer replays the baseline blindly. Execution now requires a non
 ## 2026-09-02 current implementation delta
 
 The tree now includes LLDP/CDP topology discovery (`topology.py`), persisted neighbour edges and unmanaged-neighbour detection, a dependency-free Topology console, bounded syslog-triggered configuration collection (`syslog_receiver.py`), hashed/scoped read-only bearer API tokens (`apitokens.py` plus `/api/v1/*`), and scheduled compliance/drift email digests (`digest.py`). New SQLite tables are additive: `l2_neighbors`, `syslog_events`, `api_tokens`, and `digest_runs`. API token plaintext is shown only once at CLI creation; only hashes persist. Session expiry is still intentionally deferred and unchanged. Real-device LLDP/CDP and production syslog relay behavior remain deferred validation.
+
+
+## 2026-09-07 — New-chat handover snapshot
+
+No runtime feature was intentionally changed for this handover. The current source baseline is the
+2026-09-02 topology/API/digest slice plus documentation and packaging-reference cleanup.
+
+Canonical next-chat entry points:
+
+- `HANDOVER_2026-09-07.md`
+- `TESTING_RESULT_2026-09-07.md`
+- `HANDOVER_PROMPT.md`
+- `ROADMAP.md`
+
+Verification rerun for handover: pytest **19 passed / 3 skipped**, legacy selftest **RESULT: ALL PASS**,
+compileall **PASS**, CR-containing repository text files **0**. Ruff/mypy, the service-backed integration
+tier, GitHub Actions, AlmaLinux RPM qualification and live-device tests were not run here and remain
+unclaimed.
+
+Historical note: the 2026-09-07 handover originally recommended **Slice A — Qualification and release gate closure**. That A-G ordering is no longer the current execution sequence. Use `ROADMAP.md` Current/Next and track sections instead. That handover was later superseded; the canonical current implementation is recorded in the final D.5 closeout section below; qualification remains a Platform Hardening release-readiness gate.
+
+Console session idle/absolute expiry remains intentionally deferred security debt and must not be
+silently implemented without the user's explicit selection.
+
+
+## Latest Slice D.5 State
+
+Slice D.5 Diagnostic & Support Bundle Framework has started. Current implementation provides CLI bundle generation through `netconfig debug collect`. Continue from this foundation; do not claim full support bundle capability until device capture, API, UI, and integration validation are completed.
+
+
+## 2026-09-10 — Slice D.5 Phase 2 Diagnostic Support Bundle completion update
+- Added device diagnostic capture foundation (`netconfig debug device <name>`).
+- Diagnostic exports remain secret-redacted and manifest/checksum validated.
+- Current slice remains IMPLEMENTED_TESTING_DEFERRED until REST API, Web UI diagnostics, retention policy, and full device protocol traces are completed.
+
+
+## Slice D.5 Phase 3 update (2026-09-10)
+Implemented diagnostic bundle retention foundation: bundles are stored under the NetConfig state directory, can be listed and cleaned up from CLI, and continue using redaction and manifest integrity. REST API, Web UI diagnostics, trace capture, and signed bundle workflow remain deferred.
+
+
+## Slice D.5 Phase 3B — Diagnostic API Foundation (2026-09-10)
+- Added read-only debug bundle API foundation.
+- Added debug:create and debug:read API token scopes.
+- Bundle creation remains secret-redacted and audited.
+- Status: IMPLEMENTED_TESTING_DEFERRED.
+- Deferred: Diagnostics UI, download workflow, incident correlation, protocol trace capture.
+
+
+## D.5 Phase 3D — Enterprise Diagnostic Operations
+
+Status: IMPLEMENTED_TESTING_DEFERRED
+
+Added secure debug bundle download API foundation, debug:download scope, RBAC/audit integration. Deferred: incident workflow, signed manifests, retention scheduler UI.
+
+
+## 2026-09-11 — Historical baseline snapshot: D.5 Phase 4A Incident Model Foundation
+
+Treat the Phase 4A FULL source package as the current implementation baseline. New code adds `incidents.py`, additive `incidents`/`incident_bundles` database state, CLI lifecycle operations, and scoped REST incident foundations. Phase 3D bearer scope registration was also repaired (`debug:download`, `debug:admin`).
+
+Do not collapse incident records into alerts or change requests: an Incident is a separate operator-owned investigation/case container. In Phase 4A it may link diagnostic bundles but does not yet own or duplicate syslog, audit, compliance, drift or collection event rows. Phase 4B should build timeline references/views over existing evidence.
+
+Current incident lifecycle: `OPEN -> INVESTIGATING|RESOLVED|CLOSED`; `INVESTIGATING -> RESOLVED|CLOSED`; `RESOLVED -> INVESTIGATING|CLOSED`; `CLOSED -> INVESTIGATING` for explicit reopen. Severity is LOW/MEDIUM/HIGH/CRITICAL. API incident writes require `incident:write` plus operator/approver/admin role.
+
+Next recommended D.5 slice: **Phase 4B — Incident Timeline**. Keep Phase 4C case export, Phase 4D signing, Phase 4E protocol trace capture and Phase 4F UI separate unless the user explicitly combines them. Session idle/absolute expiry remains deliberately deferred.
+
+
+## 2026-09-11 — Historical baseline snapshot: D.5 Phase 4B Incident Timeline
+
+Treat the Phase 4B FULL source package as the current implementation baseline. `incident_evidence_links` is additive and reference-only. Do not redesign it into an evidence-copy table: audit/syslog/compliance/collection/config archives remain authoritative. Supported external source types are allow-listed as audit, syslog, collection, compliance and drift. Incident-native audit activity and current diagnostic-bundle associations are synthesized directly into timeline output.
+
+Drift correlation is pinned to the baseline/current immutable archive stamps captured at link time. If referenced source data is later pruned, keep the incident link and report `available=false`; do not silently drop history or fabricate replacement evidence. API reads use `incident:read`; link/unlink remains `incident:write` plus operator/approver/admin role.
+
+Verified repository result before packaging: **33 passed / 3 skipped**, incident focused **14 passed**, selftest **ALL PASS**, compileall **PASS**. Ruff/mypy and environment-backed qualification were not run.
+
+Next recommended D.5 slice: **Phase 4C — Support Case Export**. Keep Phase 4D signing, Phase 4E protocol trace capture and Phase 4F Incident Web UI separate. Session idle/absolute expiry remains deliberately deferred.
+
+
+Phase 4B packaging integrity was validated against the extracted delivery artifact: full source/extracted SHA identity PASS, manifest verification PASS, no traversal/symlink/CR issues, extracted pytest **33 passed / 3 skipped**, extracted selftest **ALL PASS**, and compileall PASS. Treat the FULL Phase 4B ZIP as the handoff baseline, not an earlier workspace or Phase 4A archive.
+
+
+## 2026-09-11 — Roadmap structure reconciliation
+
+The historical Slice A-G ordering has been demoted to provenance-only context. Current planning is organized as **Current**, **Next**, **Diagnostics Track**, **Network Intelligence Track**, and **Platform Hardening Track** in `ROADMAP.md`. At that historical reconciliation point, current was D.5 Phase 4D and next was D.5 Phase 4E. The latest baseline section below supersedes that historical position. Do not treat historical references saying “Slice A is NEXT” as current instructions.
+
+
+## 2026-09-11 — Historical baseline snapshot: D.5 Phase 4C Support Case Export
+
+Historical Phase 4C note: that package was the implementation baseline at the time. The Phase 4D FULL source package described below now supersedes it. `SupportCaseExporter` owns managed case archives and `incident_case_exports`; do not fold exported case files into the Incident evidence table or copy authoritative external event/config bodies into Incident state.
+
+Case packages include Incident-owned metadata, reference-only evidence/timeline indexes, selected already-linked diagnostic bundles copied byte-for-byte, SHA-256 manifests and an unsigned trust-boundary note. API export creation/download requires the dedicated `incident:export` scope plus operator-or-higher role; `incident:read` can list export metadata only. Export creation/download is audited.
+
+Current offline result before final packaging: pytest **39 passed / 3 skipped**, focused incident/case tests **20 passed**, legacy selftest **ALL PASS**, compileall **PASS**. Ruff/mypy and service-backed/live qualification remain unclaimed unless a later result records them.
+
+Next recommended D.5 slice: **Phase 4D — Evidence / Manifest Signing**. Define key lifecycle, external signer/trust semantics and verification behavior before adding signatures. Keep Phase 4E protocol trace capture and Phase 4F Incident Web UI separate. Console session idle/absolute expiry remains deliberately deferred.
+
+Phase 4C packaging integrity was validated against a cleanly extracted FULL source candidate: source/extracted SHA identity **94/94 PASS**, manifest payload **90/90 PASS**, no traversal/symlink/CR issues, extracted pytest **39 passed / 3 skipped**, focused incident/case tests **20 passed**, selftest **ALL PASS**, and compileall **PASS**. The final package should remain the handoff source of truth.
+
+
+## 2026-09-11 — Historical baseline snapshot: D.5 Phase 4D Evidence / Manifest Signing
+
+Treat the Phase 4D FULL source package as the current implementation baseline. Diagnostic bundles and support-case exports can be Ed25519-signed through a fixed OpenSSL adapter. Private key material is external only: prefer `$CREDENTIALS_DIRECTORY/evidence-signing-key.pem`; `NETCONFIG_EVIDENCE_SIGNING_KEY_FILE` is the protected manual/non-systemd fallback. Do not persist or export the private key.
+
+Verification must keep `signature_valid` separate from `trusted`: the archive's embedded public key is not an authenticity anchor. Trust requires an independent SHA-256 SPKI fingerprint pin from settings/environment/CLI. Multiple pins support key rotation. A configured invalid/insecure signer fails closed; unsigned legacy evidence remains compatible unless signing-required policy is enabled.
+
+Next recommended D.5 slice: **Phase 4E — Protocol Trace Capture**. Keep Phase 4F Incident Web UI separate. Console session idle/absolute expiry remains deliberately deferred.
+
+
+Phase 4D candidate artifact gate: source/extracted identity **96/96 PASS**, manifest payload **92/92 PASS**, ZIP CRC **PASS**, traversal/symlink/CR checks clean, extracted pytest **49 passed / 3 skipped**, focused signing tests **10 passed**, selftest **ALL PASS**, compileall **PASS**. Final handoff package name: `netconfig_d55_phase4d_FULL_source_baseline_2026-09-11.zip`.
+
+
+## 2026-09-11 — Historical baseline snapshot: D.5 Phase 4E Protocol Trace Capture
+
+Treat the Phase 4E FULL source package as the current implementation baseline. `ProtocolTraceStore` owns bounded metadata-only trace sessions/events. Capture is explicit and currently wired to CLI/OpenSSH `execute()` metadata and SNMP UDP exchange metadata. Never change this into implicit raw terminal/packet capture: passwords, enable secrets, SNMP communities/v3 keys, raw SSH output and raw SNMP BER packets are outside the trace evidence boundary.
+
+Trace sessions may be linked to an Incident and then appear as `protocol_trace` evidence. Case exports include sanitized `protocol-traces.json`; diagnostic support bundles include bounded recent trace metadata. `trace:read` is separate from role-gated `trace:capture`. Historical Phase 4E note: NETCONF/RESTCONF identifiers were future-ready only. PH-3 now implements NETCONF/RESTCONF/gNMI metadata trace providers; raw protocol payloads and credentials remain excluded from trace evidence.
+
+Current offline result: pytest **59 passed / 3 skipped**, Phase 4E focused **10 passed**, selftest **ALL PASS**, compileall/launcher/package-shell syntax **PASS**. Ruff/mypy and live/service-backed qualification remain unclaimed.
+
+Next recommended D.5 slice: **Phase 4F — Incident Web Console**. Preserve Phase 4A-4E evidence/RBAC/signing/trace boundaries. Console session idle/absolute expiry remains deliberately deferred.
+
+
+Phase 4E candidate artifact gate: source/extracted identity **98/98 PASS**, manifest payload **94/94 PASS**, ZIP CRC **PASS**, traversal/symlink checks clean, extracted pytest **59 passed / 3 skipped**, focused protocol-trace tests **10 passed**, selftest **ALL PASS**, compileall **PASS**. Final handoff package name: `netconfig_d55_phase4e_FULL_source_baseline_2026-09-11.zip`.
+
+
+## 2026-09-11 — Historical baseline snapshot: D.5 Phase 4F Incident Web Console
+
+At that point, the Phase 4F FULL source package was the current implementation baseline. The web console now exposes authenticated Incident register/detail workflows over the existing Phase 4A-4E services; it does not maintain a parallel incident state model. Viewer remains read-only. Operator/approver/admin browser mutations retain CSRF and the existing service-level validation/audit boundaries.
+
+Incident detail integrates lifecycle, reference-only timeline/evidence, bounded sanitized protocol traces, linked diagnostic bundles, and support-case export/verification/download. Case download must continue to call `SupportCaseExporter.record_download()` so durable SHA-256, signed-evidence and configured trust-pin checks remain enforced before streaming. Never replace the safe trace subsystem with raw terminal/packet capture.
+
+Current offline result: pytest **64 passed / 3 skipped**; Phase 4F focused web tests **5 passed**; selftest **ALL PASS**; compileall/launcher/package-shell syntax **PASS**. Ruff/mypy and live/service-backed qualification remain unclaimed.
+
+Next recommended step: **D.5 Closeout / Diagnostic Qualification Review**. Reconcile remaining retention/scheduler controls and run available CI/lint/type/service-backed qualification before advancing D.5 beyond IMPLEMENTED_TESTING_DEFERRED. Session idle/absolute expiry remains deliberately deferred.
+
+Phase 4F candidate artifact gate: source/extracted identity **99/99 PASS**, manifest payload **95/95 PASS**, ZIP CRC **PASS**, traversal/symlink/CR checks clean, extracted pytest **64 passed / 3 skipped**, focused Incident Web Console tests **5 passed**, selftest **ALL PASS**, compileall **PASS**. Final handoff package name: `netconfig_d55_phase4f_FULL_source_baseline_2026-09-11.zip`.
+
+
+## 2026-09-11 — Historical baseline snapshot: D.5 Closeout / Diagnostic Qualification Review
+
+At that point, the D.5 closeout FULL source package was the current baseline. D.5 feature phases 1 through 4F are complete in source. Closeout added opt-in bounded diagnostic retention maintenance: support-bundle count retention, case-archive age retention with durable metadata preserved, and unlinked inactive trace retention. Automatic maintenance is disabled by default and Incident-linked protocol traces are excluded from generic pruning.
+
+Current offline result: pytest **67 passed / 3 skipped**, focused closeout **3 passed**, selftest **ALL PASS**, compileall/launcher/package-shell syntax **PASS**, CR offenders **0**. Ruff/mypy, service-backed OpenSSH/Net-SNMP/PostgreSQL integration, RPM build/install and live-device qualification remain unclaimed. Therefore D.5 remains **IMPLEMENTED_TESTING_DEFERRED**.
+
+Next development track: **VLAN-aware endpoint and topology correlation**. Keep the outstanding D.5 qualification gates visible as qualification debt. Session idle/absolute expiry remains deliberately deferred.
+
+Roadmap naming clarification: D.5 is the standalone **Diagnostics Track**, not historical Slice E. The next VLAN-aware endpoint/topology correlation work is the modern track name for historical **Slice B**. Historical **Slice E** remains **Platform Hardening -> Web-console structural hardening** and is not implied complete by D.5 closeout.
+
+
+Current closeout delivery package: `netconfig_d55_closeout_FULL_source_baseline_2026-09-11.zip` (checksum recorded in final delivery response and release manifest).
+
+
+### D.5 closeout candidate artifact gate
+
+Clean candidate extraction verified: ZIP CRC **PASS**; path traversal **0**; symlinks **0**; source/extracted file identity **101/101 PASS**; `RELEASE_MANIFEST.json` payload **97/97 PASS**; each of the three SHA manifests **97/97 PASS**; UTF-8 CR offenders **0**; extracted pytest **67 passed / 3 skipped**; extracted closeout-focused tests **3 passed**; extracted legacy selftest **ALL PASS**; extracted compileall/launcher/package-shell syntax **PASS**.
+
+## 2026-09-11 — Post-closeout roadmap naming refresh
+
+Historical documentation-only refresh on top of the D.5 closeout source baseline. At that point, **CURRENT = D.5 Closeout / Diagnostic Qualification Review** and **NEXT = Network Intelligence Track -> VLAN-aware endpoint and topology correlation**. D.5 is not historical Slice E: the NEXT item maps historically to **Slice B**; historical **Slice E** remains **Platform Hardening -> Web-console structural hardening**. Runtime/API/schema behavior and RPM spec remain unchanged (`2.0.0-24`).
+
+Verification after the documentation refresh: pytest **67 passed / 3 skipped**, closeout-focused **3 passed**, selftest **ALL PASS**, compileall/launcher/package-shell syntax **PASS**, CR offenders **0**. Candidate artifact gate: 101/101 file identity, 97/97 manifest payload, three SHA manifests 97/97, ZIP CRC PASS, traversal/symlink clean.
+
+Current handoff package: `netconfig_d55_closeout_roadmap_refresh_repacked_FULL_source_baseline_2026-09-11.zip`.
+
+
+### Source-baseline packaging repair — 2026-09-11
+
+The roadmap-refresh baseline was repacked after an independent gate found that the ZIP had lost executable bits and active RPM docs still referenced Release 17. The repaired FULL source baseline preserves `0755` for `usr/bin/netconfig` plus the three RPM helper shell scripts, and active build/install examples use `2.0.0-24`. Candidate extraction passed 101/101 file identity, 97/97 manifest payload, all three SHA manifests, CRC/traversal/symlink/CR checks, direct build-script execution (expected exit 2 because `rpmbuild` is unavailable), pytest 67 passed / 3 skipped, closeout 3 passed, and selftest ALL PASS. That repaired D.5 package is a historical predecessor; do not use it as the current handoff artifact after NI-1.
+
+
+## 2026-09-11 — Historical baseline: Network Intelligence NI-1 VLAN-aware Endpoint Attachment Correlation
+
+Treat `netconfig_network_intelligence_ni1_markdown_refresh_FULL_source_baseline_2026-09-11.zip` as the current implementation baseline after its final artifact gate. This supersedes the pre-refresh NI-1 and all D.5 packages. D.5 remains complete in source and `IMPLEMENTED_TESTING_DEFERRED`; it is not the active feature track.
+
+NI-1 adds authoritative modern neighbour/FDB evidence in `ip_neighbors` and `vlan_fdb`, collected from IP-MIB `ipNetToPhysicalTable` and Q-BRIDGE-MIB with legacy provenance-preserving fallback. `network_intelligence.py` correlates those records with LLDP/CDP neighbour-facing ports. Never assume Q-BRIDGE FDB ID equals VLAN ID, never promote neighbour-facing/uplink observations to direct endpoint attachment, and never choose one attachment when multiple fresh direct candidates exist.
+
+New public read surface: `endpoint:read`, `GET /api/v1/endpoints`, CLI `netconfig endpoints`, Web `/endpoints`. No enforcement/write API is added. Evidence older than `network_intelligence_max_age_seconds` is stale.
+
+Current pre-package regression: pytest **75 passed / 3 skipped**, NI-1 focused **8 passed**. RPM source metadata is `2.0.0-25`; RPM/live vendor qualification remains unclaimed.
+
+Next recommended phase: **Network Intelligence NI-2 — Topology Identity & Downstream Impact**. Keep SNMP traps/dependency-aware events as the following Network Intelligence phase. Session idle/absolute expiry remains deliberately deferred.
+
+NI-1 source-workspace verification before packaging: pytest **75 passed / 3 skipped**, focused NI-1 **8 passed**, legacy selftest **ALL PASS**, compileall/launcher/package-shell syntax **PASS**, CR offenders **0**. Preserve executable modes in the delivery ZIP; the repaired D.5 baseline established `0755` as a release gate for the launcher and RPM helper scripts.
+
+NI-1 candidate artifact gate passed before final repackaging: stage/extracted identity **103/103**, manifest payload and each SHA manifest **99/99**, executable ZIP/extracted modes **0755**, CRC/traversal/symlink/CR checks clean, extracted pytest **75 passed / 3 skipped**, NI-1 focused **8 passed**, selftest **ALL PASS**, compileall **PASS**. Final FULL package must reproduce those results after the documentation evidence is included and manifests are regenerated.
+
+
+## 2026-09-11 — NI-1 all-Markdown canonical-state synchronization
+
+All 19 Markdown files were synchronized so active planning is unambiguous: **CURRENT = Network Intelligence NI-1**, **NEXT = NI-2**, D.5 is completed in source but remains `IMPLEMENTED_TESTING_DEFERRED`, and historical Slice A-G/D.5 snapshots are explicitly provenance only. Active RPM source references are `2.0.0-25`. Current handoff artifact name: `netconfig_network_intelligence_ni1_markdown_refresh_FULL_source_baseline_2026-09-11.zip`.
+
+Workspace validation after the Markdown-only changes: Full repository pytest **75 passed / 3 skipped**; focused `tests/test_network_intelligence.py` **8 passed**; legacy selftest **ALL PASS**; compileall/launcher/package-shell syntax **PASS**; UTF-8 CR offenders **0**.
+
+
+## 2026-09-11 — Historical baseline: Network Intelligence NI-2
+
+NI-2 is the active implementation line. It normalizes local LLDP/ENTITY-MIB chassis identity plus IF-MIB interface identity, resolves managed neighbours only from unique identity evidence, records ambiguity instead of guessing, and provides bounded cycle-safe observed-L2 downstream impact. Never reinterpret LLDP localPortNum as ifIndex; never traverse ambiguous/unmanaged edges; never describe NI-2 impact as routing/application/power dependency.
+
+Current source-workspace regression is **83 passed / 3 skipped** with NI-2 focused **8 passed**. Source RPM metadata is `2.0.0-26`. The intended complete handoff artifact is `netconfig_network_intelligence_ni2_FULL_source_baseline_2026-09-11.zip` after the final artifact gate.
+
+Next recommended phase: **Network Intelligence NI-3 — SNMP Traps & Dependency-aware Events**. Do not fold alert lifecycle or platform-hardening work into NI-3 unless explicitly selected.
+
+NI-2 candidate artifact gate passed: stage/extracted identity **104/104**, manifest payload and each SHA manifest **100/100**, hidden-path accuracy PASS, executable ZIP/extracted modes **0755**, archive-security/hygiene checks clean, extracted pytest **83 passed / 3 skipped**, NI-2 focused **8 passed**, selftest **ALL PASS**, compile/syntax checks **PASS**. Final FULL package must reproduce these results after documentation evidence and manifests are regenerated.
+
+NI-2 prefinal artifact reproduced clean extraction and runtime regression after candidate evidence was embedded. Final handoff must use only `netconfig_network_intelligence_ni2_FULL_source_baseline_2026-09-11.zip` after its final independent gate; older candidate/prefinal archives are provenance only.
+
+## 2026-09-11 — Historical baseline: Network Intelligence NI-3
+
+NI-3 adds bounded SNMP v1/v2c trap ingestion, normalized/deduplicated operational events, targeted SNMP re-poll, unified syslog/SNMP reachability events and NI-2 dependency-aware suppression. SNMPv3 traps and INFORM remain fail-closed. Current source-workspace regression is **91 passed / 3 skipped**, focused NI-3 **8 passed**. Source RPM metadata is `2.0.0-27`. Intended complete handoff artifact: `netconfig_network_intelligence_ni3_FULL_source_baseline_2026-09-11.zip` after final artifact gate.
+
+NI-3 candidate artifact gate passed. Final handoff must use `netconfig_network_intelligence_ni3_FULL_source_baseline_2026-09-11.zip` after its own clean-extraction gate; do not use the candidate ZIP as the continuation baseline.
+
+
+## 2026-09-11 — Historical baseline: Network Intelligence NI-4
+
+NI-4 layers an operational alert/report lifecycle over NI-3 normalized events: configurable severity promotion, audited acknowledge/resolve, device/global maintenance windows, bounded durable notification retry/backoff, scheduled aggregate reports, and CLI/API/Web operator surfaces. Dependency-suppressed or maintenance-covered events remain durable evidence but do not page. Existing monitor-rule alerts remain separate. Current source-workspace regression is **99 passed / 3 skipped**, focused NI-4 **8 passed**, legacy selftest **ALL PASS**. Source RPM metadata is `2.0.0-28`. Intended complete artifact: `netconfig_network_intelligence_ni4_FULL_source_baseline_2026-09-11.zip` after final artifact gate. Next recommended phase: **Platform Hardening PH-1 — Web-console Structural Hardening**.
+
+
+### NI-4 candidate artifact evidence
+
+Candidate `netconfig_network_intelligence_ni4_candidate_2026-09-11.zip` SHA-256 `17ed1297a863eaca2eeb4a92f5bddcf3ab120804d2526c63339bda79ae1569e3` passed clean system-unzip validation: **109/109** artifact files present, **105/105** Release payload entries and each of the three SHA manifests verified, exact hidden paths retained, four executable files preserved as `0755`, ZIP CRC/path-traversal/symlink/cache/CR gates passed, and all **19/19** Markdown files carried the NI-4/PH-1/Release-28 current-state pointer. Extracted regression: **99 passed / 3 skipped**, focused NI-4 **8 passed**, legacy selftest **ALL PASS**, compileall/launcher/package-shell syntax **PASS**. Direct `build-rpm.sh` executes and exits `2` only because `rpmbuild` is unavailable.
+
+## 2026-09-11 — Historical baseline: Platform Hardening PH-1
+
+Historical PH-1 snapshot: PH-1 decomposes the Web console without changing routes/API semantics: `web.py` delegates bearer API handling to `web_api.py` and presentation/assets to `web_ui.py`; strict per-response CSP nonces are enforced for script/style elements; HTML event/style attributes are denied after render normalization. Current source regression is **105 passed / 3 skipped**, focused PH-1 **6 passed**, legacy selftest **ALL PASS**. Source RPM metadata is `2.0.0-29`. Intended complete artifact: `netconfig_platform_hardening_ph1_FULL_source_baseline_2026-09-11.zip` after final artifact gate. Next recommended phase at that historical point: **PH-2 — PostgreSQL Core & Distributed Operation**.
+
+### PH-1 candidate artifact evidence
+
+Candidate `netconfig_platform_hardening_ph1_candidate_2026-09-11.zip` SHA-256 `d8590fe771cbea6ff1a521880b07d8562bde06b2de560b77cafa5e202dac2f34` passed clean system-unzip validation: **112/112** artifact files identity, **108/108** Release payload and all three SHA manifests, exact hidden paths, four executables preserved as `0755`, ZIP CRC/path-traversal/symlink/cache/CR gates passed, and **57/57** Markdown current-state checks passed. Extracted regression: **105 passed / 3 skipped**, focused PH-1 **6 passed**, legacy selftest **ALL PASS**, compileall/launcher/package-shell syntax **PASS**. Direct `build-rpm.sh` executes and exits `2` only because `rpmbuild` is unavailable.
+
+## Historical PH-2 handoff — 2026-09-11
+
+PH-2 is implemented in source and remains `IMPLEMENTED_TESTING_DEFERRED`. SQLite is the default single-node backend. PostgreSQL is an explicit production-core opt-in through `core_db_backend=postgres`; it requires psycopg plus configured `pg_*` connection fields and a pre-vault service credential (`postgres-core-password` or protected `NETCONFIG_DB_PASSWORD_FILE`). Selection is fail-closed; there is no silent fallback to SQLite.
+
+Distributed control-plane primitives now include cluster-node heartbeat, PostgreSQL advisory-lock scheduler leadership, and durable work claiming with `FOR UPDATE SKIP LOCKED`. The generic task queue is a coordination primitive; existing network-device change execution has not been silently changed into an asynchronous remote-worker architecture.
+
+Current offline evidence: PH-2 focused 9 passed; full repository 114 passed / 3 skipped. Do not claim live PostgreSQL, HA, concurrency, migration, RPM, or psycopg deployment qualification until those gates are actually run.
+
+Historical next at PH-2 completion was PH-3 — NETCONF / RESTCONF / gNMI Structured Adapters (historical Slice G). PH-3 is now implemented in source.
+
+### PH-2 candidate artifact evidence
+
+Candidate SHA-256 `6dfd6e554b08883c51a6f268bbe604bf95cc7819dad8f4bda6f023d688807d21` passed the full source/artifact gate: 114/114 files, 110/110 payload/manifests, exact hidden paths, preserved 0755 modes, 19/19 Markdown current-state alignment, extracted 114/3 repository regression, focused PH-2 9/9, selftest/compile/shell PASS. The final FULL baseline is rebuilt after this ledger update so its manifests cover the synchronized documentation.
+
+
+## Historical PH-3 completion snapshot
+
+PH-3 is implemented in source and remains `IMPLEMENTED_TESTING_DEFERRED`. It is no longer the earlier read-only MVP.
+
+- NETCONF: SSH subsystem hello/capability negotiation; fixed bounded `<get>` and `<get-config>`; advertised running/candidate/startup awareness; confirmed-commit/rollback/validate/xpath capability evidence; response hard limits; safe XML parser; no arbitrary RPC/edit-config surface. Base-1.1-only chunk framing remains deferred/fail-closed.
+- RESTCONF: HTTPS discovery, strict host/path/query validation, production TLS verification, optional CA bundle, vault-resolved mTLS, bounded JSON/XML. One internal approval-gated JSON subtree replace performs pre-read/change/post-read verification and best-effort pre-image rollback; generic RESTCONF URL/method/body mutation is not exposed by Web/API/CLI.
+- gNMI: Capabilities, Get, typed paths and bounded ONCE Subscribe through allow-resolved `gnmic`; deadline/size enforcement, TLS/mTLS runtime config, mode-0600 ephemeral secret config and secret-free argv. gNMI Set is not exposed.
+- Common: runtime vault credentials, fail-closed capability/path/TLS mismatches, metadata-only protocol trace, durable audit evidence, explicit CLI fallback only when configured, and existing RBAC/CSRF/change-safety boundaries retained.
+
+Historical PH-3 source verification before Q-1 was **136 passed / 3 skipped**; focused PH-3 **22 passed**. Q-1 expands the service-backed PostgreSQL qualification surface, so these counts are provenance only. Current Q-1 evidence belongs in `TESTING_RESULT_2026-09-12.md`.
+
+Clean candidate `netconfig_platform_hardening_ph3_candidate_completed_2026-09-12.zip` (SHA-256 `ea4c2f56f277e76ab85f49b0647269799002d00d5ee79fedd5f6f0fa84450136`) passed system-unzip validation: **118/118** source byte identity; **114/114** entries in `RELEASE_MANIFEST.json` and each of the three SHA manifests; ZIP CRC **PASS**; traversal **0**; symlinks **0**; caches **0**; CR offenders **0**; hidden control paths **3/3 exact**; required executable modes **4/4 = 0755**; extracted focused PH-3 **22 passed**; extracted full regression **136 passed / 3 skipped**; legacy selftest **ALL PASS**; compileall/launcher py_compile/packaging shell syntax **PASS**. The direct RPM helper exits `2` only because `rpmbuild` is unavailable.
+
+Real vendor protocol interoperability, TLS/mTLS interoperability, production credential rotation, packaged `gnmic`, live PostgreSQL multi-node/HA, OpenSSH/Net-SNMP services, AlmaLinux RPM/systemd, Ruff/mypy, scale/load/failure, backup/restore/PITR and SMTP/O365 remain deferred.
+
+### Continuation rule
+
+No next implementation phase is assigned. When the user asks for the next phase, perform the roadmap / qualification review first and choose a phase explicitly; do not infer a numbered implementation phase from historical labels.

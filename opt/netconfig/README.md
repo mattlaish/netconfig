@@ -1,16 +1,24 @@
 # NetConfig
 
-A self-hosted, zero-dependency network configuration manager. It logs into your
+> **Canonical project state — 2026-09-12:** **CURRENT** = Qualification Track **Q-1 — Production Runtime & Service-backed Qualification** (`IMPLEMENTED_TESTING_DEFERRED`). **LATEST FEATURE BASELINE** = Platform Hardening **PH-3 — NETCONF / RESTCONF / gNMI Structured Adapters** (`IMPLEMENTED_TESTING_DEFERRED`). Q-1 implementation is complete in source, but live PostgreSQL/AlmaLinux/systemd/service-backed gates remain explicitly deferred in this environment. No Q-2 is assigned. RPM source Release is `2.0.0-32`.
+
+> **Current continuation pointer:** use the Q-1 full source baseline from 2026-09-12 as the active source. Historical CURRENT/NEXT statements below are chronology only. Execute the remaining Q-1 live gates before any promotion to `TESTED`/`RELEASED`; after Q-1 qualification, perform a fresh roadmap review before assigning Q-2.
+
+A self-hosted network configuration manager. The default SQLite deployment is zero-dependency; optional PH-2 PostgreSQL core mode adds a psycopg runtime dependency. It logs into your
 network devices over SSH, runs CLI commands, archives versioned text copies of
 their configurations, pushes changes through an approval workflow, audits them
 against security standards, and enriches inventory over SNMP — a compact,
 air-gapped alternative to RANCID/Oxidized plus a slice of a change-management
 and compliance tool.
 
-**Pure Python standard library.** No pip packages. The only non-Python
-dependency is the system `ssh` binary (stdlib has no SSH client — NetConfig
+**Default SQLite mode uses only the Python standard library.** No pip packages are required unless PostgreSQL core/history is selected. The baseline non-Python dependency is the system `ssh` binary (stdlib has no SSH client — NetConfig
 drives OpenSSH through a pty rather than reimplementing SSH or taking a
 third-party library). SNMP, AES, and everything else are implemented in stdlib.
+
+
+## Qualification Q-1 runtime preflight
+
+`netconfig qualify` emits a secret-free production-runtime readiness report. PostgreSQL core deployments fail readiness when psycopg, `pg_dump` or `pg_restore` is unavailable; gNMI requires `gnmic` only when an enabled gNMI profile exists. Q-1 also adds checksum-verified PostgreSQL core backup and recovery-to-separate-database operations. These mechanisms do not by themselves constitute live AlmaLinux/PostgreSQL/vendor qualification.
 
 ## Highlights
 
@@ -38,9 +46,11 @@ third-party library). SNMP, AES, and everything else are implemented in stdlib.
   drifts and can submit a guarded semantic remediation request that computes vendor-aware additions/removals and verifies fresh live state.
 
 - **LLDP/CDP topology** — LLDP-MIB discovery with read-only CDP fallback, persisted fleet edges, and managed/unmanaged-neighbour detection. The console Topology page renders an offline SVG map and flags unmanaged devices on managed switch ports.
+- **VLAN-aware endpoint intelligence (NI-1)** — modern IP-MIB IPv4/IPv6 neighbour evidence plus Q-BRIDGE VLAN-aware forwarding data is correlated into conservative `IP → MAC → VLAN → switch/port` attachments. LLDP/CDP-facing ports are treated as transit, stale evidence is marked, and ambiguous mappings remain explicit. Available via Endpoints Web UI, `netconfig endpoints`, and scoped `endpoint:read` API.
 - **Event-driven collection** — optional bounded UDP syslog receiver recognizes common configuration-change events and triggers a debounced immediate archive for the source device.
-- **Read-only JSON API** — scoped bearer tokens (hashed at rest) expose inventory, topology, drift, latest compliance/digest and audit data under `/api/v1/`.
+- **Scoped JSON API** — bearer tokens are hashed at rest and expose read-only fleet data plus narrowly-scoped diagnostic/incident operations under `/api/v1/`. Incident writes require both `incident:write` and an operator-or-higher token role.
 - **Scheduled compliance & drift digest** — periodic sweep reuses the compliance engine, baselines and SMTP/O365 delivery to email drift/failure summaries without an operator login.
+- **Incident timeline (D.5/4B)** — durable `INC-YYYY-NNNNNN` incidents now correlate existing audit, syslog, configuration-collection, compliance, drift-snapshot, and diagnostic-bundle evidence through reference-only links. Timeline reads dereference authoritative stores instead of copying evidence; case export/signing, bounded protocol trace and the Incident Web Console are now implemented D.5 layers.
 - **Compliance auditing** — ISO 27001 / PCI-DSS starter rule packs check configs
   (Telnet disabled, login banner, password encryption, SSHv2, logging, NTP, no
   default communities, session timeout) and produce one-click pass/fail reports
@@ -83,6 +93,24 @@ netconfig request submit --title "Add NTP" --target group:core \
     --mode config --command "ntp server 10.0.0.254"    # junior submits
 netconfig request approve 1                              # senior approves
 netconfig request execute 1 --save                       # runs, records job
+```
+
+Support-case export (D.5/4C) packages Incident-owned metadata, reference-only timeline/evidence indexes and selected already-linked diagnostic bundles into a bounded managed archive with SHA-256 manifests. Raw authoritative event/config bodies are not copied into case indexes; Phase 4D signing and Phase 4E sanitized protocol-trace evidence are layered on top.
+
+Example:
+
+```bash
+netconfig incident export-case INC-2026-000001 --reason "vendor escalation"
+netconfig incident exports INC-2026-000001
+```
+
+Incident timeline example:
+
+```bash
+netconfig incident create --title "Core switch investigation" --severity HIGH
+netconfig incident link-evidence INC-2026-000001 syslog 42 --note "config change"
+netconfig incident link-drift INC-2026-000001 sw1
+netconfig incident timeline INC-2026-000001
 ```
 
 SNMP v3 (authPriv):
@@ -156,3 +184,64 @@ See **WEBGUI.md** for the full browser walkthrough (sign in, unlock, add devices
 - The web console supports optional built-in TLS, login throttling/auditing, JSON logs, and health/readiness/metrics endpoints.
 - Unattended vault unlock should use systemd credentials or a protected credential file rather than a plaintext environment variable.
 - Console session expiry remains explicitly deferred; see `SECURITY.md`.
+
+
+### Evidence manifest signing (D.5 Phase 4D)
+
+Diagnostic bundles and Incident support-case exports can be signed with an external Ed25519 private key. NetConfig does not generate or store that private key. Under systemd, deliver it as `$CREDENTIALS_DIRECTORY/evidence-signing-key.pem`; for manual/non-systemd execution, set `NETCONFIG_EVIDENCE_SIGNING_KEY_FILE` to a mode-0600 (or stricter) regular PEM key. A configured invalid/insecure key causes signing to fail rather than silently downgrading.
+
+Create a key outside NetConfig state, for example with `umask 077` and `openssl genpkey -algorithm ED25519 -out <protected-path>`. Use `netconfig debug signing-status` to see the public fingerprint. To require signing for a specific operation, use `netconfig debug collect --require-signature` or `netconfig incident export-case <INC-ID> --require-signature`. Verify with `netconfig debug verify <bundle> --trusted-fingerprint SHA256:<hex>` or `netconfig incident verify-export <INC-ID> <CEX-ID> --trusted-fingerprint SHA256:<hex>`.
+
+The public key embedded in an archive proves only that the signature matches that key. Authenticity requires an independently obtained SHA-256 SPKI fingerprint. `NETCONFIG_EVIDENCE_TRUSTED_FINGERPRINTS` may contain comma-separated pins; overlap old/new pins during key rotation. Set `NETCONFIG_EVIDENCE_SIGNING_REQUIRED=1` when unsigned creation must fail closed globally.
+
+
+### Protocol trace capture (D.5 Phase 4E)
+
+Use `netconfig trace start <device> --protocol cli_ssh|snmp [--incident INC-...]` to enable explicit bounded metadata-only capture. Inspect with `netconfig trace list`, `trace show`, `trace events`, and end early with `trace stop`. TTL/event/metadata-byte limits stop capture automatically. SSH traces record operation/status/duration/byte counts without terminal output; secret-bearing commands are replaced with a fixed redaction marker. SNMP traces record UDP exchange target/status/latency/byte counts without packet bodies or community/v3 secrets. Linked trace evidence can be included in signed diagnostic/support-case archives.
+
+
+### Incident Web Console (D.5 Phase 4F)
+
+The authenticated console now includes **Incidents**. Viewer accounts may inspect Incident metadata, the unified timeline, evidence references, sanitized protocol traces, linked diagnostic bundles and support-case export metadata. Operator/approver/admin accounts may also create/update Incidents, perform valid lifecycle transitions, link evidence/bundles, start/stop bounded traces, and create/verify/download support-case exports. Browser mutations remain CSRF-protected and support-case downloads reuse integrity/signature verification before streaming.
+
+
+### Diagnostic retention maintenance
+
+D.5 closeout adds opt-in retention maintenance. It is disabled by default (`diagnostic_maintenance_interval=0`). Configure support-bundle count retention and optional case-export/unlinked-trace age retention under Settings -> Monitoring, or run one pass with `netconfig debug maintenance`. Case-export metadata is preserved after archive expiry and Incident-linked protocol traces are never auto-pruned by this generic worker.
+
+
+---
+
+Historical NI-1 documentation snapshot: `netconfig_network_intelligence_ni1_markdown_refresh_FULL_source_baseline_2026-09-11.zip`. The current baseline is the Q-1 FULL source artifact described by the canonical header.
+
+### Network Intelligence NI-2
+
+Topology now includes normalized managed-device identity (LLDP local chassis/system identity, ENTITY-MIB chassis serial/model, and IF-MIB interface identity), explicit managed-neighbour resolution evidence, and bounded downstream impact over resolved observed L2 adjacency. Use `netconfig topology --identities`, `netconfig topology --impact DEVICE [--port PORT]`, or the Topology Web/API views. Ambiguous identity is never guessed or traversed.
+
+### Network Intelligence NI-3
+
+NI-3 adds an opt-in bounded SNMP Trap receiver and a unified operational event stream. Enable `snmp_trap_enabled` and use the default non-privileged UDP/5162 listener (forward UDP/162 externally if required). View events with `netconfig events`, `/events`, or `GET /api/v1/events` using `events:read`. v1/v2c Trap is supported; SNMPv3 Trap and INFORM fail closed until authenticated/acknowledged receive paths are implemented. Raw packets and community strings are never persisted.
+
+
+### Network Intelligence NI-4
+
+NI-4 promotes unsuppressed NI-3 events into a durable operational-alert lifecycle with acknowledge/resolve, maintenance windows, bounded notification retry/backoff and scheduled aggregate reports. Use `netconfig alerts ...`, the `/op-alerts` console, or the scoped `/api/v1/operational-alerts`, `/maintenance-windows` and `/operational-reports` APIs. Automatic report/delivery processing is opt-in with `operational_lifecycle_interval`; SMTP notifications are separately opt-in.
+
+### Platform Hardening PH-1
+
+The built-in console now uses strict nonce-authorized script/style blocks, rejects inline HTML event/style attributes after render normalization, and separates API routing (`web_api.py`) from presentation helpers (`web_ui.py`). Existing routes, RBAC, CSRF and session behavior are unchanged.
+
+## PH-2 core database modes
+
+The default SQLite mode remains stdlib-only and is intended for single-node deployment/development. PH-2 adds an explicit PostgreSQL core mode for distributed-capable deployments. PostgreSQL mode requires the optional `psycopg` driver and a reachable PostgreSQL server; selecting it is fail-closed and never silently falls back to SQLite.
+
+Configure `core_db_backend=postgres` plus the existing `pg_host`, `pg_port`, `pg_dbname`, `pg_user`, and `pg_sslmode` settings. Supply the core database password before process startup through a systemd `postgres-core-password` credential or a protected `NETCONFIG_DB_PASSWORD_FILE`. Use `netconfig storage status` to inspect non-secret readiness and cluster-node state.
+
+
+## PH-3 structured protocol adapters
+
+Per-device protocol profiles can select `cli_ssh`, `netconf`, `restconf`, or `gnmi`. NETCONF performs server hello/capability negotiation and fixed bounded `<get>` / `<get-config>` reads; RESTCONF performs HTTPS discovery plus bounded configuration/operational reads; gNMI supports Capabilities, Get and bounded ONCE Subscribe with typed paths. Credentials remain vault-backed and production HTTPS/gRPC certificate verification is fail-closed by default.
+
+Use `netconfig protocol set DEVICE PROTOCOL ...`, `netconfig protocol list`, `netconfig protocol collect DEVICE`, `netconfig protocol capabilities DEVICE`, and `netconfig protocol state DEVICE`; gNMI also supports `netconfig protocol subscribe-once DEVICE`. Structured failures do not silently fall back to CLI unless `--allow-cli-fallback` is explicitly configured. gNMI requires an external `gnmic` executable discoverable on PATH or through `NETCONFIG_GNMIC`; that optional binary is not bundled by the current RPM source.
+
+PH-3 does **not** expose arbitrary NETCONF RPC, arbitrary RESTCONF URL/method/body forwarding, shell tunnelling, or gNMI Set. An internal approval-gated RESTCONF JSON subtree replacement primitive exists for controlled change integration and performs pre-read, post-read verification and best-effort pre-image rollback, but no generic structured-write Web/API/CLI endpoint is exposed.

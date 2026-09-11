@@ -16,6 +16,11 @@ StateDirectoryMode=0750
 # Optional production secret bootstrap (recommended): add a systemd drop-in with
 # LoadCredential=vault-master:/root-or-secret-manager/netconfig-vault-master
 # NetConfig automatically reads $CREDENTIALS_DIRECTORY/vault-master.
+# Optional evidence signing: a drop-in may also use
+# LoadCredential=evidence-signing-key.pem:/secure/path/evidence-signing-key.pem
+# PH-2 PostgreSQL core password (needed before the NetConfig vault opens):
+# LoadCredential=postgres-core-password:/secure/path/netconfig-postgres-password
+# NetConfig reads only these credential files; secrets are never stored in settings.json.
 ExecStart=/usr/bin/netconfig web
 Restart=on-failure
 RestartSec=3

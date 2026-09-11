@@ -72,7 +72,8 @@ class SSHTransport:
                  connect_timeout=15, command_timeout=60,
                  known_hosts=None, host_key_policy="accept-new",
                  legacy=False, kex=None, host_key_algos=None, ciphers=None,
-                 extra_ssh_options=None):
+                 extra_ssh_options=None, trace_callback=None,
+                 subsystem=None):
         self.host = host
         self.username = username
         self.port = port
@@ -88,16 +89,29 @@ class SSHTransport:
         self.host_key_algos = host_key_algos
         self.ciphers = ciphers
         self.extra_ssh_options = extra_ssh_options or []
+        self.trace_callback = trace_callback
+        self.subsystem = subsystem
 
         self._pid = None
         self._fd = None
         self._buf = b""
         self.prompt = None          # bytes, the discovered base prompt line
         self.transcript = bytearray()
+        self.ready_data = b""
+
+
+    def _trace(self, event_type, **fields):
+        if not self.trace_callback:
+            return
+        try:
+            self.trace_callback(dict(event_type=event_type, **fields))
+        except Exception:
+            # Diagnostics must never break device I/O.
+            pass
 
     # ---- process management ---------------------------------------------
     def _build_argv(self):
-        argv = ["ssh", "-tt",
+        argv = ["ssh", "-T" if self.subsystem else "-tt",
                 "-o", f"ConnectTimeout={self.connect_timeout}",
                 "-o", "NumberOfPasswordPrompts=1",
                 "-o", f"StrictHostKeyChecking={self.host_key_policy}",
@@ -123,7 +137,11 @@ class SSHTransport:
             argv += ["-o", f"Ciphers=+{ciph}"]
         for opt in self.extra_ssh_options:
             argv += ["-o", opt]
-        argv += ["-p", str(self.port), f"{self.username}@{self.host}"]
+        argv += ["-p", str(self.port)]
+        if self.subsystem:
+            argv += ["-s", f"{self.username}@{self.host}", self.subsystem]
+        else:
+            argv += [f"{self.username}@{self.host}"]
         return argv
 
     def _spawn(self):
@@ -143,7 +161,7 @@ class SSHTransport:
         self._fd = fd
 
     # ---- low-level expect ------------------------------------------------
-    def _read_until(self, patterns, timeout, feed_transcript=True):
+    def _read_until(self, patterns, timeout, feed_transcript=True, max_bytes=None):
         """patterns: list of compiled bytes-regex. Returns (index, match, consumed)."""
         deadline = time.monotonic() + timeout
         while True:
@@ -171,6 +189,8 @@ class SSHTransport:
                     raise EOFError("ssh process ended: "
                                    + repr(bytes(self._buf[-200:])))
                 self._buf += data
+                if max_bytes is not None and len(self._buf) > int(max_bytes):
+                    raise TransportError(f"protocol response exceeded {int(max_bytes)} byte limit")
                 if feed_transcript:
                     self.transcript += data
 
@@ -182,16 +202,19 @@ class SSHTransport:
             self.transcript += data
 
     # ---- connect ---------------------------------------------------------
-    def connect(self):
+    def connect(self, ready_pattern=None, ready_max_bytes=None):
+        started = time.monotonic()
+        self._trace("connect_start", operation="ssh connect", host=self.host, port=self.port)
         self._spawn()
         # Auth phase: we may see a host-key confirm, passphrase, password, an
         # error, or land straight at a device prompt (key auth, no passphrase).
+        ready = ready_pattern or _RE_PROMPT
         patterns = [_RE_HOSTKEY_CONFIRM, _RE_PASSPHRASE, _RE_PASSWORD,
-                    _RE_PERM_DENIED, _RE_CONN_FAIL, _RE_PROMPT]
+                    _RE_PERM_DENIED, _RE_CONN_FAIL, ready]
         password_sent = False
         for _ in range(8):  # bounded interaction loop
             try:
-                idx, m, _ = self._read_until(patterns, self.connect_timeout)
+                idx, m, consumed = self._read_until(patterns, self.connect_timeout, max_bytes=ready_max_bytes)
             except EOFError as e:
                 raise AuthError(f"connection to {self.host} closed during auth: {e}") from e
             if idx == 0:  # host key confirm (only if policy=yes)
@@ -210,8 +233,12 @@ class SSHTransport:
             elif idx == 4:  # connection-level failure
                 raise TransportError(f"connection to {self.host} failed: "
                                      f"{m.group(0).decode(errors='replace')}")
-            elif idx == 5:  # device prompt -> authenticated
-                self.prompt = m.group(1).strip()
+            elif idx == 5:  # device prompt or subsystem readiness -> authenticated
+                self.ready_data = consumed
+                if ready_pattern is None:
+                    self.prompt = m.group(1).strip()
+                self._trace("connect", operation="ssh connect", status="ok",
+                            duration_ms=(time.monotonic()-started)*1000, host=self.host, port=self.port)
                 return
         raise AuthError("exceeded interaction steps during auth")
 
@@ -235,25 +262,48 @@ class SSHTransport:
         compiled = [p if hasattr(p, "search") else re.compile(p) for p in patterns]
         return self._read_until(compiled, timeout)
 
+    def write_raw(self, data):
+        """Write protocol bytes without copying payload into the CLI transcript."""
+        self._write(data, echo_to_transcript=False)
+
+    def read_raw_until(self, pattern, timeout=None, max_bytes=None):
+        """Read through one bytes pattern for subsystem protocols with an optional hard byte limit."""
+        pat = pattern if hasattr(pattern, "search") else re.compile(pattern)
+        _idx, _match, consumed = self._read_until([pat], timeout or self.command_timeout,
+                                                  feed_transcript=False, max_bytes=max_bytes)
+        return consumed
+
     # ---- command execution ----------------------------------------------
     def execute(self, command, timeout=None, expect=None, handle_pager=True):
         """Send a command, return decoded output with echo + trailing prompt
         stripped. `expect` overrides the prompt regex (bytes pattern)."""
         timeout = timeout or self.command_timeout
+        started = time.monotonic()
         self._write(command + "\n", echo_to_transcript=True)
         prompt_re = re.compile(re.escape(self.prompt) + rb"\s*$") if (self.prompt and expect is None) \
             else (expect or _RE_PROMPT)
         collected = bytearray()
-        while True:
-            patterns = [prompt_re, _RE_MORE] if handle_pager else [prompt_re]
-            idx, m, consumed = self._read_until(patterns, timeout)
-            collected += consumed
-            if idx == 0:
-                break
-            # pager backstop: driver should have disabled paging already, but if a
-            # --More-- slips through, advance with space. _clean() strips the marker.
-            self._write(" ")
-        return self._clean(bytes(collected), command)
+        try:
+            while True:
+                patterns = [prompt_re, _RE_MORE] if handle_pager else [prompt_re]
+                idx, m, consumed = self._read_until(patterns, timeout)
+                collected += consumed
+                if idx == 0:
+                    break
+                # pager backstop: driver should have disabled paging first.
+                self._write(" ")
+            cleaned = self._clean(bytes(collected), command)
+            self._trace("command", operation=command, status="ok",
+                        duration_ms=(time.monotonic()-started)*1000,
+                        tx_bytes=len(command.encode("utf-8", "replace"))+1,
+                        rx_bytes=len(collected))
+            return cleaned
+        except Exception as exc:
+            self._trace("command", operation=command, status="error",
+                        duration_ms=(time.monotonic()-started)*1000,
+                        tx_bytes=len(command.encode("utf-8", "replace"))+1,
+                        rx_bytes=len(collected), error_type=type(exc).__name__)
+            raise
 
     @staticmethod
     def _clean(raw, command):

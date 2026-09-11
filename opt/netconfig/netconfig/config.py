@@ -61,6 +61,10 @@ DEFAULT_SETTINGS = {
     "snmp_port": 161,
     "snmp_poll_interval": 0,           # seconds; >0 enables the background poller
     "snmp_history_seconds": 1800,      # rolling window kept for live graphs
+    "network_intelligence_max_age_seconds": 1800, # freshness budget for endpoint correlation
+    "core_db_backend": "sqlite",       # sqlite (single-node dev) | postgres (PH-2 production core)
+    "core_db_application_name": "netconfig",
+    "cluster_node_id": "",             # optional stable node id; generated from host/pid when blank
     "if_history_enabled": False,       # persist long interface throughput history
     "if_history_hours": 24,            # retention / default history window (hours)
     "if_history_bucket_seconds": 60,   # downsample bucket for 24h history reads
@@ -82,7 +86,28 @@ DEFAULT_SETTINGS = {
     "syslog_port": 5514,               # non-privileged default; forward udp/514 if desired
     "syslog_queue_size": 256,
     "syslog_debounce_seconds": 30,
+    "snmp_trap_enabled": False,          # NI-3 bounded SNMP v1/v2c trap receiver
+    "snmp_trap_bind": "0.0.0.0",
+    "snmp_trap_port": 5162,              # non-privileged default; forward udp/162 if desired
+    "snmp_trap_queue_size": 256,
+    "snmp_trap_targeted_repoll": True,
+    "snmp_trap_repoll_debounce_seconds": 30,
+    "operational_event_dedup_seconds": 30,
+    "operational_suppression_ttl_seconds": 300,
+    "operational_impact_max_depth": 16,
+    "operational_alert_min_severity": "WARNING", # NI-4 minimum severity promoted to alert lifecycle
+    "operational_notifications_enabled": False, # enqueue/send NI-4 alert/report SMTP notifications
+    "operational_lifecycle_interval": 0, # seconds; 0=off; processes due reports and delivery retries
+    "operational_notification_max_attempts": 5,
+    "operational_notification_backoff_base_seconds": 60,
+    "operational_notification_backoff_max_seconds": 3600,
     "digest_interval": 0,              # seconds; 0=off, e.g. 86400 daily
+    "evidence_signing_required": False, # require signatures for newly-created evidence bundles
+    "evidence_trusted_fingerprints": [], # independent Ed25519 SHA-256 SPKI trust pins
+    "diagnostic_maintenance_interval": 0, # seconds; 0=off, min 60 when enabled
+    "debug_bundle_keep": 10,              # newest support bundles kept per maintenance pass
+    "case_export_retention_days": 0,      # 0=retain archives; metadata always remains
+    "protocol_trace_retention_days": 0,   # 0=retain; only unlinked inactive traces auto-prune
     "monitor_poll_interval": 0,        # seconds; 0 = off. Background port/http/tls polling
     "monitor_history_days": 7,         # how long to keep monitor history
     "smtp_enabled": False,             # send alert emails

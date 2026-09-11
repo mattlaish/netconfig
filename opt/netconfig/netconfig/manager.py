@@ -25,6 +25,11 @@ from . import ifhistory as _ifhistory
 from .db import Database
 from .inventory import Inventory
 from .users import Users
+from .incidents import Incidents
+from .caseexport import SupportCaseExporter
+from .protocoltrace import ProtocolTraceStore
+from .operational_events import OperationalEventStore
+from .operational_alerts import OperationalAlertLifecycle
 from .vault import Vault
 from .store import ConfigStore
 from .session import SessionRecorder
@@ -33,6 +38,8 @@ from .drivers import get_driver, DriverError
 from . import configmodel as _configmodel
 from .observability import METRICS, event as _obs_event
 from . import topology as _topology
+from . import network_intelligence as _network_intelligence
+from .structured_protocols import ProtocolProfiles, StructuredCollector, StructuredProtocolError
 
 
 def _remediation_lines(baseline_text):
@@ -74,14 +81,38 @@ class Manager:
     def __init__(self, home=None):
         self.paths = _cfg.Paths(home)
         self.settings = _cfg.load_settings(self.paths)
-        self.db = Database(self.paths.inventory_db)
+        from .credentials import postgres_core_password
+        from .postgres_core import build_core_database
+        db_password, db_password_source = postgres_core_password()
+        self.db = build_core_database(
+            self.settings, self.paths.inventory_db, password=db_password)
+        self.core_db_password_source = db_password_source
         from .storage_backend import StorageBackend
         self.storage = StorageBackend(self.db)
+        import socket as _socket
+        self.cluster_node_id = (str(self.settings.get("cluster_node_id") or "").strip() or
+                                f"{_socket.gethostname()}:{os.getpid()}")
+        try:
+            self.db.register_cluster_node(
+                self.cluster_node_id, _socket.gethostname(), os.getpid(), time.time())
+        except Exception:
+            # PostgreSQL selection itself is fail-closed at connection/schema time;
+            # heartbeat metadata must not block SQLite development startup.
+            if getattr(self.db, "dialect", "sqlite") == "postgres":
+                raise
         self.inv = Inventory(self.storage.conn)
         self.users = Users(self.storage.conn)
         self.vault = Vault(self.paths.vault_file)
         self.store = ConfigStore(self.paths.configs_dir,
                                  keep_versions=self.settings["keep_versions"])
+        self.incidents = Incidents(
+            self.db, os.path.join(str(self.paths.home), "debug-bundles"), self.store)
+        self.case_exports = SupportCaseExporter(self)
+        self.protocol_traces = ProtocolTraceStore(self)
+        self.protocol_profiles = ProtocolProfiles(self)
+        self.structured_collector = StructuredCollector(self)
+        self.alert_lifecycle = OperationalAlertLifecycle(self)
+        self.events = OperationalEventStore(self)
         self.recorder = SessionRecorder(
             self.paths.sessions_dir,
             enabled=self.settings["record_sessions"],
@@ -146,6 +177,66 @@ class Manager:
     def topology(self):
         return self.db.get_neighbors()
 
+    def topology_identities(self):
+        inventory = []
+        for item in self.inv.all():
+            enriched = dict(item)
+            facts = self.inv.get_facts(item["name"]) or {}
+            enriched["sysname"] = facts.get("sysname", "")
+            inventory.append(enriched)
+        return _topology.identity_view(
+            inventory, self.db.get_topology_device_identities(),
+            self.db.get_topology_interfaces())
+
+    def downstream_impact(self, device, port=None, max_depth=16):
+        if not self.inv.get(device):
+            raise ValueError("unknown root device")
+        return _topology.downstream_impact(
+            self.db.get_neighbors(), device, root_port=port, max_depth=max_depth)
+
+    def _refresh_topology_identity(self, dev, version, community, v3, port, facts=None,
+                                   interfaces=None):
+        """Best-effort bounded local identity collection for NI-2.
+
+        Missing LLDP/ENTITY-MIB support never fails the parent SNMP poll.  The
+        inventory/facts identity remains available, while unsupported fields
+        stay empty instead of being guessed from arbitrary components.
+        """
+        timeout = self.settings.get("snmp_timeout", 2.0)
+        trace_cb = self.protocol_traces.callback(dev["name"], "snmp")
+        local_pairs = []
+        entity_rows = {}
+        try:
+            with _snmp.trace_capture(trace_cb):
+                local_pairs = _snmp.get_oids(
+                    dev["host"], list(_topology.LLDP_LOCAL_IDENTITY.values()),
+                    version=version, community=community, v3=v3, port=port,
+                    timeout=timeout)
+        except Exception as exc:
+            _obs_event("topology_local_identity_lldp_failed", device=dev["name"], error=str(exc))
+        try:
+            with _snmp.trace_capture(trace_cb):
+                entity_rows = _snmp.walk_table(
+                    dev["host"], list(_topology.ENTITY_COLUMNS.values()),
+                    version=version, community=community, v3=v3, port=port,
+                    timeout=timeout, max_rows=256)
+        except Exception as exc:
+            _obs_event("topology_local_identity_entity_failed", device=dev["name"], error=str(exc))
+        identity = _topology.parse_device_identity(
+            local_pairs, entity_rows, facts or self.inv.get_facts(dev["name"]) or {})
+        self.db.set_topology_device_identity(dev["name"], identity)
+        if interfaces is not None:
+            self.db.set_topology_interfaces(dev["name"], interfaces)
+        return identity
+
+    def endpoint_inventory(self, device=None):
+        return _network_intelligence.correlate(
+            self.db, device,
+            max_age=self.settings.get("network_intelligence_max_age_seconds", 1800))
+
+    def endpoint_summary(self, device=None):
+        return _network_intelligence.summary(self.endpoint_inventory(device))
+
     def discover_neighbors(self, device_name):
         """Discover LLDP over SNMP, with read-only CDP CLI fallback."""
         dev = self.inv.get(device_name)
@@ -155,15 +246,20 @@ class Manager:
         if dev.get("snmp_version"):
             try:
                 version, community, v3, port = self._snmp_params_for(dev)
-                remote = _snmp.walk_subtree(
-                    dev["host"], _topology.LLDP_REM_BASE, version=version,
-                    community=community, v3=v3, port=port,
-                    timeout=self.settings.get("snmp_timeout", 2.0), max_vars=512)
-                local = _snmp.walk_subtree(
-                    dev["host"], _topology.LLDP_LOC_PORT_DESC, version=version,
-                    community=community, v3=v3, port=port,
-                    timeout=self.settings.get("snmp_timeout", 2.0), max_vars=256)
+                trace_cb = self.protocol_traces.callback(device_name, "snmp")
+                with _snmp.trace_capture(trace_cb):
+                    remote = _snmp.walk_subtree(
+                        dev["host"], _topology.LLDP_REM_BASE, version=version,
+                        community=community, v3=v3, port=port,
+                        timeout=self.settings.get("snmp_timeout", 2.0), max_vars=512)
+                    local = _snmp.walk_subtree(
+                        dev["host"], _topology.LLDP_LOC_PORT_DESC, version=version,
+                        community=community, v3=v3, port=port,
+                        timeout=self.settings.get("snmp_timeout", 2.0), max_vars=256)
                 entries = _topology.parse_lldp_walk(remote, local)
+                self._refresh_topology_identity(
+                    dev, version, community, v3, port,
+                    facts=self.inv.get_facts(device_name) or {})
             except Exception as exc:
                 _obs_event("topology_lldp_failed", device=device_name, error=str(exc))
         if not entries and dev.get("secret_ref") and self.vault_ready():
@@ -185,7 +281,8 @@ class Manager:
             facts = self.inv.get_facts(item["name"]) or {}
             enriched["sysname"] = facts.get("sysname", "")
             inventory.append(enriched)
-        entries = _topology.analyze(entries, inventory)
+        entries = _topology.analyze(
+            entries, inventory, self.db.get_topology_device_identities())
         self.db.set_neighbors(device_name, entries)
         unmanaged = sum(1 for e in entries if e.get("unmanaged"))
         METRICS.set("netconfig_topology_unmanaged_neighbors", unmanaged)
@@ -217,6 +314,7 @@ class Manager:
                 f"vault secret '{ref}' has no username (SSH needs one). "
                 f"Set it: `netconfig vault set {ref} --username U`.")
         password, key_path, key_pass, enable_pw = self._creds_for(device)
+        trace_cb = self.protocol_traces.callback(name, "cli_ssh")
         tp = SSHTransport(
             device["host"], username, port=device["port"],
             password=None if device["use_key"] else password,
@@ -226,8 +324,18 @@ class Manager:
             command_timeout=self.settings["command_timeout"],
             known_hosts=self.paths.known_hosts,
             host_key_policy=self.settings["host_key_policy"],
-            legacy=device["legacy"])
-        tp.connect()
+            legacy=device["legacy"], trace_callback=trace_cb)
+        try:
+            tp.connect()
+        except Exception as exc:
+            if trace_cb:
+                try:
+                    trace_cb({"event_type": "connect", "operation": "ssh connect",
+                              "status": "error", "error_type": type(exc).__name__,
+                              "host": device["host"], "port": device["port"]})
+                except Exception:
+                    pass
+            raise
         return tp, enable_pw
 
     def collect(self, device_name):
@@ -238,6 +346,27 @@ class Manager:
             return CollectionResult(
                 device_name, False,
                 message="application-only endpoint has no SSH configuration to collect")
+        profile = self.protocol_profiles.get(device_name)
+        if profile and profile.get("enabled") and profile.get("protocol") != "cli_ssh":
+            try:
+                raw, meta = self.structured_collector.collect(device, profile)
+                from . import scrub as _scrub
+                stored = raw
+                if device["scrub"]:
+                    stored, _ = _scrub.scrub(raw)
+                result = self.store.save(device_name, stored)
+                proto = meta.get("protocol", profile.get("protocol"))
+                self.inv.log_run(device_name, True, result["changed"], f"{proto}: " + ("changed" if result["changed"] else "no change"))
+                return CollectionResult(device_name, True, changed=result["changed"],
+                    message=f"{proto}: " + ("changed" if result["changed"] else "no change"),
+                    version=result["version"], diff=result["diff"], config=stored)
+            except Exception as exc:
+                # Selected structured profiles are fail-closed.  Unexpected adapter
+                # errors are normalized here rather than escaping into Web/API callers.
+                if not profile.get("allow_cli_fallback"):
+                    msg = f"StructuredProtocolError: {exc}"
+                    self.inv.log_run(device_name, False, False, msg)
+                    return CollectionResult(device_name, False, message=msg)
         tp = None
         try:
             tp, enable_pw = self._connect(device)
@@ -284,10 +413,48 @@ class Manager:
             raise ValueError("new name is empty")
         self.inv.rename(old, new)
         try:
+            self.protocol_profiles.rename(old, new)
+        except Exception:
+            pass
+        try:
             self.store.rename(old, new)
         except Exception:
             pass
         self.db.audit("system", "device_rename", old, new)
+
+    def protocol_status(self, device=None):
+        if device:
+            dev = self.inv.get(device)
+            if not dev:
+                raise ValueError("unknown device")
+            return {"device": device, "profile": self.protocol_profiles.get(device)}
+        return [{"device": d["name"], "profile": self.protocol_profiles.get(d["name"])} for d in self.inv.all()]
+
+    def protocol_collect(self, device):
+        return self.collect(device)
+
+    def _structured_profile_for(self, device):
+        dev = self.inv.get(device)
+        if not dev:
+            raise ValueError("unknown device")
+        profile = self.protocol_profiles.get(device)
+        if not profile or not profile.get("enabled") or profile.get("protocol") == "cli_ssh":
+            raise ValueError("device does not have an enabled structured protocol profile")
+        return dev, profile
+
+    def protocol_capabilities(self, device):
+        dev, profile = self._structured_profile_for(device)
+        return self.structured_collector.capabilities(dev, profile)
+
+    def protocol_read_state(self, device, path=None):
+        dev, profile = self._structured_profile_for(device)
+        text, meta = self.structured_collector.read_state(dev, profile, path=path)
+        return {"device": device, "metadata": meta, "data": text}
+
+    def protocol_subscribe_once(self, device, path=None):
+        dev, profile = self._structured_profile_for(device)
+        text, meta = self.structured_collector.subscribe_once(dev, profile, path=path)
+        return {"device": device, "metadata": meta, "data": text}
 
     def backup(self, keep=5, only_enabled=True):
         """Weekly-style backup: collect every (enabled) device's current config
@@ -458,10 +625,12 @@ class Manager:
         if not dev:
             raise RuntimeError("unknown device")
         version, community, v3, port = self._snmp_params_for(dev)
-        pairs = _snmp.walk_subtree(dev["host"], root, version=version, community=community,
-                                   v3=v3, port=port,
-                                   timeout=self.settings.get("snmp_timeout", 2.0),
-                                   max_vars=max_vars)
+        trace_cb = self.protocol_traces.callback(device_name, "snmp")
+        with _snmp.trace_capture(trace_cb):
+            pairs = _snmp.walk_subtree(dev["host"], root, version=version, community=community,
+                                       v3=v3, port=port,
+                                       timeout=self.settings.get("snmp_timeout", 2.0),
+                                       max_vars=max_vars)
         out = []
         for oid, val in pairs:
             mapped = self.mibindex.resolve_detail(oid)
@@ -505,6 +674,24 @@ class Manager:
         self.db.set_mib_values(device_name, list(found.values()), roots=len(roots), error=error)
         return {"objects": len(found), "roots": len(roots), "error": error}
 
+    def storage_status(self):
+        try:
+            self.db.heartbeat_cluster_node(self.cluster_node_id, time.time())
+        except Exception:
+            pass
+        out = self.db.readiness()
+        out["node_id"] = self.cluster_node_id
+        out["core_db_password_source"] = self.core_db_password_source or "none"
+        return out
+
+    def scheduler_leader(self, name):
+        """True when this process may start a singleton background scheduler.
+
+        SQLite deliberately stays single-node. PostgreSQL uses a session-scoped
+        advisory lock, released automatically if the DB connection dies.
+        """
+        return bool(self.db.try_advisory_lock(f"netconfig:scheduler:{name}"))
+
     def _pg_password(self):
         """DB password from the vault (like the SMTP/O365 secrets), or "" when
         the vault is locked or no password is stored."""
@@ -534,25 +721,33 @@ class Manager:
         dev = self.inv.get(device_name)
         if not dev:
             return {"ok": False, "error": "unknown device"}
+        previous_facts = self.inv.get_facts(device_name) or {}
         try:
             version, community, v3, port = self._snmp_params_for(dev)
-            facts = _snmp.poll_system(dev["host"], port=port, version=version,
-                                      community=community, v3=v3,
-                                      timeout=self.settings.get("snmp_timeout", 2.0))
+            trace_cb = self.protocol_traces.callback(device_name, "snmp")
+            with _snmp.trace_capture(trace_cb):
+                facts = _snmp.poll_system(dev["host"], port=port, version=version,
+                                          community=community, v3=v3,
+                                          timeout=self.settings.get("snmp_timeout", 2.0))
             self.inv.set_facts(device_name, **facts)
-            vendor_result = self._poll_vendor_mibs(
-                device_name, dev, facts, version, community, v3, port,
-                force=vendor_force)
+            self._refresh_topology_identity(
+                dev, version, community, v3, port, facts=facts)
+            with _snmp.trace_capture(trace_cb):
+                vendor_result = self._poll_vendor_mibs(
+                    device_name, dev, facts, version, community, v3, port,
+                    force=vendor_force)
             iface_count = None
             if interfaces:
                 try:
-                    ifs = _snmp.poll_interfaces(
-                        dev["host"], port=port, version=version, community=community,
-                        v3=v3, timeout=self.settings.get("snmp_timeout", 2.0))
+                    with _snmp.trace_capture(trace_cb):
+                        ifs = _snmp.poll_interfaces(
+                            dev["host"], port=port, version=version, community=community,
+                            v3=v3, timeout=self.settings.get("snmp_timeout", 2.0))
                     samples = self.inv.set_interfaces(
                         device_name, ifs,
                         history_seconds=self.settings.get("snmp_history_seconds", 1800))
                     iface_count = len(ifs)
+                    self.db.set_topology_interfaces(device_name, ifs)
                     backend = self._history_backend()
                     if backend is not None and samples:
                         # best-effort: a history-store failure must never abort a poll
@@ -563,25 +758,52 @@ class Manager:
                     if "network" in _dtypes_m(dev):
                         try:
                             ifdescr = {str(i["ifindex"]): i.get("descr", "") for i in ifs}
-                            arp = _snmp.poll_arp(dev["host"], port=port, version=version,
-                                                 community=community, v3=v3,
-                                                 timeout=self.settings.get("snmp_timeout", 2.0))
-                            mac = _snmp.poll_mac_table(dev["host"], port=port, version=version,
-                                                       community=community, v3=v3,
-                                                       timeout=self.settings.get("snmp_timeout", 2.0),
-                                                       ifdescr=ifdescr)
-                            self.db.set_arp(device_name, arp)
-                            self.db.set_mac_table(device_name, mac)
+                            with _snmp.trace_capture(trace_cb):
+                                ip_neighbors = _snmp.poll_ip_neighbors(
+                                    dev["host"], port=port, version=version, community=community,
+                                    v3=v3, timeout=self.settings.get("snmp_timeout", 2.0),
+                                    ifdescr=ifdescr)
+                                vlan_fdb = _snmp.poll_vlan_fdb(
+                                    dev["host"], port=port, version=version, community=community,
+                                    v3=v3, timeout=self.settings.get("snmp_timeout", 2.0),
+                                    ifdescr=ifdescr)
+                            self.db.set_ip_neighbors(device_name, ip_neighbors)
+                            self.db.set_vlan_fdb(device_name, vlan_fdb)
+                            # Keep legacy device-detail views populated from the new
+                            # authoritative tables without an extra SNMP walk.
+                            self.db.set_arp(device_name, [
+                                {"ip": r.get("ip", ""), "mac": r.get("mac", ""),
+                                 "ifindex": r.get("ifindex", "")}
+                                for r in ip_neighbors if r.get("address_family") == "ipv4"
+                            ])
+                            self.db.set_mac_table(device_name, [
+                                {"mac": r.get("mac", ""), "port": r.get("bridge_port", ""),
+                                 "ifindex": r.get("ifindex", ""), "ifdescr": r.get("ifdescr", "")}
+                                for r in vlan_fdb
+                            ])
                             self.discover_neighbors(device_name)
+                            eps = self.endpoint_inventory()
+                            summ = _network_intelligence.summary(eps)
+                            METRICS.set("netconfig_endpoints_total", summ["total"])
+                            METRICS.set("netconfig_endpoints_attached", summ["attached"])
+                            METRICS.set("netconfig_endpoints_ambiguous", summ["ambiguous"])
                         except Exception:
                             pass
                 except Exception as e:
                     # system poll succeeded; interface walk is best-effort
                     iface_count = f"iface walk failed: {e}"
+            if not previous_facts or not previous_facts.get("reachable"):
+                self.events.record(source_type="snmp_poll", source=dev.get("host", ""), device=device_name,
+                    event_type="DEVICE_REACHABLE", severity="INFO", message="SNMP poll reachable",
+                    metadata={"protocol":"snmp-poll","poll_ok":True}, allow_suppression=True)
             return {"ok": True, "interfaces": iface_count,
                     "vendor_mib": vendor_result, **facts}
         except Exception as e:
             self.inv.set_facts(device_name, reachable=False, error=str(e))
+            if not previous_facts or previous_facts.get("reachable"):
+                self.events.record(source_type="snmp_poll", source=dev.get("host", ""), device=device_name,
+                    event_type="DEVICE_UNREACHABLE", severity="MAJOR", message="SNMP poll unreachable",
+                    metadata={"protocol":"snmp-poll","poll_ok":False,"reason":str(e)[:256]}, allow_suppression=True)
             return {"ok": False, "error": str(e)}
 
     def snmp_poll_all(self, vendor_force=False):

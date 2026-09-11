@@ -24,6 +24,7 @@ unattended runs (an env var is visible to the process user; prefer key auth).
 
 import argparse
 import getpass
+import json
 import os
 import sys
 
@@ -32,6 +33,8 @@ from .apitokens import ApiTokens, VALID_SCOPES
 from .drivers import platforms as _platforms
 from .workflow import Workflow
 from . import compliance as _compliance
+from .debug import DebugBundle
+from .evidence_signing import signing_status
 
 
 def _master(manager, required=True):
@@ -72,6 +75,30 @@ def _print_result(r):
 
 
 # ---- v1 commands --------------------------------------------------------
+
+def cmd_debug(m, args):
+    dbg = DebugBundle(m)
+    if args.action == "collect":
+        out = dbg.collect(args.output, require_signature=args.require_signature)
+        print(out)
+    elif args.action == "device":
+        out = dbg.device_capture(args.name, args.output, require_signature=args.require_signature)
+        print(out)
+    elif args.action == "list":
+        for item in dbg.list_bundles():
+            print(f"{item['name']} {item['size']}")
+    elif args.action == "cleanup":
+        print("\n".join(dbg.cleanup(args.keep)))
+    elif args.action == "maintenance":
+        from . import diagnostic_maintenance as _diag_maint
+        print(json.dumps(_diag_maint.run_once(m, actor=args.actor), indent=2, sort_keys=True))
+    elif args.action == "verify":
+        result = dbg.verify_bundle(args.name, args.trusted_fingerprint or [])
+        print(json.dumps(result, indent=2, sort_keys=True))
+    elif args.action == "signing-status":
+        print(json.dumps(signing_status(m.settings), indent=2, sort_keys=True))
+
+
 def cmd_init(m, args):
     print(f"data home: {m.paths.home}")
     for p in (m.paths.configs_dir, m.paths.sessions_dir):
@@ -671,15 +698,329 @@ def cmd_api_token(m, args):
         print("revoked")
 
 
+def cmd_trace(m, args):
+    traces = m.protocol_traces
+    if args.action == "start":
+        item = traces.start(args.device, args.protocol, actor=args.actor,
+                            incident_ref=args.incident, ttl=args.ttl,
+                            max_events=args.max_events, max_bytes=args.max_bytes,
+                            reason=args.reason or "")
+        print(json.dumps(item, indent=2, sort_keys=True))
+    elif args.action == "list":
+        print(json.dumps(traces.list(device=args.device, incident_ref=args.incident,
+                                     status=args.status, limit=args.limit),
+                         indent=2, sort_keys=True))
+    elif args.action == "show":
+        item = traces.get(args.ref)
+        if not item:
+            print("protocol trace not found", file=sys.stderr); sys.exit(1)
+        print(json.dumps(item, indent=2, sort_keys=True))
+    elif args.action == "events":
+        print(json.dumps(traces.events(args.ref, args.limit), indent=2, sort_keys=True))
+    elif args.action == "stop":
+        print(json.dumps(traces.stop(args.ref, actor=args.actor), indent=2, sort_keys=True))
+
+
+def cmd_incident(m, args):
+    incidents = m.incidents
+    if args.action == "create":
+        item = incidents.create(args.title, args.description or "", args.severity,
+                                created_by=args.actor, tags=args.tag or [])
+        print(json.dumps(item, indent=2, sort_keys=True))
+    elif args.action == "list":
+        rows = incidents.list(status=args.status, severity=args.severity, limit=args.limit)
+        if not rows:
+            print("(no incidents)"); return
+        for row in rows:
+            print(f"{row['incident_key']}\t{row['severity']}\t{row['status']}\t{row['title']}")
+    elif args.action == "show":
+        item = incidents.get(args.ref)
+        if not item:
+            print("incident not found", file=sys.stderr); sys.exit(1)
+        print(json.dumps(item, indent=2, sort_keys=True))
+    elif args.action == "update":
+        tags = args.tag if args.tag is not None else None
+        item = incidents.update(args.ref, args.actor, title=args.title,
+                                description=args.description, severity=args.severity, tags=tags)
+        print(json.dumps(item, indent=2, sort_keys=True))
+    elif args.action == "status":
+        item = incidents.set_status(args.ref, args.status, args.actor, note=args.note or "")
+        print(json.dumps(item, indent=2, sort_keys=True))
+    elif args.action == "link-bundle":
+        item = incidents.link_bundle(args.ref, args.bundle, args.actor)
+        print(json.dumps(item, indent=2, sort_keys=True))
+    elif args.action == "unlink-bundle":
+        item = incidents.unlink_bundle(args.ref, args.bundle, args.actor)
+        print(json.dumps(item, indent=2, sort_keys=True))
+    elif args.action == "link-evidence":
+        item = incidents.link_evidence(args.ref, args.type, args.source_id, args.actor,
+                                       note=args.note or "")
+        print(json.dumps(item, indent=2, sort_keys=True))
+    elif args.action == "link-drift":
+        item = incidents.link_drift(args.ref, args.device, args.actor, note=args.note or "")
+        print(json.dumps(item, indent=2, sort_keys=True))
+    elif args.action == "unlink-evidence":
+        rows = incidents.unlink_evidence(args.ref, args.link_id, args.actor)
+        print(json.dumps(rows, indent=2, sort_keys=True))
+    elif args.action == "evidence":
+        item = incidents.get(args.ref)
+        if not item:
+            print("incident not found", file=sys.stderr); sys.exit(1)
+        print(json.dumps(incidents.evidence_links(item["id"]), indent=2, sort_keys=True))
+    elif args.action == "timeline":
+        print(json.dumps(incidents.timeline(args.ref, args.limit), indent=2, sort_keys=True))
+    elif args.action == "export-case":
+        item = m.case_exports.export_case(
+            args.ref, args.actor, args.bundle or [], args.reason or "",
+            require_signature=args.require_signature)
+        _meta, path = m.case_exports.get_export(args.ref, item["export_key"])
+        print(json.dumps(item, indent=2, sort_keys=True))
+        if path is not None:
+            print(f"path={path}")
+    elif args.action == "exports":
+        print(json.dumps(m.case_exports.list_exports(args.ref, args.limit), indent=2, sort_keys=True))
+    elif args.action == "verify-export":
+        result = m.case_exports.verify_signature(
+            args.ref, args.export_key, args.trusted_fingerprint or [], actor=args.actor)
+        print(json.dumps(result, indent=2, sort_keys=True))
+
+
 def cmd_topology(m, args):
     if args.discover:
         names = [args.device] if args.device else [d["name"] for d in m.inv.all() if d.get("snmp_version")]
         for name in names:
             rows = m.discover_neighbors(name)
             print(f"{name}: {len(rows)} neighbour(s)")
-    for n in m.db.get_neighbors(args.device):
-        state = "managed:" + n["neighbor_device"] if n.get("managed_neighbor") else "UNMANAGED"
+    if args.identities:
+        rows = m.topology_identities()
+        if args.device:
+            rows = [r for r in rows if r.get("device") == args.device]
+        if args.json:
+            print(json.dumps(rows, indent=2, sort_keys=True)); return
+        for r in rows:
+            ident = r.get("chassis_serial") or r.get("chassis_mac") or r.get("chassis_id") or "-"
+            print(f"{r['device']} sysName={r.get('sys_name') or '-'} chassis={ident} model={r.get('chassis_model') or '-'} interfaces={len(r.get('interfaces') or [])}")
+        return
+    if args.impact:
+        value = m.downstream_impact(args.impact, args.port, args.max_depth)
+        if args.json:
+            print(json.dumps(value, indent=2, sort_keys=True)); return
+        print(f"root={value['root_device']} port={value['root_port'] or '*'} downstream={value['device_count']} edges={value['edge_count']}")
+        for r in value["devices"]:
+            print(f"  depth={r['depth']} {r['device']} via {r['via']}")
+        return
+    rows = m.db.get_neighbors(args.device)
+    if args.json:
+        print(json.dumps(rows, indent=2, sort_keys=True)); return
+    for n in rows:
+        if n.get("managed_neighbor"):
+            state = "managed:" + n["neighbor_device"]
+        else:
+            state = n.get("resolution_state") or "UNMANAGED"
         print(f"{n['device']} {n['local_port']} -> {n['sys_name'] or n['chassis_id']} {n['port_id']} [{n['protocol']}] {state}")
+
+
+def cmd_endpoints(m, args):
+    if args.refresh:
+        if args.device:
+            result = m.snmp_poll(args.device)
+            if not result.get("ok"):
+                print(result.get("error", "SNMP poll failed"), file=sys.stderr); sys.exit(1)
+        else:
+            m.snmp_poll_all()
+    rows = m.endpoint_inventory(args.device)
+    if args.json:
+        print(json.dumps({"summary": m.endpoint_summary(args.device), "endpoints": rows}, indent=2, sort_keys=True))
+        return
+    for row in rows:
+        att = row.get("attachment") or {}
+        ips = ",".join((row.get("ipv4") or []) + (row.get("ipv6") or [])) or "-"
+        loc = "-"
+        if att:
+            port = att.get("ifdescr") or ("if" + att.get("ifindex", "") if att.get("ifindex") else att.get("bridge_port", ""))
+            vlan = (" vlan=" + att.get("vlan_id", "")) if att.get("vlan_id") else ""
+            loc = f"{att.get('device','')}:{port}{vlan}"
+        print(f"{row['mac']} {ips} {row['status']} {row['confidence']} {loc}")
+
+
+
+def cmd_events(m, args):
+    rows = m.events.list(limit=args.limit, device=args.device, include_suppressed=not args.unsuppressed_only)
+    if args.json:
+        print(json.dumps({"events": rows, "suppressions": m.events.suppressions(active_only=True)}, indent=2, sort_keys=True))
+        return
+    for r in rows:
+        sup = " SUPPRESSED" if r.get("suppressed") else ""
+        dev = r.get("device") or r.get("source") or "-"
+        iface = (" " + r.get("interface")) if r.get("interface") else ""
+        print(f"{int(r.get('last_ts') or 0)} {r.get('severity')} {r.get('event_type')} {dev}{iface} x{r.get('event_count',1)}{sup} {r.get('message','')}")
+
+
+def cmd_alerts(m, args):
+    life = m.alert_lifecycle
+    if args.action == "list":
+        rows = life.list(state=args.state, device=args.device, limit=args.limit)
+        if args.json: print(json.dumps(rows, indent=2, sort_keys=True)); return
+        for r in rows:
+            print(f"#{r['id']} {r['state']} {r['severity']} {r['device'] or '-'} {r['event_type']} x{r['event_count']} {r['message']}")
+        return
+    if args.action == "ack":
+        row=life.acknowledge(args.id,args.actor,args.note); print(json.dumps(row,indent=2,sort_keys=True) if args.json else f"alert #{row['id']} {row['state']}"); return
+    if args.action == "resolve":
+        row=life.resolve(args.id,args.actor,args.note); print(json.dumps(row,indent=2,sort_keys=True) if args.json else f"alert #{row['id']} {row['state']}"); return
+    if args.action == "maintenance-add":
+        row=life.add_maintenance(args.name,args.actor,minutes=args.minutes,device=args.device or "",reason=args.reason or "")
+        print(json.dumps(row,indent=2,sort_keys=True) if args.json else f"maintenance #{row['id']} {row['name']}"); return
+    if args.action == "maintenance-list":
+        rows=life.maintenance(active_only=args.active_only)
+        if args.json: print(json.dumps(rows,indent=2,sort_keys=True)); return
+        for r in rows: print(f"#{r['id']} {r['name']} device={r['device'] or 'all'} {int(r['start_ts'])}-{int(r['end_ts'])} cancelled={bool(r.get('cancelled_ts'))}")
+        return
+    if args.action == "maintenance-cancel":
+        row=life.cancel_maintenance(args.id,args.actor); print(json.dumps(row,indent=2,sort_keys=True) if args.json else f"maintenance #{row['id']} cancelled"); return
+    if args.action == "report-add":
+        row=life.add_report_schedule(args.name,args.actor,interval_seconds=args.interval,lookback_hours=args.lookback_hours)
+        print(json.dumps(row,indent=2,sort_keys=True) if args.json else f"report schedule #{row['id']} {row['name']}"); return
+    if args.action == "report-list":
+        value={"schedules":life.report_schedules(),"runs":life.report_runs(args.limit)}
+        if args.json: print(json.dumps(value,indent=2,sort_keys=True)); return
+        for r in value["schedules"]: print(f"schedule #{r['id']} {'on' if r['enabled'] else 'off'} {r['name']} every={r['interval_seconds']}s lookback={r['lookback_hours']}h")
+        for r in value["runs"][:10]: print(f"run #{r['id']} status={r['status']} {int(r['finished_ts'])}")
+        return
+    if args.action == "report-run":
+        row=life.run_report(schedule_id=args.id,lookback_hours=args.lookback_hours,actor=args.actor)
+        print(json.dumps(row,indent=2,sort_keys=True) if args.json else f"report run #{row['id']} complete"); return
+    if args.action == "report-state":
+        row=life.set_report_schedule_enabled(args.id,args.enabled,args.actor); print(json.dumps(row,indent=2,sort_keys=True) if args.json else f"schedule #{row['id']} {'enabled' if row['enabled'] else 'disabled'}"); return
+    if args.action == "deliveries":
+        rows=life.notifications(args.limit)
+        if args.json: print(json.dumps(rows,indent=2,sort_keys=True)); return
+        for r in rows: print(f"#{r['id']} {r['kind']} {r['state']} attempts={r['attempts']} next={int(r['next_attempt_ts'])}")
+        return
+    if args.action == "tick":
+        out=life.tick(); print(json.dumps(out,indent=2,sort_keys=True)); return
+
+def cmd_storage(m, args):
+    import time
+    if args.action == "status":
+        out = m.storage_status()
+        out["nodes"] = m.db.list_cluster_nodes(time.time() - max(0, int(args.node_max_age)))
+        print(json.dumps(out, indent=2, sort_keys=True))
+        return
+    if args.action == "tasks":
+        print(json.dumps(m.db.list_distributed_tasks(args.queue, args.limit), indent=2, sort_keys=True))
+        return
+    if args.action == "enqueue":
+        payload = args.payload or "{}"
+        try:
+            json.loads(payload)
+        except Exception:
+            print("--payload must be valid JSON", file=sys.stderr); sys.exit(2)
+        row = m.db.enqueue_distributed_task(args.queue, args.kind, payload, time.time())
+        print(json.dumps(row, indent=2, sort_keys=True)); return
+    if args.action == "claim":
+        row = m.db.claim_distributed_task(args.queue, args.worker, time.time(), args.lease_seconds)
+        print(json.dumps(row, indent=2, sort_keys=True)); return
+    if args.action == "finish":
+        row = m.db.finish_distributed_task(
+            args.id, args.worker, time.time(), ok=not args.failed,
+            result=args.result or "", error=args.error or "")
+        print(json.dumps(row, indent=2, sort_keys=True)); return
+    if args.action == "migrate-sqlite":
+        from .credentials import postgres_core_password
+        from .postgres_core import PostgresDatabase, migrate_sqlite_to_postgres, postgres_params
+        target = m.db if getattr(m.db, "dialect", "sqlite") == "postgres" else None
+        owned = False
+        if target is None:
+            password, _ = postgres_core_password()
+            target = PostgresDatabase(params=postgres_params(m.settings, password=password))
+            owned = True
+        try:
+            out = migrate_sqlite_to_postgres(args.source or m.paths.inventory_db, target)
+            print(json.dumps(out, indent=2, sort_keys=True))
+        finally:
+            if owned:
+                target.close()
+        return
+    if args.action == "backup-postgres":
+        from .credentials import postgres_core_password
+        from .postgres_backup import backup_core_database
+        password, _ = postgres_core_password()
+        out = backup_core_database(
+            m.settings, password, args.output, timeout=args.timeout, overwrite=args.overwrite)
+        m.db.audit(args.actor, "postgres_core_backup", out.get("sha256", ""),
+                   f"bytes={out.get('bytes', 0)}")
+        print(json.dumps(out, indent=2, sort_keys=True))
+        return
+    if args.action == "restore-postgres":
+        from .credentials import postgres_core_password
+        from .postgres_backup import restore_core_database
+        password, _ = postgres_core_password()
+        out = restore_core_database(
+            m.settings, password, args.input, target_dbname=args.target_dbname,
+            confirm=args.confirm, expected_sha256=args.sha256, timeout=args.timeout)
+        m.db.audit(args.actor, "postgres_core_restore_drill", args.target_dbname,
+                   f"sha256={out.get('sha256', '')}")
+        print(json.dumps(out, indent=2, sort_keys=True))
+        return
+
+
+def _cmd_restore_postgres_offline(args):
+    """Recovery-safe restore path that does not open the active core database."""
+    from . import config as _cfg
+    from .credentials import postgres_core_password
+    from .postgres_backup import restore_core_database
+
+    paths = _cfg.Paths(args.home)
+    settings = _cfg.load_settings(paths)
+    password, _ = postgres_core_password()
+    out = restore_core_database(
+        settings, password, args.input, target_dbname=args.target_dbname,
+        confirm=args.confirm, expected_sha256=args.sha256, timeout=args.timeout)
+    out["audit_note"] = (
+        "recovery-safe restore bypassed active core initialization; retain shell/change evidence")
+    print(json.dumps(out, indent=2, sort_keys=True))
+
+
+def cmd_qualify(m, args):
+    from .qualification import runtime_preflight
+    report = runtime_preflight(m)
+    print(json.dumps(report, indent=2, sort_keys=True))
+    if not report.get("ok"):
+        sys.exit(1)
+
+
+def cmd_protocol(m, args):
+    if args.action == "list":
+        rows = m.protocol_status()
+        if args.json:
+            print(json.dumps(rows, indent=2, sort_keys=True)); return
+        for row in rows:
+            prof = row.get("profile") or {}
+            print(f"{row['device']} {prof.get('protocol','cli_ssh')} enabled={prof.get('enabled',False)} fallback={prof.get('allow_cli_fallback',False)}")
+        return
+    if args.action == "show":
+        print(json.dumps(m.protocol_status(args.device), indent=2, sort_keys=True)); return
+    if args.action == "set":
+        row = m.protocol_profiles.set(
+            args.device, args.protocol, enabled=not args.disabled, port=args.port or 0,
+            path=args.path or "", secret_ref=args.secret_ref or "",
+            tls_verify=not args.no_tls_verify, ca_file=args.ca_file or "",
+            allow_cli_fallback=args.allow_cli_fallback)
+        print(json.dumps(row, indent=2, sort_keys=True)); return
+    if args.action == "delete":
+        m.protocol_profiles.delete(args.device); print(f"deleted protocol profile for {args.device}"); return
+    if args.action == "collect":
+        result = m.protocol_collect(args.device)
+        print(json.dumps({"device":result.device,"ok":result.ok,"changed":result.changed,"message":result.message,"version":result.version}, indent=2, sort_keys=True))
+        if not result.ok: sys.exit(1)
+        return
+    if args.action == "capabilities":
+        print(json.dumps(m.protocol_capabilities(args.device), indent=2, sort_keys=True)); return
+    if args.action == "state":
+        print(json.dumps(m.protocol_read_state(args.device, path=args.path), indent=2, sort_keys=True)); return
+    if args.action == "subscribe-once":
+        print(json.dumps(m.protocol_subscribe_once(args.device, path=args.path), indent=2, sort_keys=True)); return
 
 
 def build_parser():
@@ -838,7 +1179,73 @@ def build_parser():
 
     topo = sub.add_parser("topology", help="show/discover LLDP/CDP neighbours")
     topo.add_argument("--device"); topo.add_argument("--discover", action="store_true")
+    topo.add_argument("--identities", action="store_true", help="show normalized managed-device identity")
+    topo.add_argument("--impact", metavar="DEVICE", help="show observed managed-L2 downstream impact")
+    topo.add_argument("--port", help="limit impact to the root device's first-hop local port")
+    topo.add_argument("--max-depth", type=int, default=16)
+    topo.add_argument("--json", action="store_true")
     topo.set_defaults(func=cmd_topology)
+
+    ep = sub.add_parser("endpoints", help="VLAN-aware IP/MAC/switch/port correlation")
+    ep.add_argument("--device")
+    ep.add_argument("--refresh", action="store_true", help="poll SNMP before showing correlation")
+    ep.add_argument("--json", action="store_true")
+    ep.set_defaults(func=cmd_endpoints)
+
+    ev = sub.add_parser("events", help="NI-3 unified operational event stream")
+    ev.add_argument("--device")
+    ev.add_argument("--limit", type=int, default=200)
+    ev.add_argument("--unsuppressed-only", action="store_true")
+    ev.add_argument("--json", action="store_true")
+    ev.set_defaults(func=cmd_events)
+
+    al = sub.add_parser("alerts", help="NI-4 operational alert/report lifecycle")
+    als = al.add_subparsers(dest="action", required=True)
+    alp = als.add_parser("list"); alp.add_argument("--state", choices=["OPEN","ACKNOWLEDGED","RESOLVED"]); alp.add_argument("--device"); alp.add_argument("--limit",type=int,default=200); alp.add_argument("--json",action="store_true")
+    for name in ("ack","resolve"):
+        ap=als.add_parser(name); ap.add_argument("id",type=int); ap.add_argument("--note",default=""); ap.add_argument("--json",action="store_true")
+    ma=als.add_parser("maintenance-add"); ma.add_argument("name"); ma.add_argument("--device"); ma.add_argument("--minutes",type=int,default=60); ma.add_argument("--reason",default=""); ma.add_argument("--json",action="store_true")
+    ml=als.add_parser("maintenance-list"); ml.add_argument("--active-only",action="store_true"); ml.add_argument("--json",action="store_true")
+    mc=als.add_parser("maintenance-cancel"); mc.add_argument("id",type=int); mc.add_argument("--json",action="store_true")
+    ra=als.add_parser("report-add"); ra.add_argument("name"); ra.add_argument("--interval",type=int,default=86400); ra.add_argument("--lookback-hours",type=int,default=24); ra.add_argument("--json",action="store_true")
+    rl=als.add_parser("report-list"); rl.add_argument("--limit",type=int,default=50); rl.add_argument("--json",action="store_true")
+    rr=als.add_parser("report-run"); rr.add_argument("--id",type=int); rr.add_argument("--lookback-hours",type=int); rr.add_argument("--json",action="store_true")
+    rs=als.add_parser("report-state"); rs.add_argument("id",type=int); rs.add_argument("--enabled",action=argparse.BooleanOptionalAction,default=True); rs.add_argument("--json",action="store_true")
+    dl=als.add_parser("deliveries"); dl.add_argument("--limit",type=int,default=100); dl.add_argument("--json",action="store_true")
+    als.add_parser("tick")
+    al.set_defaults(func=cmd_alerts)
+
+    pr = sub.add_parser("protocol", help="PH-3 structured protocol profiles and collection")
+    prs = pr.add_subparsers(dest="action", required=True)
+    pl = prs.add_parser("list"); pl.add_argument("--json", action="store_true")
+    ps = prs.add_parser("show"); ps.add_argument("device")
+    pset = prs.add_parser("set"); pset.add_argument("device"); pset.add_argument("protocol", choices=["cli_ssh","netconf","restconf","gnmi"]); pset.add_argument("--port", type=int); pset.add_argument("--path"); pset.add_argument("--secret-ref"); pset.add_argument("--ca-file"); pset.add_argument("--no-tls-verify", action="store_true"); pset.add_argument("--allow-cli-fallback", action="store_true"); pset.add_argument("--disabled", action="store_true")
+    pd = prs.add_parser("delete"); pd.add_argument("device")
+    pc = prs.add_parser("collect"); pc.add_argument("device")
+    pcap = prs.add_parser("capabilities"); pcap.add_argument("device")
+    pst = prs.add_parser("state"); pst.add_argument("device"); pst.add_argument("--path")
+    psub = prs.add_parser("subscribe-once"); psub.add_argument("device"); psub.add_argument("--path")
+    pr.set_defaults(func=cmd_protocol)
+
+    st = sub.add_parser("storage", help="PH-2 core database and distributed coordination")
+    sts = st.add_subparsers(dest="action", required=True)
+    ss = sts.add_parser("status"); ss.add_argument("--node-max-age", type=int, default=300)
+    sl = sts.add_parser("tasks"); sl.add_argument("--queue"); sl.add_argument("--limit", type=int, default=100)
+    se = sts.add_parser("enqueue"); se.add_argument("kind"); se.add_argument("--queue", default="default"); se.add_argument("--payload", default="{}")
+    sc = sts.add_parser("claim"); sc.add_argument("--queue", default="default"); sc.add_argument("--worker", required=True); sc.add_argument("--lease-seconds", type=int, default=60)
+    sf = sts.add_parser("finish"); sf.add_argument("id", type=int); sf.add_argument("--worker", required=True); sf.add_argument("--failed", action="store_true"); sf.add_argument("--result", default=""); sf.add_argument("--error", default="")
+    sm = sts.add_parser("migrate-sqlite"); sm.add_argument("--source", help="SQLite inventory.db to copy; default current home/inventory.db")
+    sb = sts.add_parser("backup-postgres", help="create an atomic checksummed pg_dump of the configured PostgreSQL core")
+    sb.add_argument("--output", required=True); sb.add_argument("--timeout", type=int, default=600); sb.add_argument("--overwrite", action="store_true")
+    sr = sts.add_parser("restore-postgres", help="restore a core pg_dump into an explicitly separate drill database")
+    sr.add_argument("--input", required=True); sr.add_argument("--target-dbname", required=True)
+    sr.add_argument("--sha256", help="expected SHA-256; otherwise require <backup>.sha256")
+    sr.add_argument("--confirm", required=True, help="must be RESTORE_DATABASE")
+    sr.add_argument("--timeout", type=int, default=900)
+    st.set_defaults(func=cmd_storage)
+
+    ql = sub.add_parser("qualify", help="Q-1 production runtime dependency/readiness preflight")
+    ql.set_defaults(func=cmd_qualify)
 
     at = sub.add_parser("api-token", help="manage scoped read-only API bearer tokens")
     ats = at.add_subparsers(dest="action", required=True)
@@ -852,11 +1259,96 @@ def build_parser():
     au = sub.add_parser("audit"); au.add_argument("--limit", type=int, default=100)
     au.set_defaults(func=cmd_audit)
 
+    tr = sub.add_parser("trace", help="bounded metadata-only protocol trace capture")
+    trs = tr.add_subparsers(dest="action", required=True)
+    trst = trs.add_parser("start")
+    trst.add_argument("device")
+    trst.add_argument("--protocol", required=True, choices=["cli_ssh","snmp","netconf","restconf","gnmi"])
+    trst.add_argument("--incident")
+    trst.add_argument("--ttl", type=int, default=900)
+    trst.add_argument("--max-events", type=int, default=500)
+    trst.add_argument("--max-bytes", type=int, default=1048576)
+    trst.add_argument("--reason")
+    trls = trs.add_parser("list")
+    trls.add_argument("--device"); trls.add_argument("--incident")
+    trls.add_argument("--status", choices=["ACTIVE","STOPPED","EXPIRED","LIMIT_REACHED"])
+    trls.add_argument("--limit", type=int, default=200)
+    trsh = trs.add_parser("show"); trsh.add_argument("ref")
+    trev = trs.add_parser("events"); trev.add_argument("ref"); trev.add_argument("--limit", type=int, default=1000)
+    trsp = trs.add_parser("stop"); trsp.add_argument("ref")
+    tr.set_defaults(func=cmd_trace)
+
+    inc = sub.add_parser("incident", help="manage diagnostic incidents")
+    incs = inc.add_subparsers(dest="action", required=True)
+    incc = incs.add_parser("create")
+    incc.add_argument("--title", required=True)
+    incc.add_argument("--description")
+    incc.add_argument("--severity", default="MEDIUM", choices=["LOW","MEDIUM","HIGH","CRITICAL"])
+    incc.add_argument("--tag", action="append")
+    incl = incs.add_parser("list")
+    incl.add_argument("--status", choices=["OPEN","INVESTIGATING","RESOLVED","CLOSED"])
+    incl.add_argument("--severity", choices=["LOW","MEDIUM","HIGH","CRITICAL"])
+    incl.add_argument("--limit", type=int, default=100)
+    incshow = incs.add_parser("show"); incshow.add_argument("ref")
+    incu = incs.add_parser("update"); incu.add_argument("ref")
+    incu.add_argument("--title"); incu.add_argument("--description")
+    incu.add_argument("--severity", choices=["LOW","MEDIUM","HIGH","CRITICAL"]); incu.add_argument("--tag", action="append")
+    incst = incs.add_parser("status"); incst.add_argument("ref")
+    incst.add_argument("status", choices=["OPEN","INVESTIGATING","RESOLVED","CLOSED"]); incst.add_argument("--note")
+    inclb = incs.add_parser("link-bundle"); inclb.add_argument("ref"); inclb.add_argument("bundle")
+    inculb = incs.add_parser("unlink-bundle"); inculb.add_argument("ref"); inculb.add_argument("bundle")
+    ince = incs.add_parser("link-evidence")
+    ince.add_argument("ref"); ince.add_argument("type", choices=["audit","syslog","collection","compliance","protocol_trace"])
+    ince.add_argument("source_id"); ince.add_argument("--note")
+    incd = incs.add_parser("link-drift")
+    incd.add_argument("ref"); incd.add_argument("device"); incd.add_argument("--note")
+    incue = incs.add_parser("unlink-evidence")
+    incue.add_argument("ref"); incue.add_argument("link_id", type=int)
+    incev = incs.add_parser("evidence"); incev.add_argument("ref")
+    inctl = incs.add_parser("timeline"); inctl.add_argument("ref"); inctl.add_argument("--limit", type=int, default=500)
+    incex = incs.add_parser("export-case", help="build a bounded support-case archive")
+    incex.add_argument("ref")
+    incex.add_argument("--bundle", action="append", help="linked diagnostic bundle to embed; repeatable")
+    incex.add_argument("--reason")
+    incex.add_argument("--require-signature", action="store_true",
+                       help="fail closed unless an external Ed25519 signing key is configured")
+    inclx = incs.add_parser("exports", help="list support-case exports for an incident")
+    inclx.add_argument("ref"); inclx.add_argument("--limit", type=int, default=100)
+    incvx = incs.add_parser("verify-export", help="verify a signed support-case export")
+    incvx.add_argument("ref"); incvx.add_argument("export_key")
+    incvx.add_argument("--trusted-fingerprint", action="append",
+                       help="independent SHA-256 SPKI trust pin; repeatable")
+    inc.set_defaults(func=cmd_incident)
+
+    dbg = sub.add_parser("debug", help="create redacted diagnostic support bundle")
+    dbgs = dbg.add_subparsers(dest="action", required=True)
+    dbc = dbgs.add_parser("collect")
+    dbc.add_argument("--output", help="output .tar.gz path")
+    dbc.add_argument("--require-signature", action="store_true")
+    dbd = dbgs.add_parser("device")
+    dbd.add_argument("name")
+    dbd.add_argument("--output", help="output .tar.gz path")
+    dbd.add_argument("--require-signature", action="store_true")
+    dbgs.add_parser("list")
+    dbgc = dbgs.add_parser("cleanup")
+    dbgc.add_argument("--keep", type=int, default=10)
+    dbgm = dbgs.add_parser("maintenance", help="run configured D.5 retention maintenance once")
+    dbgm.add_argument("--actor", default="cli")
+    dbgv = dbgs.add_parser("verify", help="verify signed diagnostic bundle")
+    dbgv.add_argument("name")
+    dbgv.add_argument("--trusted-fingerprint", action="append",
+                      help="independent SHA-256 SPKI trust pin; repeatable")
+    dbgs.add_parser("signing-status", help="show external evidence signer readiness")
+    dbg.set_defaults(func=cmd_debug)
+
     return p
 
 
 def main(argv=None):
     args = build_parser().parse_args(argv)
+    if args.cmd == "storage" and args.action == "restore-postgres":
+        _cmd_restore_postgres_offline(args)
+        return
     m = Manager(args.home)
     try:
         args.func(m, args)

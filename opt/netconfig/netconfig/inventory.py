@@ -99,6 +99,7 @@ class Inventory:
     def delete(self, name):
         self._conn.execute("DELETE FROM devices WHERE name=?", (name,))
         self._conn.execute("DELETE FROM group_members WHERE device_name=?", (name,))
+        self._conn.execute("DELETE FROM protocol_profiles WHERE device=?", (name,))
         self._conn.commit()
 
     def all(self, only_enabled=False):

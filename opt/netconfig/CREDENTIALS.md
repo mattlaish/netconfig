@@ -1,5 +1,9 @@
 # NetConfig — Credentials, Vault & SNMP
 
+> **Canonical project state — 2026-09-12:** **CURRENT** = Qualification Track **Q-1 — Production Runtime & Service-backed Qualification** (`IMPLEMENTED_TESTING_DEFERRED`). **LATEST FEATURE BASELINE** = Platform Hardening **PH-3 — NETCONF / RESTCONF / gNMI Structured Adapters** (`IMPLEMENTED_TESTING_DEFERRED`). Q-1 implementation is complete in source, but live PostgreSQL/AlmaLinux/systemd/service-backed gates remain explicitly deferred in this environment. No Q-2 is assigned. RPM source Release is `2.0.0-32`.
+
+> **Current continuation pointer:** use the Q-1 full source baseline from 2026-09-12 as the active source. Historical CURRENT/NEXT statements below are chronology only. Execute the remaining Q-1 live gates before any promotion to `TESTED`/`RELEASED`; after Q-1 qualification, perform a fresh roadmap review before assigning Q-2.
+
 This guide covers how NetConfig stores device credentials, how to add devices
 (SSH and SNMP), and how to get out of the common snags. If you only read one
 section, read **The model** and **Quick start**.
@@ -209,3 +213,29 @@ LoadCredential=vault-master:/root/secure/netconfig-vault-master
 ```
 
 NetConfig automatically reads `$CREDENTIALS_DIRECTORY/vault-master`. For non-systemd deployments, `NETCONFIG_MASTER_FILE=/root/secure/netconfig-vault-master` is supported; the file is rejected when group/world writable. `NETCONFIG_MASTER` remains a legacy compatibility fallback and is not the recommended production path.
+
+
+## Evidence-signing key (separate from the device vault)
+
+D.5 Phase 4D evidence signing does **not** use the device credential vault and does not make NetConfig a CA. The evidence signer accepts only an external Ed25519 PEM private key. Prefer systemd `LoadCredential=evidence-signing-key.pem:/secure/path/key.pem`, which exposes the key to the service under `$CREDENTIALS_DIRECTORY/evidence-signing-key.pem`. Manual/non-systemd runs may use `NETCONFIG_EVIDENCE_SIGNING_KEY_FILE`. The key file must be a regular non-symlink file with no group/world permission bits.
+
+Never place this private key under `NETCONFIG_HOME`, source control, a support bundle, or a case export. Use `netconfig debug signing-status` to obtain the public SHA-256 SPKI fingerprint and distribute that fingerprint independently to parties that need to authenticate exported evidence. Multiple trust fingerprints may be configured during key rotation.
+
+
+---
+
+Historical NI-1 documentation snapshot: `netconfig_network_intelligence_ni1_markdown_refresh_FULL_source_baseline_2026-09-11.zip`. The current baseline is the Q-1 FULL source artifact described by the canonical header.
+
+## PH-2 core PostgreSQL credential
+
+The core PostgreSQL password is different from device credentials and from the optional interface-history password. Core storage is opened before the encrypted device vault, so its startup credential cannot depend on that vault. Preferred source: systemd `LoadCredential=postgres-core-password:/secure/path/password`. Manual fallback: a non-group/world-writable file referenced by `NETCONFIG_DB_PASSWORD_FILE`. `NETCONFIG_DB_PASSWORD` is retained only for legacy automation and should not be stored in `/etc/default/netconfig` when a credential file is available.
+
+
+## PH-3 NETCONF / RESTCONF / gNMI credentials
+
+Structured protocol profiles store only a `secret_ref` label (or reuse the device's existing `secret_ref`). Credential material remains in the encrypted vault and is resolved only when the protocol operation runs. NETCONF can use a vault SSH key or username/password. RESTCONF and gNMI accept vault username/password or an mTLS client certificate/key pair referenced by `client_cert_file` and `client_key_file` (RESTCONF also supports `client_key_password`). Password authentication requires a username. gNMI writes runtime secret fields only to a short-lived mode-0600 config file; they are never included in process arguments. RESTCONF authorization headers and structured request/response bodies are not persisted in protocol traces.
+
+
+## Q-1 PostgreSQL backup/restore credential boundary
+
+`netconfig storage backup-postgres` and recovery-safe `restore-postgres` reuse the pre-vault core PostgreSQL credential source. The password is written only to a short-lived mode-0600 `PGPASSFILE`; it is not placed in process arguments, settings, audit detail or returned JSON. `PGSSLMODE` is propagated from the configured core database policy. Restore additionally requires SHA-256 verification, the literal destructive confirmation, and a database name different from the active core database.

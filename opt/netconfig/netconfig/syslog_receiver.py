@@ -58,8 +58,13 @@ class Collector:
 
     def _handle(self, ts, source, msg):
         self.manager.db.record_syslog(source, msg)
-        if not is_config_change(msg): return
         dev = self.manager.device_by_host(source)
+        if getattr(self.manager, "events", None) is not None:
+            self.manager.events.record(source_type="syslog", source=source,
+                device=dev["name"] if dev else "", event_type="CONFIG_CHANGE" if is_config_change(msg) else "SYSLOG",
+                severity="NOTICE" if is_config_change(msg) else "INFO", message=msg[:2048],
+                metadata={"protocol":"syslog"}, now=ts, allow_suppression=True)
+        if not is_config_change(msg): return
         if not dev:
             self.manager.db.audit("syslog", "config_change_unmanaged_source", source, msg[:300]); return
         last = self._last.get(dev["name"], 0)

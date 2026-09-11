@@ -10,8 +10,23 @@ Group=netconfig
 EnvironmentFile=-/etc/default/netconfig
 StateDirectory=netconfig
 StateDirectoryMode=0750
-# For unattended vault access, use a systemd drop-in with LoadCredential=
-# vault-master:/root-or-secret-manager/netconfig-vault-master.
+# For unattended vault access, use a systemd drop-in with:
+# LoadCredential=vault-master:/root-or-secret-manager/netconfig-vault-master
+# When core_db_backend=postgres, this job also needs the pre-vault core credential:
+# LoadCredential=postgres-core-password:/secure/path/netconfig-postgres-password
+# NetConfig resolves only the named credential files from $CREDENTIALS_DIRECTORY.
 ExecStart=/usr/bin/netconfig backup --keep 5
-# Needs the vault. Prefer systemd LoadCredential; legacy NETCONFIG_MASTER is
-# supported only for compatibility.
+
+# Q-1 service hardening. The job needs network access to managed devices and,
+# when configured, PostgreSQL; it needs write access only to NetConfig state.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ReadWritePaths=/var/lib/netconfig
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LockPersonality=true
+MemoryDenyWriteExecute=true

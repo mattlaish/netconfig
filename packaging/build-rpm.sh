@@ -38,4 +38,4 @@ find "$TOPDIR/RPMS" "$TOPDIR/SRPMS" -type f -name '*.rpm' \
     -exec cp -f -- {} "$PROJECT_ROOT/" \;
 
 echo "Artifacts:"
-find "$PROJECT_ROOT" -maxdepth 1 -type f -name 'netconfig-2.0.0-16*.rpm' -print
+find "$PROJECT_ROOT" -maxdepth 1 -type f -name "netconfig-${VERSION}-*.rpm" -print

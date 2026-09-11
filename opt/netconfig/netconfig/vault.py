@@ -128,8 +128,10 @@ class Vault:
 
     # ---- secret CRUD -----------------------------------------------------
     def set_secret(self, name, **fields):
-        """Store a named credential. fields may include: username, password,
-        enable_password, key_path, key_passphrase."""
+        """Store a named credential. Common fields include username, password,
+        enable_password, key_path, key_passphrase, client_cert_file,
+        client_key_file, and client_key_password. Unknown fields remain supported
+        for protocol-specific credentials; callers must avoid logging them."""
         self._reload_if_changed()
         self._data["secrets"][name] = {k: v for k, v in fields.items() if v is not None}
         self._flush()

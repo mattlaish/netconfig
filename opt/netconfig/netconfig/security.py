@@ -64,16 +64,17 @@ class LoginThrottle:
 def security_headers(*, tls=False, csp_nonce=None):
     """Return conservative headers for every console response.
 
-    Inline style attributes and event handlers still exist in the legacy monolithic
-    UI, so the enforced policy temporarily permits inline CSS/JS. A stricter nonce-
-    based policy is also emitted in report-only mode to drive the migration.
+    PH-1 removes inline JavaScript event attributes and authorizes inline script
+    blocks only with a per-response nonce. Inline style attributes remain a
+    PH-1 also normalizes server-rendered style attributes into nonce-authorized
+    utility classes, allowing style-src-attr to be denied in the enforced policy.
     """
     nonce = csp_nonce or ""
     csp = (
         "default-src 'self'; "
         "base-uri 'none'; object-src 'none'; frame-ancestors 'none'; "
-        "script-src 'self' 'unsafe-inline'; "
-        "style-src 'self' 'unsafe-inline'; "
+        f"script-src 'self' 'nonce-{nonce}'; script-src-attr 'none'; "
+        f"style-src 'self' 'nonce-{nonce}'; style-src-attr 'none'; "
         "img-src 'self' data:; font-src 'self'; connect-src 'self'; "
         "form-action 'self'"
     )
@@ -85,7 +86,7 @@ def security_headers(*, tls=False, csp_nonce=None):
         ("Content-Security-Policy", csp),
         ("Content-Security-Policy-Report-Only",
          "default-src 'self'; object-src 'none'; base-uri 'none'; "
-         f"script-src 'self' 'nonce-{nonce}'; style-src 'self' 'unsafe-inline'; "
+         f"script-src 'self' 'nonce-{nonce}'; script-src-attr 'none'; style-src 'self' 'nonce-{nonce}'; style-src-attr 'none'; "
          "frame-ancestors 'none'"),
         ("Cache-Control", "no-store"),
     ]

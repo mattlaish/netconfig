@@ -29,6 +29,7 @@ import sys
 import threading
 import time
 import urllib.parse
+from pathlib import Path
 
 from . import compliance as _compliance
 from .users import can as _can, roles as _roles
@@ -37,484 +38,25 @@ from .drivers import platforms as _platforms
 from . import config as _config
 from .security import LoginThrottle, security_headers
 from .observability import METRICS, event as _obs_event
-from .apitokens import ApiTokens
 from .credentials import service_master_password
-
-_CSS = """
-:root{
-  --navy:#181048; --navy90:#232059; --navy10:#E8E8F0;
-  --solid:#181048; --solid-hover:#232059; --surface:#fff; --text:#26282B;
-  --row-alt:#FAFBFD; --line:#E6E8EE;
-  --red:#C02020; --red10:#F9E9EA; --grey:#595959; --border:#C9CDD6;
-  --bg:#F2F3F7; --warn:#8A5A00; --warn10:#FBF3E2; --ok:#1E6641; --ok10:#EAF3EE;
-  --radius:8px;
-  --font:"Noto Sans","Noto Sans TC","Segoe UI","Microsoft JhengHei","PingFang TC",Arial,sans-serif;
-  --mono:ui-monospace,"DejaVu Sans Mono",Menlo,Consolas,monospace;
-}
-html[data-theme="dark"]{
-  color-scheme:dark;
-  --navy:#A9B8FF; --navy90:#33447C; --navy10:#252E48;
-  --solid:#26376C; --solid-hover:#334A8C; --surface:#171C29; --text:#E8ECF5;
-  --row-alt:#1B2231; --line:#30394B;
-  --red:#FF858B; --red10:#43262D; --grey:#ADB6C8; --border:#3B4559;
-  --bg:#10141E; --warn:#F0C36A; --warn10:#42361F; --ok:#72D6A2; --ok10:#1B3B30;
-}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);font-size:15px;line-height:1.5}
-a{color:var(--navy);text-decoration:none}a:hover{text-decoration:underline}
-/* topbar */
-header{display:flex;justify-content:space-between;align-items:center;gap:16px;
-  background:var(--surface);border-bottom:3px solid var(--red);padding:10px 22px;flex-wrap:wrap}
-.brand{display:flex;align-items:center;gap:14px;color:var(--navy);font-weight:700;font-size:16px}
-.brand .logo{display:inline-flex;align-items:center;justify-content:center;
-  width:36px;height:36px;background:var(--solid);color:#fff;border-radius:7px;
-  font-weight:800;font-size:13px;letter-spacing:.02em}
-.brand .appname{border-left:1px solid var(--border);padding-left:14px}
-.brand span{color:var(--navy)}
-.top-right{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-left:auto}
-.who{color:var(--grey);font-size:13px}
-.who b{color:var(--navy)}
-.role{background:var(--navy10);color:var(--navy);border-radius:10px;padding:1px 8px;
-  font-size:11px;margin-left:4px;font-weight:600;text-transform:uppercase}
-/* nav */
-nav{background:var(--solid);display:flex;flex-wrap:wrap;padding:0 22px}
-nav a{color:#fff;padding:11px 14px;font-size:14px;border-bottom:3px solid transparent}
-nav a:hover{background:var(--navy90);border-bottom-color:var(--red);text-decoration:none}
-/* layout */
-main{max-width:1280px;margin:22px auto;padding:0 22px}
-h1{color:var(--navy);font-size:22px;margin:6px 0 14px;font-weight:700}
-h2{color:var(--navy);font-size:15px;margin:0 0 10px;font-weight:700}
-h3{color:var(--navy);font-size:14px;font-weight:700;margin:10px 0 6px}
-.panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
-  padding:18px;margin-bottom:18px}
-/* tables */
-table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--radius);overflow:hidden;font-size:14px}
-th,td{text-align:left;padding:9px 12px;vertical-align:top}
-th{background:var(--solid);color:#fff;font-weight:600;font-size:13px}
-td{border-top:1px solid var(--line)}
-tbody tr:nth-child(even) td{background:var(--row-alt)}
-/* badges */
-.badge{display:inline-block;border-radius:10px;padding:1px 9px;font-size:11.5px;font-weight:600;
-  background:var(--navy10);color:var(--navy);white-space:nowrap}
-.b-ok{background:var(--ok10);color:var(--ok)}
-.b-bad{background:var(--red10);color:var(--red)}
-.b-chg{background:var(--warn10);color:var(--warn)}
-.b-dim{background:#EDEEF0;color:var(--grey)}
-.b-brass{background:var(--solid);color:#fff}
-/* buttons */
-button,.btn{display:inline-block;background:var(--solid);color:#fff;border:1px solid var(--solid);
-  border-radius:6px;padding:8px 14px;font-family:var(--font);font-size:14px;font-weight:600;
-  cursor:pointer;text-decoration:none}
-button:hover,.btn:hover{background:var(--solid-hover);text-decoration:none}
-button.ghost,.btn.ghost{background:var(--surface);border-color:var(--border);color:var(--grey)}
-button.ghost:hover,.btn.ghost:hover{background:var(--navy10);color:var(--navy)}
-button.danger{background:var(--surface);border-color:var(--red);color:var(--red)}
-button.danger:hover{background:var(--red10)}
-button:disabled{opacity:.5;cursor:not-allowed}
-/* code / diff */
-pre{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:14px;overflow:auto;
-  font:12.5px/1.5 var(--mono);color:var(--text);max-height:70vh}
-code{background:var(--navy10);padding:1px 6px;border-radius:4px;font-size:.92em}
-pre.diff .add{color:var(--ok);background:var(--ok10)}
-pre.diff .del{color:var(--red);background:var(--red10)}
-pre.diff .hdr{color:var(--navy);font-weight:700}
-/* forms */
-input,select,textarea{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:6px;
-  padding:8px 10px;color:var(--text);font-size:14px;margin-bottom:12px;font-family:var(--font)}
-textarea{font-family:var(--mono);font-size:13px;min-height:120px}
-input:focus,select:focus,textarea:focus{outline:2px solid var(--navy);outline-offset:1px;border-color:var(--navy)}
-label{display:block;font-size:13px;color:var(--navy);font-weight:600;margin-bottom:4px}
-/* notes */
-.err{background:var(--red10);border:1px solid #E7B6B8;padding:9px 12px;border-radius:6px;
-  margin-bottom:12px;font-size:14px;color:var(--red)}
-.muted{color:var(--grey);font-size:13px}
-.right{text-align:right}
-.row{display:flex;gap:16px;flex-wrap:wrap}.row>*{flex:1;min-width:220px}
-.settings-shell{display:grid;grid-template-columns:220px minmax(0,1fr);gap:18px;align-items:start}
-.settings-menu{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:8px;
-  position:sticky;top:12px}
-.settings-menu a{display:block;padding:10px 12px;border-radius:6px;color:var(--grey);font-size:14px;
-  font-weight:600;margin:2px 0}
-.settings-menu a:hover{background:var(--navy10);color:var(--navy);text-decoration:none}
-.settings-menu a.active{background:var(--solid);color:#fff}
-.settings-content .panel{margin-bottom:0}
-@media(max-width:760px){.settings-shell{grid-template-columns:1fr}.settings-menu{position:static;
-  display:flex;gap:4px;overflow-x:auto}.settings-menu a{white-space:nowrap}}
-.flash{background:var(--navy10);border:1px solid var(--border);padding:10px 14px;border-radius:6px;
-  margin-bottom:14px;color:var(--navy);font-size:14px}
-.vault-lock{background:var(--red10);border:1px solid #E7B6B8;padding:6px 12px;border-radius:6px;
-  color:var(--red);font-size:12px}
-.vault-open{color:var(--ok);font-size:12px;font-weight:600}
-.pill{font-size:11px;padding:2px 8px;border-radius:10px;background:var(--navy10);color:var(--navy)}
-.sev-high{color:var(--red)}.sev-medium{color:var(--warn)}.sev-low{color:var(--grey)}
-/* login */
-.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg)}
-.login{width:420px;max-width:92vw;background:var(--surface);border:1px solid var(--border);
-  border-top:4px solid var(--red);border-radius:10px;padding:34px 38px}
-.login .brand{display:flex;justify-content:center;color:var(--navy);font-size:18px;margin-bottom:4px}
-.login .sub{text-align:center;color:var(--grey);font-size:12px;margin-bottom:22px;letter-spacing:.04em}
-/* footer */
-.footer{max-width:1280px;margin:26px auto;padding:12px 22px;color:var(--grey);font-size:12px;
-  border-top:1px solid var(--border);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
-html[data-theme="dark"] [data-idx],html[data-theme="dark"] [data-idx] svg{
-  background:var(--surface)!important}
-html[data-theme="dark"] [data-idx] svg text{fill:var(--grey)!important}
-html[data-theme="dark"] [data-idx] svg line{stroke:var(--border)!important}
-.theme-toggle{white-space:nowrap;padding:5px 11px!important}
-"""
-
-_THEME_JS = """<script>
-(function(){
-  var key='netconfig-theme', root=document.documentElement;
-  function preferred(){
-    var saved=localStorage.getItem(key);
-    if(saved==='dark'||saved==='light') return saved;
-    return window.matchMedia&&window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';
-  }
-  function paint(theme){
-    root.setAttribute('data-theme',theme);
-    var b=document.getElementById('theme-toggle');
-    if(b){b.textContent=theme==='dark'?'Light theme':'Dark theme';
-      b.setAttribute('aria-pressed',theme==='dark'?'true':'false');}
-  }
-  window.netconfigToggleTheme=function(){
-    var next=root.getAttribute('data-theme')==='dark'?'light':'dark';
-    localStorage.setItem(key,next); paint(next);
-  };
-  paint(preferred());
-  document.addEventListener('DOMContentLoaded',function(){paint(root.getAttribute('data-theme')||preferred());});
-})();
-</script>"""
-
-# Dashboard: collapsible per-type device groups + a client-side search that
-# filters rows by name / IP / tag. No external libraries; degrades to plain
-# collapsed groups when JS is off.
-_DASH_JS = """<style>
-.devgroup{margin:10px 0;border:1px solid var(--line);border-radius:8px;overflow:hidden}
-.devgroup>summary{cursor:pointer;padding:10px 14px;font-weight:600;font-size:16px;
-  list-style:none;user-select:none}
-.devgroup>summary::-webkit-details-marker{display:none}
-.devgroup>summary::before{content:'\\25B8';display:inline-block;width:1em;
-  color:var(--muted);transition:transform .15s}
-.devgroup[open]>summary::before{transform:rotate(90deg)}
-.devgroup>table{margin:0}
-</style><script>
-(function(){
-  var box=document.getElementById('devsearch');
-  if(!box) return;
-  var groups=[].slice.call(document.querySelectorAll('.devgroup'));
-  var noRes=document.getElementById('devnoresults');
-  function apply(){
-    var q=box.value.trim().toLowerCase();
-    var terms=q.split(/\\s+/).filter(Boolean);
-    var anyVisible=false;
-    groups.forEach(function(g){
-      var rows=[].slice.call(g.querySelectorAll('tr.devrow')), shown=0;
-      rows.forEach(function(r){
-        var hay=r.getAttribute('data-search')||'';
-        var match=terms.every(function(t){return hay.indexOf(t)>=0;});
-        r.style.display=match?'':'none';
-        if(match) shown++;
-      });
-      if(terms.length===0){ g.style.display=''; g.open=false; }
-      else{ g.style.display=shown?'':'none'; g.open=shown>0; }
-      if(shown>0) anyVisible=true;
-      var c=g.querySelector('.devcount');
-      if(c) c.textContent=terms.length?(shown+' / '+rows.length):rows.length;
-    });
-    if(noRes) noRes.style.display=(terms.length&&!anyVisible)?'':'none';
-  }
-  box.addEventListener('input',apply);
-  apply();
-})();
-</script>"""
+from .debug import DebugBundle
+from .incidents import EVIDENCE_TYPES as _INCIDENT_EVIDENCE_TYPES
+from .incidents import SEVERITIES as _INCIDENT_SEVERITIES
+from .incidents import STATUSES as _INCIDENT_STATUSES
+from .web_api import WebApiMixin
 
 _SESSIONS = {}   # token -> {username, role, csrf, created}; expiry intentionally deferred
 _LOGIN_THROTTLE = LoginThrottle()
 
-# Vanilla-JS live line chart: polls /snmp-series and redraws an inline SVG. No
-# external libraries. %s = device name (JSON string), %d = refresh seconds.
-_GRAPH_JS = """
-<script>
-(function(){
-  var DEV=__DEV__, IV=__IV__, NS='http://www.w3.org/2000/svg';
-  var data={}, monitored=[], MODE='live';
-  var charts=document.getElementById('charts'),
-      addsel=document.getElementById('ifadd'),
-      addbtn=document.getElementById('addbtn'),
-      modeSel=document.getElementById('ifmode'),
-      statusEl=document.getElementById('livestatus');
-  charts.style.cssText='display:grid;grid-template-columns:repeat(2,max-content);'
-    +'gap:12px;justify-content:start;align-items:start';
-  var W=380,H=200,PL=54,PR=12,PT=12,PB=30;
-  function fmt(v){ if(v==null) return '-'; var u=['bps','Kbps','Mbps','Gbps'],i=0;
-    while(v>=1000&&i<u.length-1){v/=1000;i++;} return (i===0?v.toFixed(0):v.toFixed(1))+' '+u[i]; }
-  function hms(t){ var d=new Date(t*1000); function p(n){return (n<10?'0':'')+n;}
-    return p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds()); }
-  function el(n,a){ var e=document.createElementNS(NS,n); for(var k in a) e.setAttribute(k,a[k]); return e; }
-  function descrOf(idx){ return (data[idx]&&data[idx].descr)||idx; }
-  function drawChart(idx){
-    var card=document.querySelector('[data-idx="'+idx+'"]'); if(!card) return;
-    var svg=card.querySelector('svg'); while(svg.firstChild) svg.removeChild(svg.firstChild);
-    var d=data[idx];
-    if(!d||!d.points.length){ svg.appendChild(el('text',{x:PL,y:H/2,fill:'#595959','font-size':12})).textContent='waiting for samples...'; return; }
-    var p=d.points, t0=p[0][0], t1=p[p.length-1][0]; if(t1<=t0) t1=t0+1;
-    var mx=1; p.forEach(function(r){ mx=Math.max(mx,r[1]||0,r[2]||0); });
-    function X(t){ return PL+(t-t0)/(t1-t0)*(W-PL-PR); }
-    function Y(v){ return H-PB-(v/mx)*(H-PT-PB); }
-    svg.appendChild(el('line',{x1:PL,y1:PT,x2:PL,y2:H-PB,stroke:'#C9CDD6'}));
-    svg.appendChild(el('line',{x1:PL,y1:H-PB,x2:W-PR,y2:H-PB,stroke:'#C9CDD6'}));
-    [0,mx/2,mx].forEach(function(v){ var y=Y(v);
-      svg.appendChild(el('line',{x1:PL,y1:y,x2:W-PR,y2:y,stroke:'#EEF0F4'}));
-      var t=el('text',{x:PL-6,y:y+3,fill:'#595959','font-size':10,'text-anchor':'end'});
-      t.textContent=fmt(v); svg.appendChild(t); });
-    [0,0.5,1].forEach(function(f,i){ var tt=t0+(t1-t0)*f, x=X(tt);
-      svg.appendChild(el('line',{x1:x,y1:H-PB,x2:x,y2:H-PB+4,stroke:'#C9CDD6'}));
-      var tl=el('text',{x:x,y:H-PB+15,fill:'#595959','font-size':9,
-        'text-anchor': i===0?'start':(i===2?'end':'middle')});
-      tl.textContent=hms(tt); svg.appendChild(tl); });
-    var xl=el('text',{x:(PL+W-PR)/2,y:H-3,fill:'#8892A0','font-size':9,'text-anchor':'middle'});
-    xl.textContent='time'; svg.appendChild(xl);
-    function poly(i2,c){ var dd=''; p.forEach(function(r){ var v=r[i2]||0; dd+=(dd?' L':'M')+X(r[0]).toFixed(1)+' '+Y(v).toFixed(1); });
-      svg.appendChild(el('path',{d:dd,fill:'none',stroke:c,'stroke-width':2})); }
-    poly(1,'#1E6641'); poly(2,'#8A5A00');
-    var last=p[p.length-1];
-    card.querySelector('.cin').textContent=fmt(last[1]);
-    card.querySelector('.cout').textContent=fmt(last[2]);
-  }
-  function addChart(idx){
-    if(!idx||monitored.indexOf(idx)>=0) return;
-    monitored.push(idx);
-    var card=document.createElement('div'); card.setAttribute('data-idx',idx);
-    card.style.cssText='border:1px solid var(--border);border-radius:6px;padding:10px;background:#fff';
-    var head=document.createElement('div'); head.style.cssText='display:flex;align-items:center;gap:12px;margin-bottom:6px';
-    head.innerHTML='<b style="color:var(--navy)">'+descrOf(idx)+'</b><span class="muted">in <b class="cin" style="color:#1E6641">-</b> \u00b7 out <b class="cout" style="color:#8A5A00">-</b></span>';
-    var rm=document.createElement('button'); rm.type='button'; rm.className='ghost'; rm.textContent='\u00d7';
-    rm.style.cssText='margin-left:auto;padding:2px 10px'; rm.onclick=function(){ removeChart(idx); };
-    head.appendChild(rm); card.appendChild(head);
-    var svg=el('svg',{viewBox:'0 0 '+W+' '+H,width:W,height:H});
-    svg.setAttribute('style','width:'+W+'px;height:'+H+'px;background:#fff;border:1px solid var(--border);border-radius:6px');
-    card.appendChild(svg); charts.appendChild(card);
-    drawChart(idx); buildOptions();
-  }
-  function removeChart(idx){
-    var i=monitored.indexOf(idx); if(i>=0) monitored.splice(i,1);
-    var card=document.querySelector('[data-idx="'+idx+'"]'); if(card) card.remove();
-    buildOptions();
-  }
-  function buildOptions(){
-    var keys=Object.keys(data).filter(function(k){ return monitored.indexOf(k)<0; });
-    addsel.innerHTML='';
-    keys.forEach(function(k){ var o=document.createElement('option'); o.value=k; o.textContent=descrOf(k); addsel.appendChild(o); });
-    addbtn.disabled = keys.length===0;
-    document.getElementById('addrow').style.display = keys.length? 'flex':'none';
-  }
-  function drawAll(){ monitored.forEach(drawChart); }
-  function refresh(){
-    var url = (MODE==='history')
-      ? '/snmp-history?device='+encodeURIComponent(DEV)
-      : '/snmp-series?device='+encodeURIComponent(DEV);
-    fetch(url).then(function(r){return r.json();}).then(function(j){
-      data={}; (j.interfaces||[]).forEach(function(it){ data[it.ifindex]=it; });
-      if(!monitored.length){ var k=Object.keys(data)[0]; if(k) addChart(k); }
-      drawAll(); buildOptions();
-      if(MODE==='history'){
-        statusEl.textContent = (j.enabled===false) ? 'history backend not configured'
-          : (j.error ? 'history error: '+j.error
-             : (j.hours||24)+'h history \u00b7 '+new Date().toLocaleTimeString());
-      } else {
-        statusEl.textContent='live \u00b7 '+new Date().toLocaleTimeString();
-      }
-    }).catch(function(){ statusEl.textContent='(waiting for samples)'; });
-  }
-  addbtn.addEventListener('click',function(){ if(addsel.value) addChart(addsel.value); });
-  if(modeSel){ modeSel.addEventListener('change',function(){ MODE=modeSel.value; refresh(); }); }
-  var seedEl=document.getElementById('ifseed');
-  if(seedEl){ try{ JSON.parse(seedEl.textContent).forEach(function(it){ data[it.ifindex]=it; });
-    var k=Object.keys(data)[0]; if(k) addChart(k); }catch(e){} }
-  refresh(); setInterval(function(){ if(MODE==='live') refresh(); }, Math.max(IV,3)*1000);
-})();
-</script>
-"""
-
-_STATUS_BADGE = {"pending": "b-chg", "approved": "b-brass", "executed": "b-ok",
-                 "rejected": "b-bad", "failed": "b-bad", "cancelled": "b-dim"}
+from .web_ui import (
+    _CSS, _THEME_JS, _DASH_JS, _GRAPH_JS, _STATUS_BADGE,
+    _fmt_ts, _colorize_diff, _q, _render_markdown, _load_doc, APP_VERSION,
+    _DEVICE_TYPES, _dtypes, _is_managed_device, _ok_badge, _fmt_bps,
+    _fmt_speed, _oper_badge, apply_csp_nonce,
+)
 
 
-def _fmt_ts(ts):
-    if not ts:
-        return "\u2014"
-    if isinstance(ts, (int, float)):
-        return time.strftime("%Y-%m-%d %H:%M", time.localtime(ts))
-    s = str(ts)
-    try:
-        t = time.strptime(s, "%Y%m%dT%H%M%SZ")
-        return time.strftime("%Y-%m-%d %H:%M UTC", t)
-    except ValueError:
-        return s
-
-
-def _colorize_diff(diff):
-    out = []
-    for line in diff.splitlines():
-        e = html.escape(line)
-        if line.startswith(("+++", "---", "@@")):
-            out.append(f'<span class="hdr">{e}</span>')
-        elif line.startswith("+"):
-            out.append(f'<span class="add">{e}</span>')
-        elif line.startswith("-"):
-            out.append(f'<span class="del">{e}</span>')
-        else:
-            out.append(e)
-    return "\n".join(out)
-
-
-def _q(s):
-    return urllib.parse.quote(str(s))
-
-
-def _md_inline(text):
-    import re
-    text = re.sub(r"`([^`]+)`", r"<code>\1</code>", text)
-    text = re.sub(r"\*\*([^*]+)\*\*", r"<b>\1</b>", text)
-    text = re.sub(r"\[([^\]]+)\]\((https?://[^)]+|file:[^)]+)\)", r'<a href="\2">\1</a>', text)
-    return text
-
-
-def _render_markdown(md):
-    """Tiny stdlib markdown -> HTML for the help page. Handles the subset used in
-    the docs: #/##/### headers, * bullets, | tables |, ``` code ```, > notes,
-    ---, and inline code/bold/links."""
-    lines = md.split("\n")
-    out, para, items = [], [], []
-    i = 0
-
-    def flush_para():
-        if para:
-            out.append("<p>" + _md_inline(html.escape(" ".join(para))) + "</p>")
-            para.clear()
-
-    def flush_list():
-        if items:
-            out.append("<ul>" + "".join(
-                f"<li>{_md_inline(html.escape(x))}</li>" for x in items) + "</ul>")
-            items.clear()
-
-    while i < len(lines):
-        ln = lines[i]
-        if ln.strip().startswith("```"):
-            flush_para(); flush_list()
-            i += 1
-            buf = []
-            while i < len(lines) and not lines[i].strip().startswith("```"):
-                buf.append(lines[i]); i += 1
-            out.append("<pre>" + html.escape("\n".join(buf)) + "</pre>")
-            i += 1
-            continue
-        if "|" in ln and i + 1 < len(lines) and lines[i + 1].strip() and \
-                set(lines[i + 1].strip()) <= set("|-: "):
-            flush_para(); flush_list()
-            hdr = [c.strip() for c in ln.strip().strip("|").split("|")]
-            i += 2
-            rows = []
-            while i < len(lines) and "|" in lines[i] and lines[i].strip():
-                rows.append([c.strip() for c in lines[i].strip().strip("|").split("|")])
-                i += 1
-            th = "".join(f"<th>{_md_inline(html.escape(c))}</th>" for c in hdr)
-            trs = "".join("<tr>" + "".join(
-                f"<td>{_md_inline(html.escape(c))}</td>" for c in r) + "</tr>" for r in rows)
-            out.append(f"<table><tr>{th}</tr>{trs}</table>")
-            continue
-        s = ln.strip()
-        if not s:
-            flush_para(); flush_list()
-        elif s.startswith("### "):
-            flush_para(); flush_list(); out.append(f"<h3>{_md_inline(html.escape(s[4:]))}</h3>")
-        elif s.startswith("## "):
-            flush_para(); flush_list()
-            out.append(f'<h2 style="margin-top:20px">{_md_inline(html.escape(s[3:]))}</h2>')
-        elif s.startswith("# "):
-            flush_para(); flush_list(); out.append(f"<h1>{_md_inline(html.escape(s[2:]))}</h1>")
-        elif s == "---":
-            flush_para(); flush_list()
-            out.append('<hr style="border:none;border-top:1px solid var(--line);margin:18px 0">')
-        elif s.startswith("* ") or s.startswith("- "):
-            flush_para(); items.append(s[2:])
-        elif s.startswith("> "):
-            flush_para(); flush_list()
-            out.append(f'<div class="muted" style="border-left:3px solid var(--brass);'
-                       f'padding-left:12px;margin:10px 0">{_md_inline(html.escape(s[2:]))}</div>')
-        else:
-            para.append(s)
-        i += 1
-    flush_para(); flush_list()
-    return "\n".join(out)
-
-
-def _load_doc(name):
-    """Find a shipped doc (WEBGUI.md, CREDENTIALS.md) next to the install root."""
-    here = os.path.dirname(os.path.abspath(__file__))
-    for cand in (os.path.join(os.path.dirname(here), name),  # /opt/netconfig/<name>
-                 os.path.join(here, name),
-                 os.path.join(os.getcwd(), name)):
-        try:
-            with open(cand, "r", encoding="utf-8") as f:
-                return f.read()
-        except OSError:
-            continue
-    return None
-
-
-APP_VERSION = "1.0"   # user-facing program version (kept at 1.0 until further notice)
-
-_DEVICE_TYPES = [("system", "System"), ("network", "Network"), ("application", "Application")]
-
-
-def _dtypes(dev):
-    raw = (dev.get("device_type") or "") if dev else ""
-    ts = {t for t in re.split(r"[,\s]+", raw) if t in ("system", "network", "application")}
-    return ts or {"network"}
-
-
-def _is_managed_device(dev):
-    """True when SSH/config/SNMP management applies to this inventory item."""
-    return bool(_dtypes(dev) & {"system", "network"})
-
-
-def _ok_badge(ok):
-    return '<span class="badge b-ok">ok</span>' if ok else '<span class="badge b-bad">fail</span>'
-
-
-def _fmt_bps(bps):
-    if bps is None:
-        return "\u2014"
-    units = ["bps", "Kbps", "Mbps", "Gbps"]
-    v = float(bps)
-    for u in units:
-        if v < 1000:
-            return f"{v:.0f} {u}" if u == "bps" else f"{v:.1f} {u}"
-        v /= 1000
-    return f"{v:.1f} Tbps"
-
-
-def _fmt_speed(bits):
-    if not bits:
-        return "\u2014"
-    v = float(bits)
-    for u in ["bps", "Kbps", "Mbps", "Gbps"]:
-        if v < 1000:
-            return f"{v:.0f} {u}"
-        v /= 1000
-    return f"{v:.0f} Tbps"
-
-
-def _oper_badge(oper):
-    cls = "b-ok" if oper == "up" else ("b-dim" if oper in ("down", "notPresent") else "b-chg")
-    return f'<span class="badge {cls}">{html.escape(oper or "?")}</span>'
-
-
-class Console(http.server.BaseHTTPRequestHandler):
+class Console(WebApiMixin, http.server.BaseHTTPRequestHandler):
     manager = None
     tls_enabled = False
     netflow = None
@@ -552,17 +94,39 @@ class Console(http.server.BaseHTTPRequestHandler):
 
     def _send(self, body, status=200, ctype="text/html; charset=utf-8", headers=None):
         self._responded = True
+        nonce = secrets.token_urlsafe(18)
+        if isinstance(body, str) and ctype.lower().startswith("text/html"):
+            body = apply_csp_nonce(body, nonce)
         data = body.encode("utf-8") if isinstance(body, str) else body
         self.send_response(status)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
-        nonce = secrets.token_urlsafe(18)
         for h, v in security_headers(tls=self.tls_enabled, csp_nonce=nonce):
             self.send_header(h, v)
         for h, v in (headers or []):
             self.send_header(h, v)
         self.end_headers()
         self.wfile.write(data)
+
+    def _send_file(self, path, ctype="application/octet-stream", headers=None):
+        """Stream a managed file without loading the complete payload into memory."""
+        path = Path(path)
+        self._responded = True
+        self.send_response(200)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(path.stat().st_size))
+        nonce = secrets.token_urlsafe(18)
+        for h, v in security_headers(tls=self.tls_enabled, csp_nonce=nonce):
+            self.send_header(h, v)
+        for h, v in (headers or []):
+            self.send_header(h, v)
+        self.end_headers()
+        with path.open("rb") as stream:
+            while True:
+                chunk = stream.read(1024 * 1024)
+                if not chunk:
+                    break
+                self.wfile.write(chunk)
 
     def _redirect(self, loc, headers=None):
         self._responded = True
@@ -584,7 +148,8 @@ class Console(http.server.BaseHTTPRequestHandler):
         role = sess["role"]
         links = [("/", "Devices"), ("/groups", "Groups"), ("/automation", "Automation"),
                  ("/requests", "Change Requests"), ("/compliance", "Compliance"),
-                 ("/alerts", "Alerts"), ("/snmp", "SNMP"), ("/topology", "Topology")]
+                 ("/alerts", "Alerts"), ("/snmp", "SNMP"), ("/protocols", "Protocols"), ("/topology", "Topology"),
+                 ("/endpoints", "Endpoints"), ("/events", "Events"), ("/op-alerts", "Ops Alerts"), ("/incidents", "Incidents"), ("/diagnostics", "Diagnostics")]
         if _can(role, "manage_devices"):
             links.append(("/vault", "Vault"))
         links += [("/runs", "Run Log"), ("/audit", "Audit")]
@@ -604,8 +169,7 @@ class Console(http.server.BaseHTTPRequestHandler):
                 f'<span class="who"><b>{html.escape(sess["username"])}</b>'
                 f'<span class="role">{html.escape(sess["role"])}</span></span>'
                 f'<button type=button id="theme-toggle" class="ghost theme-toggle" '
-                f'onclick="netconfigToggleTheme()" aria-label="Toggle color theme" '
-                f'aria-pressed="false">Dark theme</button>'
+                f'aria-label="Toggle color theme" aria-pressed="false">Dark theme</button>'
                 f'<form method=post action="/logout" style="display:inline;margin:0">'
                 f'{self._csrf_field()}<button class=ghost style="padding:5px 12px">Sign out</button>'
                 f'</form></div>')
@@ -627,6 +191,22 @@ class Console(http.server.BaseHTTPRequestHandler):
     def _read_post(self):
         length = int(self.headers.get("Content-Length", 0))
         raw = self.rfile.read(length).decode("utf-8") if length else ""
+        ctype = self.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
+        if ctype == "application/json":
+            if not raw.strip():
+                return {}
+            value = json.loads(raw)
+            if not isinstance(value, dict):
+                raise ValueError("JSON request body must be an object")
+            out = {}
+            for key, item in value.items():
+                if isinstance(item, list):
+                    out[str(key)] = [str(v) for v in item]
+                elif item is None:
+                    out[str(key)] = [""]
+                else:
+                    out[str(key)] = [str(item)]
+            return out
         return urllib.parse.parse_qs(raw, keep_blank_values=True)
 
     def _check_csrf(self, form):
@@ -651,12 +231,11 @@ class Console(http.server.BaseHTTPRequestHandler):
         ok = True
         detail = {"status": "ok"}
         if ready:
-            try:
-                self.manager.db.conn.execute("SELECT 1").fetchone()
-            except Exception:
-                ok = False
+            storage = self.manager.storage_status()
+            ok = bool(storage.get("ok") and storage.get("reachable", True))
             detail.update({"status": "ready" if ok else "not-ready",
-                           "vault_ready": bool(self.manager.vault_ready())})
+                           "vault_ready": bool(self.manager.vault_ready()),
+                           "storage": storage})
         return self._send(json.dumps(detail), 200 if ok else 503,
                           "application/json; charset=utf-8")
 
@@ -666,45 +245,6 @@ class Console(http.server.BaseHTTPRequestHandler):
         return self._send(METRICS.render(), 200, "text/plain; version=0.0.4; charset=utf-8")
 
     # ---- routing ---------------------------------------------------------
-    def _api_token(self):
-        # Never accept reusable bearer credentials over cleartext LAN HTTP.
-        # Loopback is allowed for the documented local reverse-proxy pattern.
-        peer = self._client_ip()
-        if not self.tls_enabled and peer not in ("127.0.0.1", "::1", "localhost"):
-            return None
-        auth = self.headers.get("Authorization", "")
-        if not auth.startswith("Bearer "):
-            return None
-        return ApiTokens(self.manager.db.conn).verify(auth[7:].strip())
-
-    def _api_json(self, payload, status=200):
-        import json
-        self._send(json.dumps(payload, indent=2, sort_keys=True), status,
-                   "application/json; charset=utf-8", [("Cache-Control", "no-store")])
-
-    def _handle_api_get(self, path):
-        token = self._api_token()
-        if not token:
-            self._api_json({"error": "invalid_or_missing_bearer_token"}, 401); return True
-        scopes = token["scopes"]
-        routes = {
-            "/api/v1/inventory": ("inventory:read", lambda: self.manager.inv.all()),
-            "/api/v1/topology": ("topology:read", lambda: self.manager.db.get_neighbors()),
-            "/api/v1/drift": ("drift:read", lambda: [dict(device=d["name"], **self.manager.store.drift(d["name"])) for d in self.manager.inv.all()]),
-            "/api/v1/compliance/latest": ("compliance:read", lambda: self.manager.db.conn.execute("SELECT * FROM compliance_runs ORDER BY id DESC LIMIT 1").fetchone()),
-            "/api/v1/audit": ("audit:read", lambda: self.manager.db.recent_audit(200)),
-            "/api/v1/digest/latest": ("compliance:read", lambda: self.manager.db.latest_digest()),
-        }
-        item = routes.get(path)
-        if not item: return False
-        scope, fn = item
-        if scope not in scopes:
-            self._api_json({"error": "insufficient_scope", "required": scope}, 403); return True
-        value = fn()
-        if hasattr(value, "keys") and not isinstance(value, dict): value = dict(value)
-        self.manager.db.audit("api:" + token["name"], "api_read", path, scope)
-        self._api_json(value if value is not None else {}); return True
-
     def do_GET(self):
         self._responded = False
         try:
@@ -747,6 +287,495 @@ class Console(http.server.BaseHTTPRequestHandler):
         except Exception:
             pass
 
+    def _diagnostics_page(self, sess):
+        if not _can(sess["role"], "settings"):
+            return self._send("forbidden", 403, "text/plain")
+        dbg = DebugBundle(self.manager)
+        rows = []
+        for b in dbg.list_bundles():
+            rows.append(f'<tr><td>{html.escape(b["name"])}</td><td>{b["size"]}</td><td><a href="/debug-download?name={urllib.parse.quote(b["name"])}">Download</a></td></tr>')
+        inner = f"""<div class="panel"><h2>Diagnostic Support Bundles</h2>
+<form method=post action="/debug-create">{self._csrf_field()}<button>Create support bundle</button></form>
+<table><tr><th>Bundle</th><th>Size</th><th></th></tr>{''.join(rows) or '<tr><td colspan=3 class=muted>No bundles</td></tr>'}</table></div>"""
+        return self._send(self._page("Diagnostics", inner, sess), 200)
+
+    def _debug_download(self, q, sess):
+        if not _can(sess["role"], "settings"):
+            return self._send("forbidden", 403, "text/plain")
+        name = (q.get("name") or [""])[0]
+        p = Path(getattr(self.manager.paths, "home", ".")) / "debug-bundles" / Path(name).name
+        if not p.exists() or p.suffixes[-2:] != [".tar", ".gz"]:
+            return self._send("not found", 404, "text/plain")
+        self.manager.db.audit(sess["username"], "debug_bundle_download", p.name, "diagnostics")
+        return self._send_file(p, "application/gzip", [("Content-Disposition", f"attachment; filename=\"{p.name}\"")])
+
+    @staticmethod
+    def _incident_write_allowed(sess):
+        return bool(sess and sess.get("role") in {"operator", "approver", "admin"})
+
+    @staticmethod
+    def _incident_notice(q):
+        code = (q.get("notice") or [""])[0]
+        return {
+            "created": "Incident created.",
+            "updated": "Incident metadata updated.",
+            "status": "Incident status updated.",
+            "bundle-linked": "Diagnostic bundle linked.",
+            "bundle-unlinked": "Diagnostic bundle unlinked.",
+            "evidence-linked": "Evidence reference linked.",
+            "evidence-unlinked": "Evidence reference unlinked.",
+            "trace-started": "Protocol trace started and linked to the incident.",
+            "trace-stopped": "Protocol trace stopped.",
+            "export-created": "Support-case export created.",
+            "export-verified": "Support-case signature/integrity verification passed.",
+        }.get(code)
+
+    @staticmethod
+    def _human_bytes(value):
+        size = float(value or 0)
+        for unit in ("B", "KiB", "MiB", "GiB"):
+            if size < 1024 or unit == "GiB":
+                return f"{size:.0f} {unit}" if unit == "B" else f"{size:.1f} {unit}"
+            size /= 1024
+        return f"{size:.1f} GiB"
+
+    def _events_page(self, q, sess):
+        device = (q.get("device") or [""])[0]
+        rows = self.manager.events.list(limit=500, device=device or None)
+        options = '<option value="">All devices</option>' + ''.join(
+            f'<option value="{html.escape(d["name"])}"{" selected" if device==d["name"] else ""}>{html.escape(d["name"])}</option>'
+            for d in self.manager.inv.all())
+        body_rows = ""
+        for r in rows:
+            sup = '<span class="badge b-dim">suppressed</span>' if r.get("suppressed") else ''
+            body_rows += (f'<tr><td class=muted>{_fmt_ts(r.get("last_ts"))}</td>'
+                f'<td>{html.escape(r.get("severity", ""))}</td><td><b>{html.escape(r.get("event_type", ""))}</b></td>'
+                f'<td>{html.escape(r.get("device") or r.get("source") or "-")}</td>'
+                f'<td>{html.escape(r.get("interface") or "-")}</td><td>{r.get("event_count",1)}</td>'
+                f'<td>{sup}</td><td>{html.escape(r.get("message", ""))}</td></tr>')
+        suppressions = self.manager.events.suppressions(True)
+        sup_rows = ''.join(f'<tr><td>{html.escape(x.get("root_device", ""))}:{html.escape(x.get("root_port", ""))}</td><td>{html.escape(x.get("target_device", ""))}</td><td>{_fmt_ts(x.get("expires_ts"))}</td><td>{html.escape(x.get("reason", ""))}</td></tr>' for x in suppressions)
+        inner = (f'<div class="panel"><h2>Operational Events</h2><p class="muted">NI-3 unified SNMP trap, syslog and SNMP reachability events. Suppression follows only resolved NI-2 managed-L2 adjacency.</p>'
+                 f'<form method=get action="/events"><select name=device>{options}</select><button class=ghost>Filter</button></form>'
+                 f'<table><tr><th>Last</th><th>Severity</th><th>Event</th><th>Device/source</th><th>Interface</th><th>Count</th><th>State</th><th>Message</th></tr>{body_rows or "<tr><td colspan=8 class=muted>No operational events.</td></tr>"}</table></div>'
+                 f'<div class="panel"><h3>Active dependency suppressions</h3><table><tr><th>Upstream</th><th>Suppressed device</th><th>Expires</th><th>Reason</th></tr>{sup_rows or "<tr><td colspan=4 class=muted>None.</td></tr>"}</table></div>')
+        return self._send(self._page("Events", inner, sess))
+
+    def _op_alerts_page(self, q, sess, flash=None):
+        life=self.manager.alert_lifecycle; can_write=sess.get("role") in {"operator","approver","admin"}
+        state=(q.get("state") or [""])[0].upper(); state=state if state in {"OPEN","ACKNOWLEDGED","RESOLVED"} else ""
+        alerts=life.list(state=state or None,limit=300); rows=[]
+        for a in alerts:
+            actions=""
+            if can_write and a["state"]!="RESOLVED":
+                if a["state"]=="OPEN": actions += f'<form method=post action="/op-alert-action" style="display:inline">{self._csrf_field()}<input type=hidden name=id value="{a["id"]}"><input type=hidden name=action value=ack><button class=ghost>Acknowledge</button></form> '
+                actions += f'<form method=post action="/op-alert-action" style="display:inline">{self._csrf_field()}<input type=hidden name=id value="{a["id"]}"><input type=hidden name=action value=resolve><button class=ghost>Resolve</button></form>'
+            rows.append(f'<tr><td>#{a["id"]}</td><td>{html.escape(a["state"])}</td><td>{html.escape(a["severity"])}</td><td>{html.escape(a["device"] or "-")}</td><td>{html.escape(a["event_type"])}</td><td>{a["event_count"]}</td><td>{html.escape(a["message"])}</td><td>{actions}</td></tr>')
+        maint=life.maintenance(False); mrows=[]
+        now=time.time()
+        for w in maint[:100]:
+            active=not w.get("cancelled_ts") and w["start_ts"]<=now<w["end_ts"]
+            act=f'<span class="badge {"b-ok" if active else "b-dim"}">{"active" if active else "inactive"}</span>'
+            cancel=""
+            if can_write and not w.get("cancelled_ts") and w["end_ts"]>now:
+                cancel=f'<form method=post action="/maintenance-cancel" style="display:inline">{self._csrf_field()}<input type=hidden name=id value="{w["id"]}"><button class=ghost>Cancel</button></form>'
+            mrows.append(f'<tr><td>#{w["id"]}</td><td>{html.escape(w["name"])}</td><td>{html.escape(w["device"] or "all")}</td><td>{_fmt_ts(w["start_ts"])}</td><td>{_fmt_ts(w["end_ts"])}</td><td>{act}</td><td>{cancel}</td></tr>')
+        schedules=life.report_schedules(); sr=[]
+        for r in schedules:
+            acts=""
+            if can_write:
+                acts=(f'<form method=post action="/report-schedule-action" style="display:inline">{self._csrf_field()}<input type=hidden name=id value="{r["id"]}"><input type=hidden name=action value=run><button class=ghost>Run</button></form> '
+                      f'<form method=post action="/report-schedule-action" style="display:inline">{self._csrf_field()}<input type=hidden name=id value="{r["id"]}"><input type=hidden name=action value="{"disable" if r["enabled"] else "enable"}"><button class=ghost>{"Disable" if r["enabled"] else "Enable"}</button></form>')
+            sr.append(f'<tr><td>#{r["id"]}</td><td>{html.escape(r["name"])}</td><td>{"on" if r["enabled"] else "off"}</td><td>{r["interval_seconds"]}s</td><td>{r["lookback_hours"]}h</td><td>{_fmt_ts(r["next_run_ts"])}</td><td>{acts}</td></tr>')
+        forms=""
+        if can_write:
+            devopts='<option value="">all devices</option>'+''.join(f'<option value="{html.escape(d["name"])}">{html.escape(d["name"])}</option>' for d in self.manager.inv.all())
+            forms=(f'<div class=panel><h3>Maintenance window</h3><form method=post action="/maintenance-add">{self._csrf_field()}<div class=row><div><label>Name</label><input name=name required></div><div><label>Device</label><select name=device>{devopts}</select></div><div><label>Minutes</label><input name=minutes value=60></div><div><label>Reason</label><input name=reason></div></div><button>Add maintenance</button></form></div>'
+                   f'<div class=panel><h3>Scheduled operational report</h3><form method=post action="/report-schedule-add">{self._csrf_field()}<div class=row><div><label>Name</label><input name=name required></div><div><label>Interval seconds</label><input name=interval_seconds value=86400></div><div><label>Lookback hours</label><input name=lookback_hours value=24></div></div><button>Add schedule</button></form></div>')
+        body=(f'<div class=panel><h2>Operational alerts</h2><p class=muted>NI-4 lifecycle for unsuppressed NI-3 events. Maintenance suppresses alert creation but preserves the underlying event evidence.</p><table><tr><th>ID</th><th>State</th><th>Severity</th><th>Device</th><th>Event</th><th>Count</th><th>Message</th><th>Actions</th></tr>{"".join(rows) or "<tr><td colspan=8 class=muted>No operational alerts.</td></tr>"}</table></div>'
+              f'<div class=panel><h3>Maintenance windows</h3><table><tr><th>ID</th><th>Name</th><th>Device</th><th>Start</th><th>End</th><th>State</th><th></th></tr>{"".join(mrows) or "<tr><td colspan=7 class=muted>None.</td></tr>"}</table></div>'
+              f'<div class=panel><h3>Report schedules</h3><table><tr><th>ID</th><th>Name</th><th>State</th><th>Interval</th><th>Lookback</th><th>Next</th><th></th></tr>{"".join(sr) or "<tr><td colspan=7 class=muted>None.</td></tr>"}</table></div>'+forms)
+        return self._send(self._page("Ops Alerts",body,sess,flash))
+
+    def _do_op_alert_action(self, form, sess):
+        if sess.get("role") not in {"operator","approver","admin"}: return self._send(self._page("Ops Alerts", '<div class="err">Not permitted.</div>', sess), 403)
+        try:
+            aid=int((form.get("id") or [0])[0]); action=(form.get("action") or [""])[0]; note=(form.get("note") or [""])[0]
+            if action=="ack": self.manager.alert_lifecycle.acknowledge(aid,sess["username"],note)
+            elif action=="resolve": self.manager.alert_lifecycle.resolve(aid,sess["username"],note)
+            else: raise ValueError("invalid alert action")
+        except (ValueError,TypeError) as exc: return self._op_alerts_page({},sess,flash=str(exc))
+        return self._redirect("/op-alerts")
+
+    def _do_maintenance_add(self, form, sess):
+        if sess.get("role") not in {"operator","approver","admin"}: return self._send(self._page("Ops Alerts", '<div class="err">Not permitted.</div>', sess), 403)
+        try:self.manager.alert_lifecycle.add_maintenance((form.get("name") or [""])[0],sess["username"],minutes=int((form.get("minutes") or [60])[0]),device=(form.get("device") or [""])[0],reason=(form.get("reason") or [""])[0])
+        except (ValueError,TypeError) as exc:return self._op_alerts_page({},sess,flash=str(exc))
+        return self._redirect("/op-alerts")
+
+    def _do_maintenance_cancel(self, form, sess):
+        if sess.get("role") not in {"operator","approver","admin"}: return self._send(self._page("Ops Alerts", '<div class="err">Not permitted.</div>', sess), 403)
+        try:self.manager.alert_lifecycle.cancel_maintenance(int((form.get("id") or [0])[0]),sess["username"])
+        except (ValueError,TypeError) as exc:return self._op_alerts_page({},sess,flash=str(exc))
+        return self._redirect("/op-alerts")
+
+    def _do_report_schedule_add(self, form, sess):
+        if sess.get("role") not in {"operator","approver","admin"}: return self._send(self._page("Ops Alerts", '<div class="err">Not permitted.</div>', sess), 403)
+        try:self.manager.alert_lifecycle.add_report_schedule((form.get("name") or [""])[0],sess["username"],interval_seconds=int((form.get("interval_seconds") or [86400])[0]),lookback_hours=int((form.get("lookback_hours") or [24])[0]))
+        except (ValueError,TypeError) as exc:return self._op_alerts_page({},sess,flash=str(exc))
+        return self._redirect("/op-alerts")
+
+    def _do_report_schedule_action(self, form, sess):
+        if sess.get("role") not in {"operator","approver","admin"}: return self._send(self._page("Ops Alerts", '<div class="err">Not permitted.</div>', sess), 403)
+        try:
+            sid=int((form.get("id") or [0])[0]); action=(form.get("action") or [""])[0]
+            if action=="run": self.manager.alert_lifecycle.run_report(schedule_id=sid,actor=sess["username"])
+            elif action in {"enable","disable"}: self.manager.alert_lifecycle.set_report_schedule_enabled(sid,action=="enable",sess["username"])
+            else: raise ValueError("invalid report action")
+        except (ValueError,TypeError) as exc:return self._op_alerts_page({},sess,flash=str(exc))
+        return self._redirect("/op-alerts")
+
+    def _incidents_page(self, q, sess):
+        status = (q.get("status") or [""])[0].strip().upper()
+        severity = (q.get("severity") or [""])[0].strip().upper()
+        if status not in _INCIDENT_STATUSES:
+            status = ""
+        if severity not in _INCIDENT_SEVERITIES:
+            severity = ""
+        rows = self.manager.incidents.list(status=status or None, severity=severity or None, limit=500)
+        body_rows = []
+        for item in rows:
+            sev_class = "b-bad" if item["severity"] in {"HIGH", "CRITICAL"} else ("b-chg" if item["severity"] == "MEDIUM" else "b-dim")
+            state_class = "b-ok" if item["status"] == "CLOSED" else ("b-chg" if item["status"] in {"OPEN", "INVESTIGATING"} else "b-brass")
+            tags = ", ".join(item.get("tags") or [])
+            body_rows.append(
+                f'<tr><td><a href="/incident?ref={_q(item["incident_key"])}"><b>{html.escape(item["incident_key"])}</b></a></td>'
+                f'<td>{html.escape(item["title"])}</td>'
+                f'<td><span class="badge {sev_class}">{html.escape(item["severity"])}</span></td>'
+                f'<td><span class="badge {state_class}">{html.escape(item["status"])}</span></td>'
+                f'<td>{html.escape(tags) if tags else "<span class=muted>—</span>"}</td>'
+                f'<td>{html.escape(_fmt_ts(item.get("updated_ts")))}</td></tr>')
+        status_opts = '<option value="">All statuses</option>' + ''.join(
+            f'<option value="{s}" {"selected" if status == s else ""}>{s}</option>' for s in _INCIDENT_STATUSES)
+        sev_opts = '<option value="">All severities</option>' + ''.join(
+            f'<option value="{s}" {"selected" if severity == s else ""}>{s}</option>' for s in _INCIDENT_SEVERITIES)
+        filters = f'''<div class="panel"><form method=get action="/incidents"><div class=row>
+<div><label>Status</label><select name=status>{status_opts}</select></div>
+<div><label>Severity</label><select name=severity>{sev_opts}</select></div>
+<div style="align-self:end"><button>Filter</button> <a class="btn ghost" href="/incidents">Clear</a></div>
+</div></form></div>'''
+        table = (f'<div class="panel"><h2>Incident register · {len(rows)}</h2><table>'
+                 f'<tr><th>Incident</th><th>Title</th><th>Severity</th><th>Status</th><th>Tags</th><th>Updated</th></tr>'
+                 f'{"".join(body_rows) or "<tr><td colspan=6 class=muted>No incidents match this filter.</td></tr>"}</table></div>')
+        create = ""
+        if self._incident_write_allowed(sess):
+            sev_create = ''.join(f'<option value="{s}" {"selected" if s == "MEDIUM" else ""}>{s}</option>' for s in _INCIDENT_SEVERITIES)
+            create = f'''<div class="panel"><h2>Create incident</h2>
+<form method=post action="/incident-create">{self._csrf_field()}
+<label>Title</label><input name=title maxlength=200 required>
+<div class=row><div><label>Severity</label><select name=severity>{sev_create}</select></div>
+<div><label>Tags <span class=muted>(comma-separated)</span></label><input name=tags maxlength=512></div></div>
+<label>Description</label><textarea name=description maxlength=10000></textarea>
+<button>Create incident</button></form></div>'''
+        notice = self._incident_notice(q)
+        return self._send(self._page("Incidents", filters + table + create, sess, flash=notice))
+
+    def _incident_page(self, q, sess):
+        ref = (q.get("ref") or [""])[0].strip()
+        incident = self.manager.incidents.get(ref)
+        if not incident:
+            return self._send(self._page("Incident", '<div class="err">Incident not found.</div><p><a href="/incidents">Back to incidents</a></p>', sess), 404)
+        key = incident["incident_key"]
+        can_write = self._incident_write_allowed(sess)
+        tags = ", ".join(incident.get("tags") or [])
+        sev_class = "b-bad" if incident["severity"] in {"HIGH", "CRITICAL"} else ("b-chg" if incident["severity"] == "MEDIUM" else "b-dim")
+        status_class = "b-ok" if incident["status"] == "CLOSED" else ("b-chg" if incident["status"] in {"OPEN", "INVESTIGATING"} else "b-brass")
+        summary = f'''<div class="panel"><div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">
+<div><h2 style="margin-bottom:4px">{html.escape(key)} · {html.escape(incident["title"])}</h2>
+<span class="badge {sev_class}">{html.escape(incident["severity"])}</span> <span class="badge {status_class}">{html.escape(incident["status"])}</span></div>
+<div><a class="btn ghost" href="/incidents">Back to incidents</a></div></div>
+<table><tr><th>Created</th><td>{html.escape(_fmt_ts(incident.get("created_ts")))}</td><th>Created by</th><td>{html.escape(incident.get("created_by") or "—")}</td></tr>
+<tr><th>Updated</th><td>{html.escape(_fmt_ts(incident.get("updated_ts")))}</td><th>Updated by</th><td>{html.escape(incident.get("updated_by") or "—")}</td></tr>
+<tr><th>Tags</th><td colspan=3>{html.escape(tags) if tags else "—"}</td></tr></table>
+<p>{html.escape(incident.get("description") or "No description.")}</p></div>'''
+
+        controls = ""
+        if can_write:
+            sev_options = ''.join(f'<option value="{s}" {"selected" if s == incident["severity"] else ""}>{s}</option>' for s in _INCIDENT_SEVERITIES)
+            allowed_transitions = {
+                "OPEN": ("INVESTIGATING", "RESOLVED", "CLOSED"),
+                "INVESTIGATING": ("RESOLVED", "CLOSED"),
+                "RESOLVED": ("INVESTIGATING", "CLOSED"),
+                "CLOSED": ("INVESTIGATING",),
+            }.get(incident["status"], ())
+            status_options = ''.join(f'<option value="{s}">{s}</option>' for s in allowed_transitions)
+            controls = f'''<div class=row><div class="panel"><h2>Edit incident</h2>
+<form method=post action="/incident-update">{self._csrf_field()}<input type=hidden name=ref value="{html.escape(key)}">
+<label>Title</label><input name=title maxlength=200 required value="{html.escape(incident["title"])}">
+<label>Severity</label><select name=severity>{sev_options}</select>
+<label>Tags</label><input name=tags maxlength=512 value="{html.escape(tags)}">
+<label>Description</label><textarea name=description maxlength=10000>{html.escape(incident.get("description") or "")}</textarea>
+<button>Save metadata</button></form></div>
+<div class="panel"><h2>Lifecycle</h2><form method=post action="/incident-status">{self._csrf_field()}
+<input type=hidden name=ref value="{html.escape(key)}"><label>New status</label><select name=status {"" if status_options else "disabled"}>{status_options or '<option>No valid transition</option>'}</select>
+<label>Change note</label><textarea name=note maxlength=500 style="min-height:80px"></textarea><button>Update status</button></form>
+<p class=muted>Invalid lifecycle transitions are rejected server-side. Closed incidents may only reopen to INVESTIGATING.</p></div></div>'''
+
+        linked = self.manager.incidents.bundles(incident["id"])
+        bundle_rows = []
+        for item in linked:
+            action = ""
+            if can_write:
+                action = (f'<form method=post action="/incident-bundle-unlink" style="margin:0">{self._csrf_field()}'
+                          f'<input type=hidden name=ref value="{html.escape(key)}"><input type=hidden name=bundle value="{html.escape(item["bundle_name"])}">'
+                          f'<button class="ghost">Unlink</button></form>')
+            bundle_rows.append(f'<tr><td>{html.escape(item["bundle_name"])}</td><td>{html.escape(_fmt_ts(item.get("linked_ts")))}</td><td>{html.escape(item.get("linked_by") or "")}</td><td>{action}</td></tr>')
+        link_form = ""
+        if can_write:
+            linked_names = {x["bundle_name"] for x in linked}
+            choices = [b for b in DebugBundle(self.manager).list_bundles() if b["name"] not in linked_names]
+            opts = ''.join(f'<option value="{html.escape(b["name"])}">{html.escape(b["name"])} · {self._human_bytes(b["size"])}</option>' for b in choices)
+            link_form = (f'<form method=post action="/incident-bundle-link">{self._csrf_field()}<input type=hidden name=ref value="{html.escape(key)}">'
+                         f'<label>Link diagnostic bundle</label><select name=bundle {"" if opts else "disabled"}>{opts or "<option>No unlinked bundles available</option>"}</select>'
+                         f'<button {"" if opts else "disabled"}>Link bundle</button></form>')
+        bundles_panel = (f'<div class="panel"><h2>Diagnostic bundles · {len(linked)}</h2><table><tr><th>Bundle</th><th>Linked</th><th>By</th><th></th></tr>'
+                         f'{"".join(bundle_rows) or "<tr><td colspan=4 class=muted>No diagnostic bundles linked.</td></tr>"}</table>{link_form}</div>')
+
+        evidence = self.manager.incidents.evidence_links(incident["id"])
+        ev_rows = []
+        for item in evidence:
+            action = ""
+            if can_write:
+                action = (f'<form method=post action="/incident-evidence-unlink" style="margin:0">{self._csrf_field()}'
+                          f'<input type=hidden name=ref value="{html.escape(key)}"><input type=hidden name=link_id value="{item["id"]}">'
+                          f'<button class="ghost">Unlink</button></form>')
+            ev_rows.append(f'<tr><td>{html.escape(item["source_type"])}</td><td><code>{html.escape(str(item["source_ref"]))}</code></td><td>{html.escape(item.get("note") or "")}</td><td>{html.escape(_fmt_ts(item.get("linked_ts")))}</td><td>{action}</td></tr>')
+        evidence_form = ""
+        if can_write:
+            ev_options = ''.join(f'<option value="{html.escape(t)}">{html.escape(t)}</option>' for t in _INCIDENT_EVIDENCE_TYPES if t != "protocol_trace")
+            evidence_form = f'''<form method=post action="/incident-evidence-link">{self._csrf_field()}<input type=hidden name=ref value="{html.escape(key)}">
+<div class=row><div><label>Evidence type</label><select name=type>{ev_options}</select></div>
+<div><label>Source ID / device for drift</label><input name=source_ref required></div></div>
+<label>Note</label><input name=note maxlength=1000><button>Link evidence reference</button></form>'''
+        evidence_panel = (f'<div class="panel"><h2>Evidence references · {len(evidence)}</h2><p class=muted>Links reference authoritative stores; raw evidence is not copied into the incident.</p>'
+                          f'<table><tr><th>Type</th><th>Source</th><th>Note</th><th>Linked</th><th></th></tr>{"".join(ev_rows) or "<tr><td colspan=5 class=muted>No external evidence linked.</td></tr>"}</table>{evidence_form}</div>')
+
+        traces = self.manager.protocol_traces.list(incident_ref=key, limit=200)
+        trace_rows = []
+        for tr in traces:
+            view = f'<a href="/incident?ref={_q(key)}&trace={_q(tr["trace_key"])}">events</a>'
+            stop = ""
+            if can_write and tr["status"] == "ACTIVE":
+                stop = (f' <form method=post action="/incident-trace-stop" style="display:inline;margin:0">{self._csrf_field()}'
+                        f'<input type=hidden name=ref value="{html.escape(key)}"><input type=hidden name=trace value="{html.escape(tr["trace_key"])}">'
+                        f'<button class="ghost" style="padding:4px 9px">Stop</button></form>')
+            trace_rows.append(f'<tr><td><code>{html.escape(tr["trace_key"])}</code></td><td>{html.escape(tr["device"])}</td><td>{html.escape(tr["protocol"])}</td><td>{html.escape(tr["status"])}</td><td>{tr["event_count"]}/{tr["max_events"]}</td><td>{view}{stop}</td></tr>')
+        trace_form = ""
+        if can_write:
+            devices = ''.join(f'<option value="{html.escape(d["name"])}">{html.escape(d["name"])}</option>' for d in self.manager.inv.all())
+            trace_form = f'''<form method=post action="/incident-trace-start">{self._csrf_field()}<input type=hidden name=ref value="{html.escape(key)}">
+<div class=row><div><label>Device</label><select name=device {"" if devices else "disabled"}>{devices or "<option>No devices</option>"}</select></div>
+<div><label>Protocol</label><select name=protocol><option value=cli_ssh>CLI / SSH</option><option value=snmp>SNMP</option></select></div>
+<div><label>TTL seconds</label><input type=number min=30 max=3600 name=ttl value=900></div></div>
+<label>Reason</label><input name=reason maxlength=1000><button {"" if devices else "disabled"}>Start bounded trace</button></form>'''
+        trace_events = ""
+        selected_trace = (q.get("trace") or [""])[0].strip()
+        if selected_trace:
+            tr = self.manager.protocol_traces.get(selected_trace)
+            if tr and tr.get("incident_id") == incident["id"]:
+                events = self.manager.protocol_traces.events(selected_trace, 500)
+                trs = ''.join(
+                    f'<tr><td>{e.get("seq")}</td><td>{html.escape(_fmt_ts(e.get("ts")))}</td><td>{html.escape(e.get("event_type") or "")}</td>'
+                    f'<td>{html.escape(e.get("operation") or "")}</td><td>{html.escape(e.get("status") or "")}</td><td>{html.escape(str(e.get("duration_ms") if e.get("duration_ms") is not None else "—"))}</td>'
+                    f'<td>{int(e.get("tx_bytes") or 0)} / {int(e.get("rx_bytes") or 0)}</td></tr>' for e in events)
+                trace_events = (f'<div class="panel"><h3>Trace events · {html.escape(selected_trace)}</h3><table><tr><th>#</th><th>Time</th><th>Event</th><th>Operation</th><th>Status</th><th>ms</th><th>Tx/Rx</th></tr>'
+                                f'{trs or "<tr><td colspan=7 class=muted>No captured events.</td></tr>"}</table></div>')
+        traces_panel = (f'<div class="panel"><h2>Protocol traces · {len(traces)}</h2><p class=muted>Metadata-only capture. Raw SSH output, SNMP packets and credentials are never stored.</p>'
+                        f'<table><tr><th>Trace</th><th>Device</th><th>Protocol</th><th>Status</th><th>Events</th><th></th></tr>{"".join(trace_rows) or "<tr><td colspan=6 class=muted>No traces linked.</td></tr>"}</table>{trace_form}</div>{trace_events}')
+
+        exports = self.manager.case_exports.list_exports(key, 200)
+        export_rows = []
+        for item in exports:
+            signature = html.escape(item.get("signature_state") or "UNSIGNED")
+            avail = "available" if item.get("available") else "missing"
+            actions = ""
+            if can_write and item.get("available"):
+                actions = (f'<a href="/incident-export-download?incident={_q(key)}&export={_q(item["export_key"])}">Download</a> '
+                           f'<form method=post action="/incident-export-verify" style="display:inline;margin:0">{self._csrf_field()}'
+                           f'<input type=hidden name=ref value="{html.escape(key)}"><input type=hidden name=export value="{html.escape(item["export_key"])}">'
+                           f'<button class="ghost" style="padding:4px 9px">Verify</button></form>')
+            export_rows.append(f'<tr><td><code>{html.escape(item["export_key"])}</code></td><td>{html.escape(_fmt_ts(item.get("created_ts")))}</td><td>{self._human_bytes(item.get("size"))}</td><td>{signature}</td><td>{avail}</td><td>{actions}</td></tr>')
+        export_form = ""
+        if can_write:
+            checks = ''.join(f'<label style="font-weight:400"><input style="width:auto;margin-right:6px" type=checkbox name=bundle value="{html.escape(b["bundle_name"])}">{html.escape(b["bundle_name"])}</label>' for b in linked)
+            export_form = f'''<form method=post action="/incident-export-create">{self._csrf_field()}<input type=hidden name=ref value="{html.escape(key)}">
+<label>Reason</label><input name=reason maxlength=1000>
+<div><label>Diagnostic bundles <span class=muted>(leave all unchecked to include all linked bundles)</span></label>{checks or '<span class=muted>No bundles linked.</span>'}</div>
+<label style="font-weight:400;margin-top:10px"><input style="width:auto;margin-right:6px" type=checkbox name=require_signature value=1>Require evidence signature</label>
+<button>Create support-case export</button></form>'''
+        exports_panel = (f'<div class="panel"><h2>Support-case exports · {len(exports)}</h2><table><tr><th>Export</th><th>Created</th><th>Size</th><th>Signature</th><th>State</th><th></th></tr>'
+                         f'{"".join(export_rows) or "<tr><td colspan=6 class=muted>No case exports.</td></tr>"}</table>{export_form}</div>')
+
+        timeline = self.manager.incidents.timeline(key, 500)
+        timeline_rows = []
+        for item in timeline:
+            available = item.get("available", True)
+            timeline_rows.append(
+                f'<tr><td>{html.escape(_fmt_ts(item.get("ts")))}</td><td>{html.escape(item.get("source_type") or item.get("kind") or "")}</td>'
+                f'<td>{html.escape(item.get("actor") or "")}</td><td>{html.escape(item.get("summary") or "")}</td>'
+                f'<td><span class="badge {"b-ok" if available else "b-bad"}">{"available" if available else "missing"}</span></td></tr>')
+        timeline_panel = (f'<div class="panel"><h2>Incident timeline · {len(timeline)}</h2><table><tr><th>Time</th><th>Source</th><th>Actor</th><th>Summary</th><th>Evidence</th></tr>'
+                          f'{"".join(timeline_rows) or "<tr><td colspan=5 class=muted>No timeline entries.</td></tr>"}</table></div>')
+
+        notice = self._incident_notice(q)
+        return self._send(self._page("Incident", summary + controls + timeline_panel + evidence_panel + traces_panel + bundles_panel + exports_panel, sess, flash=notice))
+
+    def _incident_error(self, sess, ref, exc, status=400):
+        link = f'/incident?ref={_q(ref)}' if ref else "/incidents"
+        body = f'<div class="err">{html.escape(str(exc))}</div><p><a href="{link}">Return to incident console</a></p>'
+        return self._send(self._page("Incident operation failed", body, sess), status)
+
+    def _incident_export_download(self, q, sess):
+        if not self._incident_write_allowed(sess):
+            return self._send("forbidden", 403, "text/plain")
+        ref = (q.get("incident") or [""])[0].strip()
+        export_key = (q.get("export") or [""])[0].strip()
+        try:
+            item, path = self.manager.case_exports.record_download(ref, export_key, sess["username"])
+        except ValueError as exc:
+            return self._incident_error(sess, ref, exc, 409 if "integrity" in str(exc) or "signature" in str(exc) else 404)
+        return self._send_file(path, "application/gzip", [("Content-Disposition", f'attachment; filename="{item["filename"]}"')])
+
+    def _do_incident_create(self, form, sess):
+        if not self._incident_write_allowed(sess):
+            return self._send("forbidden", 403, "text/plain")
+        try:
+            item = self.manager.incidents.create(
+                (form.get("title") or [""])[0],
+                (form.get("description") or [""])[0],
+                (form.get("severity") or ["MEDIUM"])[0],
+                sess["username"], (form.get("tags") or [""])[0])
+        except ValueError as exc:
+            return self._incident_error(sess, "", exc)
+        return self._redirect(f'/incident?ref={_q(item["incident_key"])}&notice=created')
+
+    def _do_incident_update(self, form, sess):
+        ref = (form.get("ref") or [""])[0]
+        if not self._incident_write_allowed(sess):
+            return self._send("forbidden", 403, "text/plain")
+        try:
+            self.manager.incidents.update(
+                ref, sess["username"], title=(form.get("title") or [""])[0],
+                description=(form.get("description") or [""])[0],
+                severity=(form.get("severity") or ["MEDIUM"])[0],
+                tags=(form.get("tags") or [""])[0])
+        except ValueError as exc:
+            return self._incident_error(sess, ref, exc)
+        return self._redirect(f'/incident?ref={_q(ref)}&notice=updated')
+
+    def _do_incident_status(self, form, sess):
+        ref = (form.get("ref") or [""])[0]
+        if not self._incident_write_allowed(sess):
+            return self._send("forbidden", 403, "text/plain")
+        try:
+            self.manager.incidents.set_status(ref, (form.get("status") or [""])[0], sess["username"], (form.get("note") or [""])[0])
+        except ValueError as exc:
+            return self._incident_error(sess, ref, exc)
+        return self._redirect(f'/incident?ref={_q(ref)}&notice=status')
+
+    def _do_incident_bundle_link(self, form, sess, unlink=False):
+        ref = (form.get("ref") or [""])[0]
+        bundle = (form.get("bundle") or [""])[0]
+        if not self._incident_write_allowed(sess):
+            return self._send("forbidden", 403, "text/plain")
+        try:
+            if unlink:
+                self.manager.incidents.unlink_bundle(ref, bundle, sess["username"])
+            else:
+                self.manager.incidents.link_bundle(ref, bundle, sess["username"])
+        except ValueError as exc:
+            return self._incident_error(sess, ref, exc)
+        return self._redirect(f'/incident?ref={_q(ref)}&notice={"bundle-unlinked" if unlink else "bundle-linked"}')
+
+    def _do_incident_evidence_link(self, form, sess):
+        ref = (form.get("ref") or [""])[0]
+        kind = (form.get("type") or [""])[0]
+        source = (form.get("source_ref") or [""])[0]
+        note = (form.get("note") or [""])[0]
+        if not self._incident_write_allowed(sess):
+            return self._send("forbidden", 403, "text/plain")
+        try:
+            if kind == "drift":
+                self.manager.incidents.link_drift(ref, source, sess["username"], note)
+            else:
+                self.manager.incidents.link_evidence(ref, kind, source, sess["username"], note)
+        except ValueError as exc:
+            return self._incident_error(sess, ref, exc)
+        return self._redirect(f'/incident?ref={_q(ref)}&notice=evidence-linked')
+
+    def _do_incident_evidence_unlink(self, form, sess):
+        ref = (form.get("ref") or [""])[0]
+        if not self._incident_write_allowed(sess):
+            return self._send("forbidden", 403, "text/plain")
+        try:
+            self.manager.incidents.unlink_evidence(ref, int((form.get("link_id") or ["0"])[0]), sess["username"])
+        except (ValueError, TypeError) as exc:
+            return self._incident_error(sess, ref, exc)
+        return self._redirect(f'/incident?ref={_q(ref)}&notice=evidence-unlinked')
+
+    def _do_incident_trace_start(self, form, sess):
+        ref = (form.get("ref") or [""])[0]
+        if not self._incident_write_allowed(sess):
+            return self._send("forbidden", 403, "text/plain")
+        try:
+            self.manager.protocol_traces.start(
+                (form.get("device") or [""])[0], (form.get("protocol") or [""])[0],
+                actor=sess["username"], incident_ref=ref,
+                ttl=int((form.get("ttl") or ["900"])[0]), reason=(form.get("reason") or [""])[0])
+        except (ValueError, TypeError) as exc:
+            return self._incident_error(sess, ref, exc)
+        return self._redirect(f'/incident?ref={_q(ref)}&notice=trace-started')
+
+    def _do_incident_trace_stop(self, form, sess):
+        ref = (form.get("ref") or [""])[0]
+        trace_ref = (form.get("trace") or [""])[0]
+        if not self._incident_write_allowed(sess):
+            return self._send("forbidden", 403, "text/plain")
+        try:
+            incident = self.manager.incidents.get(ref)
+            trace = self.manager.protocol_traces.get(trace_ref)
+            if not incident or not trace or trace.get("incident_id") != incident["id"]:
+                raise ValueError("protocol trace is not linked to this incident")
+            self.manager.protocol_traces.stop(trace_ref, sess["username"])
+        except ValueError as exc:
+            return self._incident_error(sess, ref, exc)
+        return self._redirect(f'/incident?ref={_q(ref)}&notice=trace-stopped')
+
+    def _do_incident_export_create(self, form, sess):
+        ref = (form.get("ref") or [""])[0]
+        if not self._incident_write_allowed(sess):
+            return self._send("forbidden", 403, "text/plain")
+        bundles = form.get("bundle") or []
+        try:
+            self.manager.case_exports.export_case(
+                ref, sess["username"], bundle_names=bundles or None,
+                reason=(form.get("reason") or [""])[0],
+                require_signature=(form.get("require_signature") or [""])[0] == "1")
+        except ValueError as exc:
+            return self._incident_error(sess, ref, exc)
+        return self._redirect(f'/incident?ref={_q(ref)}&notice=export-created')
+
+    def _do_incident_export_verify(self, form, sess):
+        ref = (form.get("ref") or [""])[0]
+        export_key = (form.get("export") or [""])[0]
+        if not self._incident_write_allowed(sess):
+            return self._send("forbidden", 403, "text/plain")
+        try:
+            self.manager.case_exports.verify_signature(ref, export_key, actor=sess["username"])
+        except ValueError as exc:
+            return self._incident_error(sess, ref, exc, 409)
+        return self._redirect(f'/incident?ref={_q(ref)}&notice=export-verified')
+
     def _route_get(self):
         u = urllib.parse.urlparse(self.path)
         if u.path.startswith("/api/v1/") and self._handle_api_get(u.path):
@@ -773,7 +802,16 @@ class Console(http.server.BaseHTTPRequestHandler):
             "/compliance": lambda s: self._compliance_page(q, s),
             "/alerts": lambda s: self._alerts_page(q, s),
             "/snmp": lambda s: self._snmp_page(q, s),
-            "/topology": lambda s: self._topology_page(s),
+            "/protocols": lambda s: self._protocols_page(q, s),
+            "/topology": lambda s: self._topology_page(q, s),
+            "/endpoints": lambda s: self._endpoints_page(q, s),
+            "/events": lambda s: self._events_page(q, s),
+            "/op-alerts": lambda s: self._op_alerts_page(q, s),
+            "/incidents": lambda s: self._incidents_page(q, s),
+            "/incident": lambda s: self._incident_page(q, s),
+            "/incident-export-download": lambda s: self._incident_export_download(q, s),
+            "/diagnostics": lambda s: self._diagnostics_page(s),
+            "/debug-download": lambda s: self._debug_download(q, s),
             "/snmp-series": lambda s: self._snmp_series(q, s),
             "/snmp-history": lambda s: self._snmp_history(q, s),
             "/secret-info": lambda s: self._secret_info(q, s),
@@ -795,6 +833,17 @@ class Console(http.server.BaseHTTPRequestHandler):
 
     def _route_post(self):
         u = urllib.parse.urlparse(self.path)
+        if u.path.startswith("/api/v1/"):
+            form = self._read_post()
+            if self._handle_api_post(u.path, form):
+                return
+        if u.path == "/debug-create":
+            _, sess = self._session()
+            if not sess or not self._check_csrf(self._read_post()):
+                return self._send("forbidden", 403, "text/plain")
+            out = DebugBundle(self.manager).collect()
+            self.manager.db.audit(sess["username"], "debug_bundle_create", str(out), "diagnostics")
+            return self._redirect("/diagnostics")
         if u.path == "/mib-upload":
             return self._do_mib_upload_raw()
         form = self._read_post()
@@ -811,7 +860,20 @@ class Console(http.server.BaseHTTPRequestHandler):
             "/unlock-vault": lambda: self._do_unlock(form, sess),
             "/collect": lambda: self._do_collect(form, sess),
             "/snmp-poll": lambda: self._do_snmp(form, sess),
+            "/protocol-save": lambda: self._do_protocol_save(form, sess),
+            "/protocol-collect": lambda: self._do_protocol_collect(form, sess),
             "/topology-discover": lambda: self._do_topology_discover(form, sess),
+            "/incident-create": lambda: self._do_incident_create(form, sess),
+            "/incident-update": lambda: self._do_incident_update(form, sess),
+            "/incident-status": lambda: self._do_incident_status(form, sess),
+            "/incident-bundle-link": lambda: self._do_incident_bundle_link(form, sess),
+            "/incident-bundle-unlink": lambda: self._do_incident_bundle_link(form, sess, True),
+            "/incident-evidence-link": lambda: self._do_incident_evidence_link(form, sess),
+            "/incident-evidence-unlink": lambda: self._do_incident_evidence_unlink(form, sess),
+            "/incident-trace-start": lambda: self._do_incident_trace_start(form, sess),
+            "/incident-trace-stop": lambda: self._do_incident_trace_stop(form, sess),
+            "/incident-export-create": lambda: self._do_incident_export_create(form, sess),
+            "/incident-export-verify": lambda: self._do_incident_export_verify(form, sess),
             "/device-save": lambda: self._do_device_save(form, sess),
             "/device-delete": lambda: self._do_device_delete(form, sess),
             "/device-run": lambda: self._do_device_run(form, sess),
@@ -830,6 +892,11 @@ class Console(http.server.BaseHTTPRequestHandler):
             "/compliance-run": lambda: self._do_compliance_run(form, sess),
             "/alert-rule-add": lambda: self._do_alert_rule_add(form, sess),
             "/alert-rule-delete": lambda: self._do_alert_rule_delete(form, sess),
+            "/op-alert-action": lambda: self._do_op_alert_action(form, sess),
+            "/maintenance-add": lambda: self._do_maintenance_add(form, sess),
+            "/maintenance-cancel": lambda: self._do_maintenance_cancel(form, sess),
+            "/report-schedule-add": lambda: self._do_report_schedule_add(form, sess),
+            "/report-schedule-action": lambda: self._do_report_schedule_action(form, sess),
             "/smtp-test": lambda: self._do_smtp_test(form, sess),
             "/oauth-test": lambda: self._do_oauth_test(form, sess),
             "/db-test": lambda: self._do_db_test(form, sess),
@@ -1398,7 +1465,7 @@ an optional expected status code. HTTPS URLs also get a TLS certificate check
   function has(v){{ for(var i=0;i<boxes.length;i++){{ if(boxes[i].value===v&&boxes[i].checked) return true; }} return false; }}
   function toggle(el,on,display){{
     if(!el) return;
-    el.style.display=on?(display||'block'):'none';
+    el.hidden=!on;
     var controls=el.querySelectorAll('input,select,textarea,button');
     for(var i=0;i<controls.length;i++) controls[i].disabled=!on;
   }}
@@ -1427,17 +1494,17 @@ an optional expected status code. HTTPS URLs also get a TLS certificate check
   function load(name,kind){{
     if(!name){{ summ[kind]=''; render(); return; }}
     fetch('/secret-info?name='+encodeURIComponent(name)).then(function(r){{return r.json();}}).then(function(j){{
-      if(!j.exists){{ summ[kind]='<span style="color:var(--red)">no vault secret named \''+name+'\'</span>'; render(); return; }}
+      if(!j.exists){{ summ[kind]="no vault secret named '"+name+"'"; render(); return; }}
       var f=j.fields||{{}}, s=j.set||{{}};
       if(kind==='ssh'){{
         fill('ssh_username',f.username); mark('password',s.password); mark('enable_password',s.enable_password);
         var b=[]; if(f.username) b.push('user '+f.username); if(s.password) b.push('password set'); if(s.key_path) b.push('SSH key'); if(s.enable_password) b.push('enable set');
-        summ.ssh='<b>SSH \''+name+'\':</b> '+(b.join(', ')||'no fields');
+        summ.ssh="SSH '"+name+"': "+(b.join(', ')||'no fields');
       }} else {{
         fill('snmp_user',f.snmp_user); fill('snmp_auth_proto',f.snmp_auth_proto); fill('snmp_priv_proto',f.snmp_priv_proto); fill('snmp_port',f.snmp_port);
         mark('community',s.community); mark('snmp_auth_pass',s.snmp_auth_pass); mark('snmp_priv_pass',s.snmp_priv_pass);
         var b2=[]; if(f.snmp_user) b2.push('user '+f.snmp_user); if(f.snmp_auth_proto) b2.push(f.snmp_auth_proto.toUpperCase()+(f.snmp_priv_proto?('/'+f.snmp_priv_proto.toUpperCase()):'')); if(s.community) b2.push('community set'); if(s.snmp_auth_pass) b2.push('auth set'); if(s.snmp_priv_pass) b2.push('priv set');
-        summ.snmp='<b>SNMP \''+name+'\':</b> '+(b2.join(', ')||'no fields');
+        summ.snmp="SNMP '"+name+"': "+(b2.join(', ')||'no fields');
       }}
       render();
     }}).catch(function(){{}});
@@ -1462,7 +1529,7 @@ an optional expected status code. HTTPS URLs also get a TLS certificate check
         if editing:
             del_panel = (f'<div class="panel"><h2>Danger zone</h2>'
                          f'<form method=post action="/device-delete" '
-                         f'onsubmit="return confirm(\'Delete {html.escape(name)} and its inventory entry? '
+                         f'data-confirm="Delete this device and its inventory entry? '
                          f'Archived configs are kept on disk.\')">'
                          f'{self._csrf_field()}<input type=hidden name=name value="{html.escape(name)}">'
                          f'<button class=danger>Delete device</button></form></div>')
@@ -1619,7 +1686,7 @@ an optional expected status code. HTTPS URLs also get a TLS certificate check
                      f'<td class=muted>{html.escape(fields)}</td>'
                      f'<td class=right><a href="/vault?edit={_q(nm)}">edit</a> \u00b7 '
                      f'<form method=post action="/vault-secret-delete" style="display:inline" '
-                     f'onsubmit="return confirm(\'Delete secret {html.escape(nm)}?\')">'
+                     f'data-confirm="Delete this vault secret?">'
                      f'{self._csrf_field()}<input type=hidden name=name value="{html.escape(nm)}">'
                      f'<button class=ghost style="padding:2px 8px">delete</button></form></td></tr>')
         listing = (f'<div class="panel"><h2>Stored secrets</h2>'
@@ -1763,7 +1830,8 @@ an optional expected status code. HTTPS URLs also get a TLS certificate check
 <p class="muted">Defaults for device polling and live interface history.</p>
 {form}<div class="row">{field("snmp_timeout","SNMP timeout (s)")}{field("snmp_port","Default SNMP port")}</div>
 <div class="row">{field("snmp_poll_interval","Background poll interval (s)","0 = off; restart the console after changing this value")}
-{field("snmp_history_seconds","Live-graph history window (s)")}</div>
+{field("snmp_history_seconds","Live-graph history window (s)")}
+{field("network_intelligence_max_age_seconds","Endpoint evidence max age (s)","older FDB/neighbor observations are marked stale")}</div>
 <button>Save SNMP settings</button></form></div>"""
         elif section == "netflow":
             content = f"""<div class="panel"><h2>NetFlow</h2>
@@ -1781,7 +1849,19 @@ an optional expected status code. HTTPS URLs also get a TLS certificate check
 <h3>Event-driven collection &amp; digest</h3>
 <div class="row"><div><label>Syslog change receiver</label><label style="color:var(--txt);font-weight:400"><input type=checkbox name=syslog_enabled value=1 style="width:auto" {"checked" if s.get("syslog_enabled") else ""}> enabled (restart required)</label></div>
 {field("syslog_port","Syslog UDP port","default 5514; forward udp/514 if required")}{field("syslog_queue_size","Syslog queue size")}{field("syslog_debounce_seconds","Change debounce (s)")}</div>
+<h3>SNMP traps &amp; operational events</h3>
+<div class="row"><div><label>SNMP trap receiver</label><label style="color:var(--txt);font-weight:400"><input type=checkbox name=snmp_trap_enabled value=1 style="width:auto" {"checked" if s.get("snmp_trap_enabled") else ""}> enabled (restart required)</label></div>
+{field("snmp_trap_port","Trap UDP port","default 5162; forward udp/162 if required")}{field("snmp_trap_queue_size","Trap queue size")}{field("operational_event_dedup_seconds","Event dedup window (s)")}</div>
+<div class="row">{field("operational_suppression_ttl_seconds","Dependency suppression TTL (s)")}{field("snmp_trap_repoll_debounce_seconds","Targeted re-poll debounce (s)")}<div><label>Targeted re-poll</label><label style="color:var(--txt);font-weight:400"><input type=checkbox name=snmp_trap_targeted_repoll value=1 style="width:auto" {"checked" if s.get("snmp_trap_targeted_repoll", True) else ""}> poll matched managed device after accepted trap</label></div></div>
 <div class="row">{field("digest_interval","Compliance/drift digest interval (s)","0 = off; 86400 = daily; uses configured email")}</div>
+<h3>NI-4 alert/report lifecycle</h3>
+<div class="row">{field("operational_alert_min_severity","Alert minimum severity","INFO / NOTICE / WARNING / MINOR / MAJOR / CRITICAL")}{field("operational_lifecycle_interval","Lifecycle scheduler interval (s)","0 = off; processes report schedules and notification retries")}</div>
+<div class="row">{field("operational_notification_max_attempts","Notification max attempts")}{field("operational_notification_backoff_base_seconds","Retry base seconds")}{field("operational_notification_backoff_max_seconds","Retry max seconds")}</div>
+<label style="color:var(--txt);font-weight:400"><input type=checkbox name=operational_notifications_enabled value=1 style="width:auto" {"checked" if s.get("operational_notifications_enabled") else ""}> enable NI-4 alert/report SMTP notifications</label>
+<h3>Diagnostic retention</h3>
+<p class="muted">Maintenance is opt-in. Case-export metadata is preserved when archives expire; incident-linked traces are never auto-pruned.</p>
+<div class="row">{field("diagnostic_maintenance_interval","Maintenance interval (s)","0 = off; minimum 60 when enabled")}{field("debug_bundle_keep","Support bundles to keep","newest N; minimum 1")}</div>
+<div class="row">{field("case_export_retention_days","Case archive retention (days)","0 = retain indefinitely; metadata remains")}{field("protocol_trace_retention_days","Unlinked trace retention (days)","0 = retain; incident-linked traces excluded")}</div>
 <button>Save monitoring settings</button></form></div>"""
         elif section == "monitoring":
             s["syslog_enabled"] = bool(form.get("syslog_enabled"))
@@ -1829,17 +1909,24 @@ an optional expected status code. HTTPS URLs also get a TLS certificate check
                 f'<option value="{v}"{" selected" if s.get("pg_sslmode")==v else ""}>{v}</option>'
                 for v in ("disable", "allow", "prefer", "require", "verify-ca", "verify-full"))
             content = f"""<div class="panel"><h2>Database</h2>
-<p class="muted">Optional PostgreSQL store for long-term interface throughput
-history (the SNMP page's 24h graph). When off, live graphs still work from the
-built-in SQLite store. Saving a new configuration validates the connection and
-creates the <code>{_ifh._TABLE}</code> table if it does not yet exist.</p>
-{form}<div class="row"><div><label>Interface history store</label>
-<label style="color:var(--txt);font-weight:400"><input type=checkbox name=if_history_enabled value=1 style="width:auto" {"checked" if s.get("if_history_enabled") else ""}> enabled (requires the psycopg driver on the server)</label></div></div>
+<p class="muted">PH-2 supports SQLite for single-node development and PostgreSQL as the
+production core database. Backend changes take effect after restart; PostgreSQL selection fails
+closed if the driver, server, or core schema cannot be reached. The core password is supplied via
+<code>NETCONFIG_DB_PASSWORD_FILE</code> or the systemd credential
+<code>postgres-core-password</code>, never settings.json. These PostgreSQL connection fields may
+also be used by the optional long-term interface-history store.</p>
+{form}<div class="row"><div><label>Core database backend</label>
+<select name=core_db_backend><option value="sqlite"{" selected" if s.get("core_db_backend","sqlite")=="sqlite" else ""}>SQLite — single node</option><option value="postgres"{" selected" if s.get("core_db_backend")=="postgres" else ""}>PostgreSQL — distributed capable</option></select>
+<div class=muted>Backend changes require a process restart.</div></div>
+<div><label>Interface history store</label>
+<label style="color:var(--txt);font-weight:400"><input type=checkbox name=if_history_enabled value=1 style="width:auto" {"checked" if s.get("if_history_enabled") else ""}> enabled</label></div></div>
+<div class="row">{field("core_db_application_name","PostgreSQL application name","netconfig")}
+{field("cluster_node_id","Cluster node ID","blank = hostname:pid")}</div>
 <div class="row">{field("pg_host","Host","hostname or IP of the PostgreSQL server")}
 {field("pg_port","Port","default 5432")}{field("pg_dbname","Database name")}</div>
 <div class="row">{field("pg_user","Username")}
-<div><label>Password{" ✓ set" if pg_pw_set else ""}</label>
-<input type=password name=pg_password placeholder="kept in vault; blank keeps current"></div>
+<div><label>Interface-history password{" ✓ set" if pg_pw_set else ""}</label>
+<input type=password name=pg_password placeholder="history store only; kept in vault"></div>
 <div><label>SSL mode</label><select name=pg_sslmode>{sslmodes}</select>
 <div class=muted>require or stronger for TLS to the DB</div></div></div>
 <div class="row">{field("if_history_hours","History retention (hours)","also the default graph window; e.g. 24")}
@@ -1946,6 +2033,7 @@ The client secret is stored in the vault.</p>
                 s[k] = g(k)
         for k in ("web_port", "keep_versions", "connect_timeout", "command_timeout",
                   "bulk_workers", "snmp_port", "snmp_poll_interval", "snmp_history_seconds",
+                  "network_intelligence_max_age_seconds",
                   "backup_keep", "netflow_port", "netflow_max_flows",
                   "monitor_poll_interval", "monitor_history_days", "smtp_port"):
             if g(k):
@@ -2001,7 +2089,8 @@ The client secret is stored in the vault.</p>
             "general": ("web_bind", "host_key_policy"),
             "email": ("smtp_host", "smtp_user", "smtp_from", "smtp_to",
                       "o365_tenant", "o365_client_id", "o365_authority", "o365_scope"),
-            "db": ("pg_host", "pg_dbname", "pg_user", "pg_sslmode"),
+            "db": ("core_db_backend", "core_db_application_name", "cluster_node_id",
+                   "pg_host", "pg_dbname", "pg_user", "pg_sslmode"),
         }.get(section, ())
         for key in string_keys:
             value = g(key)
@@ -2011,9 +2100,9 @@ The client secret is stored in the vault.</p>
         int_keys = {
             "general": ("web_port", "keep_versions", "backup_keep", "connect_timeout",
                         "command_timeout", "bulk_workers"),
-            "snmp": ("snmp_port", "snmp_poll_interval", "snmp_history_seconds"),
+            "snmp": ("snmp_port", "snmp_poll_interval", "snmp_history_seconds", "network_intelligence_max_age_seconds"),
             "netflow": ("netflow_port", "netflow_max_flows"),
-            "monitoring": ("monitor_poll_interval", "monitor_history_days", "syslog_port", "syslog_queue_size", "syslog_debounce_seconds", "digest_interval"),
+            "monitoring": ("monitor_poll_interval", "monitor_history_days", "syslog_port", "syslog_queue_size", "syslog_debounce_seconds", "snmp_trap_port", "snmp_trap_queue_size", "snmp_trap_repoll_debounce_seconds", "operational_event_dedup_seconds", "operational_suppression_ttl_seconds", "operational_lifecycle_interval", "operational_notification_max_attempts", "operational_notification_backoff_base_seconds", "operational_notification_backoff_max_seconds", "digest_interval", "diagnostic_maintenance_interval", "debug_bundle_keep", "case_export_retention_days", "protocol_trace_retention_days"),
             "email": ("smtp_port",),
             "db": ("pg_port", "if_history_hours", "if_history_bucket_seconds"),
         }.get(section, ())
@@ -2034,6 +2123,13 @@ The client secret is stored in the vault.</p>
             s["scrub_sessions"] = bool(form.get("scrub_sessions"))
         elif section == "netflow":
             s["netflow_enabled"] = bool(form.get("netflow_enabled"))
+        elif section == "monitoring":
+            s["syslog_enabled"] = bool(form.get("syslog_enabled"))
+            s["snmp_trap_enabled"] = bool(form.get("snmp_trap_enabled"))
+            s["snmp_trap_targeted_repoll"] = bool(form.get("snmp_trap_targeted_repoll"))
+            s["operational_notifications_enabled"] = bool(form.get("operational_notifications_enabled"))
+            sev=g("operational_alert_min_severity").upper()
+            if sev in {"DEBUG","INFO","NOTICE","WARNING","MINOR","MAJOR","ERROR","CRITICAL"}: s["operational_alert_min_severity"] = sev
         elif section == "email":
             s["smtp_enabled"] = bool(form.get("smtp_enabled"))
             s["smtp_starttls"] = bool(form.get("smtp_starttls"))
@@ -2156,6 +2252,34 @@ The client secret is stored in the vault.</p>
                 f'<input name=walk value="{html.escape(root)}" placeholder="root OID or name, e.g. 1.3.6.1.2.1.1">'
                 f'<button class=ghost>Walk</button></form>'
                 f'<p class="muted">{note}</p>{table}</div>')
+
+    def _protocols_page(self, q, sess):
+        from .web_ui import render_protocols_page
+        flash = "Protocol operation completed." if (q.get("notice") or [""])[0] else None
+        return self._send(self._page("Structured Protocols", render_protocols_page(self, sess), sess, flash))
+
+    def _do_protocol_save(self, form, sess):
+        if not _can(sess["role"], "manage_devices"):
+            return self._send("forbidden", 403, "text/plain")
+        try:
+            self.manager.protocol_profiles.set(
+                (form.get("device") or [""])[0], (form.get("protocol") or [""])[0],
+                port=int((form.get("port") or [0])[0] or 0), path=(form.get("path") or [""])[0],
+                secret_ref=(form.get("secret_ref") or [""])[0], ca_file=(form.get("ca_file") or [""])[0],
+                tls_verify=(form.get("tls_verify") or [""])[0] == "1",
+                allow_cli_fallback=(form.get("allow_cli_fallback") or [""])[0] == "1")
+        except (ValueError, TypeError) as exc:
+            return self._send(self._page("Structured Protocols", f'<div class=err>{html.escape(str(exc))}</div>', sess), 400)
+        return self._redirect("/protocols?notice=saved")
+
+    def _do_protocol_collect(self, form, sess):
+        if not _can(sess["role"], "run_commands"):
+            return self._send("forbidden", 403, "text/plain")
+        device = (form.get("device") or [""])[0]
+        result = self.manager.protocol_collect(device)
+        if not result.ok:
+            return self._send(self._page("Structured Protocols", f'<div class=err>{html.escape(result.message)}</div>', sess), 502)
+        return self._redirect("/protocols?notice=collected")
 
     def _snmp_page(self, q, sess):
         m = self.manager
@@ -2334,7 +2458,8 @@ The client secret is stored in the vault.</p>
         seed = [{"ifindex": k, "descr": v["descr"], "points": v["points"][-400:]}
                 for k, v in sorted(series.items(), key=lambda kv: _idx(kv[0]))]
         seed_json = json.dumps(seed).replace("<", "\\u003c")
-        js = _GRAPH_JS.replace("__DEV__", json.dumps(device)).replace("__IV__", str(refresh))
+        dev_json = json.dumps(device).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
+        js = _GRAPH_JS.replace("__DEV__", dev_json).replace("__IV__", str(refresh))
         hist_hours = int(self.manager.settings.get("if_history_hours", 24) or 24)
         mode_ctrl = ""
         if self.manager._history_backend() is not None:
@@ -2479,7 +2604,7 @@ The client secret is stored in the vault.</p>
             dele = ""
             if _can(sess["role"], "manage_devices"):
                 dele = (f'<form method=post action="/mib-delete" style="display:inline" '
-                        f'onsubmit="return confirm(\'Delete {html.escape(fn)}?\')">'
+                        f'data-confirm="Delete this MIB file?">'
                         f'{self._csrf_field()}<input type=hidden name=name value="{html.escape(fn)}">'
                         f'<button class=ghost style="padding:2px 8px">delete</button></form>')
             rows += (f'<tr><td><b>{html.escape(fn)}</b></td>'
@@ -3052,7 +3177,7 @@ The client secret is stored in the vault.</p>
             delbtn = ""
             if can_manage:
                 delbtn = (f'<form method=post action="/alert-rule-delete" style="display:inline" '
-                          f'onsubmit="return confirm(\'Delete rule?\')">{self._csrf_field()}'
+                          f'data-confirm="Delete this alert rule?">{self._csrf_field()}'
                           f'<input type=hidden name=id value="{r["id"]}">'
                           f'<button class=ghost style="padding:2px 8px">delete</button></form>')
             rulerows += (f'<tr><td>{html.escape(r["name"])}</td>'
@@ -3388,10 +3513,12 @@ The client secret is stored in the vault.</p>
             return self._redirect(f"/snmp?device={_q(name)}")
         return self._redirect(f"/device?name={_q(name)}")
 
-    def _topology_page(self, sess):
+    def _topology_page(self, q, sess):
         rows = self.manager.db.get_neighbors()
+        identities = self.manager.topology_identities()
         devices = sorted({r["device"] for r in rows} | {r.get("neighbor_device", "") for r in rows if r.get("neighbor_device")})
-        unmanaged = [r for r in rows if not r.get("managed_neighbor")]
+        unmanaged = [r for r in rows if r.get("resolution_state") == "UNMANAGED" or (not r.get("managed_neighbor") and not r.get("resolution_state"))]
+        ambiguous = [r for r in rows if r.get("resolution_state") == "AMBIGUOUS"]
         # deterministic circular layout; no client-side dependency.
         import math
         nodes = {}
@@ -3410,18 +3537,93 @@ The client secret is stored in the vault.</p>
         svg.append('</svg>')
         table = ''
         for r in rows:
-            state = '<span class="badge b-ok">managed</span>' if r.get("managed_neighbor") else '<span class="badge b-bad">UNMANAGED</span>'
+            if r.get("managed_neighbor"):
+                state = '<span class="badge b-ok">resolved</span>'
+            elif r.get("resolution_state") == "AMBIGUOUS":
+                state = '<span class="badge b-bad">AMBIGUOUS</span>'
+            else:
+                state = '<span class="badge b-bad">UNMANAGED</span>'
             table += (f'<tr><td>{html.escape(r["device"])}</td><td>{html.escape(r.get("local_port", ""))}</td>'
                       f'<td>{html.escape(r.get("sys_name") or r.get("chassis_id") or "?")}</td>'
-                      f'<td>{html.escape(r.get("port_id", ""))}</td><td>{html.escape(r.get("protocol", ""))}</td><td>{state}</td></tr>')
+                      f'<td>{html.escape(r.get("port_id", ""))}</td><td>{html.escape(r.get("protocol", ""))}</td><td>{state}</td>'
+                      f'<td class="muted">{html.escape(r.get("resolution_evidence", ""))}</td></tr>')
+        identity_rows = ''
+        for r in identities:
+            chassis = r.get("chassis_serial") or r.get("chassis_mac") or r.get("chassis_id") or ""
+            identity_rows += (f'<tr><td>{html.escape(r.get("device", ""))}</td><td>{html.escape(r.get("sys_name", ""))}</td>'
+                              f'<td>{html.escape(chassis)}</td><td>{html.escape(r.get("chassis_model", ""))}</td>'
+                              f'<td>{html.escape(r.get("sys_cap_enabled", ""))}</td><td>{len(r.get("interfaces") or [])}</td></tr>')
+        root = (q.get("impact_device") or [""])[0].strip()
+        root_port = (q.get("impact_port") or [""])[0].strip()
+        impact_html = '<p class="muted">Choose a managed root device to inspect observed downstream L2 impact.</p>'
+        if root:
+            try:
+                impact = self.manager.downstream_impact(root, root_port or None)
+                items = ''.join(f'<li>depth {int(x["depth"])} — {html.escape(x["device"])} via {html.escape(x["via"])}</li>' for x in impact["devices"])
+                impact_html = (f'<p><b>{impact["device_count"]}</b> downstream managed device(s), '
+                               f'<b>{impact["edge_count"]}</b> observed edge(s).</p><ul>{items or "<li>None</li>"}</ul>'
+                               f'<p class="muted">Scope: observed managed L2 adjacency only; this is not a routing-dependency claim.</p>')
+            except ValueError as exc:
+                impact_html = f'<div class="err">{html.escape(str(exc))}</div>'
+        impact_opts = ['<option value="">Select root…</option>']
+        for d in self.manager.inv.all():
+            name = d.get("name", "")
+            sel = " selected" if name == root else ""
+            impact_opts.append(f'<option value="{html.escape(name)}"{sel}>{html.escape(name)}</option>')
         action = ''
         if _can(sess["role"], "collect"):
             action = f'<form method=post action="/topology-discover">{self._csrf_field()}<button>Discover now</button></form>'
         inner = (f'<div class="panel"><div class="row"><div><b>{len(rows)}</b> neighbour observations · '
-                 f'<b>{len(unmanaged)}</b> unmanaged</div><div>{action}</div></div>{"".join(svg)}</div>'
-                 f'<div class="panel"><table><tr><th>Device</th><th>Local port</th><th>Neighbour</th><th>Remote port</th><th>Protocol</th><th>State</th></tr>'
-                 f'{table or "<tr><td colspan=6 class=muted>No LLDP/CDP neighbours collected yet.</td></tr>"}</table></div>')
+                 f'<b>{len(unmanaged)}</b> unmanaged · <b>{len(ambiguous)}</b> ambiguous</div><div>{action}</div></div>{"".join(svg)}</div>'
+                 f'<div class="panel"><h3>Managed identity</h3><table><tr><th>Device</th><th>sysName</th><th>Chassis identity</th><th>Model</th><th>Capabilities</th><th>Interfaces</th></tr>'
+                 f'{identity_rows or "<tr><td colspan=6 class=muted>No normalized identity collected yet.</td></tr>"}</table></div>'
+                 f'<div class="panel"><h3>Downstream impact</h3><form method=get action="/topology"><select name=impact_device>{"".join(impact_opts)}</select> '
+                 f'<input name=impact_port value="{html.escape(root_port)}" placeholder="optional root port"> <button class="ghost">Analyze</button></form>{impact_html}</div>'
+                 f'<div class="panel"><table><tr><th>Device</th><th>Local port</th><th>Neighbour</th><th>Remote port</th><th>Protocol</th><th>State</th><th>Resolution evidence</th></tr>'
+                 f'{table or "<tr><td colspan=7 class=muted>No LLDP/CDP neighbours collected yet.</td></tr>"}</table></div>')
         self._send(self._page("Topology", inner, sess))
+
+    def _endpoints_page(self, q, sess):
+        device = (q.get("device") or [""])[0].strip() or None
+        rows = self.manager.endpoint_inventory(device)
+        stats = self.manager.endpoint_summary(device)
+        devices = self.manager.inv.all()
+        opts = ['<option value="">All devices</option>']
+        for d in devices:
+            name = d.get("name", "")
+            sel = " selected" if device == name else ""
+            opts.append(f'<option value="{html.escape(name)}"{sel}>{html.escape(name)}</option>')
+        body_rows = []
+        for r in rows:
+            att = r.get("attachment") or {}
+            ips = (r.get("ipv4") or []) + (r.get("ipv6") or [])
+            ip_html = "<br>".join(html.escape(x) for x in ips) or '<span class="muted">—</span>'
+            if att:
+                port = att.get("ifdescr") or (f'if{att.get("ifindex")}' if att.get("ifindex") else att.get("bridge_port", ""))
+                loc = f'{html.escape(att.get("device", ""))}<br><span class="muted">{html.escape(str(port))}</span>'
+                vlan = html.escape(att.get("vlan_id", "")) or '<span class="muted">unresolved</span>'
+            else:
+                loc = '<span class="muted">—</span>'; vlan = '<span class="muted">—</span>'
+            badge = "b-ok" if r.get("status") == "ATTACHED" else ("b-bad" if r.get("status") == "AMBIGUOUS" else "")
+            downstream_names = sorted({
+                d.get("neighbor", "")
+                for obs in (r.get("transit_observations") or [])
+                for d in (obs.get("downstream") or []) if d.get("neighbor")
+            })
+            downstream_html = "<br>".join(html.escape(x) for x in downstream_names) or '<span class="muted">—</span>'
+            body_rows.append(
+                f'<tr><td><code>{html.escape(r.get("mac", ""))}</code></td><td>{ip_html}</td>'
+                f'<td>{loc}</td><td>{vlan}</td><td><span class="badge {badge}">{html.escape(r.get("status", ""))}</span></td>'
+                f'<td>{html.escape(r.get("confidence", ""))}</td><td>{len(r.get("candidates") or [])}</td><td>{downstream_html}</td></tr>')
+        summary = (f'<b>{stats["total"]}</b> observed · <b>{stats["attached"]}</b> attached · '
+                   f'<b>{stats["ambiguous"]}</b> ambiguous · <b>{stats["transit_only"]}</b> transit-only · '
+                   f'<b>{stats["stale"]}</b> stale')
+        table = "".join(body_rows) or '<tr><td colspan="8" class="muted">No endpoint correlation data yet. Run an SNMP poll on network devices.</td></tr>'
+        inner = (f'<div class="panel"><div class="row"><div>{summary}</div>'
+                 f'<form method=get action="/endpoints"><select name=device>{"".join(opts)}</select><button class="ghost">Filter</button></form></div>'
+                 f'<p class="muted">Direct attachment is reported only when a single fresh non-neighbour-facing FDB observation exists. LLDP/CDP-facing ports are treated as transit; ambiguous observations remain explicit.</p></div>'
+                 f'<div class="panel"><table><tr><th>MAC</th><th>IP</th><th>Switch / port</th><th>VLAN</th><th>Status</th><th>Confidence</th><th>Candidates</th><th>Observed downstream</th></tr>{table}</table></div>')
+        self._send(self._page("Endpoints", inner, sess))
 
     def _do_topology_discover(self, form, sess):
         if not _can(sess["role"], "collect"):
@@ -3484,12 +3686,16 @@ def _check_writable(manager):
               file=sys.stderr)
         print(f"             sudo chown -R netconfig:netconfig {home}", file=sys.stderr)
         return
-    # DB file specifically (WAL needs to write the db + -wal/-shm sidecars)
+    # Storage backend write probe. SQLite failures often mean ownership/WAL
+    # sidecar problems; PostgreSQL failures should be diagnosed at the server.
     try:
         manager.db.audit("system", "startup_write_check", "", "")
     except Exception as e:
-        print(f"  WARNING: the database is not writable ({e.__class__.__name__}: {e}). "
-              f"Check ownership of {home}/*.db* -- `sudo chown -R netconfig:netconfig {home}`.",
+        if getattr(manager.db, "dialect", "sqlite") == "sqlite":
+            hint = f" Check ownership of {home}/*.db* -- `sudo chown -R netconfig:netconfig {home}`."
+        else:
+            hint = " Check PostgreSQL connectivity, credentials, privileges, TLS policy, and schema readiness."
+        print(f"  WARNING: the database is not writable ({e.__class__.__name__}: {e}).{hint}",
               file=sys.stderr)
 
 
@@ -3505,7 +3711,7 @@ def serve(manager, bind="127.0.0.1", port=8778):
             _obs_event("vault_service_unlock_failed", source=master_source)
     stop = threading.Event()
     interval = int(manager.settings.get("snmp_poll_interval", 0) or 0)
-    if interval > 0:
+    if interval > 0 and manager.scheduler_leader("snmp-poller"):
         threading.Thread(target=_snmp_poller, args=(manager, interval, stop),
                          daemon=True).start()
     Console.netflow = None
@@ -3533,17 +3739,42 @@ def serve(manager, bind="127.0.0.1", port=8778):
             print(f"  Syslog collector: listening on udp/{col.port} (change-triggered collection)")
         except Exception as e:
             print(f"  Syslog collector NOT started: {e}", file=sys.stderr)
+    Console.snmp_trap = None
+    if manager.settings.get("snmp_trap_enabled"):
+        try:
+            from . import snmp_trap as _snmp_trap
+            col = _snmp_trap.Collector(manager,
+                bind=manager.settings.get("snmp_trap_bind", "0.0.0.0"),
+                port=int(manager.settings.get("snmp_trap_port", 5162)),
+                queue_size=int(manager.settings.get("snmp_trap_queue_size", 256)))
+            col.start(); Console.snmp_trap = col
+            print(f"  SNMP trap collector: listening on udp/{col.port} (NI-3 operational events)")
+        except Exception as e:
+            print(f"  SNMP trap collector NOT started: {e}", file=sys.stderr)
     digest_iv = int(manager.settings.get("digest_interval", 0) or 0)
-    if digest_iv > 0:
+    if digest_iv > 0 and manager.scheduler_leader("compliance-digest"):
         from . import digest as _digest
         threading.Thread(target=_digest.poller, args=(manager, digest_iv, stop), daemon=True).start()
         print(f"  Compliance/drift digest: every {digest_iv}s")
     mon_iv = int(manager.settings.get("monitor_poll_interval", 0) or 0)
-    if mon_iv > 0:
+    if mon_iv > 0 and manager.scheduler_leader("monitor-poller"):
         from . import monitor as _monitor
         threading.Thread(target=_monitor.poller, args=(manager, mon_iv, stop),
                          daemon=True).start()
         print(f"  Monitor poller: every {mon_iv}s (port/http/tls history + alerts)")
+    life_iv = int(manager.settings.get("operational_lifecycle_interval", 0) or 0)
+    if life_iv > 0 and manager.scheduler_leader("operational-lifecycle"):
+        from . import operational_alerts as _op_alerts
+        threading.Thread(target=_op_alerts.poller, args=(manager, life_iv, stop), daemon=True).start()
+        print(f"  NI-4 operational alert/report lifecycle: every {max(30,life_iv)}s")
+    diag_iv = int(manager.settings.get("diagnostic_maintenance_interval", 0) or 0)
+    if diag_iv > 0 and manager.scheduler_leader("diagnostic-maintenance"):
+        if diag_iv < 60:
+            diag_iv = 60
+        from . import diagnostic_maintenance as _diag_maint
+        threading.Thread(target=_diag_maint.poller, args=(manager, diag_iv, stop),
+                         daemon=True).start()
+        print(f"  Diagnostic retention maintenance: every {diag_iv}s")
     httpd = _Server((bind, port), Console)
     tls_cert = (manager.settings.get("web_tls_cert") or "").strip()
     tls_key = (manager.settings.get("web_tls_key") or "").strip()

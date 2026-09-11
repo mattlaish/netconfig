@@ -1,5 +1,9 @@
 # NetConfig — Web Console Operator Guide
 
+> **Canonical project state — 2026-09-12:** **CURRENT** = Qualification Track **Q-1 — Production Runtime & Service-backed Qualification** (`IMPLEMENTED_TESTING_DEFERRED`). **LATEST FEATURE BASELINE** = Platform Hardening **PH-3 — NETCONF / RESTCONF / gNMI Structured Adapters** (`IMPLEMENTED_TESTING_DEFERRED`). Q-1 implementation is complete in source, but live PostgreSQL/AlmaLinux/systemd/service-backed gates remain explicitly deferred in this environment. No Q-2 is assigned. RPM source Release is `2.0.0-32`.
+
+> **Current continuation pointer:** use the Q-1 full source baseline from 2026-09-12 as the active source. Historical CURRENT/NEXT statements below are chronology only. Execute the remaining Q-1 live gates before any promotion to `TESTED`/`RELEASED`; after Q-1 qualification, perform a fresh roadmap review before assigning Q-2.
+
 This guide documents **every page and every control** in the console: what each
 button, field, and option does, and what value it expects. Controls you can't see
 are hidden because your role doesn't grant them (see **Users & roles**) or because
@@ -273,7 +277,7 @@ the last few. Requires `NETCONFIG_MASTER` set so the unattended run can read the
 
 ## Console hardening additions
 
-The console now exposes `/healthz`, `/readyz`, and Prometheus-text `/metrics`, emits structured JSON access/authentication events, throttles repeated failed logins by peer IP + username, and sends additional browser security headers. The enforced CSP is transitional while legacy inline handlers remain; a strict nonce policy is emitted in report-only mode for migration work.
+The console now exposes `/healthz`, `/readyz`, and Prometheus-text `/metrics`, emits structured JSON access/authentication events, throttles repeated failed logins by peer IP + username, and sends additional browser security headers. PH-1 enforces per-response nonce-based script/style CSP, denies script/style attributes, and removes legacy inline event handlers.
 
 Optional built-in TLS is available without a new runtime dependency:
 
@@ -290,3 +294,26 @@ Session idle/absolute expiry is a known deferred security item and is intentiona
 - **Topology** shows persisted LLDP/CDP neighbour edges. Managed neighbours are matched against inventory name/IP and collected SNMP sysName; unmatched neighbours are explicitly flagged **UNMANAGED**. Operators can run **Discover now** to refresh the fleet.
 - **Settings → Monitoring** enables the bounded syslog receiver (default udp/5514), queue size, debounce window, and scheduled compliance/drift digest interval. A syslog config-change event from a known device triggers an immediate debounced collect.
 - Read-only API tokens are created from the host CLI, not the browser: `netconfig api-token create NAME --role viewer --scope inventory:read --scope topology:read`. Save the printed token immediately; only its hash is retained. Send it as `Authorization: Bearer <token>` to `/api/v1/inventory`, `/api/v1/topology`, `/api/v1/drift`, `/api/v1/compliance/latest`, `/api/v1/digest/latest`, or `/api/v1/audit` when the corresponding scope is granted.
+
+
+---
+
+Historical NI-1 documentation snapshot: `netconfig_network_intelligence_ni1_markdown_refresh_FULL_source_baseline_2026-09-11.zip`. The current baseline is the Q-1 FULL source artifact described by the canonical header.
+
+
+## NI-4 Ops Alerts page
+
+`/op-alerts` shows operational alerts, maintenance windows and report schedules. Viewer is read-only. Operator/approver/admin can acknowledge/resolve alerts, add/cancel maintenance windows, and create/run/enable/disable report schedules; every browser mutation requires the existing CSRF token. This is separate from the legacy `/alerts` monitor-rule page.
+
+### Platform Hardening PH-1
+
+The built-in console now uses strict nonce-authorized script/style blocks, rejects inline HTML event/style attributes after render normalization, and separates API routing (`web_api.py`) from presentation helpers (`web_ui.py`). Existing routes, RBAC, CSRF and session behavior are unchanged.
+
+## PH-2 Database settings
+
+**Settings → Database** now selects the core backend (`SQLite — single node` or `PostgreSQL — distributed capable`) and shows the shared PostgreSQL host/port/database/user/SSL fields. Changing the core backend takes effect only after restart. The web password field remains for the optional long-term interface-history store; the core PostgreSQL startup password must come from the protected service credential/file described in `INSTALL.md` because the core DB opens before the NetConfig vault.
+
+
+## Structured Protocols
+
+The **Protocols** page shows each inventory device's active southbound profile. Viewer accounts can inspect profiles only. Operator/Approver/Admin accounts can set `cli_ssh`, `netconf`, `restconf`, or `gnmi`, configure the protocol port, optionally choose a different vault secret label, set the validated RESTCONF/gNMI read path and CA file, and explicitly enable CLI fallback. **Collect** triggers one configuration collection through the selected profile. The page exposes no generic configuration-write RPC/method/body surface; the internal approval-gated RESTCONF replace primitive is not directly exposed by this Web form.

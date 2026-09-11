@@ -1,9 +1,39 @@
 # NetConfig Patch Ledger
 
+> **Canonical project state — 2026-09-12:** **CURRENT** = Qualification Track **Q-1 — Production Runtime & Service-backed Qualification** (`IMPLEMENTED_TESTING_DEFERRED`). **LATEST FEATURE BASELINE** = Platform Hardening **PH-3 — NETCONF / RESTCONF / gNMI Structured Adapters** (`IMPLEMENTED_TESTING_DEFERRED`). Q-1 implementation is complete in source, but live PostgreSQL/AlmaLinux/systemd/service-backed gates remain explicitly deferred in this environment. No Q-2 is assigned. RPM source Release is `2.0.0-32`.
+
+> **Current continuation pointer:** use the Q-1 full source baseline from 2026-09-12 as the active source. Historical CURRENT/NEXT statements below are chronology only. Execute the remaining Q-1 live gates before any promotion to `TESTED`/`RELEASED`; after Q-1 qualification, perform a fresh roadmap review before assigning Q-2.
+
+## PATCH-20260912-01 — Release 32 — Qualification Q-1
+
+- **Status:** `IMPLEMENTED_TESTING_DEFERRED`.
+- **Target release:** `2.0.0-32`.
+- **Scope:** production runtime/service-backed qualification foundation.
+- **Runtime:** added configuration-aware `netconfig qualify`; controlled PostgreSQL core backup/restore with checksum, atomic mode-0600 artifacts, short-lived mode-0600 `PGPASSFILE`, SSL-mode propagation, non-interactive execution, destructive confirmation, active-database restore refusal, and recovery-safe restore path.
+- **Testing:** added Q-1 offline security/CLI/unit tests and real PostgreSQL integration tests for `SKIP LOCKED`, advisory leadership/session loss, heartbeat, migration/sequence repair and pg_dump/pg_restore recovery. CI now installs PostgreSQL client tools and enables the backup/restore integration tier.
+- **Packaging:** reconciled `pyproject.toml` to Version 2.0.0, bumped RPM Release 32, separated RPM build from installed smoke, added source/PostgreSQL/AlmaLinux qualification harnesses, extended RPM inspection, and hardened the backup systemd unit.
+- **Offline evidence before final artifact gate:** Q-1 focused **11 passed**; repository **147 passed / 7 skipped**. Ruff/mypy `NOT_RUN` because tools/network are unavailable; PostgreSQL qualification `NOT_RUN` because pg tools/service are unavailable; AlmaLinux qualification `NOT_RUN` because the current host is Debian 13.
+- **Artifact gate:** Clean Q-1 candidate `netconfig_qualification_q1_candidate_2026-09-12.zip` (SHA-256 `185039eadf8e8e63a8dad358df35f759a7a1f099d5fa6a3456a50e023920a2b1`) passed the artifact gate: ZIP CRC **PASS**; path traversal **0**; symlinks **0**; caches **0**; CR offenders **0**; source/extracted byte identity **125/125 PASS**; payload plus each SHA manifest **121/121 PASS**; required executable modes **7/7 = 0755**; extracted Q-1 focused **11 passed**; extracted full regression **147 passed / 7 skipped**; legacy selftest **ALL PASS**; compileall/launcher py_compile/packaging shell syntax **PASS**.
+- **Schema/API:** no database schema revision and no new REST endpoint/scope.
+- **Deferred:** all applicable real service/RPM gates must remain `NOT_RUN` until actually executed; no Q-2 is assigned.
+
 This file is the chronological implementation ledger for AI handover and
 release/version control. It records what changed in each development batch,
 independently of Git history. `AI_HANDOFF.md` remains the overall architecture,
 current-state, and next-task handoff; this file is the authoritative delta log.
+
+## 2026-09-12 — Release 31 — Platform Hardening PH-3 structured adapters
+
+- Expanded the initial read-only structured-protocol MVP into the handover-defined bounded adapter contract while preserving existing profile/collection compatibility.
+- NETCONF now negotiates server hello/capabilities, provides fixed bounded `<get>` and `<get-config>` reads, understands advertised datastore/candidate/startup and confirmed-commit/rollback capability evidence, and rejects unsafe/oversized XML; no arbitrary RPC/edit-config surface is exposed.
+- RESTCONF now performs HTTPS discovery, strict host/path/query/content validation, production TLS/CA and vault-resolved mTLS handling, bounded JSON/XML, and an internal approval-gated verified JSON subtree replace with best-effort pre-image rollback. Generic URL/method/body passthrough is not exposed.
+- gNMI now supports Capabilities, Get and bounded ONCE Subscribe with typed paths, deadlines, response-size limits, TLS/mTLS, mode-0600 ephemeral secret configuration and secret-free argv; gNMI Set is not exposed.
+- Added manager/CLI capability/state/Subscribe read surfaces and bearer API capabilities/state reads; preserved RBAC/CSRF and explicit-only CLI fallback.
+- Added direct PH-3 regression coverage for capability negotiation, malformed/oversized parsing, TLS fail-closed policy, timeout/deadline handling, path allow-lists, secret redaction, unsupported capabilities, pre/post verification, rollback and Web/API/CLI RBAC.
+- Source regression before final artifact packaging: **136 passed / 3 skipped**; focused PH-3 **22 passed**. The three skips remain service-backed OpenSSH, Net-SNMP and PostgreSQL integration gates.
+- RPM source metadata remains `2.0.0-31`; live vendor/RPM/service-backed qualification remains deferred. No next numbered phase is assigned; perform roadmap/qualification review first.
+
+Clean candidate `netconfig_platform_hardening_ph3_candidate_completed_2026-09-12.zip` (SHA-256 `ea4c2f56f277e76ab85f49b0647269799002d00d5ee79fedd5f6f0fa84450136`) passed system-unzip validation: **118/118** source byte identity; **114/114** entries in `RELEASE_MANIFEST.json` and each of the three SHA manifests; ZIP CRC **PASS**; traversal **0**; symlinks **0**; caches **0**; CR offenders **0**; hidden control paths **3/3 exact**; required executable modes **4/4 = 0755**; extracted focused PH-3 **22 passed**; extracted full regression **136 passed / 3 skipped**; legacy selftest **ALL PASS**; compileall/launcher py_compile/packaging shell syntax **PASS**. The direct RPM helper exits `2` only because `rpmbuild` is unavailable.
 
 ## Maintenance Rules
 
@@ -44,6 +74,23 @@ current-state, and next-task handoff; this file is the authoritative delta log.
 - Rollback notes:
 - Recommended next step:
 ```
+
+## PATCH-20260911-07 — NI-1 all-Markdown canonical-state synchronization
+
+- **Status:** Ready for integration.
+- **Target release:** Source RPM Release remains `2.0.0-25`; documentation-only synchronization, no runtime/package-spec release bump.
+- **Scope:** Synchronize every Markdown file to the canonical NI-1 current state while retaining dated/changelog material as explicitly historical provenance.
+- **Files changed:** All `*.md` files in the source baseline.
+- **User-visible behavior:** None; documentation/handover consistency only.
+- **Data/schema impact:** None.
+- **Packaging/upgrade impact:** Rebuild the FULL source-baseline ZIP and manifests; runtime/RPM payload code is unchanged.
+- **Security impact:** None to runtime. Documentation now consistently preserves the deferred session-lifetime and external qualification truth boundaries.
+- **Validation completed:** Workspace validation: Full repository pytest **75 passed / 3 skipped**; focused `tests/test_network_intelligence.py` **8 passed**; legacy selftest **ALL PASS**; compileall/launcher/package-shell syntax **PASS**; UTF-8 CR offenders **0**. Final extracted-artifact gate is recorded in `TESTING.md` / `TESTING_RESULT_2026-09-11.md` after packaging.
+- **Validation outstanding:** Ruff/mypy, service-backed integration, RPM install/runtime, and representative live-vendor qualification remain deferred unless actually run.
+- **Known risks/limitations:** Historical entries intentionally retain the state/version/test counts that were true when recorded.
+- **Rollback notes:** Revert Markdown-only changes and regenerate manifests/package.
+- **Recommended next step:** Network Intelligence NI-2 — Topology Identity & Downstream Impact.
+
 
 ## PATCH-20260827-01 — Pure Application device isolation
 
@@ -207,22 +254,9 @@ current-state, and next-task handoff; this file is the authoritative delta log.
 
 ## Planned Delivery Slices
 
-These are roadmap items, not completed patches. Create a new patch entry when a
-slice begins; do not mark it complete here without implementation and validation.
-
-1. Modern ARP/IPv4/IPv6 neighbor collection.
-2. VLAN-aware Q-BRIDGE MAC forwarding table.
-3. Global IP -> MAC -> VLAN -> switch port correlation.
-4. LLDP/CDP topology and discovered-device matching.
-5. Alert lifecycle, maintenance windows, and notification retry.
-6. Dependency-aware downstream alert suppression.
-7. Authenticated Linux system compliance audit.
-8. Expanded application security posture and response-policy checks.
-9. Polling worker reliability, scheduling, backoff, and health telemetry.
-10. Retention, aggregation, and database maintenance.
-11. Reports, exports, and scheduled delivery.
-12. Backup/restore and disaster-recovery verification.
-13. PostgreSQL, distributed pollers, HA, signing, and enterprise deployment.
+The current canonical development sequence is maintained in `ROADMAP.md`. The 2026-09-07 handover
+reconciled the old list after LLDP/CDP topology, syslog-triggered collection, read-only API and scheduled
+digest were implemented. Do not use an older numbered list from historical patch entries as current truth.
 
 ## PATCH-20260902-01 — Topology, event-driven collection, API and digest
 
@@ -233,3 +267,173 @@ slice begins; do not mark it complete here without implementation and validation
 - **Validation completed:** pytest 19 passed / 3 existing service-gated integration skips; legacy selftest `RESULT: ALL PASS`; compileall passed.
 - **Validation outstanding:** representative real-device LLDP/CDP, production syslog forwarding/relay model, and full GitHub CI (Ruff/mypy/protocol services).
 - **Recommended next step:** add SNMP traps and richer topology identity/VLAN correlation after live validation of this slice.
+
+
+## PATCH-20260907-01 — New-chat handover and roadmap reconciliation
+
+- **Status:** Complete documentation/packaging-hygiene handover; no runtime feature change intended.
+- **Target release:** Source handover only. Current RPM spec remains `2.0.0-17`; decide/bump the next
+  Release before building a new distributable RPM because significant development landed after the
+  historical `-17` changelog entry.
+- **Scope:** Prepare a self-contained next-chat handover, current testing evidence, prioritized roadmap
+  and reusable handover prompt; reconcile stale Git and packaging references.
+- **Files changed:** `HANDOVER_2026-09-07.md`, `TESTING_RESULT_2026-09-07.md`, `HANDOVER_PROMPT.md`,
+  `ROADMAP.md`, `DEVELOPMENT.md`, `AI_HANDOFF.md`, `AGENTS.md`, `patch.md`, packaging/install docs and
+  the release-agnostic artifact listing in `packaging/build-rpm.sh`.
+- **User-visible behavior:** None.
+- **Data/schema impact:** None.
+- **Packaging/upgrade impact:** Documentation examples now match spec Release 17; `build-rpm.sh` no
+  longer hardcodes Release 16 when listing generated RPMs. No RPM was built or installed.
+- **Security impact:** No runtime security behavior changed. Session lifetime remains deliberately deferred.
+- **Validation completed:** pytest 19 passed / 3 skipped; legacy selftest `RESULT: ALL PASS`; compileall
+  passed; repository text CR scan found 0 offenders; packaging shell syntax is checked in the final
+  handover packaging pass.
+- **Validation outstanding:** Ruff/mypy in Python 3.12 CI, service-backed protocol integration, AlmaLinux
+  RPM build/install, real-device remediation/LLDP/CDP, and production syslog relay qualification.
+- **Known risks/limitations:** Historical sections still describe older releases for chronology; use
+  `HANDOVER_2026-09-07.md`, `TESTING_RESULT_2026-09-07.md`, and the current `ROADMAP.md` as present truth.
+- **Rollback notes:** Documentation/packaging-reference changes only; no database/runtime rollback required.
+- **Recommended next step:** Begin Roadmap Slice A — qualification and release gate closure.
+
+
+## 2026-09-11 — D.5 Phase 4A
+
+- Added incident lifecycle source/model/schema/CLI/API foundation and bundle linkage.
+- Added `incident:read` / role-gated `incident:write`.
+- Repaired missing Phase 3D `debug:download` / `debug:admin` token scope registration.
+- Added incident and additive-schema regression tests.
+- No console session lifetime change.
+
+
+## 2026-09-11 — D.5 Phase 4B
+
+- Added `incident_evidence_links` additive schema and reference-only incident evidence model.
+- Added audit/syslog/collection/compliance evidence linking plus immutable archived drift references.
+- Added unified incident timeline, missing-source markers, CLI operations and scoped REST endpoints.
+- Updated complete source baseline documentation and packaging spec source Release to 19.
+- Repository verification before packaging: 33 passed / 3 skipped; incident tests 14 passed; selftest ALL PASS; compileall PASS.
+
+
+## PATCH-20260911-03 — Roadmap track normalization
+
+- **Status:** Complete documentation-only reconciliation; no runtime/API/schema change.
+- **Scope:** Promote `ROADMAP.md` Current/Next and track-based planning as canonical. Demote the 2026-09-07 Slice A-G sequence to historical provenance only.
+- **Current/next:** CURRENT is D.5 Phase 4B Incident Timeline; NEXT is D.5 Phase 4C Support Case Export.
+- **Tracks:** Diagnostics; Network Intelligence; Platform Hardening. Historical A-G work is mapped into those tracks rather than deleted.
+- **Handoff impact:** New chats must follow the current `ROADMAP.md` NEXT item, not older patch/handover text that says Slice A is next.
+- **Runtime impact:** None. Session idle/absolute expiry remains deliberately deferred and unchanged.
+- **Artifact gate:** Roadmap-refresh candidate passed 101/101 source/extracted identity, 97/97 manifest payload, ZIP CRC, traversal/symlink/CR checks, extracted 67/3 pytest, closeout-focused 3/3, selftest and compileall/package syntax.
+- **Recommended next step:** D.5 Phase 4C — Support Case Export.
+
+
+## 2026-09-11 — D.5 Phase 4C Support Case Export
+
+- Added managed support-case export source (`caseexport.py`) and additive `incident_case_exports` metadata.
+- Added bounded reference-only case archives with selected linked diagnostic bundles, SHA-256 file/archive integrity metadata and credential-assignment redaction for free-text case metadata.
+- Added role-gated `incident:export`, CLI `incident export-case|exports`, and REST create/list/download with audit evidence.
+- Case download now verifies durable size/SHA-256 and fails closed/audits on tampering; case/debug HTTP downloads stream files in bounded chunks instead of whole-file memory buffering.
+- Preserved authoritative evidence boundaries: external syslog/audit/compliance/config bodies are not copied into Incident case indexes; linked bundles are embedded byte-for-byte.
+- Advanced RPM source spec Release to 20; RPM build/install remains unclaimed.
+- Repository verification before final packaging: 39 passed / 3 skipped; incident/case tests 20 passed; selftest ALL PASS; compileall PASS.
+- Current/next: CURRENT is D.5 Phase 4C Support Case Export; NEXT is D.5 Phase 4D Evidence / Manifest Signing.
+
+
+## 2026-09-11 — D.5 Phase 4D Evidence / Manifest Signing
+
+- Added `evidence_signing.py`: fixed OpenSSL/Ed25519 signer and extraction-free verifier.
+- External private-key boundary: systemd credential first, protected file fallback; no private key in source/state/export.
+- Added signed diagnostic/support-case manifests, embedded public key/signature metadata, independent fingerprint trust pins and signing-required policy.
+- Added additive case-export signature metadata, CLI/API verification, signing-status and verification audit.
+- RPM source Release bumped to `2.0.0-21` and `/usr/bin/openssl` added as runtime requirement.
+- Current/next: CURRENT is D.5 Phase 4D; NEXT is D.5 Phase 4E Protocol Trace Capture.
+
+
+## 2026-09-11 — D.5 Phase 4E Protocol Trace Capture
+
+- Added bounded metadata-only `ProtocolTraceStore` and additive trace session/event tables.
+- Added CLI/OpenSSH command metadata and context-local SNMP UDP-exchange metadata capture with strict redaction/no raw payloads.
+- Added Incident `protocol_trace` evidence, case/debug export inclusion, `trace:read`/`trace:capture`, CLI and REST lifecycle.
+- NETCONF/RESTCONF use the future-ready schema but fail closed until providers exist.
+- Current/next: CURRENT is D.5 Phase 4E; NEXT is D.5 Phase 4F Incident Web Console.
+
+
+## 2026-09-11 — D.5 Phase 4F Incident Web Console
+
+- Added `/incidents` register/filter and `/incident` detail console surfaces.
+- Unified lifecycle, timeline, evidence, bounded trace, diagnostic-bundle and signed support-case workflows.
+- Preserved viewer read-only, operator+ mutation, CSRF, evidence-reference, trace redaction/bounds and case verification boundaries.
+- Added focused web security/regression tests; repository result is 64 passed / 3 skipped before packaging.
+- Current/next: CURRENT is D.5 Phase 4F; NEXT is D.5 Closeout / Diagnostic Qualification Review.
+
+
+## D.5 Closeout / Diagnostic Qualification Review — 2026-09-11
+
+- Added opt-in bounded diagnostic retention scheduler and one-shot CLI maintenance.
+- Added support-bundle count retention, case-export archive age retention with durable metadata preservation, and unlinked inactive protocol-trace age retention.
+- Added Monitoring settings for the closeout maintenance policy.
+- Kept automatic maintenance disabled by default and protected Incident-linked trace evidence from generic pruning.
+- Offline regression: 67 passed / 3 skipped; focused closeout 3 passed; selftest ALL PASS.
+- D.5 remains IMPLEMENTED_TESTING_DEFERRED pending external CI/service/RPM/live-device qualification.
+
+## PATCH-20260911-04 — Post-closeout roadmap naming clarification
+
+- **Status:** Complete documentation-only reconciliation; no runtime/API/schema change.
+- **Clarification:** D.5 is a standalone Diagnostics track inserted historically between Slice D and Slice E; it is **not Slice E**.
+- **Current/next:** CURRENT is D.5 Closeout / Diagnostic Qualification Review (`IMPLEMENTED_TESTING_DEFERRED`); NEXT is Network Intelligence Track -> VLAN-aware endpoint and topology correlation.
+- **Historical mapping:** The NEXT Network Intelligence item maps to old Slice B. Old Slice E remains Platform Hardening -> Web-console structural hardening.
+- **Metadata repair:** Updated stale Phase 4F/D.5-closeout handoff wording and stale RPM source-release references to the current `2.0.0-24` source spec.
+- **Runtime impact:** None. Session idle/absolute expiry remains deliberately deferred and unchanged.
+
+## PATCH-20260911-05 — Source baseline executable-mode / RPM-doc repair
+
+- **Scope:** Packaging/documentation only; no runtime/API/schema behavior change.
+- **Executable mode:** Preserve `0755` in the FULL source ZIP for `usr/bin/netconfig` and the three RPM helper shell scripts.
+- **Documentation:** Active RPM build/install examples now reference source Release `2.0.0-24`; historical changelog/patch provenance is retained.
+- **Gate:** Re-run complete regression plus extracted-artifact CRC/path/symlink/checksum/mode/direct-execution checks before publication.
+
+
+## 2026-09-11 — Network Intelligence NI-1
+
+Implemented VLAN-aware endpoint attachment correlation: IP-MIB `ipNetToPhysicalTable`, Q-BRIDGE FDB/VLAN evidence, additive neighbour/FDB tables, LLDP/CDP transit suppression, explicit ambiguity/staleness, `endpoint:read` API, CLI `endpoints`, Web Endpoints page, metrics and tests. Source RPM Release: `2.0.0-25`. Live vendor/RPM qualification remains deferred.
+
+## 2026-09-11 — Network Intelligence NI-2
+
+Implemented normalized LLDP/ENTITY-MIB chassis and IF-MIB interface identity, unique-evidence managed-neighbour resolution with explicit ambiguity, bounded cycle-safe downstream impact, CLI/API/Web exposure, additive persistence and focused tests. Full source-workspace regression: **83 passed / 3 skipped**; NI-2 focused **8 passed**. RPM source Release: `2.0.0-26`. Live vendor/RPM qualification remains deferred.
+
+NI-2 candidate artifact integrity passed: 104/104 stage/extracted files, 100/100 payload/manifests, exact hidden paths, 0755 executable modes, archive-security checks and extracted regression 83 passed / 3 skipped with focused NI-2 8 passed.
+
+## 2026-09-11 — Network Intelligence NI-3
+
+Implemented bounded SNMP v1/v2c Trap ingestion, normalized/durable operational events, event deduplication, targeted SNMP re-poll, NI-2 dependency-aware suppression, unified syslog/SNMP reachability events, CLI/API/Web exposure and settings. Full source-workspace regression: **91 passed / 3 skipped**; NI-3 focused **8 passed**. RPM source Release: `2.0.0-27`. SNMPv3 trap authentication, INFORM acknowledgement, live Net-SNMP/vendor and RPM qualification remain deferred.
+
+NI-3 candidate source-baseline gate passed: 107/107 identity, 103/103 manifests, 0755 preserved, extracted 91/3 + focused 8 + selftest/compile/shell PASS. Final FULL source baseline rebuilt afterward.
+
+
+## 2026-09-11 — Network Intelligence NI-4
+
+Implemented operational event-to-alert promotion, audited acknowledge/resolve lifecycle, maintenance windows, bounded durable SMTP retry/backoff, scheduled operational reports, `alerts:read/write` and `reports:read/write`, CLI/API/Web surfaces, and opt-in lifecycle scheduling. Full source-workspace regression: **99 passed / 3 skipped**; focused NI-4 **8 passed**; legacy selftest **ALL PASS**. RPM source Release: `2.0.0-28`. Live SMTP/service/RPM/vendor qualification remains deferred.
+
+
+### NI-4 candidate artifact evidence
+
+Candidate `netconfig_network_intelligence_ni4_candidate_2026-09-11.zip` SHA-256 `17ed1297a863eaca2eeb4a92f5bddcf3ab120804d2526c63339bda79ae1569e3` passed clean system-unzip validation: **109/109** artifact files present, **105/105** Release payload entries and each of the three SHA manifests verified, exact hidden paths retained, four executable files preserved as `0755`, ZIP CRC/path-traversal/symlink/cache/CR gates passed, and all **19/19** Markdown files carried the NI-4/PH-1/Release-28 current-state pointer. Extracted regression: **99 passed / 3 skipped**, focused NI-4 **8 passed**, legacy selftest **ALL PASS**, compileall/launcher/package-shell syntax **PASS**. Direct `build-rpm.sh` executes and exits `2` only because `rpmbuild` is unavailable.
+
+## 2026-09-11 — Platform Hardening PH-1
+
+Implemented Web-console structural/CSP hardening: extracted `web_api.py` and `web_ui.py`, reduced `web.py` below 4,000 lines / 240 KB, enforced per-response script/style nonces with script/style attribute denial, removed inline HTML event handlers, normalized server-rendered style attributes to generated nonce-authorized classes, and added script-context/XSS regression coverage. Source regression **105 passed / 3 skipped**; focused PH-1 **6 passed**; selftest **ALL PASS**. RPM source Release: `2.0.0-29`.
+
+### PH-1 candidate artifact evidence
+
+Candidate `netconfig_platform_hardening_ph1_candidate_2026-09-11.zip` SHA-256 `d8590fe771cbea6ff1a521880b07d8562bde06b2de560b77cafa5e202dac2f34` passed clean system-unzip validation: **112/112** artifact files identity, **108/108** Release payload and all three SHA manifests, exact hidden paths, four executables preserved as `0755`, ZIP CRC/path-traversal/symlink/cache/CR gates passed, and **57/57** Markdown current-state checks passed. Extracted regression: **105 passed / 3 skipped**, focused PH-1 **6 passed**, legacy selftest **ALL PASS**, compileall/launcher/package-shell syntax **PASS**. Direct `build-rpm.sh` executes and exits `2` only because `rpmbuild` is unavailable.
+
+## PATCH-20260911-30 — Platform Hardening PH-2 PostgreSQL Core / Distributed Operation
+
+Status: Ready for integration (source implementation; live PostgreSQL/RPM qualification deferred).
+
+- Added opt-in PostgreSQL core storage with cross-dialect schema bootstrap and fail-closed startup.
+- Added storage schema revision/readiness, protected pre-vault DB credential sourcing, and systemd credential guidance.
+- Added cluster heartbeat, PostgreSQL advisory-lock scheduler leadership, and `FOR UPDATE SKIP LOCKED` distributed task claiming.
+- Added local storage CLI and fail-closed SQLite→PostgreSQL migration with serial-sequence repair.
+- Offline verification: PH-2 focused 9 passed; full repository 114 passed / 3 skipped.
+
+PH-2 candidate packaging integrity: `6dfd6e554b08883c51a6f268bbe604bf95cc7819dad8f4bda6f023d688807d21`; 114/114 files, 110/110 manifests, hidden paths/modes/security gates PASS, extracted repository 114/3 and PH-2 9/9 PASS. Final artifact rebuilt afterward.

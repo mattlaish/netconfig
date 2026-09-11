@@ -1,6 +1,6 @@
 Name:           netconfig
 Version:        2.0.0
-Release:        17%{?dist}
+Release:        32%{?dist}
 Summary:        Network configuration and security operations console
 License:        Proprietary
 BuildArch:      noarch
@@ -12,6 +12,7 @@ BuildRequires:  python3.12
 BuildRequires:  systemd-rpm-macros
 Requires:       /usr/bin/python3.12
 Requires:       /usr/bin/ssh
+Requires:       /usr/bin/openssl
 Requires(pre):  shadow-utils
 %{?systemd_requires}
 
@@ -83,6 +84,71 @@ exit 0
 %dir %attr(0700,netconfig,netconfig) %{_localstatedir}/lib/netconfig
 
 %changelog
+* Sat Sep 12 2026 OpenAI <noreply@openai.com> - 2.0.0-32
+- Qualification Q-1: production runtime/service-backed qualification harnesses
+- Add controlled PostgreSQL core pg_dump/pg_restore workflow with checksum and destructive-restore guard
+- Add runtime preflight, real PostgreSQL concurrency/leadership qualification tests, and hardened backup unit
+
+* Sat Sep 12 2026 OpenAI <noreply@openai.com> - 2.0.0-31
+- Platform Hardening PH-3: read-only NETCONF, RESTCONF and gNMI structured adapters
+- Add per-device protocol profiles, explicit fail-closed fallback policy, CLI/API/Web surfaces
+- Keep structured credentials vault-backed; gNMI uses a mode-0600 ephemeral config and secret-free argv
+
+* Fri Sep 11 2026 OpenAI <noreply@openai.com> - 2.0.0-30
+- Platform Hardening PH-2: optional PostgreSQL core backend with schema bootstrap and readiness
+- Add advisory-lock scheduler leadership and SKIP LOCKED distributed task claiming
+- Add protected pre-vault PostgreSQL service credential and SQLite-to-PostgreSQL migration tooling
+
+* Fri Sep 11 2026 OpenAI <noreply@openai.com> - 2.0.0-29
+- Platform Hardening PH-1: Web-console structural decomposition and strict nonce CSP
+
+* Fri Sep 11 2026 NetConfig Engineering <noreply@localhost> - 2.0.0-28
+- Add NI-4 operational alert acknowledge/resolve lifecycle and maintenance windows
+- Add bounded SMTP notification retry/backoff plus durable scheduled operational reports
+- Add NI-4 CLI, scoped REST API and Web Ops Alerts surfaces
+
+* Fri Sep 11 2026 NetConfig Engineering <noreply@localhost> - 2.0.0-27
+- Add NI-3 bounded SNMP v1/v2c Trap ingestion and normalized operational event stream
+- Add targeted re-poll, event deduplication and NI-2 dependency-aware suppression
+- Add events:read CLI/API/Web event visibility
+
+* Fri Sep 11 2026 NetConfig Engineering <noreply@localhost> - 2.0.0-26
+- Add NI-2 normalized LLDP/ENTITY-MIB chassis and IF-MIB interface identity
+- Add fail-closed unique managed-neighbor resolution with ambiguity evidence
+- Add bounded observed-L2 downstream impact via CLI, REST API and Web topology console
+
+* Fri Sep 11 2026 NetConfig Engineering <noreply@localhost> - 2.0.0-25
+- Add Network Intelligence NI-1 modern IP-neighbour and VLAN-aware Q-BRIDGE collection
+- Add fail-closed IP/MAC/VLAN/switch/port endpoint correlation with staleness and ambiguity
+- Add endpoint:read API scope plus CLI and Web endpoint inventory views
+
+* Fri Sep 11 2026 NetConfig Engineering <noreply@localhost> - 2.0.0-24
+- Close D.5 feature track with opt-in bounded diagnostic retention maintenance
+- Preserve durable case metadata and exclude Incident-linked traces from generic pruning
+
+* Fri Sep 11 2026 NetConfig Engineering <noreply@localhost> - 2.0.0-23
+- Add D.5 Phase 4F Incident Web Console over existing Incident/evidence services
+
+* Fri Sep 11 2026 NetConfig Engineering <noreply@localhost> - 2.0.0-22
+- Add D.5 Phase 4E bounded secret-safe protocol trace capture for CLI/OpenSSH and SNMP
+
+* Fri Sep 11 2026 NetConfig Engineering <noreply@localhost> - 2.0.0-21
+- Add D.5 Phase 4D Ed25519 manifest signing and independent fingerprint trust verification
+- Keep private signing keys external via systemd credentials or an explicit protected file path
+- Add signed diagnostic/support-case verification through CLI and scoped API endpoints
+
+* Fri Sep 11 2026 NetConfig Engineering <noreply@localhost> - 2.0.0-20
+- Add D.5 Phase 4C bounded support-case export with reference-only incident/timeline indexes
+- Add managed case-export storage, incident:export API scope, CLI/API create/list/download and SHA-256 manifests
+
+* Fri Sep 11 2026 NetConfig Engineering <noreply@localhost> - 2.0.0-19
+- Add D.5 Phase 4B reference-only incident evidence links and unified timeline
+- Add immutable drift archive references plus incident timeline CLI/API operations
+
+* Fri Sep 11 2026 NetConfig Engineering <noreply@localhost> - 2.0.0-18
+- Add D.5 Phase 4A incident model, lifecycle CLI/API and diagnostic bundle association
+- Repair debug download/admin bearer scope registration
+
 * Wed Aug 19 2026 NetConfig Engineering <noreply@localhost> - 2.0.0-16
 - Normalize Windows-prepared launcher and service text to LF
 - Add packaged and installed launcher shebang regression checks

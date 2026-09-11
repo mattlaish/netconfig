@@ -42,6 +42,15 @@ _ROOTS = {
     "dot1dTpFdbAddress": "1.3.6.1.2.1.17.4.3.1.1",
     "dot1dTpFdbPort": "1.3.6.1.2.1.17.4.3.1.2",
     "dot1dBasePortIfIndex": "1.3.6.1.2.1.17.1.4.1.2",
+    # IP-MIB ipNetToPhysical + Q-BRIDGE-MIB VLAN-aware forwarding
+    "ipNetToPhysicalNetAddressType": "1.3.6.1.2.1.4.35.1.2",
+    "ipNetToPhysicalNetAddress": "1.3.6.1.2.1.4.35.1.3",
+    "ipNetToPhysicalPhysAddress": "1.3.6.1.2.1.4.35.1.4",
+    "ipNetToPhysicalType": "1.3.6.1.2.1.4.35.1.6",
+    "ipNetToPhysicalState": "1.3.6.1.2.1.4.35.1.7",
+    "dot1qTpFdbPort": "1.3.6.1.2.1.17.7.1.2.2.1.2",
+    "dot1qTpFdbStatus": "1.3.6.1.2.1.17.7.1.2.2.1.3",
+    "dot1qVlanFdbId": "1.3.6.1.2.1.17.7.1.4.2.1.3",
 }
 
 # a definition start: NAME  MACRO ... ::= { body }

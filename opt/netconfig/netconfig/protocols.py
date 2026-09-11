@@ -18,9 +18,9 @@ class ProtocolCapability:
 
 CAPABILITIES = {
     "cli_ssh": ProtocolCapability("cli_ssh", structured=False, implemented=True),
-    "netconf": ProtocolCapability("netconf", structured=True, implemented=False),
-    "restconf": ProtocolCapability("restconf", structured=True, implemented=False),
-    "gnmi": ProtocolCapability("gnmi", structured=True, implemented=False),
+    "netconf": ProtocolCapability("netconf", structured=True, implemented=True),
+    "restconf": ProtocolCapability("restconf", structured=True, implemented=True),
+    "gnmi": ProtocolCapability("gnmi", structured=True, implemented=True),
 }
 
 
