@@ -35,30 +35,40 @@ V1_GENERIC = {0: ".1.3.6.1.6.3.1.1.5.1", 1: ".1.3.6.1.6.3.1.1.5.2",
               2: ".1.3.6.1.6.3.1.1.5.3", 3: ".1.3.6.1.6.3.1.1.5.4",
               4: ".1.3.6.1.6.3.1.1.5.5", 5: ".1.3.6.1.6.3.1.1.5.6"}
 
-class TrapError(ValueError): pass
+class TrapError(ValueError):
+    pass
 
 def _len(data, i):
-    if i >= len(data): raise TrapError("truncated BER length")
+    if i >= len(data):
+        raise TrapError("truncated BER length")
     first=data[i]; i+=1
-    if first < 0x80: return first,i
+    if first < 0x80:
+        return first,i
     n=first & 0x7f
-    if n < 1 or n > 4 or i+n > len(data): raise TrapError("invalid BER length")
+    if n < 1 or n > 4 or i+n > len(data):
+        raise TrapError("invalid BER length")
     return int.from_bytes(data[i:i+n],"big"), i+n
 
 def _tlv(data, i=0):
-    if i >= len(data): raise TrapError("truncated BER")
+    if i >= len(data):
+        raise TrapError("truncated BER")
     tag=data[i]; n,j=_len(data,i+1); end=j+n
-    if end > len(data): raise TrapError("truncated BER value")
+    if end > len(data):
+        raise TrapError("truncated BER value")
     return tag,data[j:end],end
 
-def _int(body): return int.from_bytes(body or b"\0","big",signed=bool(body and body[0]&0x80))
+def _int(body):
+    return int.from_bytes(body or b"\0","big",signed=bool(body and body[0]&0x80))
 def _oid(body):
-    if not body: return ""
+    if not body:
+        return ""
     first=body[0]; parts=[min(first//40,2), first-(min(first//40,2)*40)]; val=0
     for b in body[1:]:
         val=(val<<7)|(b&0x7f)
-        if not b&0x80: parts.append(val); val=0
-    if val: raise TrapError("unterminated OID")
+        if not b&0x80:
+            parts.append(val); val=0
+    if val:
+        raise TrapError("unterminated OID")
     return "."+".".join(map(str,parts))
 
 def _children(body):
@@ -68,9 +78,12 @@ def _children(body):
     return out
 
 def _value(tag, body):
-    if tag in (INTEGER, TIMETICKS): return _int(body)
-    if tag == OID: return _oid(body)
-    if tag == IPADDRESS: return ".".join(str(x) for x in body)
+    if tag in (INTEGER, TIMETICKS):
+        return _int(body)
+    if tag == OID:
+        return _oid(body)
+    if tag == IPADDRESS:
+        return ".".join(str(x) for x in body)
     if tag == OCTET:
         return body.decode("utf-8","replace")[:256]
     return None
@@ -78,9 +91,11 @@ def _value(tag, body):
 def _varbinds(seq_body):
     out={}
     for tag,entry in _children(seq_body):
-        if tag != SEQUENCE: continue
+        if tag != SEQUENCE:
+            continue
         fields=_children(entry)
-        if len(fields) < 2 or fields[0][0] != OID: continue
+        if len(fields) < 2 or fields[0][0] != OID:
+            continue
         out[_oid(fields[0][1])] = _value(fields[1][0], fields[1][1])
     return out
 
@@ -88,25 +103,32 @@ def parse_packet(data):
     if not isinstance(data,(bytes,bytearray)) or not data or len(data) > 65535:
         raise TrapError("invalid trap packet size")
     tag,outer,end=_tlv(bytes(data),0)
-    if tag != SEQUENCE or end != len(data): raise TrapError("invalid SNMP message")
+    if tag != SEQUENCE or end != len(data):
+        raise TrapError("invalid SNMP message")
     fields=_children(outer)
     if len(fields) < 3 or fields[0][0] != INTEGER or fields[1][0] != OCTET:
         raise TrapError("invalid SNMP message")
     version=_int(fields[0][1])
-    if version == 3: raise TrapError("SNMPv3 trap authentication is not implemented")
-    if version not in (0,1): raise TrapError("unsupported SNMP version")
+    if version == 3:
+        raise TrapError("SNMPv3 trap authentication is not implemented")
+    if version not in (0,1):
+        raise TrapError("unsupported SNMP version")
     ptag,pbody=fields[2]
-    if ptag == INFORM: raise TrapError("SNMP INFORM is not supported")
+    if ptag == INFORM:
+        raise TrapError("SNMP INFORM is not supported")
     result={"version":"v1" if version==0 else "v2c", "trap_oid":"", "varbinds":{}, "uptime_ticks":None}
     if version == 1:
-        if ptag != TRAP_V2: raise TrapError("expected SNMPv2 trap PDU")
+        if ptag != TRAP_V2:
+            raise TrapError("expected SNMPv2 trap PDU")
         p=_children(pbody)
-        if len(p)<4 or p[3][0] != SEQUENCE: raise TrapError("invalid SNMPv2 trap PDU")
+        if len(p)<4 or p[3][0] != SEQUENCE:
+            raise TrapError("invalid SNMPv2 trap PDU")
         vb=_varbinds(p[3][1]); result["varbinds"]=vb
         result["trap_oid"]=str(vb.get(TRAP_OID_VAR) or "")
         result["uptime_ticks"]=vb.get(".1.3.6.1.2.1.1.3.0")
     else:
-        if ptag != TRAP_V1: raise TrapError("expected SNMPv1 trap PDU")
+        if ptag != TRAP_V1:
+            raise TrapError("expected SNMPv1 trap PDU")
         p=_children(pbody)
         if len(p)<6 or p[0][0]!=OID or p[2][0]!=INTEGER or p[3][0]!=INTEGER or p[4][0]!=TIMETICKS or p[5][0]!=SEQUENCE:
             raise TrapError("invalid SNMPv1 trap PDU")
@@ -114,7 +136,8 @@ def parse_packet(data):
         result.update({"generic_trap":generic,"specific_trap":specific,"uptime_ticks":_int(p[4][1])})
         result["trap_oid"] = V1_GENERIC.get(generic) or (enterprise + ".0." + str(specific))
         result["varbinds"]=_varbinds(p[5][1])
-    if not result["trap_oid"]: raise TrapError("trap OID missing")
+    if not result["trap_oid"]:
+        raise TrapError("trap OID missing")
     return result
 
 def classify(parsed):
@@ -128,7 +151,8 @@ class Collector:
         self.total_packets=0; self.accepted=0; self.rejected=0; self.dropped=0; self.repolls=0
         self.last_error=None; self._last_repoll={}
     def start(self):
-        if self._running: return
+        if self._running:
+            return
         s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); s.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
         s.bind((self.bind,self.port)); s.settimeout(.5); self._sock=s; self._running=True
         self._threads=[threading.Thread(target=self._recv,daemon=True),threading.Thread(target=self._work,daemon=True)]
@@ -136,31 +160,45 @@ class Collector:
     def stop(self):
         self._running=False
         if self._sock:
-            try:self._sock.close()
-            except OSError:pass
+            try:
+                self._sock.close()
+            except OSError:
+                pass
     def _recv(self):
         while self._running:
-            try:data,addr=self._sock.recvfrom(65535)
-            except socket.timeout:continue
-            except OSError:break
+            try:
+                data,addr=self._sock.recvfrom(65535)
+            except socket.timeout:
+                continue
+            except OSError:
+                break
             self.total_packets+=1
-            try:self.queue.put_nowait((time.time(),addr[0],addr[1],data))
-            except queue.Full:self.dropped+=1
+            try:
+                self.queue.put_nowait((time.time(),addr[0],addr[1],data))
+            except queue.Full:
+                self.dropped+=1
     def _work(self):
         while self._running:
-            try:item=self.queue.get(timeout=.5)
-            except queue.Empty:continue
-            try:self._handle(*item)
-            except Exception as exc:self.last_error=str(exc)
-            finally:self.queue.task_done()
+            try:
+                item=self.queue.get(timeout=.5)
+            except queue.Empty:
+                continue
+            try:
+                self._handle(*item)
+            except Exception as exc:
+                self.last_error=str(exc)
+            finally:
+                self.queue.task_done()
     def _resolve_interface(self, device, ifindex):
-        if not device or not ifindex:return ""
+        if not device or not ifindex:
+            return ""
         for row in self.manager.db.get_topology_interfaces(device):
             if str(row.get("ifindex")) == str(ifindex):
                 return row.get("ifname") or row.get("ifdescr") or ""
         return ""
     def _handle(self, ts, source, source_port, data):
-        try: parsed=parse_packet(data)
+        try:
+            parsed=parse_packet(data)
         except TrapError as exc:
             self.rejected+=1; self.manager.db.audit("snmp-trap","trap_rejected",source,str(exc)[:300]); return None
         dev=self.manager.device_by_host(source); device=dev["name"] if dev else ""
@@ -183,8 +221,10 @@ class Collector:
             last=self._last_repoll.get(device,0)
             if ts-last >= debounce:
                 self._last_repoll[device]=ts
-                try:self.manager.snmp_poll(device); self.repolls+=1
-                except Exception:pass
+                try:
+                    self.manager.snmp_poll(device); self.repolls+=1
+                except Exception:
+                    pass
         return row
     def status(self):
         return {"running":self._running,"port":self.port,"queue_depth":self.queue.qsize(),"total_packets":self.total_packets,

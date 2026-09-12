@@ -1,22 +1,28 @@
 # AI Development Handoff
 
-> **Canonical project state — 2026-09-12:** **CURRENT** = Qualification Track **Q-1 — Production Runtime & Service-backed Qualification** (`IMPLEMENTED_TESTING_DEFERRED`). **LATEST FEATURE BASELINE** = Platform Hardening **PH-3 — NETCONF / RESTCONF / gNMI Structured Adapters** (`IMPLEMENTED_TESTING_DEFERRED`). Q-1 implementation is complete in source, but live PostgreSQL/AlmaLinux/systemd/service-backed gates remain explicitly deferred in this environment. No Q-2 is assigned. RPM source Release is `2.0.0-32`.
+> **Canonical project state — 2026-09-12:** **CURRENT IMPLEMENTATION BASELINE** = **HA-1 — Control-plane HA & Recovery Foundation** (`IMPLEMENTED_TESTING_DEFERRED`). **PH-4, NI-5, VM-1, NA-1, NA-2, and HA-1** are implemented in source; consolidated Release 33 offline regression is green, while live/service-backed qualification remains deferred. Qualification **Q-1** remains `IMPLEMENTED_TESTING_DEFERRED`; its live PostgreSQL/AlmaLinux/systemd/service-backed gates remain deferred. No further development phase is assigned until the post-implementation qualification/roadmap review. RPM source Release is `2.0.0-33`.
 
-> **Current continuation pointer:** use the Q-1 full source baseline from 2026-09-12 as the active source. Historical CURRENT/NEXT statements below are chronology only. Execute the remaining Q-1 live gates before any promotion to `TESTED`/`RELEASED`; after Q-1 qualification, perform a fresh roadmap review before assigning Q-2.
+## Release 33 handoff truth
 
-## Active continuation — Qualification Q-1
+The latest implementation baseline is Release `2.0.0-33`, schema revision `ha1-2`. PH-4, NI-5, VM-1, NA-1, NA-2 and HA-1 are implemented in source and remain `IMPLEMENTED_TESTING_DEFERRED`. Q-1 remains open for production/runtime service-backed qualification. Do not restart PH-3/Q-1 and do not invent the next phase before consolidated Release 33 verification and a new roadmap review.
 
-Q-1 is implemented in source and remains `IMPLEMENTED_TESTING_DEFERRED`. Continue from RPM source Release `2.0.0-32`; do not revert `pyproject.toml` to `0.1.0`. The latest feature baseline remains PH-3.
+Preserve these Release 33 invariants: all network mutations use the durable request/approve/execute workflow; automation snapshots/model-pack hashes are frozen and revalidated; `RECOVERY_REQUIRED` blocks blind replay; desired-state rollback is compensating/reverse-order; campaign plans are frozen with stable retry identity; DRAINING/DRAINED HA nodes reject new automation work. Session idle/absolute expiry is still explicitly deferred.
+
+> **Current continuation pointer:** use the Release 33 full source baseline as the active implementation source. Historical CURRENT/NEXT statements below are chronology only. Use the recorded Release 33 offline/artifact evidence and run the applicable Q-1 live gates before any promotion to `TESTED`/`RELEASED`; then perform a fresh roadmap review before assigning another development phase.
+
+## Historical checkpoint — Qualification Q-1
+
+Q-1 remains `IMPLEMENTED_TESTING_DEFERRED`, but Release 33 is now the active implementation baseline. The following Q-1 details are retained as historical qualification context; do not revert package metadata or PH-3/Q-1 safety boundaries.
 
 Key Q-1 invariants: PostgreSQL backup/restore is fixed-function only; DB credentials use a short-lived mode-0600 `PGPASSFILE` and never argv; restore requires a verified checksum plus explicit `RESTORE_DATABASE` and may not target the configured active core database; the recovery-safe restore path must not require opening the failed active core first. `netconfig qualify` is configuration-aware. AlmaLinux installation qualification is permitted only on a disposable target with explicit `--install` plus `NETCONFIG_Q1_ALLOW_INSTALL=1`.
 
-Current offline evidence before final package gate: Q-1 focused **11 passed**, full repository **147 passed / 7 skipped**. The four new Q-1 service skips are real PostgreSQL multi-node claim/leadership, session-loss lock release, SQLite migration/sequence repair, and pg_dump/pg_restore recovery. Ruff/mypy, real PostgreSQL tooling, and AlmaLinux 10 are `NOT_RUN` in this environment. No Q-2 is assigned; execute/record Q-1 live gates first, then perform a roadmap review.
+Historical Q-1 offline evidence before its package gate: Q-1 focused **11 passed**, full repository **147 passed / 7 skipped**. The four new Q-1 service skips are real PostgreSQL multi-node claim/leadership, session-loss lock release, SQLite migration/sequence repair, and pg_dump/pg_restore recovery. Ruff/mypy, real PostgreSQL tooling, and AlmaLinux 10 are `NOT_RUN` in this environment. Q-1 live gates remain outstanding; Release 33 must also complete consolidated verification before a new roadmap review.
 
 Clean Q-1 candidate `netconfig_qualification_q1_candidate_2026-09-12.zip` (SHA-256 `185039eadf8e8e63a8dad358df35f759a7a1f099d5fa6a3456a50e023920a2b1`) passed the artifact gate: ZIP CRC **PASS**; path traversal **0**; symlinks **0**; caches **0**; CR offenders **0**; source/extracted byte identity **125/125 PASS**; payload plus each SHA manifest **121/121 PASS**; required executable modes **7/7 = 0755**; extracted Q-1 focused **11 passed**; extracted full regression **147 passed / 7 skipped**; legacy selftest **ALL PASS**; compileall/launcher py_compile/packaging shell syntax **PASS**.
 
 ## Project
 NetConfig (reconstructed from `netconfig-2.0.0-14`; current packaging target
-`netconfig-2.0.0-32.el10` per the current source spec; RPM build/install qualification remains deferred until the Q-1 AlmaLinux gate is run)
+`netconfig-2.0.0-33.el10` per the current source spec; RPM build/install qualification remains deferred until the Q-1 AlmaLinux gate is run)
 
 ## Objective
 Continue development and improvement of the NetConfig platform from the

@@ -26,7 +26,8 @@ class Collector:
         self.total_packets = 0; self.dropped = 0; self.triggered = 0; self.last_error = None
 
     def start(self):
-        if self._running: return
+        if self._running:
+            return
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind((self.bind, self.port)); s.settimeout(.5); self._sock = s; self._running = True
         self._threads = [threading.Thread(target=self._recv, daemon=True), threading.Thread(target=self._work, daemon=True)]
@@ -35,26 +36,38 @@ class Collector:
     def stop(self):
         self._running = False
         if self._sock:
-            try: self._sock.close()
-            except OSError: pass
+            try:
+                self._sock.close()
+            except OSError:
+                pass
 
     def _recv(self):
         while self._running:
-            try: data, addr = self._sock.recvfrom(65535)
-            except socket.timeout: continue
-            except OSError: break
+            try:
+                data, addr = self._sock.recvfrom(65535)
+            except socket.timeout:
+                continue
+            except OSError:
+                break
             self.total_packets += 1
             msg = data.decode("utf-8", "replace")[:8192]
-            try: self.queue.put_nowait((time.time(), addr[0], msg))
-            except queue.Full: self.dropped += 1
+            try:
+                self.queue.put_nowait((time.time(), addr[0], msg))
+            except queue.Full:
+                self.dropped += 1
 
     def _work(self):
         while self._running:
-            try: ts, source, msg = self.queue.get(timeout=.5)
-            except queue.Empty: continue
-            try: self._handle(ts, source, msg)
-            except Exception as exc: self.last_error = str(exc)
-            finally: self.queue.task_done()
+            try:
+                ts, source, msg = self.queue.get(timeout=.5)
+            except queue.Empty:
+                continue
+            try:
+                self._handle(ts, source, msg)
+            except Exception as exc:
+                self.last_error = str(exc)
+            finally:
+                self.queue.task_done()
 
     def _handle(self, ts, source, msg):
         self.manager.db.record_syslog(source, msg)
@@ -64,11 +77,13 @@ class Collector:
                 device=dev["name"] if dev else "", event_type="CONFIG_CHANGE" if is_config_change(msg) else "SYSLOG",
                 severity="NOTICE" if is_config_change(msg) else "INFO", message=msg[:2048],
                 metadata={"protocol":"syslog"}, now=ts, allow_suppression=True)
-        if not is_config_change(msg): return
+        if not is_config_change(msg):
+            return
         if not dev:
             self.manager.db.audit("syslog", "config_change_unmanaged_source", source, msg[:300]); return
         last = self._last.get(dev["name"], 0)
-        if ts - last < self.debounce: return
+        if ts - last < self.debounce:
+            return
         self._last[dev["name"]] = ts
         result = self.manager.collect(dev["name"])
         self.triggered += 1

@@ -6,7 +6,6 @@ security policy, and rendering can be tested independently.
 
 import hashlib
 import html
-import json
 import os
 import re
 import time
@@ -211,7 +210,8 @@ _DASH_JS = """<style>
       else{ g.hidden=!shown; g.open=shown>0; }
       if(shown>0) anyVisible=true;
       var c=g.querySelector('.devcount');
-      if(c) c.textContent=terms.length?(shown+' / '+rows.length):rows.length;
+      if(c) c.textContent=terms.length?(shown+' / '+rows.length):
+          rows.length;
     });
     if(noRes) noRes.hidden=!(terms.length&&!anyVisible);
   }

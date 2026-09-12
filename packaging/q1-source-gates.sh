@@ -36,9 +36,33 @@ mypy \
   opt/netconfig/netconfig/storage_backend.py \
   opt/netconfig/netconfig/postgres_core.py \
   opt/netconfig/netconfig/postgres_backup.py \
-  opt/netconfig/netconfig/qualification.py
+  opt/netconfig/netconfig/qualification.py \
+  opt/netconfig/netconfig/structured_changes.py \
+  opt/netconfig/netconfig/telemetry.py \
+  opt/netconfig/netconfig/vendor_models.py \
+  opt/netconfig/netconfig/desired_state.py \
+  opt/netconfig/netconfig/campaigns.py \
+  opt/netconfig/netconfig/ha.py \
+  opt/netconfig/netconfig/workflow.py
 python3 -m compileall -q opt/netconfig/netconfig
 python3 -m py_compile usr/bin/netconfig
+
+required_executables=(
+    usr/bin/netconfig
+    packaging/build-rpm.sh
+    packaging/inspect-rpm.sh
+    packaging/q1-qualify-almalinux.sh
+    packaging/q1-qualify-postgres.sh
+    packaging/q1-source-gates.sh
+    packaging/smoke-installed.sh
+)
+for executable in "${required_executables[@]}"; do
+    if [[ ! -x "$executable" ]]; then
+        echo "Required executable mode missing: $executable (raw checkout must preserve 0755)" >&2
+        exit 1
+    fi
+done
+
 pytest -q tests/test_qualification_q1.py tests/test_platform_hardening_ph2.py tests/test_platform_hardening_ph3.py
 pytest -q
 PYTHONPATH=opt/netconfig python3 opt/netconfig/selftest.py

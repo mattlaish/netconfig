@@ -286,7 +286,7 @@ class SSHTransport:
         try:
             while True:
                 patterns = [prompt_re, _RE_MORE] if handle_pager else [prompt_re]
-                idx, m, consumed = self._read_until(patterns, timeout)
+                idx, _, consumed = self._read_until(patterns, timeout)
                 collected += consumed
                 if idx == 0:
                     break

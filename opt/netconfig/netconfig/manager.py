@@ -22,7 +22,6 @@ from . import config as _cfg
 from . import automation as _auto
 from . import snmp as _snmp
 from . import ifhistory as _ifhistory
-from .db import Database
 from .inventory import Inventory
 from .users import Users
 from .incidents import Incidents
@@ -39,7 +38,7 @@ from . import configmodel as _configmodel
 from .observability import METRICS, event as _obs_event
 from . import topology as _topology
 from . import network_intelligence as _network_intelligence
-from .structured_protocols import ProtocolProfiles, StructuredCollector, StructuredProtocolError
+from .structured_protocols import ProtocolProfiles, StructuredCollector
 
 
 def _remediation_lines(baseline_text):
@@ -111,6 +110,18 @@ class Manager:
         self.protocol_traces = ProtocolTraceStore(self)
         self.protocol_profiles = ProtocolProfiles(self)
         self.structured_collector = StructuredCollector(self)
+        from .vendor_models import VendorModelRegistry
+        from .structured_changes import StructuredChangeEngine
+        from .telemetry import TelemetryService
+        from .desired_state import DesiredStateService
+        from .campaigns import CampaignService
+        from .ha import HAService
+        self.vendor_models = VendorModelRegistry(self)
+        self.structured_changes = StructuredChangeEngine(self)
+        self.telemetry = TelemetryService(self)
+        self.desired_state = DesiredStateService(self)
+        self.campaigns = CampaignService(self)
+        self.ha = HAService(self)
         self.alert_lifecycle = OperationalAlertLifecycle(self)
         self.events = OperationalEventStore(self)
         self.recorder = SessionRecorder(
@@ -456,6 +467,49 @@ class Manager:
         text, meta = self.structured_collector.subscribe_once(dev, profile, path=path)
         return {"device": device, "metadata": meta, "data": text}
 
+    def structured_change(self, device, resource, selectors, value, actor, approved=False,
+                          source_kind="manual", source_ref=""):
+        return self.structured_changes.execute_resource(
+            device=device, resource=resource, selectors=selectors, value=value,
+            actor=actor, approved=approved, source_kind=source_kind, source_ref=source_ref)
+
+    def automation_status(self):
+        subscriptions = self.telemetry.list()
+        campaigns = self.campaigns.list()
+        desired_states = self.desired_state.list()
+        transactions = self.structured_changes.list(limit=10_000)
+        now = time.time()
+        return {
+            "implementation_tracks": {
+                "PH-4": "IMPLEMENTED_TESTING_DEFERRED",
+                "NI-5": "IMPLEMENTED_TESTING_DEFERRED",
+                "VM-1": "IMPLEMENTED_TESTING_DEFERRED",
+                "NA-1": "IMPLEMENTED_TESTING_DEFERRED",
+                "NA-2": "IMPLEMENTED_TESTING_DEFERRED",
+                "HA-1": "IMPLEMENTED_TESTING_DEFERRED",
+            },
+            "structured_transactions": len(transactions),
+            "structured_recovery_required": sum(
+                1 for item in transactions if item.get("state") == "RECOVERY_REQUIRED"
+            ),
+            "telemetry_subscriptions": len(subscriptions),
+            "telemetry_enabled": sum(1 for item in subscriptions if item.get("enabled")),
+            "telemetry_due": sum(
+                1
+                for item in subscriptions
+                if item.get("enabled") and float(item.get("next_run_ts") or 0) <= now
+            ),
+            "telemetry_errors": sum(1 for item in subscriptions if item.get("state") == "ERROR"),
+            "desired_states": len(desired_states),
+            "desired_published": sum(1 for item in desired_states if item.get("state") == "PUBLISHED"),
+            "desired_state_runs": len(self.desired_state.runs(limit=10_000)),
+            "campaigns": len(campaigns),
+            "campaigns_active": sum(1 for item in campaigns if item.get("state") in {"RUNNING", "PAUSED"}),
+            "vendor_model_packs": len(self.vendor_models.list()),
+            "explicit_model_bindings": len(self.vendor_models.list_bindings()),
+            "ha": self.ha.readiness(),
+        }
+
     def backup(self, keep=5, only_enabled=True):
         """Weekly-style backup: collect every (enabled) device's current config
         and trim each device's archive to `keep` copies. Returns a summary list
@@ -685,11 +739,14 @@ class Manager:
         return out
 
     def scheduler_leader(self, name):
-        """True when this process may start a singleton background scheduler.
+        """True when this ACTIVE node may start a singleton background scheduler.
 
         SQLite deliberately stays single-node. PostgreSQL uses a session-scoped
-        advisory lock, released automatically if the DB connection dies.
+        advisory lock, released automatically if the DB connection dies. A node
+        in DRAINING/DRAINED state never acquires new scheduler leadership.
         """
+        if hasattr(self, "ha") and not self.ha.accepts_automation_work():
+            return False
         return bool(self.db.try_advisory_lock(f"netconfig:scheduler:{name}"))
 
     def _pg_password(self):

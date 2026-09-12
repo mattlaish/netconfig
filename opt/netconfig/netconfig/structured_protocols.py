@@ -458,6 +458,129 @@ class StructuredCollector:
             raise StructuredProtocolError("bounded Subscribe is only available for gNMI profiles")
         return self._gnmi_subscribe_once(device, profile, path or profile.get("path") or "/")
 
+    def subscribe_window(self, device, profile, *, path=None, mode="ON_CHANGE",
+                         duration_seconds=30, sample_interval_ms=10000, heartbeat_interval_ms=0):
+        if profile.get("protocol") != "gnmi":
+            raise StructuredProtocolError("streaming Subscribe is only available for gNMI profiles")
+        return self._gnmi_subscribe_window(
+            device, profile, path or profile.get("path") or "/", mode=mode,
+            duration_seconds=duration_seconds, sample_interval_ms=sample_interval_ms,
+            heartbeat_interval_ms=heartbeat_interval_ms)
+
+    @staticmethod
+    def _coerce_observed_scalar(value, value_type):
+        if value_type == "boolean":
+            if isinstance(value, bool):
+                return value
+            text = str(value).strip().lower()
+            if text in {"true", "1"}:
+                return True
+            if text in {"false", "0"}:
+                return False
+            raise StructuredProtocolError("observed structured value is not boolean")
+        if value_type == "integer":
+            if isinstance(value, bool):
+                raise StructuredProtocolError("observed structured value is not integer")
+            try:
+                return int(value)
+            except (TypeError, ValueError) as exc:
+                raise StructuredProtocolError("observed structured value is not integer") from exc
+        if value_type == "string":
+            if isinstance(value, (dict, list)):
+                raise StructuredProtocolError("observed structured value is not scalar text")
+            return str(value)
+        raise StructuredProtocolError("unsupported model-pack value type")
+
+    @classmethod
+    def _extract_json_scalar(cls, value, *, value_type, leaf_hint=""):
+        """Extract one scalar from an exact structured-resource response.
+
+        gNMI/RESTCONF implementations wrap an exact leaf differently.  Prefer a
+        matching leaf key (including module-prefixed JSON names), then common
+        ``val``/``value`` wrappers, and finally accept exactly one distinct
+        scalar in the bounded response.  Ambiguity fails closed.
+        """
+        hint = str(leaf_hint or "").split(":")[-1]
+        preferred = []
+        all_scalars = []
+
+        def walk(node, key=""):
+            if isinstance(node, dict):
+                for k, v in node.items():
+                    ktext = str(k)
+                    base = ktext.split(":")[-1]
+                    if not isinstance(v, (dict, list)):
+                        all_scalars.append(v)
+                        if base == hint or base in {"val", "value"}:
+                            preferred.append(v)
+                    else:
+                        walk(v, ktext)
+            elif isinstance(node, list):
+                for item in node:
+                    walk(item, key)
+            else:
+                all_scalars.append(node)
+                if key.split(":")[-1] == hint:
+                    preferred.append(node)
+
+        walk(value)
+        candidates = preferred or all_scalars
+        converted = []
+        for item in candidates[:4096]:
+            try:
+                converted.append(cls._coerce_observed_scalar(item, value_type))
+            except StructuredProtocolError:
+                continue
+        distinct = []
+        for item in converted:
+            if item not in distinct:
+                distinct.append(item)
+        if len(distinct) != 1:
+            raise StructuredProtocolError("structured exact-resource read did not resolve to one unambiguous scalar")
+        return distinct[0]
+
+    @staticmethod
+    def _resolved_leaf_name(resolved):
+        path = list(resolved.get("netconf_container") or ())
+        if path:
+            return str(path[-1])
+        rkey = str(resolved.get("restconf_json_key") or "")
+        if rkey:
+            return rkey.split(":")[-1]
+        try:
+            typed = GnmiPath.parse(resolved.get("gnmi_path") or "/")
+            return typed.elems[-1].name.split(":")[-1] if typed.elems else ""
+        except Exception:
+            return ""
+
+    def read_resource_value(self, device, profile, resolved, *, datastore="running"):
+        """Read one allow-listed typed scalar for PH-4/NA-1 verification."""
+        protocol = profile.get("protocol")
+        value_type = resolved.get("value_type", "string")
+        leaf = self._resolved_leaf_name(resolved)
+        if protocol == "netconf":
+            return self._netconf_read_resolved(device, profile, resolved, datastore=datastore)
+        if protocol == "restconf":
+            path = resolved.get("restconf_path")
+            if not path:
+                raise StructuredProtocolError("model pack has no RESTCONF mapping for resource")
+            raw, ctype, meta = self._restconf_request(device, profile, "GET", path, require_data=True)
+            _text, decoded, media = _decode_structured_payload(raw, ctype, label="RESTCONF exact resource")
+            value = self._extract_json_scalar(decoded, value_type=value_type, leaf_hint=leaf)
+            return value, {"protocol": "restconf", "content_type": media, **meta}
+        if protocol == "gnmi":
+            path = resolved.get("gnmi_path")
+            if not path:
+                raise StructuredProtocolError("model pack has no gNMI mapping for resource")
+            text, meta = self._gnmi_get(device, profile, path, data_type="CONFIG")
+            try:
+                decoded = json.loads(text)
+            except json.JSONDecodeError as exc:
+                raise StructuredProtocolError("malformed gNMI exact-resource JSON") from exc
+            value = self._extract_json_scalar(decoded, value_type=value_type, leaf_hint=leaf)
+            return value, meta
+        raise StructuredProtocolError("typed resource read requires NETCONF, RESTCONF, or gNMI")
+
     # ---- NETCONF ---------------------------------------------------------
     def _netconf_transport(self, device, profile, sec):
         _validate_host(device.get("host"))
@@ -506,6 +629,9 @@ class StructuredCollector:
             return {"protocol": "netconf", **normalized,
                     "read": {"get": True, "get_config": True},
                     "write": {"generic_passthrough": False,
+                              "typed_edit_config": True,
+                              "candidate": normalized["candidate"],
+                              "rollback_on_error": normalized["rollback_on_error"],
                               "confirmed_commit_available": normalized["confirmed_commit"]}}
         except Exception as exc:
             self._trace(device, "netconf", "capabilities", started,
@@ -576,6 +702,270 @@ class StructuredCollector:
             if isinstance(exc, StructuredProtocolError):
                 raise
             raise StructuredProtocolError(f"NETCONF {operation} failed: {type(exc).__name__}") from exc
+        finally:
+            if tp is not None:
+                tp.close()
+
+    def _netconf_rpc(self, tp, body, *, message_id=10):
+        rpc = (b'<?xml version="1.0" encoding="UTF-8"?>'
+               + f'<rpc xmlns="{NETCONF_NS}" message-id="{int(message_id)}">'.encode("utf-8")
+               + body + b"</rpc>" + _NETCONF_DELIM)
+        tp.write_raw(rpc)
+        raw = tp.read_raw_until(re.compile(re.escape(_NETCONF_DELIM)),
+                                timeout=self.manager.settings["command_timeout"],
+                                max_bytes=MAX_PAYLOAD_BYTES)
+        payload = raw[:-len(_NETCONF_DELIM)] if raw.endswith(_NETCONF_DELIM) else raw
+        root = _safe_xml_parse(payload, label="NETCONF rpc-reply")
+        if root.tag.split("}")[-1] != "rpc-reply":
+            raise StructuredProtocolError("NETCONF response is not an rpc-reply")
+        if root.findall(".//{*}rpc-error"):
+            raise StructuredProtocolError("NETCONF write RPC returned rpc-error")
+        return payload, len(rpc), len(raw)
+
+    @staticmethod
+    def _netconf_model_tree(resolved, *, include_value=True, filter_wrapper=False):
+        path = list(resolved.get("netconf_container") or ())
+        namespace = str(resolved.get("netconf_namespace") or "")
+        if not path or not namespace or len(path) > 12:
+            raise StructuredProtocolError("model pack lacks a bounded NETCONF mapping")
+        if filter_wrapper:
+            root = ET.Element(f"{{{NETCONF_NS}}}filter", {"type": "subtree"})
+        else:
+            root = ET.Element(f"{{{NETCONF_NS}}}config")
+        cur = root
+        node_by_path = {}
+        walked = []
+        for name in path:
+            if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.-]{0,127}", str(name)):
+                raise StructuredProtocolError("invalid model-pack NETCONF element")
+            walked.append(name)
+            cur = ET.SubElement(cur, f"{{{namespace}}}{name}")
+            node_by_path[tuple(walked)] = cur
+        selectors = resolved.get("selectors") or {}
+        for selector, key_path in (resolved.get("netconf_keys") or {}).items():
+            if selector not in selectors or not isinstance(key_path, list) or not key_path:
+                raise StructuredProtocolError("invalid model-pack NETCONF key mapping")
+            parent_path = tuple(key_path[:-1])
+            parent = node_by_path.get(parent_path)
+            if parent is None:
+                raise StructuredProtocolError("NETCONF key mapping is outside the resource tree")
+            key_name = key_path[-1]
+            key = ET.Element(f"{{{namespace}}}{key_name}")
+            key.text = str(selectors[selector])
+            parent.insert(0, key)
+        if include_value:
+            value = resolved.get("value")
+            cur.text = "true" if value is True else "false" if value is False else str(value)
+        payload = ET.tostring(root, encoding="utf-8")
+        if len(payload) > MAX_PAYLOAD_BYTES:
+            raise StructuredProtocolError("typed NETCONF configuration/filter exceeds 16 MiB limit")
+        return payload
+
+    @classmethod
+    def _netconf_typed_config(cls, resolved):
+        return cls._netconf_model_tree(resolved, include_value=True, filter_wrapper=False)
+
+    @classmethod
+    def _netconf_typed_filter(cls, resolved):
+        return cls._netconf_model_tree(resolved, include_value=False, filter_wrapper=True)
+
+    def _netconf_read_resolved_on_session(self, tp, normalized, resolved, *, datastore="running", message_id=31):
+        datastore = str(datastore or "running").lower()
+        allowed = {"running"}
+        if normalized.get("candidate"):
+            allowed.add("candidate")
+        if normalized.get("startup"):
+            allowed.add("startup")
+        if datastore not in allowed:
+            raise StructuredProtocolError(f"NETCONF datastore {datastore!r} is not advertised by the server")
+        filt = self._netconf_typed_filter(resolved)
+        body = (b"<get-config><source><" + datastore.encode() + b"/></source>" + filt + b"</get-config>")
+        payload, tx, rx = self._netconf_rpc(tp, body, message_id=message_id)
+        root = _safe_xml_parse(payload, label="NETCONF exact-resource read")
+        leaf = self._resolved_leaf_name(resolved)
+        matches = [(e.text or "").strip() for e in root.iter() if e.tag.split("}")[-1] == leaf]
+        converted = []
+        for item in matches:
+            try:
+                converted.append(self._coerce_observed_scalar(item, resolved.get("value_type", "string")))
+            except StructuredProtocolError:
+                continue
+        distinct = []
+        for item in converted:
+            if item not in distinct:
+                distinct.append(item)
+        if len(distinct) != 1:
+            raise StructuredProtocolError("NETCONF exact-resource read did not resolve to one unambiguous scalar")
+        return distinct[0], tx, rx
+
+    def _netconf_read_resolved(self, device, profile, resolved, *, datastore="running"):
+        started = time.monotonic()
+        tp = None
+        try:
+            tp, caps, hello_tx = self._netconf_open(device, profile)
+            normalized = _normalize_netconf_caps(caps)
+            value, tx, rx = self._netconf_read_resolved_on_session(
+                tp, normalized, resolved, datastore=datastore, message_id=31)
+            self._trace(device, "netconf", "get_config", started,
+                        operation="NETCONF typed exact-resource read", tx=hello_tx + tx, rx=rx,
+                        datastore=datastore, resource=resolved.get("resource"))
+            self._audit("system", "structured_read", device, "netconf", "ok",
+                        f"operation=typed_resource;resource={resolved.get('resource')};datastore={datastore}")
+            return value, {"protocol": "netconf", "operation": "typed_resource", "datastore": datastore,
+                           "capabilities": normalized}
+        except Exception as exc:
+            self._trace(device, "netconf", "get_config", started,
+                        operation="NETCONF typed exact-resource read", status="error",
+                        resource=resolved.get("resource"), error_type=type(exc).__name__)
+            if isinstance(exc, StructuredProtocolError):
+                raise
+            raise StructuredProtocolError(f"NETCONF typed exact-resource read failed: {type(exc).__name__}") from exc
+        finally:
+            if tp is not None:
+                tp.close()
+
+    def _netconf_apply_value_on_session(self, tp, normalized, resolved, *, target, message_base=40):
+        cfg = self._netconf_typed_config(resolved)
+        error_option = b"<error-option>rollback-on-error</error-option>" if normalized.get("rollback_on_error") else b""
+        body = (b"<edit-config><target><" + target.encode() + b"/></target>"
+                b"<default-operation>merge</default-operation>" + error_option + cfg + b"</edit-config>")
+        _reply, tx, rx = self._netconf_rpc(tp, body, message_id=message_base)
+        if target == "candidate" and normalized.get("validate"):
+            _reply, n, r = self._netconf_rpc(
+                tp, b"<validate><source><candidate/></source></validate>", message_id=message_base + 1)
+            tx += n; rx += r
+        return tx, rx
+
+    def netconf_edit_typed(self, device, profile, *, resolved, actor, approved, before_value=None):
+        """Execute one allow-listed typed edit-config transaction.
+
+        Candidate is preferred.  Candidate content is verified before commit.  A
+        confirmed commit is used when advertised; otherwise a bounded
+        compensating write of the typed pre-image is attempted if post-commit
+        verification fails.  Running-only devices must advertise
+        ``:rollback-on-error`` and receive the same compensating pre-image
+        treatment.  Caller-supplied XML is never accepted.
+        """
+        if profile.get("protocol") != "netconf" or not approved or not actor:
+            raise StructuredProtocolError("NETCONF typed write requires approved NETCONF context")
+        started = time.monotonic()
+        tp = None
+        locked = ""
+        commit_state = "not_committed"
+        rollback = "not_needed"
+        tx = rx = 0
+        normalized = {}
+        target = ""
+        try:
+            tp, caps, hello_tx = self._netconf_open(device, profile)
+            tx += hello_tx
+            normalized = _normalize_netconf_caps(caps)
+            target = "candidate" if normalized["candidate"] else "running"
+            if target == "running" and not normalized["rollback_on_error"]:
+                raise StructuredProtocolError(
+                    "NETCONF running write refused because server lacks :rollback-on-error and no candidate datastore exists")
+            _reply, n, r = self._netconf_rpc(
+                tp, f"<lock><target><{target}/></target></lock>".encode(), message_id=20)
+            tx += n; rx += r; locked = target
+            n, r = self._netconf_apply_value_on_session(tp, normalized, resolved, target=target, message_base=21)
+            tx += n; rx += r
+
+            expected = resolved.get("value")
+            if target == "candidate":
+                observed_candidate, n, r = self._netconf_read_resolved_on_session(
+                    tp, normalized, resolved, datastore="candidate", message_id=24)
+                tx += n; rx += r
+                if observed_candidate != expected:
+                    raise StructuredProtocolError("NETCONF candidate verification failed before commit")
+                if normalized["confirmed_commit"]:
+                    _reply, n, r = self._netconf_rpc(
+                        tp, b"<commit><confirmed/><confirm-timeout>30</confirm-timeout></commit>", message_id=25)
+                    tx += n; rx += r
+                    commit_state = "confirmed_pending"
+                    rollback = "confirmed_commit_timeout_30s"
+                else:
+                    _reply, n, r = self._netconf_rpc(tp, b"<commit/>", message_id=25)
+                    tx += n; rx += r
+                    commit_state = "committed"
+                    rollback = "compensating_preimage_available" if before_value is not None else "no_preimage"
+            else:
+                commit_state = "running_changed"
+                rollback = "compensating_preimage_available" if before_value is not None else "rollback_on_error_only"
+
+            observed, n, r = self._netconf_read_resolved_on_session(
+                tp, normalized, resolved, datastore="running", message_id=26)
+            tx += n; rx += r
+            if observed != expected:
+                raise StructuredProtocolError("NETCONF post-change verification failed")
+
+            if commit_state == "confirmed_pending":
+                _reply, n, r = self._netconf_rpc(tp, b"<commit/>", message_id=27)
+                tx += n; rx += r
+                commit_state = "confirmed"
+                rollback = "confirmed"
+            if locked:
+                _reply, n, r = self._netconf_rpc(
+                    tp, f"<unlock><target><{locked}/></target></unlock>".encode(), message_id=28)
+                tx += n; rx += r; locked = ""
+            self._trace(device, "netconf", "edit_config", started,
+                        operation="NETCONF approved typed edit-config", tx=tx, rx=rx,
+                        target=target, resource=resolved.get("resource"), rollback=rollback,
+                        verification="exact_resource")
+            self._audit(actor, "structured_change", device, "netconf", "ok",
+                        f"operation=typed_edit;target={target};resource={resolved.get('resource')};rollback={rollback}")
+            return {"protocol": "netconf", "operation": "typed_edit", "target": target,
+                    "changed": True, "verified": True, "rollback": rollback,
+                    "confirmed_commit": commit_state == "confirmed"}
+        except Exception as exc:
+            # If a confirmed commit is pending, *not* confirming it is the safest
+            # rollback; the server reverts automatically after 30 seconds.
+            if tp is not None and commit_state == "confirmed_pending":
+                rollback = "confirmed_commit_timeout_pending"
+            elif tp is not None and target == "candidate" and commit_state == "not_committed":
+                try:
+                    self._netconf_rpc(tp, b"<discard-changes/>", message_id=90)
+                    rollback = "discarded_candidate"
+                except Exception:
+                    rollback = "FAILED"
+            elif tp is not None and before_value is not None and commit_state in {"committed", "running_changed"}:
+                try:
+                    rollback_resolved = dict(resolved)
+                    rollback_resolved["value"] = before_value
+                    n, r = self._netconf_apply_value_on_session(
+                        tp, normalized, rollback_resolved, target=target, message_base=91)
+                    tx += n; rx += r
+                    if target == "candidate":
+                        old_candidate, n, r = self._netconf_read_resolved_on_session(
+                            tp, normalized, rollback_resolved, datastore="candidate", message_id=93)
+                        tx += n; rx += r
+                        if old_candidate != before_value:
+                            raise StructuredProtocolError("NETCONF compensating candidate verification failed")
+                        _reply, n, r = self._netconf_rpc(tp, b"<commit/>", message_id=94)
+                        tx += n; rx += r
+                    old_running, n, r = self._netconf_read_resolved_on_session(
+                        tp, normalized, rollback_resolved, datastore="running", message_id=95)
+                    tx += n; rx += r
+                    if old_running != before_value:
+                        raise StructuredProtocolError("NETCONF compensating running verification failed")
+                    rollback = "restored_preimage"
+                except Exception:
+                    rollback = "FAILED"
+            if tp is not None and locked:
+                try:
+                    self._netconf_rpc(tp, f"<unlock><target><{locked}/></target></unlock>".encode(), message_id=99)
+                except Exception:
+                    pass
+            self._trace(device, "netconf", "edit_config", started,
+                        operation="NETCONF approved typed edit-config", status="error",
+                        tx=tx, rx=rx, rollback=rollback, error_type=type(exc).__name__)
+            self._audit(actor, "structured_change", device, "netconf", "error",
+                        f"operation=typed_edit;rollback={rollback};error={type(exc).__name__}")
+            if rollback == "FAILED":
+                raise StructuredProtocolError(
+                    "NETCONF change failed and compensating rollback also failed; manual recovery required; rollback=FAILED") from exc
+            if isinstance(exc, StructuredProtocolError):
+                raise StructuredProtocolError(f"{exc}; rollback={rollback}") from exc
+            raise StructuredProtocolError(f"NETCONF typed change failed: {type(exc).__name__}; rollback={rollback}") from exc
         finally:
             if tp is not None:
                 tp.close()
@@ -724,8 +1114,8 @@ class StructuredCollector:
             raise StructuredProtocolError(str(exc)) from exc
         if urllib.parse.urlsplit(safe_path).path == "/restconf/data":
             raise StructuredProtocolError("RESTCONF whole-datastore replacement is not allowed")
-        if not isinstance(value, (dict, list)):
-            raise StructuredProtocolError("RESTCONF controlled write accepts JSON object/array values only")
+        if isinstance(value, (bytes, bytearray)) or value is None:
+            raise StructuredProtocolError("RESTCONF controlled write accepts bounded JSON values only")
         payload = json.dumps(value, separators=(",", ":"), sort_keys=True).encode("utf-8")
         if len(payload) > MAX_PAYLOAD_BYTES:
             raise StructuredProtocolError("RESTCONF write payload exceeds 16 MiB limit")
@@ -778,6 +1168,20 @@ class StructuredCollector:
                 raise StructuredProtocolError(f"{exc}; rollback={rollback}") from exc
             raise StructuredProtocolError(f"RESTCONF change failed: {type(exc).__name__}; rollback={rollback}") from exc
 
+    def restconf_replace_typed(self, device, profile, *, resolved, actor, approved):
+        """Replace one model-pack leaf using a generated YANG JSON envelope."""
+        path = str(resolved.get("restconf_path") or "")
+        key = str(resolved.get("restconf_json_key") or "")
+        if not path or not key:
+            raise StructuredProtocolError("model pack lacks a bounded RESTCONF typed mapping")
+        value = resolved.get("value")
+        envelope = {key: value}
+        return self.restconf_replace_json(
+            device, profile, path=path, value=envelope, actor=actor, approved=approved,
+            verify=lambda observed: self._extract_json_scalar(
+                observed, value_type=resolved.get("value_type", "string"),
+                leaf_hint=key.split(":")[-1]) == value)
+
     # ---- gNMI ------------------------------------------------------------
     def _gnmi_binary(self):
         binary = os.environ.get("NETCONFIG_GNMIC") or shutil.which("gnmic")
@@ -810,7 +1214,7 @@ class StructuredCollector:
             raise StructuredProtocolError("gNMI requires username/password or mTLS credentials")
         return cfg, verify, bool(cert)
 
-    def _gnmi_run(self, device, profile, argv_tail, *, label):
+    def _gnmi_run(self, device, profile, argv_tail, *, label, timeout=None, timeout_as_result=False):
         sec = self._secret(device, profile)
         binary = self._gnmi_binary()
         cfg, verify, mtls = self._gnmi_config(device, profile, sec)
@@ -821,7 +1225,7 @@ class StructuredCollector:
                 json.dump(cfg, fh)
             argv = [binary, "--config", cfg_path, *argv_tail]
             proc = subprocess.run(argv, capture_output=True, text=True,
-                                  timeout=self.manager.settings["command_timeout"], check=False)
+                                  timeout=(timeout or self.manager.settings["command_timeout"]), check=False)
             stdout_raw = (proc.stdout or "").encode("utf-8", "replace")
             stderr = proc.stderr or ""
             if len(stdout_raw) > MAX_PAYLOAD_BYTES:
@@ -843,6 +1247,27 @@ class StructuredCollector:
             return value, len(stdout_raw), {"tls_verify": verify, "mtls": mtls,
                                            "binary": os.path.basename(binary)}
         except subprocess.TimeoutExpired as exc:
+            if timeout_as_result:
+                stdout = exc.stdout or ""
+                stderr = exc.stderr or ""
+                if isinstance(stdout, bytes):
+                    stdout = stdout.decode("utf-8", "replace")
+                if isinstance(stderr, bytes):
+                    stderr = stderr.decode("utf-8", "replace")
+                raw = stdout.encode("utf-8", "replace")
+                if len(raw) > MAX_PAYLOAD_BYTES:
+                    raise StructuredProtocolError(f"{label} response exceeds 16 MiB limit") from exc
+                values = []
+                for line in stdout.splitlines():
+                    if not line.strip():
+                        continue
+                    try:
+                        values.append(json.loads(line))
+                    except json.JSONDecodeError as jexc:
+                        raise StructuredProtocolError(f"malformed {label} JSON") from jexc
+                return values, len(raw), {"tls_verify": verify, "mtls": mtls,
+                                          "binary": os.path.basename(binary),
+                                          "window_timeout": True}
             raise StructuredProtocolError(f"{label} timed out") from exc
         finally:
             try:
@@ -855,8 +1280,13 @@ class StructuredCollector:
         try:
             value, rx, meta = self._gnmi_run(
                 device, profile, ["capabilities", "--format", "json"], label="gNMI Capabilities")
+            # Preserve the PH-3 public capability contract: generic gNMI Set is
+            # intentionally *not* exposed.  PH-4 adds only the constrained typed
+            # Set path behind the approved structured-change engine.
             out = {"protocol": "gnmi", "raw": value, "generic_passthrough": False,
                    "get": True, "subscribe_once": True, "set": False,
+                   "write": {"typed_set": True, "generic_passthrough": False,
+                             "approval_required": True},
                    "tls_verify": meta["tls_verify"], "mtls": meta["mtls"]}
             self._trace(device, "gnmi", "capabilities", started,
                         operation="gNMI Capabilities", rx=rx, tls_verify=meta["tls_verify"], mtls=meta["mtls"])
@@ -890,7 +1320,8 @@ class StructuredCollector:
             return text, {"protocol": "gnmi", "content_type": "application/json",
                           "operation": "get", "path": typed.as_dict(), "data_type": data_type,
                           "tls_verify": meta["tls_verify"], "mtls": meta["mtls"],
-                          "write": {"set": False, "reason": "gNMI Set is not exposed in PH-3"}}
+                          "write": {"set": True, "generic_passthrough": False,
+                                    "typed_only": True}}
         except Exception as exc:
             self._trace(device, "gnmi", "get", started, operation="gNMI Get",
                         status="error", path=typed.render(), error_type=type(exc).__name__)
@@ -898,6 +1329,152 @@ class StructuredCollector:
             if isinstance(exc, StructuredProtocolError):
                 raise
             raise StructuredProtocolError(f"gNMI Get failed: {type(exc).__name__}") from exc
+
+    @staticmethod
+    def _json_contains_value(node, expected):
+        if node == expected:
+            return True
+        if isinstance(node, dict):
+            return any(StructuredCollector._json_contains_value(v, expected) for v in node.values())
+        if isinstance(node, list):
+            return any(StructuredCollector._json_contains_value(v, expected) for v in node)
+        return False
+
+    def gnmi_set_typed(self, device, profile, *, path, value, actor, approved,
+                       before_value=None, value_type=None, leaf_hint=""):
+        if profile.get("protocol") != "gnmi" or not approved or not actor:
+            raise StructuredProtocolError("gNMI typed Set requires approved gNMI context")
+        try:
+            typed = GnmiPath.parse(path)
+        except ValueError as exc:
+            raise StructuredProtocolError(str(exc)) from exc
+        encoded = json.dumps(value, separators=(",", ":"), sort_keys=True)
+        if len(encoded.encode("utf-8")) > 64 * 1024:
+            raise StructuredProtocolError("gNMI typed Set value exceeds 64 KiB limit")
+        started = time.monotonic()
+        rollback = "not_needed"
+        try:
+            result, rx, meta = self._gnmi_run(
+                device, profile,
+                ["set", "--replace-path", typed.render(), "--replace-value", encoded,
+                 "--encoding", "json_ietf", "--format", "json"],
+                label="gNMI Set")
+            post, post_rx, _post_meta = self._gnmi_run(
+                device, profile,
+                ["get", "--path", typed.render(), "--type", "CONFIG",
+                 "--encoding", "json_ietf", "--format", "json"],
+                label="gNMI Set post-read")
+            rx += post_rx
+            if value_type:
+                observed = self._extract_json_scalar(post, value_type=value_type,
+                                                     leaf_hint=leaf_hint or (typed.elems[-1].name if typed.elems else ""))
+                verified = observed == value
+            else:
+                verified = self._json_contains_value(post, value)
+            if not verified:
+                if before_value is not None:
+                    rollback_encoded = json.dumps(before_value, separators=(",", ":"), sort_keys=True)
+                    self._gnmi_run(
+                        device, profile,
+                        ["set", "--replace-path", typed.render(), "--replace-value", rollback_encoded,
+                         "--encoding", "json_ietf", "--format", "json"],
+                        label="gNMI compensating Set")
+                    verify_old, old_rx, _old_meta = self._gnmi_run(
+                        device, profile,
+                        ["get", "--path", typed.render(), "--type", "CONFIG",
+                         "--encoding", "json_ietf", "--format", "json"],
+                        label="gNMI compensating Set post-read")
+                    rx += old_rx
+                    if value_type:
+                        old_observed = self._extract_json_scalar(
+                            verify_old, value_type=value_type,
+                            leaf_hint=leaf_hint or (typed.elems[-1].name if typed.elems else ""))
+                        if old_observed != before_value:
+                            rollback = "FAILED"
+                        else:
+                            rollback = "restored_preimage"
+                    elif self._json_contains_value(verify_old, before_value):
+                        rollback = "restored_preimage"
+                    else:
+                        rollback = "FAILED"
+                else:
+                    rollback = "not_protocol_native"
+                if rollback == "FAILED":
+                    raise StructuredProtocolError(
+                        "gNMI post-change verification failed and compensating rollback failed; manual recovery required; rollback=FAILED")
+                raise StructuredProtocolError(f"gNMI post-change verification failed; rollback={rollback}")
+            rollback = "compensating_preimage_available" if before_value is not None else "not_protocol_native"
+            self._trace(device, "gnmi", "set", started, operation="gNMI approved typed Set",
+                        tx=len(encoded.encode("utf-8")), rx=rx, path=typed.render(),
+                        tls_verify=meta["tls_verify"], mtls=meta["mtls"], rollback=rollback,
+                        verified=True)
+            self._audit(actor, "structured_change", device, "gnmi", "ok",
+                        f"operation=typed_set;path={typed.render()};rollback={rollback};verified=1")
+            return {"protocol": "gnmi", "operation": "replace", "path": typed.as_dict(),
+                    "changed": True, "verified": True, "rollback": rollback, "result": result}
+        except Exception as exc:
+            detail = str(exc)
+            if "rollback=" in detail:
+                rollback = detail.rsplit("rollback=", 1)[-1].split(";", 1)[0][:64]
+            elif rollback == "not_needed":
+                rollback = "not_attempted"
+            self._trace(device, "gnmi", "set", started, operation="gNMI approved typed Set",
+                        status="error", path=typed.render(), rollback=rollback,
+                        error_type=type(exc).__name__)
+            self._audit(actor, "structured_change", device, "gnmi", "error",
+                        f"operation=typed_set;rollback={rollback};error={type(exc).__name__}")
+            if isinstance(exc, StructuredProtocolError):
+                raise
+            raise StructuredProtocolError(f"gNMI typed Set failed: {type(exc).__name__}; rollback={rollback}") from exc
+
+    def _gnmi_subscribe_window(self, device, profile, path, *, mode, duration_seconds,
+                               sample_interval_ms, heartbeat_interval_ms):
+        started = time.monotonic()
+        try:
+            typed = GnmiPath.parse(path)
+        except ValueError as exc:
+            raise StructuredProtocolError(str(exc)) from exc
+        mode = str(mode or "ON_CHANGE").upper()
+        if mode not in {"ON_CHANGE", "SAMPLE", "TARGET_DEFINED"}:
+            raise StructuredProtocolError("unsupported gNMI stream mode")
+        duration = int(duration_seconds)
+        if duration < 1 or duration > 300:
+            raise StructuredProtocolError("gNMI stream window must be 1..300 seconds")
+        sample = int(sample_interval_ms)
+        heartbeat = int(heartbeat_interval_ms)
+        if sample < 1000 or sample > 3_600_000 or heartbeat < 0 or heartbeat > 3_600_000:
+            raise StructuredProtocolError("gNMI stream interval outside safe bounds")
+        tail = ["subscribe", "--path", typed.render(), "--mode", "stream",
+                "--stream-mode", mode.lower(), "--encoding", "json_ietf", "--format", "json"]
+        if mode == "SAMPLE":
+            tail += ["--sample-interval", f"{sample}ms"]
+        if heartbeat:
+            tail += ["--heartbeat-interval", f"{heartbeat}ms"]
+        try:
+            value, rx, meta = self._gnmi_run(
+                device, profile, tail, label="gNMI Subscribe STREAM", timeout=duration,
+                timeout_as_result=True)
+            text = json.dumps(value, indent=2, sort_keys=True)
+            self._trace(device, "gnmi", "subscribe", started,
+                        operation="gNMI Subscribe STREAM bounded window", rx=rx, path=typed.render(),
+                        mode=mode, duration_seconds=duration,
+                        tls_verify=meta["tls_verify"], mtls=meta["mtls"],
+                        window_complete=bool(meta.get("window_timeout")))
+            self._audit("system", "structured_read", device, "gnmi", "ok",
+                        f"operation=subscribe_stream;mode={mode};duration={duration}")
+            return text, {"protocol": "gnmi", "content_type": "application/json",
+                          "operation": "subscribe", "mode": "stream", "stream_mode": mode,
+                          "duration_seconds": duration, "path": typed.as_dict(),
+                          "tls_verify": meta["tls_verify"], "mtls": meta["mtls"],
+                          "window_complete": bool(meta.get("window_timeout"))}
+        except Exception as exc:
+            self._trace(device, "gnmi", "subscribe", started,
+                        operation="gNMI Subscribe STREAM bounded window", status="error",
+                        path=typed.render(), mode=mode, error_type=type(exc).__name__)
+            self._audit("system", "structured_read", device, "gnmi", "error", type(exc).__name__)
+            if isinstance(exc, StructuredProtocolError):
+                raise
+            raise StructuredProtocolError(f"gNMI streaming Subscribe failed: {type(exc).__name__}") from exc
 
     def _gnmi_subscribe_once(self, device, profile, path):
         started = time.monotonic()

@@ -26,7 +26,7 @@ import datetime
 
 
 def _utc_stamp():
-    return datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return datetime.datetime.now(datetime.UTC).strftime("%Y%m%dT%H%M%SZ")
 
 
 def _sha256(text):

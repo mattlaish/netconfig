@@ -1,28 +1,34 @@
 # NetConfig development baseline
 
-> **Canonical project state — 2026-09-12:** **CURRENT** = Qualification Track **Q-1 — Production Runtime & Service-backed Qualification** (`IMPLEMENTED_TESTING_DEFERRED`). **LATEST FEATURE BASELINE** = Platform Hardening **PH-3 — NETCONF / RESTCONF / gNMI Structured Adapters** (`IMPLEMENTED_TESTING_DEFERRED`). Q-1 implementation is complete in source, but live PostgreSQL/AlmaLinux/systemd/service-backed gates remain explicitly deferred in this environment. No Q-2 is assigned. RPM source Release is `2.0.0-32`.
+> **Canonical project state — 2026-09-12:** **CURRENT IMPLEMENTATION BASELINE** = **HA-1 — Control-plane HA & Recovery Foundation** (`IMPLEMENTED_TESTING_DEFERRED`). **PH-4, NI-5, VM-1, NA-1, NA-2, and HA-1** are implemented in source; consolidated Release 33 offline regression is green, while live/service-backed qualification remains deferred. Qualification **Q-1** remains `IMPLEMENTED_TESTING_DEFERRED`; its live PostgreSQL/AlmaLinux/systemd/service-backed gates remain deferred. No further development phase is assigned until the post-implementation qualification/roadmap review. RPM source Release is `2.0.0-33`.
 
-> **Current continuation pointer:** use the Q-1 full source baseline from 2026-09-12 as the active source. Historical CURRENT/NEXT statements below are chronology only. Execute the remaining Q-1 live gates before any promotion to `TESTED`/`RELEASED`; after Q-1 qualification, perform a fresh roadmap review before assigning Q-2.
+## Release 33 baseline
 
-## Q-1 baseline note
+Application/project Version: `2.0.0`. RPM source Release: `33`. Database schema revision: `ha1-2`.
 
-Current implementation line: **Qualification Q-1 — Production Runtime & Service-backed Qualification**, status `IMPLEMENTED_TESTING_DEFERRED`; latest feature baseline remains PH-3. Application/project/RPM Version is `2.0.0`, RPM source Release is `32`, and database schema revision remains `ph3-1`.
+Source includes PH-4 structured transactions, NI-5 telemetry/time-series foundation, VM-1 vendor model packs, NA-1 desired state, NA-2 fleet campaigns and HA-1 control-plane recovery/drain foundation. All are `IMPLEMENTED_TESTING_DEFERRED`; Q-1 real-service/RPM qualification remains outstanding. The source tree is the authoritative modifiable baseline; no claim is made that Release 33 RPM or real network devices have been qualified until corresponding evidence exists.
+
+> **Current continuation pointer:** use the Release 33 full source baseline as the active implementation source. Historical CURRENT/NEXT statements below are chronology only. Use the recorded Release 33 offline/artifact evidence and run the applicable Q-1 live gates before any promotion to `TESTED`/`RELEASED`; then perform a fresh roadmap review before assigning another development phase.
+
+## Historical Q-1 baseline note
+
+At the Q-1 baseline checkpoint, **Qualification Q-1 — Production Runtime & Service-backed Qualification** was the active track, status `IMPLEMENTED_TESTING_DEFERRED`; PH-3 was then the latest feature baseline. That historical baseline used RPM source Release `32` and schema revision `ph3-1`. Release 33 supersedes it as the active implementation source.
 
 Q-1 source adds runtime preflight, controlled PostgreSQL backup/restore, real PostgreSQL qualification tests, AlmaLinux/RPM qualification harnesses, hardened backup systemd service, and CI coverage for PostgreSQL client recovery tooling. Current local evidence before final packaging is **147 passed / 7 skipped**, Q-1 focused **11 passed**. Ruff/mypy, real PostgreSQL, and AlmaLinux install gates are explicitly `NOT_RUN` in this environment. No Q-2 is assigned.
 
-Historical PH-3 closeout immediately preceded Q-1. The current roadmap position is **CURRENT = Qualification Q-1; NEXT ACTION = execute deferred live qualification; no Q-2 is assigned**. Historical Slice labels are provenance only; D.5 remains the separate completed-in-source Diagnostics Track.
+Historical PH-3 closeout immediately preceded Q-1. Release 33 subsequently implemented PH-4/NI-5/VM-1/NA-1/NA-2/HA-1 while leaving Q-1 qualification open. Historical Slice labels are provenance only; D.5 remains the separate completed-in-source Diagnostics Track.
 
-- Application version remains NetConfig 2.0.0; packaging spec source Release is 32 for the current Q-1 baseline.
+- Application version remains NetConfig 2.0.0; packaging spec source Release is 33 for the active Release 33 baseline.
 - Application source: `opt/netconfig/netconfig/`.
 - Tests: `tests/` plus legacy `opt/netconfig/selftest.py`.
 - RPM/build integration: `packaging/`, `etc/`, and `usr/`.
 - Canonical current engineering state: `DEVELOPMENT.md`, `ROADMAP.md`, `SECURITY.md`, `API.md`, `TESTING.md`, `AI_HANDOFF.md`.
 
-This source tree is a complete modifiable development baseline, not an installed-RPM image. RPM Release 32 has **not** been built or installed in this environment because the current host is not AlmaLinux and lacks `rpmbuild`; that gate remains `NOT_RUN`. Historical RPM/handover material is provenance only and must not override current source truth.
+This source tree is a complete modifiable development baseline, not an installed-RPM image. RPM Release 33 has **not** been built or installed in this environment because the current host is not AlmaLinux and lacks `rpmbuild`; that gate remains `NOT_RUN`. Historical RPM/handover material is provenance only and must not override current source truth.
 
 Phase 4C adds bounded managed Support Case Export on top of the Phase 4B reference-only Incident Timeline. It packages Incident-owned metadata, reference indexes and selected linked diagnostic bundles without copying authoritative event/report/config payloads into Incident state. Phase 4A lifecycle and Phase 3D debug download/admin scope repair remain intact. Session idle/absolute expiry remains deliberately deferred.
 
-Before any new implementation phase, reproduce the Q-1 tests and execute the deferred service/RPM qualification gates when suitable infrastructure exists. Q-1 is the current source baseline; after Q-1 is genuinely qualified, perform a new roadmap review before naming Q-2.
+Before any new implementation phase, complete consolidated Release 33 verification and execute the available deferred Q-1 service/RPM qualification gates. Then perform a new roadmap review before naming another phase.
 
 
 ## Phase 4C baseline note

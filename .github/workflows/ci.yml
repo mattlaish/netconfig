@@ -38,6 +38,12 @@ jobs:
             echo "Tracked CRLF/mixed line endings violate .gitattributes" >&2
             exit 1
           fi
+      - name: Executable-mode integrity
+        shell: bash
+        run: |
+          for f in usr/bin/netconfig packaging/build-rpm.sh packaging/inspect-rpm.sh packaging/q1-qualify-almalinux.sh packaging/q1-qualify-postgres.sh packaging/q1-source-gates.sh packaging/smoke-installed.sh; do
+            test -x "$f" || { echo "Tracked executable mode missing: $f" >&2; exit 1; }
+          done
       - name: Ruff
         run: ruff check opt/netconfig/netconfig tests
       - name: Mypy security/core boundary
@@ -52,6 +58,13 @@ jobs:
           opt/netconfig/netconfig/postgres_core.py
           opt/netconfig/netconfig/postgres_backup.py
           opt/netconfig/netconfig/qualification.py
+          opt/netconfig/netconfig/structured_changes.py
+          opt/netconfig/netconfig/telemetry.py
+          opt/netconfig/netconfig/vendor_models.py
+          opt/netconfig/netconfig/desired_state.py
+          opt/netconfig/netconfig/campaigns.py
+          opt/netconfig/netconfig/ha.py
+          opt/netconfig/netconfig/workflow.py
       - name: Compile all modules
         run: python -m compileall -q opt/netconfig/netconfig
       - name: Pytest

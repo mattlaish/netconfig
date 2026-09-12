@@ -6,6 +6,9 @@ VALID_SCOPES = {
     "debug:create", "debug:read", "debug:download", "debug:admin",
     "incident:read", "incident:write", "incident:export",
     "trace:read", "trace:capture", "protocol:read", "protocol:write",
+    "automation:read", "automation:write", "telemetry:read", "telemetry:write",
+    "desired:read", "desired:write", "campaign:read", "campaign:write",
+    "model:read", "model:write", "ha:read", "ha:write",
 }
 
 _SCOPE_MIN_ROLE = {
@@ -15,18 +18,28 @@ _SCOPE_MIN_ROLE = {
     "alerts:write": "operator",
     "reports:write": "operator",
     "protocol:write": "operator",
+    "automation:write": "operator",
+    "telemetry:write": "operator",
+    "desired:write": "operator",
+    "campaign:write": "operator",
+    "model:write": "admin",
+    "ha:write": "operator",
 }
 _ROLE_LEVEL = {"viewer": 0, "operator": 1, "approver": 2, "admin": 3}
 
 
-def _hash(token): return hashlib.sha256(token.encode()).hexdigest()
+def _hash(token):
+    return hashlib.sha256(token.encode()).hexdigest()
 
 class ApiTokens:
-    def __init__(self, conn): self.conn = conn
+    def __init__(self, conn):
+        self.conn = conn
     def create(self, name, scopes, created_by="", role="viewer"):
-        if role not in {"viewer", "operator", "approver", "admin"}: raise ValueError("invalid role")
+        if role not in {"viewer", "operator", "approver", "admin"}:
+            raise ValueError("invalid role")
         scopes = sorted(set(scopes)); bad = set(scopes) - VALID_SCOPES
-        if bad: raise ValueError("invalid scopes: " + ", ".join(sorted(bad)))
+        if bad:
+            raise ValueError("invalid scopes: " + ", ".join(sorted(bad)))
         for scope in scopes:
             minimum = _SCOPE_MIN_ROLE.get(scope)
             if minimum and _ROLE_LEVEL[role] < _ROLE_LEVEL[minimum]:
@@ -36,9 +49,11 @@ class ApiTokens:
                                 (name, _hash(raw), json.dumps(scopes), role, created_by, time.time()))
         self.conn.commit(); return cur.lastrowid, raw
     def verify(self, raw):
-        if not raw: return None
+        if not raw:
+            return None
         row = self.conn.execute("SELECT * FROM api_tokens WHERE token_hash=? AND disabled=0", (_hash(raw),)).fetchone()
-        if not row: return None
+        if not row:
+            return None
         d = dict(row); d["scopes"] = set(json.loads(d.get("scopes") or "[]"))
         self.conn.execute("UPDATE api_tokens SET last_used_ts=? WHERE id=?", (time.time(), d["id"])); self.conn.commit()
         return d

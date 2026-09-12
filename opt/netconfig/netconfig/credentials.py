@@ -10,7 +10,7 @@ def _read_secret_file(path):
     # left to deployment policy (systemd credential files are typically 0400).
     if st.st_mode & 0o022:
         raise RuntimeError(f"credential file is group/world writable: {path}")
-    with open(path, "r", encoding="utf-8") as fh:
+    with open(path, encoding="utf-8") as fh:
         value = fh.read().rstrip("\r\n")
     if not value:
         raise RuntimeError(f"credential file is empty: {path}")

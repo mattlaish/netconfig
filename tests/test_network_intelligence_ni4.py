@@ -71,7 +71,8 @@ def test_ack_resolve_and_dedup_touch_same_alert(tmp_path):
     alert=m.alert_lifecycle.list()[0]; assert a["id"]==b["id"] and alert["event_count"]==2
     ack=m.alert_lifecycle.acknowledge(alert["id"],"ops","triage",now=120); assert ack["state"]=="ACKNOWLEDGED" and ack["acknowledged_by"]=="ops"
     res=m.alert_lifecycle.resolve(alert["id"],"ops","fixed",now=130); assert res["state"]=="RESOLVED" and res["resolution_note"]=="fixed"
-    with pytest.raises(ValueError): m.alert_lifecycle.acknowledge(alert["id"],"ops",now=140)
+    with pytest.raises(ValueError):
+        m.alert_lifecycle.acknowledge(alert["id"],"ops",now=140)
     acts=[r["action"] for r in m.db.recent_audit(20)]; assert "operational_alert_ack" in acts and "operational_alert_resolve" in acts
     m.db.close()
 
@@ -108,7 +109,7 @@ def test_cli_scopes_and_api_lifecycle(tmp_path):
     from netconfig import apitokens
     assert {"alerts:read","alerts:write","reports:read","reports:write"} <= apitokens.VALID_SCOPES
     m=Manager(str(tmp_path/"home")); m.inv.upsert(name="sw1",host="10.0.0.1",platform="generic")
-    ev=m.events.record(source_type="snmp_trap",device="sw1",event_type="LINK_DOWN",severity="MAJOR",message="down")
+    m.events.record(source_type="snmp_trap",device="sw1",event_type="LINK_DOWN",severity="MAJOR",message="down")
     aid=m.alert_lifecycle.list()[0]["id"]
     _,raw=ApiTokens(m.db.conn).create("ops",["alerts:read","alerts:write","reports:read","reports:write"],role="operator")
     server,t=_start_api(m)

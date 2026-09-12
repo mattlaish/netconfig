@@ -1,10 +1,7 @@
-import io
 import json
 import tarfile
 import threading
 import http.client
-
-import pytest
 
 from netconfig.apitokens import ApiTokens, VALID_SCOPES
 from netconfig.manager import Manager
@@ -67,10 +64,14 @@ def test_snmp_udp_trace_captures_metadata_not_packet(monkeypatch):
     events = []
 
     class FakeSocket:
-        def settimeout(self, _timeout): pass
-        def sendto(self, payload, target): self.payload = payload; self.target = target
-        def recvfrom(self, _size): return b"response-secret-bytes", ("192.0.2.10", 161)
-        def close(self): pass
+        def settimeout(self, _timeout):
+            pass
+        def sendto(self, payload, target):
+            self.payload = payload; self.target = target
+        def recvfrom(self, _size):
+            return b"response-secret-bytes", ("192.0.2.10", 161)
+        def close(self):
+            pass
 
     monkeypatch.setattr(snmp.socket, "socket", lambda *a, **k: FakeSocket())
     with snmp.trace_capture(events.append):
@@ -88,8 +89,14 @@ def test_ssh_execute_trace_callback_captures_no_output():
     events = []
     tp = SSHTransport("192.0.2.10", "admin", trace_callback=events.append)
     tp.prompt = b"R1#"
-    tp._write = lambda *a, **k: None
-    tp._read_until = lambda patterns, timeout: (0, None, b"\r\nSECRET-DEVICE-OUTPUT\r\nR1#")
+    def fake_write(*args, **kwargs):
+        return None
+
+    def fake_read_until(patterns, timeout):
+        return (0, None, b"\r\nSECRET-DEVICE-OUTPUT\r\nR1#")
+
+    tp._write = fake_write
+    tp._read_until = fake_read_until
     out = tp.execute("show version")
     assert "SECRET-DEVICE-OUTPUT" in out
     assert len(events) == 1
@@ -149,7 +156,7 @@ def test_trace_scopes_and_rest_api(tmp_path):
 def test_safe_command_hash_is_stable_and_sensitive_summary_is_redacted():
     summary1, digest1 = safe_command("username admin secret hunter2")
     summary2, digest2 = safe_command("username admin secret hunter2")
-    assert summary1 == "<redacted-sensitive-command>"
+    assert summary1 == summary2 == "<redacted-sensitive-command>"
     assert digest1 == digest2 and len(digest1) == 64
     import hashlib
     assert digest1 == hashlib.sha256(b"<redacted-sensitive-command>").hexdigest()

@@ -1,18 +1,24 @@
 # New Chat Handover Prompt
 
-> **Canonical project state — 2026-09-12:** **CURRENT** = Qualification Track **Q-1 — Production Runtime & Service-backed Qualification** (`IMPLEMENTED_TESTING_DEFERRED`). **LATEST FEATURE BASELINE** = Platform Hardening **PH-3 — NETCONF / RESTCONF / gNMI Structured Adapters** (`IMPLEMENTED_TESTING_DEFERRED`). Q-1 implementation is complete in source, but live PostgreSQL/AlmaLinux/systemd/service-backed gates remain explicitly deferred in this environment. No Q-2 is assigned. RPM source Release is `2.0.0-32`.
+> **Canonical project state — 2026-09-12:** **CURRENT IMPLEMENTATION BASELINE** = **HA-1 — Control-plane HA & Recovery Foundation** (`IMPLEMENTED_TESTING_DEFERRED`). **PH-4, NI-5, VM-1, NA-1, NA-2, and HA-1** are implemented in source; consolidated Release 33 offline regression is green, while live/service-backed qualification remains deferred. Qualification **Q-1** remains `IMPLEMENTED_TESTING_DEFERRED`; its live PostgreSQL/AlmaLinux/systemd/service-backed gates remain deferred. No further development phase is assigned until the post-implementation qualification/roadmap review. RPM source Release is `2.0.0-33`.
 
-> **Current continuation pointer:** use the Q-1 full source baseline from 2026-09-12 as the active source. Historical CURRENT/NEXT statements below are chronology only. Execute the remaining Q-1 live gates before any promotion to `TESTED`/`RELEASED`; after Q-1 qualification, perform a fresh roadmap review before assigning Q-2.
+## Release 33 handoff truth
 
-## Q-1 takeover truth
+The latest implementation baseline is Release `2.0.0-33`, schema revision `ha1-2`. PH-4, NI-5, VM-1, NA-1, NA-2 and HA-1 are implemented in source and remain `IMPLEMENTED_TESTING_DEFERRED`. Q-1 remains open for production/runtime service-backed qualification. Do not restart PH-3/Q-1 and do not invent the next phase before consolidated Release 33 verification and a new roadmap review.
 
-The roadmap review has already been completed. The selected/current track is **Qualification Q-1 — Production Runtime & Service-backed Qualification**, status `IMPLEMENTED_TESTING_DEFERRED`; do not restart PH-3 or invent Q-2. RPM source Release is `2.0.0-32`.
+Preserve these Release 33 invariants: all network mutations use the durable request/approve/execute workflow; automation snapshots/model-pack hashes are frozen and revalidated; `RECOVERY_REQUIRED` blocks blind replay; desired-state rollback is compensating/reverse-order; campaign plans are frozen with stable retry identity; DRAINING/DRAINED HA nodes reject new automation work. Session idle/absolute expiry is still explicitly deferred.
+
+> **Current continuation pointer:** use the Release 33 full source baseline as the active implementation source. Historical CURRENT/NEXT statements below are chronology only. Use the recorded Release 33 offline/artifact evidence and run the applicable Q-1 live gates before any promotion to `TESTED`/`RELEASED`; then perform a fresh roadmap review before assigning another development phase.
+
+## Historical Q-1 takeover truth
+
+This section records the historical Q-1 handover checkpoint. Q-1 remains `IMPLEMENTED_TESTING_DEFERRED`, but Release 33 supersedes it as the active implementation baseline. Do not restart PH-3/Q-1 or discard their qualification boundaries.
 
 Q-1 source implementation includes `netconfig qualify`; controlled `pg_dump` backup; checksummed, confirmation-gated restore into a separate database; recovery-safe restore without active-core initialization; live PostgreSQL multi-process/leadership/migration/recovery tests; CI PostgreSQL client provisioning; AlmaLinux 10 build/install qualification scripts; Ruff/mypy fail-closed source gate; and systemd backup-unit hardening.
 
-The remaining task is qualification, not feature invention: execute the real PostgreSQL gates, Ruff/mypy, and AlmaLinux 10 RPM/systemd installed-runtime gates when suitable infrastructure is available. Do not count `NOT_RUN` as pass. PH-3 real NETCONF/RESTCONF/gNMI/vendor/TLS interoperability, PostgreSQL HA/PITR, live SMTP/O365 and representative network-device gates remain separately deferred unless actually run. After Q-1 is genuinely qualified, perform a new roadmap review before assigning Q-2.
+The Q-1 live qualification debt remains: execute the real PostgreSQL gates, Ruff/mypy, and AlmaLinux 10 RPM/systemd installed-runtime gates when suitable infrastructure is available. Do not count `NOT_RUN` as pass. Release 33 consolidated verification is additionally required before the next roadmap review.
 
-I am handing over the NetConfig project at **Qualification Q-1 — Production Runtime & Service-backed Qualification**. After the final artifact gate, use the Q-1 FULL source baseline delivered on 2026-09-12 as the only active source of truth; PH-3, PH-2, PH-1, NI-1 through NI-4, D.5, and older packages are historical predecessors.
+I am handing over the NetConfig project at **Release 33 / HA-1 implementation baseline**, with PH-4, NI-5, VM-1, NA-1, NA-2 and HA-1 implemented in source and still `IMPLEMENTED_TESTING_DEFERRED`. Use the Release 33 FULL source baseline as the active source of truth; Q-1 remains an open qualification track rather than the active feature baseline.
 
 Read these first: `DEV_BASELINE.md`, `TESTING.md`, `ROADMAP.md`, `SECURITY.md`, `API.md`, `DEVELOPMENT.md`, `AI_HANDOFF.md`, then the relevant source under `opt/netconfig/netconfig/` and `tests/`.
 
@@ -26,7 +32,7 @@ Important constraints:
 - Do not claim Ruff, mypy, RPM, Linux service, protocol-service, or live-device results unless actually run.
 - Keep `DEVELOPMENT.md`, `AI_HANDOFF.md`, `ROADMAP.md`, `SECURITY.md`, `API.md`, `TESTING.md`, `patch.md`, and relevant user docs synchronized.
 
-Roadmap structure: the historical 2026-09-07 Slice A-G labels are provenance only. Use `ROADMAP.md` as canonical. **CURRENT is Qualification Q-1 — Production Runtime & Service-backed Qualification. NEXT ACTION is execution of the deferred Q-1 live gates; no Q-2 is assigned.** D.5 is the completed-in-source Diagnostics Track, not Slice E. Historical Slice E remains Platform Hardening -> Web-console structural hardening.
+Roadmap structure: the historical 2026-09-07 Slice A-G labels are provenance only. Use `ROADMAP.md` as canonical. **CURRENT IMPLEMENTATION BASELINE is HA-1 / Release 33. NEXT ACTION is Release 33 artifact verification plus applicable Q-1 live qualification; no new development phase is assigned.** D.5 is the completed-in-source Diagnostics Track, not Slice E. Historical Slice E remains Platform Hardening -> Web-console structural hardening.
 
 Current D.5 implementation invariants:
 

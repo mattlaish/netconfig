@@ -507,7 +507,8 @@ CREATE TABLE IF NOT EXISTS storage_meta (
 );
 CREATE TABLE IF NOT EXISTS cluster_nodes (
     node_id TEXT PRIMARY KEY, hostname TEXT NOT NULL DEFAULT '', pid INTEGER NOT NULL DEFAULT 0,
-    started_ts REAL NOT NULL, last_heartbeat_ts REAL NOT NULL, role TEXT NOT NULL DEFAULT 'control-plane'
+    started_ts REAL NOT NULL, last_heartbeat_ts REAL NOT NULL, role TEXT NOT NULL DEFAULT 'control-plane',
+    state TEXT NOT NULL DEFAULT 'ACTIVE', drain_reason TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_cluster_nodes_heartbeat ON cluster_nodes(last_heartbeat_ts);
 CREATE TABLE IF NOT EXISTS distributed_tasks (
@@ -530,6 +531,111 @@ CREATE TABLE IF NOT EXISTS protocol_profiles (
 );
 CREATE INDEX IF NOT EXISTS idx_protocol_profiles_protocol
     ON protocol_profiles(protocol, enabled, device);
+
+-- ---- PH-4: structured configuration transactions ------------------------
+CREATE TABLE IF NOT EXISTS structured_change_transactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, device TEXT NOT NULL, protocol TEXT NOT NULL,
+    actor TEXT NOT NULL, source_kind TEXT NOT NULL DEFAULT 'manual', source_ref TEXT NOT NULL DEFAULT '',
+    approval_ref TEXT NOT NULL DEFAULT '', idempotency_key TEXT NOT NULL DEFAULT '',
+    operation TEXT NOT NULL, resource TEXT NOT NULL DEFAULT '', request_json TEXT NOT NULL DEFAULT '{}',
+    state TEXT NOT NULL DEFAULT 'PENDING', changed INTEGER NOT NULL DEFAULT 0,
+    pre_hash TEXT NOT NULL DEFAULT '', post_hash TEXT NOT NULL DEFAULT '',
+    pre_value_json TEXT NOT NULL DEFAULT '', post_value_json TEXT NOT NULL DEFAULT '',
+    reversible INTEGER NOT NULL DEFAULT 0, verification_state TEXT NOT NULL DEFAULT '',
+    rollback_state TEXT NOT NULL DEFAULT '', rollback_of_id INTEGER, rollback_transaction_id INTEGER,
+    error TEXT NOT NULL DEFAULT '', created_ts REAL NOT NULL, started_ts REAL NOT NULL DEFAULT 0,
+    finished_ts REAL NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_structured_change_transactions_device
+    ON structured_change_transactions(device, created_ts);
+CREATE INDEX IF NOT EXISTS idx_structured_change_transactions_state
+    ON structured_change_transactions(state, created_ts);
+CREATE INDEX IF NOT EXISTS idx_structured_change_transactions_idempotency
+    ON structured_change_transactions(idempotency_key, state, id);
+
+-- ---- NI-5: streaming telemetry lifecycle --------------------------------
+CREATE TABLE IF NOT EXISTS telemetry_subscriptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, device TEXT NOT NULL,
+    path TEXT NOT NULL, mode TEXT NOT NULL DEFAULT 'ON_CHANGE', encoding TEXT NOT NULL DEFAULT 'json_ietf',
+    sample_interval_ms INTEGER NOT NULL DEFAULT 10000, heartbeat_interval_ms INTEGER NOT NULL DEFAULT 0,
+    window_seconds INTEGER NOT NULL DEFAULT 30, collection_interval_seconds INTEGER NOT NULL DEFAULT 60,
+    retention_days INTEGER NOT NULL DEFAULT 30, next_run_ts REAL NOT NULL DEFAULT 0,
+    enabled INTEGER NOT NULL DEFAULT 1, state TEXT NOT NULL DEFAULT 'IDLE',
+    last_error TEXT NOT NULL DEFAULT '', created_ts REAL NOT NULL, updated_ts REAL NOT NULL, last_run_ts REAL NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_telemetry_subscriptions_device
+    ON telemetry_subscriptions(device, enabled);
+CREATE TABLE IF NOT EXISTS telemetry_samples (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, subscription_id INTEGER NOT NULL, device TEXT NOT NULL,
+    path TEXT NOT NULL, observed_ts REAL NOT NULL, value_json TEXT NOT NULL, source_ts REAL NOT NULL DEFAULT 0,
+    FOREIGN KEY(subscription_id) REFERENCES telemetry_subscriptions(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_telemetry_samples_lookup
+    ON telemetry_samples(subscription_id, observed_ts);
+CREATE TABLE IF NOT EXISTS telemetry_points (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, subscription_id INTEGER NOT NULL, device TEXT NOT NULL,
+    path TEXT NOT NULL, value_path TEXT NOT NULL, observed_ts REAL NOT NULL, source_ts REAL NOT NULL DEFAULT 0,
+    value_type TEXT NOT NULL, numeric_value REAL, text_value TEXT NOT NULL DEFAULT '',
+    FOREIGN KEY(subscription_id) REFERENCES telemetry_subscriptions(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_telemetry_points_series
+    ON telemetry_points(subscription_id, value_path, observed_ts);
+
+-- ---- VM-1: vendor/model packs --------------------------------------------
+CREATE TABLE IF NOT EXISTS vendor_model_packs (
+    name TEXT PRIMARY KEY, vendor TEXT NOT NULL, os_family TEXT NOT NULL DEFAULT '',
+    revision TEXT NOT NULL, builtin INTEGER NOT NULL DEFAULT 0, enabled INTEGER NOT NULL DEFAULT 1,
+    spec_json TEXT NOT NULL, updated_ts REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS device_model_bindings (
+    device TEXT PRIMARY KEY, pack_name TEXT NOT NULL, updated_ts REAL NOT NULL,
+    FOREIGN KEY(pack_name) REFERENCES vendor_model_packs(name)
+);
+
+-- ---- NA-1: desired state --------------------------------------------------
+CREATE TABLE IF NOT EXISTS desired_states (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, description TEXT NOT NULL DEFAULT '',
+    target_kind TEXT NOT NULL, target_value TEXT NOT NULL, document_json TEXT NOT NULL,
+    state TEXT NOT NULL DEFAULT 'DRAFT', revision INTEGER NOT NULL DEFAULT 1, supersedes_id INTEGER,
+    created_by TEXT NOT NULL, created_ts REAL NOT NULL, updated_by TEXT NOT NULL, updated_ts REAL NOT NULL,
+    published_by TEXT NOT NULL DEFAULT '', published_ts REAL NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS desired_state_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, desired_state_id INTEGER NOT NULL, actor TEXT NOT NULL,
+    mode TEXT NOT NULL, source_kind TEXT NOT NULL DEFAULT 'desired_state', source_ref TEXT NOT NULL DEFAULT '',
+    state TEXT NOT NULL DEFAULT 'PENDING', plan_json TEXT NOT NULL DEFAULT '{}',
+    changed_count INTEGER NOT NULL DEFAULT 0, noop_count INTEGER NOT NULL DEFAULT 0, failure_count INTEGER NOT NULL DEFAULT 0,
+    created_ts REAL NOT NULL, finished_ts REAL NOT NULL DEFAULT 0,
+    FOREIGN KEY(desired_state_id) REFERENCES desired_states(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_desired_state_runs_state
+    ON desired_state_runs(desired_state_id, created_ts);
+
+-- ---- NA-2: fleet change campaigns ----------------------------------------
+CREATE TABLE IF NOT EXISTS fleet_campaigns (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, desired_state_id INTEGER NOT NULL,
+    plan_json TEXT NOT NULL DEFAULT '{}', canary_size INTEGER NOT NULL DEFAULT 0, wave_size INTEGER NOT NULL DEFAULT 1,
+    max_failures INTEGER NOT NULL DEFAULT 0, rollback_on_failure INTEGER NOT NULL DEFAULT 0,
+    state TEXT NOT NULL DEFAULT 'DRAFT', current_wave INTEGER NOT NULL DEFAULT 0, failure_count INTEGER NOT NULL DEFAULT 0,
+    created_by TEXT NOT NULL, created_ts REAL NOT NULL, started_ts REAL NOT NULL DEFAULT 0, finished_ts REAL NOT NULL DEFAULT 0,
+    FOREIGN KEY(desired_state_id) REFERENCES desired_states(id)
+);
+CREATE TABLE IF NOT EXISTS fleet_campaign_targets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, campaign_id INTEGER NOT NULL, device TEXT NOT NULL,
+    wave INTEGER NOT NULL, ordinal INTEGER NOT NULL, state TEXT NOT NULL DEFAULT 'PENDING', attempts INTEGER NOT NULL DEFAULT 0,
+    last_error TEXT NOT NULL DEFAULT '', transaction_ids_json TEXT NOT NULL DEFAULT '[]', last_run_id INTEGER, updated_ts REAL NOT NULL,
+    UNIQUE(campaign_id, device),
+    FOREIGN KEY(campaign_id) REFERENCES fleet_campaigns(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_fleet_campaign_targets_wave
+    ON fleet_campaign_targets(campaign_id, wave, state, ordinal);
+
+-- ---- HA-1: recovery/DR evidence ------------------------------------------
+CREATE TABLE IF NOT EXISTS recovery_drills (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, actor TEXT NOT NULL, state TEXT NOT NULL,
+    node_id TEXT NOT NULL DEFAULT '', verification_ref TEXT NOT NULL DEFAULT '',
+    detail_json TEXT NOT NULL DEFAULT '{}', started_ts REAL NOT NULL, finished_ts REAL NOT NULL DEFAULT 0
+);
 """
 
 # Additive column migrations: (table, column, coldef). Applied only if absent.
@@ -552,6 +658,38 @@ _MIGRATIONS = [
     ("l2_neighbors", "resolution_evidence", "TEXT NOT NULL DEFAULT ''"),
     ("operational_events", "alert_id", "INTEGER"),
     ("operational_events", "maintenance_window_id", "INTEGER"),
+    ("structured_change_transactions", "approval_ref", "TEXT NOT NULL DEFAULT ''"),
+    ("structured_change_transactions", "idempotency_key", "TEXT NOT NULL DEFAULT ''"),
+    ("structured_change_transactions", "changed", "INTEGER NOT NULL DEFAULT 0"),
+    ("structured_change_transactions", "pre_value_json", "TEXT NOT NULL DEFAULT ''"),
+    ("structured_change_transactions", "post_value_json", "TEXT NOT NULL DEFAULT ''"),
+    ("structured_change_transactions", "reversible", "INTEGER NOT NULL DEFAULT 0"),
+    ("structured_change_transactions", "verification_state", "TEXT NOT NULL DEFAULT ''"),
+    ("structured_change_transactions", "rollback_of_id", "INTEGER"),
+    ("structured_change_transactions", "rollback_transaction_id", "INTEGER"),
+    ("telemetry_subscriptions", "window_seconds", "INTEGER NOT NULL DEFAULT 30"),
+    ("telemetry_subscriptions", "collection_interval_seconds", "INTEGER NOT NULL DEFAULT 60"),
+    ("telemetry_subscriptions", "retention_days", "INTEGER NOT NULL DEFAULT 30"),
+    ("telemetry_subscriptions", "next_run_ts", "REAL NOT NULL DEFAULT 0"),
+    ("desired_states", "revision", "INTEGER NOT NULL DEFAULT 1"),
+    ("desired_states", "supersedes_id", "INTEGER"),
+    ("desired_states", "published_by", "TEXT NOT NULL DEFAULT ''"),
+    ("desired_state_runs", "source_kind", "TEXT NOT NULL DEFAULT 'desired_state'"),
+    ("desired_state_runs", "source_ref", "TEXT NOT NULL DEFAULT ''"),
+    ("desired_state_runs", "changed_count", "INTEGER NOT NULL DEFAULT 0"),
+    ("desired_state_runs", "noop_count", "INTEGER NOT NULL DEFAULT 0"),
+    ("desired_state_runs", "failure_count", "INTEGER NOT NULL DEFAULT 0"),
+    ("fleet_campaigns", "plan_json", "TEXT NOT NULL DEFAULT '{}'"),
+    ("fleet_campaigns", "canary_size", "INTEGER NOT NULL DEFAULT 0"),
+    ("fleet_campaigns", "rollback_on_failure", "INTEGER NOT NULL DEFAULT 0"),
+    ("fleet_campaigns", "current_wave", "INTEGER NOT NULL DEFAULT 0"),
+    ("fleet_campaigns", "failure_count", "INTEGER NOT NULL DEFAULT 0"),
+    ("fleet_campaign_targets", "attempts", "INTEGER NOT NULL DEFAULT 0"),
+    ("fleet_campaign_targets", "last_run_id", "INTEGER"),
+    ("recovery_drills", "node_id", "TEXT NOT NULL DEFAULT ''"),
+    ("recovery_drills", "verification_ref", "TEXT NOT NULL DEFAULT ''"),
+    ("cluster_nodes", "state", "TEXT NOT NULL DEFAULT 'ACTIVE'"),
+    ("cluster_nodes", "drain_reason", "TEXT NOT NULL DEFAULT ''"),
 ]
 
 
@@ -618,7 +756,7 @@ class _LockedConn:
 class Database:
     dialect = "sqlite"
     distributed_capable = False
-    schema_revision = "ph3-1"
+    schema_revision = "ha1-2"
 
     def __init__(self, path):
         self.path = path
@@ -960,9 +1098,12 @@ class Database:
 
     def operational_events(self, limit=200, device=None, include_suppressed=True):
         q = "SELECT * FROM operational_events"; args=[]; where=[]
-        if device: where.append("device=?"); args.append(device)
-        if not include_suppressed: where.append("suppressed=0")
-        if where: q += " WHERE " + " AND ".join(where)
+        if device:
+            where.append("device=?"); args.append(device)
+        if not include_suppressed:
+            where.append("suppressed=0")
+        if where:
+            q += " WHERE " + " AND ".join(where)
         q += " ORDER BY last_ts DESC LIMIT ?"; args.append(max(1,min(int(limit),2000)))
         return [dict(r) for r in self.conn.execute(q,args).fetchall()]
 
@@ -999,7 +1140,8 @@ class Database:
         q="SELECT * FROM operational_suppressions"; args=[]
         if active_only:
             q += " WHERE active=1"
-            if now is not None: q += " AND expires_ts>?"; args.append(float(now))
+            if now is not None:
+                q += " AND expires_ts>?"; args.append(float(now))
         q += " ORDER BY created_ts DESC"
         return [dict(r) for r in self.conn.execute(q,args).fetchall()]
 
@@ -1032,9 +1174,12 @@ class Database:
 
     def list_operational_alerts(self, state=None, device=None, limit=200):
         q="SELECT * FROM operational_alerts"; args=[]; where=[]
-        if state: where.append("state=?"); args.append(state)
-        if device: where.append("device=?"); args.append(device)
-        if where: q += " WHERE " + " AND ".join(where)
+        if state:
+            where.append("state=?"); args.append(state)
+        if device:
+            where.append("device=?"); args.append(device)
+        if where:
+            q += " WHERE " + " AND ".join(where)
         q += " ORDER BY last_ts DESC LIMIT ?"; args.append(int(limit))
         return [dict(r) for r in self.conn.execute(q,args).fetchall()]
 
@@ -1045,7 +1190,8 @@ class Database:
         elif state == "RESOLVED":
             self.conn.execute("UPDATE operational_alerts SET state=?, resolved_by=?, resolved_ts=?, resolution_note=? WHERE id=?",
                               (state, actor, float(now), note, int(alert_id)))
-        else: raise ValueError("invalid operational alert state")
+        else:
+            raise ValueError("invalid operational alert state")
         self.conn.commit(); return self.get_operational_alert(alert_id)
 
     def add_maintenance_window(self, name, device, start_ts, end_ts, reason, actor, now):
@@ -1153,24 +1299,65 @@ class Database:
                     "reachable": False, "ok": False, "error": str(exc)[:300]}
 
     def register_cluster_node(self, node_id, hostname, pid, now, role="control-plane"):
-        # delete+insert is deliberately portable across SQLite/PostgreSQL. The
-        # node id is process-unique, so replacing only refreshes our own row.
+        # delete+insert is deliberately portable across SQLite/PostgreSQL. A
+        # configured stable node id preserves an explicit drain state across a
+        # process restart so maintenance cannot be bypassed by restarting it.
+        previous = self.conn.execute(
+            "SELECT state,drain_reason FROM cluster_nodes WHERE node_id=?", (node_id,)
+        ).fetchone()
+        state = str(previous["state"] if previous else "ACTIVE")
+        reason = str(previous["drain_reason"] if previous else "")
         self.conn.execute("DELETE FROM cluster_nodes WHERE node_id=?", (node_id,))
         self.conn.execute(
-            "INSERT INTO cluster_nodes(node_id,hostname,pid,started_ts,last_heartbeat_ts,role) "
-            "VALUES(?,?,?,?,?,?)",
-            (node_id, hostname or "", int(pid), float(now), float(now), role or "control-plane"))
+            "INSERT INTO cluster_nodes"
+            "(node_id,hostname,pid,started_ts,last_heartbeat_ts,role,state,drain_reason) "
+            "VALUES(?,?,?,?,?,?,?,?)",
+            (
+                node_id,
+                hostname or "",
+                int(pid),
+                float(now),
+                float(now),
+                role or "control-plane",
+                state,
+                reason,
+            ),
+        )
         self.conn.commit()
 
     def heartbeat_cluster_node(self, node_id, now):
-        self.conn.execute("UPDATE cluster_nodes SET last_heartbeat_ts=? WHERE node_id=?",
-                          (float(now), node_id)); self.conn.commit()
+        self.conn.execute(
+            "UPDATE cluster_nodes SET last_heartbeat_ts=? WHERE node_id=?",
+            (float(now), node_id),
+        )
+        self.conn.commit()
 
     def list_cluster_nodes(self, since_ts=0):
         rows = self.conn.execute(
             "SELECT * FROM cluster_nodes WHERE last_heartbeat_ts>=? ORDER BY node_id",
-            (float(since_ts),)).fetchall()
+            (float(since_ts),),
+        ).fetchall()
         return [dict(r) for r in rows]
+
+    def get_cluster_node(self, node_id):
+        row = self.conn.execute(
+            "SELECT * FROM cluster_nodes WHERE node_id=?", (str(node_id),)
+        ).fetchone()
+        return dict(row) if row else None
+
+    def set_cluster_node_state(self, node_id, state, reason=""):
+        state = str(state or "").upper()
+        if state not in {"ACTIVE", "DRAINING", "DRAINED"}:
+            raise ValueError("unsupported cluster node state")
+        reason = str(reason or "").replace("\x00", "")[:500]
+        cur = self.conn.execute(
+            "UPDATE cluster_nodes SET state=?,drain_reason=? WHERE node_id=?",
+            (state, reason if state != "ACTIVE" else "", str(node_id)),
+        )
+        self.conn.commit()
+        if not cur.rowcount:
+            raise ValueError("unknown cluster node")
+        return self.get_cluster_node(node_id)
 
     def enqueue_distributed_task(self, queue, kind, payload, now, available_ts=None):
         available = float(now if available_ts is None else available_ts)

@@ -22,6 +22,9 @@ SERIAL_ID_TABLES = {
     "maintenance_windows", "notification_deliveries", "report_schedules", "report_runs",
     "incidents", "incident_evidence_links", "incident_case_exports", "protocol_trace_sessions",
     "protocol_trace_events", "distributed_tasks",
+    "structured_change_transactions", "telemetry_subscriptions", "telemetry_samples", "telemetry_points",
+    "desired_states", "desired_state_runs", "fleet_campaigns", "fleet_campaign_targets",
+    "recovery_drills",
 }
 
 CONFLICT_KEYS = {
@@ -39,6 +42,8 @@ CONFLICT_KEYS = {
     "mib_poll_status": ("device",),
     "storage_meta": ("key",),
     "protocol_profiles": ("device",),
+    "vendor_model_packs": ("name",),
+    "device_model_bindings": ("device",),
 }
 
 

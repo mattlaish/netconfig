@@ -1,8 +1,24 @@
 # Security
 
-> **Canonical project state — 2026-09-12:** **CURRENT** = Qualification Track **Q-1 — Production Runtime & Service-backed Qualification** (`IMPLEMENTED_TESTING_DEFERRED`). **LATEST FEATURE BASELINE** = Platform Hardening **PH-3 — NETCONF / RESTCONF / gNMI Structured Adapters** (`IMPLEMENTED_TESTING_DEFERRED`). Q-1 implementation is complete in source, but live PostgreSQL/AlmaLinux/systemd/service-backed gates remain explicitly deferred in this environment. No Q-2 is assigned. RPM source Release is `2.0.0-32`.
+> **Canonical project state — 2026-09-12:** **CURRENT IMPLEMENTATION BASELINE** = **HA-1 — Control-plane HA & Recovery Foundation** (`IMPLEMENTED_TESTING_DEFERRED`). **PH-4, NI-5, VM-1, NA-1, NA-2, and HA-1** are implemented in source; consolidated Release 33 offline regression is green, while live/service-backed qualification remains deferred. Qualification **Q-1** remains `IMPLEMENTED_TESTING_DEFERRED`; its live PostgreSQL/AlmaLinux/systemd/service-backed gates remain deferred. No further development phase is assigned until the post-implementation qualification/roadmap review. RPM source Release is `2.0.0-33`.
 
-> **Current continuation pointer:** use the Q-1 full source baseline from 2026-09-12 as the active source. Historical CURRENT/NEXT statements below are chronology only. Execute the remaining Q-1 live gates before any promotion to `TESTED`/`RELEASED`; after Q-1 qualification, perform a fresh roadmap review before assigning Q-2.
+## Release 33 security invariants
+
+Release 33 preserves the existing fail-closed boundaries and adds the following mandatory controls:
+
+- a network mutation must reference an approved durable `change_requests` record; a CLI/API boolean cannot self-authorize a write;
+- the exact automation snapshot is hashed at submission and checked again at approval/execution; device target, desired-state revision, campaign target set or model-pack changes after submission fail closed;
+- PH-4 accepts only model-resolved typed resources/selectors/values and protocol-specific generated payloads; arbitrary NETCONF RPC XML, RESTCONF URL/body forwarding and arbitrary gNMI protobuf/Set passthrough are not exposed;
+- structured transactions persist pre/post hashes/values, verification state, rollback state, idempotency identity and recovery state without storing credentials;
+- `RECOVERY_REQUIRED` prevents blind replay when remote state is uncertain; explicit reconciliation/recovery is required;
+- desired-state compensating rollback occurs in reverse order and campaign retry identities are stable across crash/re-entry;
+- HA DRAINING/DRAINED nodes reject new automation work and relinquish singleton scheduler leadership; this is control-plane coordination, not database HA/failover;
+- telemetry persists bounded sanitized JSON/scalar observations and does not persist credential material or unbounded stream buffers;
+- custom model packs are validated against path/selector/resource allow-lists and cannot introduce arbitrary URLs, traversal, shell content or generic protocol payloads.
+
+Session idle/absolute expiry remains deliberately deferred security debt and is unchanged.
+
+> **Current continuation pointer:** use the Release 33 full source baseline as the active implementation source. Historical CURRENT/NEXT statements below are chronology only. Use the recorded Release 33 offline/artifact evidence and run the applicable Q-1 live gates before any promotion to `TESTED`/`RELEASED`; then perform a fresh roadmap review before assigning another development phase.
 
 ## Q-1 production qualification security boundaries
 

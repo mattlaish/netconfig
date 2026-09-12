@@ -109,7 +109,6 @@ def parse_device_identity(local_pairs=(), entity_rows=None, facts=None):
         ident["chassis_mac"] = _mac(by_oid.get(LLDP_LOCAL_IDENTITY["chassis_id"]))
         if ident["chassis_mac"]:
             ident["chassis_id"] = ident["chassis_mac"]
-    rev = {v: k for k, v in ENTITY_COLUMNS.items()}
     for _idx, row in sorted((entity_rows or {}).items(), key=lambda item: str(item[0])):
         klass = row.get(ENTITY_COLUMNS["class"])
         try:

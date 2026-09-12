@@ -1,8 +1,31 @@
 # Development Ledger
 
-> **Canonical project state — 2026-09-12:** **CURRENT** = Qualification Track **Q-1 — Production Runtime & Service-backed Qualification** (`IMPLEMENTED_TESTING_DEFERRED`). **LATEST FEATURE BASELINE** = Platform Hardening **PH-3 — NETCONF / RESTCONF / gNMI Structured Adapters** (`IMPLEMENTED_TESTING_DEFERRED`). Q-1 implementation is complete in source, but live PostgreSQL/AlmaLinux/systemd/service-backed gates remain explicitly deferred in this environment. No Q-2 is assigned. RPM source Release is `2.0.0-32`.
+> **Canonical project state — 2026-09-12:** **CURRENT IMPLEMENTATION BASELINE** = **HA-1 — Control-plane HA & Recovery Foundation** (`IMPLEMENTED_TESTING_DEFERRED`). **PH-4, NI-5, VM-1, NA-1, NA-2, and HA-1** are implemented in source; consolidated Release 33 offline regression is green, while live/service-backed qualification remains deferred. Qualification **Q-1** remains `IMPLEMENTED_TESTING_DEFERRED`; its live PostgreSQL/AlmaLinux/systemd/service-backed gates remain deferred. No further development phase is assigned until the post-implementation qualification/roadmap review. RPM source Release is `2.0.0-33`.
 
-> **Current continuation pointer:** use the Q-1 full source baseline from 2026-09-12 as the active source. Historical CURRENT/NEXT statements below are chronology only. Execute the remaining Q-1 live gates before any promotion to `TESTED`/`RELEASED`; after Q-1 qualification, perform a fresh roadmap review before assigning Q-2.
+## 2026-09-12 — Release 33 — Automation / Telemetry / HA expansion
+
+Status: `IMPLEMENTED_TESTING_DEFERRED`. Application/project Version remains `2.0.0`; RPM source Release is `33`; database schema revision is `ha1-2`.
+
+Implemented:
+
+- PH-4 durable structured transaction engine with mandatory real `change_requests` approval references, frozen automation-plan hash validation, per-device/advisory serialization, idempotency, pre/post evidence, explicit rollback state and interrupted-write recovery.
+- NETCONF structured writes use generated typed config only and bounded protocol-native transaction semantics where capabilities permit; RESTCONF and gNMI writes remain typed/allow-listed and never expose arbitrary caller payload passthrough.
+- NI-5 durable telemetry subscriptions, bounded collection windows, due scheduler, retention, raw samples, normalized scalar points and time-series summaries.
+- VM-1 built-in and validated custom vendor/model packs with device binding, resource resolution, strict selector/path validation and immutable spec hash evidence.
+- NA-1 desired-state DRAFT/PUBLISHED revisions, target expansion, deterministic model compilation, plan/evaluate/run records, approval-gated apply and reverse-order compensating rollback.
+- NA-2 frozen fleet campaigns with canary/waves, stable attempt identity, pause/resume/retry/abort, plan/model drift fail-closed checks and optional wave rollback.
+- HA-1 ACTIVE/DRAINING/DRAINED lifecycle, drain-aware automation/scheduler admission, cluster readiness and durable recovery-drill evidence. Automatic PostgreSQL failover is deliberately not claimed.
+- CLI/API/RBAC scopes and operational status surfaces were added for automation, telemetry, desired state, campaigns, vendor model packs and HA operations.
+- Public write paths no longer accept a caller-declared `approved=true` as authority. Structured change, desired-state apply, campaign wave and structured rollback execution flow through durable request submission, separate approval and execute-time frozen-snapshot verification.
+- Source quality gates now enforce executable modes in raw checkouts and extend mypy coverage to the new automation/telemetry/HA core modules. Ruff configuration is unchanged; rule suppression was not used to hide the historical hygiene debt.
+
+Consolidated Release 33 source verification after implementation fixes: automation/repository-hygiene focused **23 passed**; PH-2 **9 passed**; PH-3 **22 passed**; Q-1 **11 passed**; full repository **168 passed / 7 skipped**; legacy selftest **ALL PASS**; compileall, launcher `py_compile`, and packaging shell syntax **PASS**; source text CR offenders **0**, caches **0** after cleanup, symlinks **0**, historical E701-style same-line compound suites **0**, required executable modes **7/7 = 0755**. The final focused run found and fixed NA-2 retry/resume state-machine gaps and PH-3 gNMI/Web regressions before the green result. Ruff and mypy are `NOT_RUN`: the binaries are absent and this isolated environment cannot retrieve them, so no lint/type-check PASS is claimed.
+
+Testing/qualification truth is recorded in `TESTING_RESULT_2026-09-12.md`. Offline success does not promote any phase beyond `IMPLEMENTED_TESTING_DEFERRED`. Session idle/absolute expiry remains deferred by explicit user direction.
+
+Artifact candidate evidence: Clean Release 33 candidate `netconfig_release33_candidate_2026-09-12.zip` (SHA-256 `d03720a411b796458747f7d8976a8fa01f4f40859b5e51341ef031aaa343f538`) passed the artifact gate: ZIP CRC **PASS**; path traversal **0**; symlinks **0**; caches **0**; text CR offenders **0**; source/extracted byte identity **132/132 PASS**; payload plus each SHA/release manifest **128/128 PASS**; required executable modes **7/7 = 0755**. From the clean extraction: Release 33 focused **23 passed**, PH-2 **9 passed**, PH-3 **22 passed**, Q-1 **11 passed**, full repository **168 passed / 7 skipped** in the isolated full-suite rerun, legacy selftest **ALL PASS**, and compileall/launcher py_compile/packaging shell syntax **PASS**. A first command that chained all suites hit the execution-tool timeout after full pytest reached ~82%; that interrupted run is not counted as PASS. The same candidate full suite was then rerun alone and completed cleanly (**168 passed / 7 skipped in 22.90s**).
+
+> **Current continuation pointer:** use the Release 33 full source baseline as the active source. Historical CURRENT/NEXT statements below are chronology only. Release 33 consolidated source verification is complete; artifact verification and the remaining Q-1 live gates are the next qualification work; no new development phase is assigned.
 
 ## 2026-09-12 — Qualification Track Q-1 — Production Runtime & Service-backed Qualification
 
@@ -29,7 +52,7 @@ Session idle/absolute expiry remains explicitly deferred and unchanged. PH-3 str
 
 ## Current implementation pointer — 2026-09-12
 
-**CURRENT:** Qualification Q-1 — Production Runtime & Service-backed Qualification (`IMPLEMENTED_TESTING_DEFERRED`). **LATEST FEATURE BASELINE:** PH-3 (`IMPLEMENTED_TESTING_DEFERRED`). **NEXT ACTION:** execute deferred Q-1 live qualification; no Q-2 is assigned. Historical entries below are chronology only. Current RPM source Release is `2.0.0-32`.
+**CURRENT IMPLEMENTATION BASELINE:** HA-1 / Release 33 (`IMPLEMENTED_TESTING_DEFERRED`). PH-4, NI-5, VM-1, NA-1, NA-2 and HA-1 are source-complete; Q-1 qualification remains open. **NEXT ACTION:** complete Release 33 artifact verification, then execute applicable Q-1 live gates and perform a roadmap review. Historical entries below are chronology only. Current RPM source Release is `2.0.0-33`.
 
 
 ## 2026-08-31 — engineering/security/remediation hardening slice

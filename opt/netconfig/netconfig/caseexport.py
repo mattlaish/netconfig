@@ -18,7 +18,7 @@ import shutil
 import tarfile
 import tempfile
 import time
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from pathlib import Path
 
 from .debug import redact, sha256_file
@@ -229,8 +229,8 @@ class SupportCaseExporter:
             raise EvidenceSigningError("evidence signing is required but no signing key is configured")
 
         now = time.time()
-        stamp = datetime.fromtimestamp(now, timezone.utc).strftime("%Y%m%d-%H%M%S")
-        year = datetime.fromtimestamp(now, timezone.utc).year
+        stamp = datetime.fromtimestamp(now, UTC).strftime("%Y%m%d-%H%M%S")
+        year = datetime.fromtimestamp(now, UTC).year
         export_key = f"CEX-{year}-{secrets.token_hex(6).upper()}"
         filename = f"netconfig-case-{incident['incident_key']}-{stamp}-{export_key[-6:]}.tar.gz"
         output = self.root / filename
@@ -254,7 +254,7 @@ class SupportCaseExporter:
             case_data = {
                 "schema": "netconfig-support-case-v1",
                 "export_key": export_key,
-                "created_at": datetime.fromtimestamp(now, timezone.utc).isoformat(),
+                "created_at": datetime.fromtimestamp(now, UTC).isoformat(),
                 "created_by": actor or "",
                 "reason": reason,
                 "incident": self._incident_metadata(incident),

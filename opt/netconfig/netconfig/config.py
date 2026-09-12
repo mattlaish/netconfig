@@ -98,6 +98,7 @@ DEFAULT_SETTINGS = {
     "operational_alert_min_severity": "WARNING", # NI-4 minimum severity promoted to alert lifecycle
     "operational_notifications_enabled": False, # enqueue/send NI-4 alert/report SMTP notifications
     "operational_lifecycle_interval": 0, # seconds; 0=off; processes due reports and delivery retries
+    "telemetry_scheduler_interval": 0, # NI-5 seconds; 0=off; runs due bounded gNMI telemetry windows
     "operational_notification_max_attempts": 5,
     "operational_notification_backoff_base_seconds": 60,
     "operational_notification_backoff_max_seconds": 3600,

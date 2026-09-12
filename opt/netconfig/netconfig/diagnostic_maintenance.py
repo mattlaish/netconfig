@@ -87,6 +87,8 @@ def poller(manager, interval, stop_event):
     if interval <= 0:
         return
     while not stop_event.wait(interval):
+        if not manager.ha.accepts_automation_work():
+            continue
         try:
             run_once(manager)
         except Exception as exc:  # maintenance failure must not kill the console

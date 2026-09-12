@@ -2,99 +2,103 @@
 
 ## Current Baseline
 
-**Qualification Track Q-1 — Production Runtime & Service-backed Qualification**
+**CURRENT IMPLEMENTATION BASELINE:** HA-1 — Control-plane HA & Recovery Foundation
 
 Status: `IMPLEMENTED_TESTING_DEFERRED`
 
-Latest feature baseline: **PH-3 — NETCONF / RESTCONF / gNMI Structured Adapters** (`IMPLEMENTED_TESTING_DEFERRED`)
+Implemented-in-source expansion: **PH-4, NI-5, VM-1, NA-1, NA-2, HA-1**.
 
-RPM source metadata: `2.0.0-32`
+Qualification track **Q-1 — Production Runtime & Service-backed Qualification** remains `IMPLEMENTED_TESTING_DEFERRED`; applicable live gates are still deferred.
 
-No Q-2 is assigned. Execute the deferred Q-1 live gates, then perform a fresh roadmap review.
+Application/project Version: `2.0.0`  
+RPM source metadata: `2.0.0-33`  
+Database schema revision: `ha1-2`
 
-## Q-1 Implementation Delivered in Source
+No next development phase is assigned. After Release 33 artifact verification and Q-1 live qualification, perform a fresh roadmap/qualification review.
 
-Q-1 adds:
+## Release 33 Consolidated Source Verification
 
-- coherent application/package version truth: Python/project Version `2.0.0`, RPM Release `32`;
-- `netconfig qualify` secret-free runtime preflight;
-- controlled PostgreSQL core `pg_dump` backup with atomic mode-0600 output and SHA-256 sidecar;
-- recovery-safe `pg_restore` into an explicitly separate drill/standby database only;
-- short-lived mode-0600 `PGPASSFILE` credential delivery, with no database password in argv;
-- real PostgreSQL qualification tests for concurrent `FOR UPDATE SKIP LOCKED`, advisory-lock leadership/session-loss release, node heartbeats, SQLite migration/sequence repair and backup/restore recovery;
-- Q-1 source, PostgreSQL and AlmaLinux/RPM/systemd qualification runners;
-- hardened backup systemd unit;
-- CI PostgreSQL 16/client recovery tooling and service-backed Q-1 test tier;
-- complete RPM transfer-source content for tests/CI/control files/canonical ledgers.
-
-No REST API endpoint or bearer-scope change was introduced. Session idle/absolute expiry remains deliberately deferred and unchanged.
-
-## Final Source Regression Before Artifact Packaging
+Executed after the implementation expansion and after correcting regressions found by the final focused run.
 
 ```text
-Q-1 focused                 11 passed
-PH-2 focused                 9 passed
-PH-3 focused                22 passed
-Full pytest                147 passed / 7 skipped
-Legacy selftest            RESULT: ALL PASS
-compileall                  PASS
-launcher py_compile         PASS
-packaging shell syntax      PASS
-source CR offenders         0
-required executable modes   7/7 = 0755
-web.py structural baseline  3809 lines / 238409 bytes
+automation + repo hygiene focused   23 passed
+PH-2 focused                         9 passed
+PH-3 focused                        22 passed
+Q-1 focused                         11 passed
+full pytest                        168 passed / 7 skipped
+legacy selftest                    RESULT: ALL PASS
+compileall                         PASS
+launcher py_compile                PASS
+packaging shell syntax             PASS
+source text CR offenders            0
+cache entries after cleanup         0
+symlinks                            0
+historical E701-style suites        0
+required executable modes           7/7 = 0755
+web.py structural observation       3855 lines / 239880 bytes
 ```
 
-The seven skips are intentional service-backed gates and are not passes:
+The final focused pass found real source defects and they were fixed before the green result:
 
-1. real PostgreSQL multi-node distributed task claim / scheduler leadership;
-2. real PostgreSQL advisory-lock release after session loss;
+1. NA-2 `resume()` could continue with unresolved failed/rolled-back targets and `retry_failed()` was advertised by CLI/API but missing in the service. Resume is now fail-closed until explicit retry/abort; explicit retry advances the next attempt identity; `ROLLBACK_FAILED` remains recovery-required rather than blindly replayed.
+2. PH-4 typed gNMI Set accidentally changed the PH-3 public generic capability contract. Generic `set` remains false; PH-4 advertises only constrained approval-required typed Set.
+3. A source-hygiene refactor placed Web query parsing after API dispatch, causing API GET 500s. Query parsing now occurs before dispatch.
+
+## Seven Intentional Skips
+
+The seven skipped tests are not passes:
+
+1. real PostgreSQL multi-node distributed task claiming;
+2. real PostgreSQL advisory-lock leadership/session-loss release;
 3. real SQLite → PostgreSQL migration and sequence repair;
-4. real `pg_dump` / `pg_restore` recovery drill;
-5. OpenSSH service-backed integration;
-6. Net-SNMP service-backed integration;
-7. PostgreSQL interface-history service-backed integration.
+4. real PostgreSQL `pg_dump` / `pg_restore` recovery drill;
+5. OpenSSH service-backed protocol integration;
+6. Net-SNMP service-backed protocol integration;
+7. PostgreSQL interface-history/service-backed integration.
+
+## Ruff / mypy Truth
+
+Ruff and mypy are **`NOT_RUN`** in this execution environment. Neither executable nor Python module is installed. `pip` installation failed because the isolated environment cannot resolve external package sources, and direct binary retrieval was also unavailable.
+
+`packaging/q1-source-gates.sh` correctly fails closed with rc=2 at the missing Ruff prerequisite. No Ruff or mypy PASS is claimed.
+
+Source hygiene performed without weakening the configured rules:
+
+- historical E701-style same-line compound suites: **0** by AST structural check;
+- text CR/CRLF offenders after cleanup: **0**;
+- cache entries before packaging: **0**;
+- symlinks: **0**;
+- required raw-source executable modes: **7/7 = 0755**;
+- Release/version truth is covered by repository hygiene regression tests.
+
+The configured Ruff rule set remains `E`, `F`, `W`, `B`, `UP` with only the pre-existing `E501` and `E702` ignores. No new ignore was added to hide lint debt. Actual Ruff execution remains a required Q-1 gate when a Ruff-capable environment is available.
 
 ## Local Q-1 Environment Truth
-
-The current execution environment is **Debian 13**, not the declared AlmaLinux 10 package target. It does not provide Ruff, mypy, `pg_dump`, `pg_restore`, PostgreSQL server tooling, `rpmbuild`, or RPM tooling. It also lacks the `ssh` executable required by the installed runtime. Therefore:
 
 ```text
 packaging/q1-source-gates.sh       NOT_RUN (rc=2; Ruff unavailable)
 packaging/q1-qualify-postgres.sh   NOT_RUN (rc=2; pg_dump unavailable)
 packaging/q1-qualify-almalinux.sh  NOT_RUN (rc=20; host is Debian 13)
 packaging/build-rpm.sh             NOT_RUN (rc=2; rpmbuild unavailable)
-netconfig qualify                  NOT_READY (required ssh executable absent)
+netconfig qualify                  NOT_READY (rc=1; required ssh executable absent)
 ```
 
-An attempted package installation of Ruff/mypy could not proceed because this isolated environment has no external package-name resolution. These tools are therefore not reported as passing. The runtime preflight's refusal to return ready without `ssh` is expected fail-closed behavior; the RPM declares `/usr/bin/ssh` as a runtime requirement.
+`netconfig qualify` otherwise confirmed Python 3.13.5, OpenSSL, and SQLite core storage revision `ha1-2`; optional `gnmic` is absent because no enabled gNMI profile requires it in this local preflight. Its refusal to return ready without `ssh` is expected fail-closed behavior.
 
-## Q-1 Live Gates Still Required
+## Security / Implementation Boundaries
 
-Before Q-1 may move beyond `IMPLEMENTED_TESTING_DEFERRED`, execute and retain evidence for the applicable gates:
-
-- `packaging/q1-source-gates.sh` in a Python 3.12+ quality environment with Ruff, mypy and psycopg;
-- `packaging/q1-qualify-postgres.sh` against disposable real PostgreSQL with explicitly supplied test credentials and `pg_dump`/`pg_restore`;
-- `packaging/q1-qualify-almalinux.sh --install` on disposable AlmaLinux 10 with `NETCONFIG_Q1_ALLOW_INSTALL=1`;
-- installed RPM smoke, systemd unit verification, service restart/reboot and credential-delivery behavior;
-- successful service-backed OpenSSH/Net-SNMP/PostgreSQL integration tied to the exact candidate artifact.
-
-PostgreSQL HA/failover/PITR, scale/load/failure qualification, representative NETCONF/RESTCONF/gNMI vendor interoperability, production TLS/mTLS/credential rotation, Cisco/Juniper/Arista/Huawei qualification, and live SMTP/O365 remain explicitly deferred unless separately executed.
-
-## Security / Recovery Boundaries Verified Offline
-
-- PostgreSQL backup/restore passwords are not placed in process argv.
-- Temporary PostgreSQL password files are mode `0600` and deleted after use.
-- Backup output is atomic, mode `0600`, non-empty and SHA-256 recorded.
-- Restore requires checksum verification and literal confirmation `RESTORE_DATABASE`.
-- Restore refuses the currently configured active core database.
-- Recovery-safe restore can operate without opening the failed active core database.
-- Production runtime readiness fails closed for missing required dependencies.
-- AlmaLinux installation requires both explicit `--install` and `NETCONFIG_Q1_ALLOW_INSTALL=1`.
-- Existing PH-1 CSP/RBAC/CSRF, PH-2 storage credential, PH-3 structured-adapter and diagnostic redaction boundaries remain unchanged.
+- Public PH-4/NA-1/NA-2 network mutation cannot self-authorize with a caller-provided boolean; it executes through a durable approved `change_requests` record with frozen snapshot/hash verification.
+- PH-4 preserves generic-passthrough denial for NETCONF/RESTCONF/gNMI and uses typed/model-pack-resolved operations.
+- NA-2 failed/rolled-back targets require explicit retry or abort before resume; rollback failure is recovery-required.
+- HA-1 drain state blocks new automation and relinquishes singleton scheduler leadership; automatic database failover is not claimed.
+- Session idle/absolute expiry remains explicitly deferred security debt by user direction and was not implemented in Release 33.
 
 ## Artifact Packaging Integrity Gate
 
-Clean Q-1 candidate `netconfig_qualification_q1_candidate_2026-09-12.zip` (SHA-256 `185039eadf8e8e63a8dad358df35f759a7a1f099d5fa6a3456a50e023920a2b1`) passed the artifact gate: ZIP CRC **PASS**; path traversal **0**; symlinks **0**; caches **0**; CR offenders **0**; source/extracted byte identity **125/125 PASS**; payload plus each SHA manifest **121/121 PASS**; required executable modes **7/7 = 0755**; extracted Q-1 focused **11 passed**; extracted full regression **147 passed / 7 skipped**; legacy selftest **ALL PASS**; compileall/launcher py_compile/packaging shell syntax **PASS**.
+Clean Release 33 candidate `netconfig_release33_candidate_2026-09-12.zip` (SHA-256 `d03720a411b796458747f7d8976a8fa01f4f40859b5e51341ef031aaa343f538`) passed the artifact gate: ZIP CRC **PASS**; path traversal **0**; symlinks **0**; caches **0**; text CR offenders **0**; source/extracted byte identity **132/132 PASS**; payload plus each SHA/release manifest **128/128 PASS**; required executable modes **7/7 = 0755**. From the clean extraction: Release 33 focused **23 passed**, PH-2 **9 passed**, PH-3 **22 passed**, Q-1 **11 passed**, full repository **168 passed / 7 skipped** in the isolated full-suite rerun, legacy selftest **ALL PASS**, and compileall/launcher py_compile/packaging shell syntax **PASS**. A first command that chained all suites hit the execution-tool timeout after full pytest reached ~82%; that interrupted run is not counted as PASS. The same candidate full suite was then rerun alone and completed cleanly (**168 passed / 7 skipped in 22.90s**).
 
-The final FULL ZIP is rebuilt only after this evidence is synchronized. Its SHA-256 is reported externally with delivery; the final ZIP itself must be independently extracted and retested before delivery.
+The formal FULL ZIP is rebuilt after synchronizing this candidate evidence and all manifests, then independently clean-extracted and reverified.
+
+## Status
+
+All Release 33 implementation phases remain `IMPLEMENTED_TESTING_DEFERRED`. Offline regression success does not satisfy real PostgreSQL, AlmaLinux/RPM/systemd, real network-device, TLS/mTLS, vendor interoperability, SMTP/O365, scale/failure, or other live qualification gates.

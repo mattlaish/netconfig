@@ -7,17 +7,22 @@ def build(manager):
     devices = manager.inv.all()
     drifted, baselined = [], 0
     for d in devices:
-        if "network" not in (d.get("device_type") or "network"): continue
+        if "network" not in (d.get("device_type") or "network"):
+            continue
         dr = manager.store.drift(d["name"])
-        if dr.get("baselined"): baselined += 1
-        if dr.get("drifted"): drifted.append(d["name"])
+        if dr.get("baselined"):
+            baselined += 1
+        if dr.get("drifted"):
+            drifted.append(d["name"])
     report = compliance.evaluate_fleet(manager.store, devices)
     failures = [{"device": d["device"], "failed": d.get("failed",0)} for d in report["devices"] if d.get("failed")]
     body = ["NetConfig scheduled compliance & drift digest", "",
             f"Devices: {len(devices)}", f"Baselined: {baselined}", f"Drifted: {len(drifted)}"]
-    if drifted: body.append("Drifted devices: " + ", ".join(drifted))
+    if drifted:
+        body.append("Drifted devices: " + ", ".join(drifted))
     body += [f"Compliance failed checks: {report['totals']['fail']}", f"Unknown checks: {report['totals'].get('unknown',0)}"]
-    for item in failures[:50]: body.append(f"- {item['device']}: {item['failed']} failed check(s)")
+    for item in failures[:50]:
+        body.append(f"- {item['device']}: {item['failed']} failed check(s)")
     return {"ts": time.time(), "drifted": drifted, "compliance": report, "body": "\n".join(body)}
 
 
@@ -31,5 +36,9 @@ def run(manager):
 
 def poller(manager, interval, stop):
     while not stop.wait(interval):
-        try: run(manager)
-        except Exception as exc: manager.db.audit("scheduler", "digest_failed", "email", str(exc)[:500])
+        if not manager.ha.accepts_automation_work():
+            continue
+        try:
+            run(manager)
+        except Exception as exc:
+            manager.db.audit("scheduler", "digest_failed", "email", str(exc)[:500])

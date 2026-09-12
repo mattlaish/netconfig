@@ -1,8 +1,23 @@
 # NetConfig Patch Ledger
 
-> **Canonical project state — 2026-09-12:** **CURRENT** = Qualification Track **Q-1 — Production Runtime & Service-backed Qualification** (`IMPLEMENTED_TESTING_DEFERRED`). **LATEST FEATURE BASELINE** = Platform Hardening **PH-3 — NETCONF / RESTCONF / gNMI Structured Adapters** (`IMPLEMENTED_TESTING_DEFERRED`). Q-1 implementation is complete in source, but live PostgreSQL/AlmaLinux/systemd/service-backed gates remain explicitly deferred in this environment. No Q-2 is assigned. RPM source Release is `2.0.0-32`.
+> **Canonical project state — 2026-09-12:** **CURRENT IMPLEMENTATION BASELINE** = **HA-1 — Control-plane HA & Recovery Foundation** (`IMPLEMENTED_TESTING_DEFERRED`). **PH-4, NI-5, VM-1, NA-1, NA-2, and HA-1** are implemented in source; consolidated Release 33 offline regression is green, while live/service-backed qualification remains deferred. Qualification **Q-1** remains `IMPLEMENTED_TESTING_DEFERRED`; its live PostgreSQL/AlmaLinux/systemd/service-backed gates remain deferred. No further development phase is assigned until the post-implementation qualification/roadmap review. RPM source Release is `2.0.0-33`.
 
-> **Current continuation pointer:** use the Q-1 full source baseline from 2026-09-12 as the active source. Historical CURRENT/NEXT statements below are chronology only. Execute the remaining Q-1 live gates before any promotion to `TESTED`/`RELEASED`; after Q-1 qualification, perform a fresh roadmap review before assigning Q-2.
+## PATCH-20260912-02 — Release 33 — Structured automation expansion
+
+- **Status:** `IMPLEMENTED_TESTING_DEFERRED`.
+- **Target release:** `2.0.0-33`; schema revision `ha1-2`.
+- **PH-4:** typed structured transaction ledger, change-request-backed approval, plan/hash freeze, device/advisory serialization, idempotency, verification, rollback and recovery-required reconciliation.
+- **NI-5:** durable telemetry subscriptions, bounded stream windows, scheduler/retention, scalar point normalization and summary/read APIs.
+- **VM-1:** validated built-in/custom model packs, device binding and immutable model-pack hash provenance.
+- **NA-1:** revisioned desired-state model, deterministic plan/evaluate/apply evidence and compensating rollback.
+- **NA-2:** canary/wave campaign orchestration, stable retry identities, pause/resume/retry/abort and frozen-plan/model drift protection.
+- **HA-1:** durable node drain/activate lifecycle, drain-aware leadership/admission, readiness and recovery-drill evidence; no automatic DB failover claim.
+- **Security:** network writes cannot be authorized by a caller-provided boolean. Execution requires an approved durable `change_requests` record whose frozen automation snapshot still matches at approval and execute time.
+- **Quality/packaging:** raw-source executable-mode checks are enforced in CI/source gates; mypy boundary expanded to Release 33 core modules; Release bumped to 33. Consolidated source evidence: automation/hygiene focused **23 passed**, PH-2 **9**, PH-3 **22**, Q-1 **11**, repository **168 passed / 7 skipped**, selftest **ALL PASS**, compile/launcher/shell **PASS**, source CR/cache/symlink offenders **0**, required executable modes **7/7 = 0755**. Ruff/mypy remain `NOT_RUN` because their binaries cannot be obtained in this isolated environment; no false PASS is recorded.
+- **Artifact candidate:** Clean Release 33 candidate `netconfig_release33_candidate_2026-09-12.zip` (SHA-256 `d03720a411b796458747f7d8976a8fa01f4f40859b5e51341ef031aaa343f538`) passed the artifact gate: ZIP CRC **PASS**; path traversal **0**; symlinks **0**; caches **0**; text CR offenders **0**; source/extracted byte identity **132/132 PASS**; payload plus each SHA/release manifest **128/128 PASS**; required executable modes **7/7 = 0755**. From the clean extraction: Release 33 focused **23 passed**, PH-2 **9 passed**, PH-3 **22 passed**, Q-1 **11 passed**, full repository **168 passed / 7 skipped** in the isolated full-suite rerun, legacy selftest **ALL PASS**, and compileall/launcher py_compile/packaging shell syntax **PASS**. A first command that chained all suites hit the execution-tool timeout after full pytest reached ~82%; that interrupted run is not counted as PASS. The same candidate full suite was then rerun alone and completed cleanly (**168 passed / 7 skipped in 22.90s**).
+- **Deferred:** session idle/absolute expiry remains explicit security debt; Q-1 live service/RPM/vendor qualification remains outstanding.
+
+> **Current continuation pointer:** use the Release 33 full source baseline as the active source. Historical CURRENT/NEXT statements below are chronology only. Release 33 consolidated source verification is complete; artifact verification and the remaining Q-1 live gates are the next qualification work; no new development phase is assigned.
 
 ## PATCH-20260912-01 — Release 32 — Qualification Q-1
 

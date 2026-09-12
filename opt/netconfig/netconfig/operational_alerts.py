@@ -280,7 +280,8 @@ def poller(manager, interval, stop):
     interval = max(30, int(interval))
     while not stop.is_set():
         try:
-            manager.alert_lifecycle.tick()
+            if manager.ha.accepts_automation_work():
+                manager.alert_lifecycle.tick()
         except Exception as exc:
             manager.db.audit("scheduler", "operational_lifecycle_failed", "ni4", str(exc)[:500])
         stop.wait(interval)

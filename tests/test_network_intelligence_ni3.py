@@ -8,7 +8,6 @@ import pytest
 from netconfig import snmp
 from netconfig import snmp_trap
 from netconfig.apitokens import ApiTokens
-from netconfig.db import Database
 from netconfig.manager import Manager
 from netconfig.web import Console, _Server
 

@@ -1,8 +1,27 @@
 # Roadmap
 
-> **Canonical project state — 2026-09-12:** **CURRENT** = Qualification Track **Q-1 — Production Runtime & Service-backed Qualification** (`IMPLEMENTED_TESTING_DEFERRED`). **LATEST FEATURE BASELINE** = Platform Hardening **PH-3 — NETCONF / RESTCONF / gNMI Structured Adapters** (`IMPLEMENTED_TESTING_DEFERRED`). Q-1 implementation is complete in source, but live PostgreSQL/AlmaLinux/systemd/service-backed gates remain explicitly deferred in this environment. No Q-2 is assigned. RPM source Release is `2.0.0-32`.
+> **Canonical project state — 2026-09-12:** **CURRENT IMPLEMENTATION BASELINE** = **HA-1 — Control-plane HA & Recovery Foundation** (`IMPLEMENTED_TESTING_DEFERRED`). **PH-4, NI-5, VM-1, NA-1, NA-2, and HA-1** are implemented in source; consolidated Release 33 offline regression is green, while live/service-backed qualification remains deferred. Qualification **Q-1** remains `IMPLEMENTED_TESTING_DEFERRED`; its live PostgreSQL/AlmaLinux/systemd/service-backed gates remain deferred. No further development phase is assigned until the post-implementation qualification/roadmap review. RPM source Release is `2.0.0-33`.
 
-> **Current continuation pointer:** use the Q-1 full source baseline from 2026-09-12 as the active source. Historical CURRENT/NEXT statements below are chronology only. Execute the remaining Q-1 live gates before any promotion to `TESTED`/`RELEASED`; after Q-1 qualification, perform a fresh roadmap review before assigning Q-2.
+## Release 33 implementation expansion — source complete, qualification pending
+
+The following development phases are now implemented in source. All remain `IMPLEMENTED_TESTING_DEFERRED`; implementation evidence must not be confused with real-device/service qualification.
+
+- **PH-4 — Structured Configuration Transactions:** durable typed structured-change transactions; mandatory existing change-request approval references; frozen automation snapshots/hashes; per-device serialization; pre-read/change/post-read verification; idempotency; rollback and `RECOVERY_REQUIRED` reconciliation; NETCONF candidate/lock/validate/confirmed-commit-aware writes, bounded RESTCONF replace with pre-image rollback, and typed gNMI Set. No caller-supplied arbitrary XML/URL/protobuf passthrough is exposed.
+- **NI-5 — Streaming Telemetry & Time-Series Intelligence Foundation:** durable gNMI telemetry subscriptions, bounded ON_CHANGE/SAMPLE stream windows, scheduled collection, raw bounded samples, normalized scalar time-series points, retention, summary/point APIs and CLI, and explicit error/due state. Long-running unbounded stream workers are not claimed.
+- **VM-1 — Vendor Model Packs:** built-in Generic/OpenConfig plus Cisco IOS-XE, Juniper Junos, Arista EOS and Huawei VRP model packs; validated custom pack lifecycle; strict selector/path/resource allow-lists; device bindings; effective pack/hash/resource inspection. Model-pack hash is part of frozen automation/campaign evidence.
+- **NA-1 — Intent / Desired-State Management:** durable DRAFT/PUBLISHED desired states, device/tag targeting, deterministic compilation through VM-1, plan/evaluate/run evidence, immutable published revisions via clone, approval-gated apply through PH-4, and reverse-order compensating rollback for earlier successful operations when a later operation fails.
+- **NA-2 — Fleet Change Campaigns:** frozen fleet plan, canary/wave rollout, deterministic ordering, failure thresholds, explicit pause/resume/retry/abort, stable retry attempt identity, optional rollback-on-failure, campaign/device/model-pack drift fail-closed behavior, and approval-gated wave execution through the existing change-request workflow.
+- **HA-1 — Control-plane HA & Recovery Foundation:** durable ACTIVE/DRAINING/DRAINED node lifecycle on top of PH-2 cluster heartbeats, drain-aware scheduler leadership, explicit automation admission blocking while draining, active-node readiness, recovery/DR drill evidence, and safe leadership handoff primitives. Automatic database failover is not claimed.
+
+**Qualification Q-1 remains open** as `IMPLEMENTED_TESTING_DEFERRED`. Its real PostgreSQL, AlmaLinux RPM/systemd, OpenSSH/Net-SNMP, Ruff/mypy, and other service-backed gates still require actual execution. Session idle/absolute expiry remains explicitly deferred security debt.
+
+**Release 33 consolidated source verification:** automation/repository hygiene focused **23 passed**; PH-2 **9 passed**; PH-3 **22 passed**; Q-1 **11 passed**; full repository **168 passed / 7 skipped**; legacy selftest **ALL PASS**; compileall/launcher/shell syntax **PASS**; source CR/cache/symlink offenders **0**; required executable modes **7/7 = 0755**. Ruff and mypy remain `NOT_RUN` because neither binary is available in this isolated environment and package/binary retrieval is unavailable; no lint/type-check PASS is claimed.
+
+**Release 33 candidate artifact:** Clean Release 33 candidate `netconfig_release33_candidate_2026-09-12.zip` (SHA-256 `d03720a411b796458747f7d8976a8fa01f4f40859b5e51341ef031aaa343f538`) passed the artifact gate: ZIP CRC **PASS**; path traversal **0**; symlinks **0**; caches **0**; text CR offenders **0**; source/extracted byte identity **132/132 PASS**; payload plus each SHA/release manifest **128/128 PASS**; required executable modes **7/7 = 0755**. From the clean extraction: Release 33 focused **23 passed**, PH-2 **9 passed**, PH-3 **22 passed**, Q-1 **11 passed**, full repository **168 passed / 7 skipped** in the isolated full-suite rerun, legacy selftest **ALL PASS**, and compileall/launcher py_compile/packaging shell syntax **PASS**. A first command that chained all suites hit the execution-tool timeout after full pytest reached ~82%; that interrupted run is not counted as PASS. The same candidate full suite was then rerun alone and completed cleanly (**168 passed / 7 skipped in 22.90s**).
+
+**NEXT:** no new development phase is assigned. Rebuild and independently verify the formal Release 33 FULL ZIP, then execute the available Q-1 live gates and perform another roadmap/qualification review.
+
+> **Current continuation pointer:** use the Release 33 full source baseline as the active implementation source. Historical CURRENT/NEXT statements below are chronology only. Use the recorded Release 33 offline/artifact evidence and run the applicable Q-1 live gates before any promotion to `TESTED`/`RELEASED`; then perform a fresh roadmap review before assigning another development phase.
 
 Status vocabulary for new work: `PLANNED`, `IMPLEMENTED_TESTING_DEFERRED`, `TESTED`, `RELEASED`. Older `IMPLEMENTED` labels predate this vocabulary and should not be interpreted as live-environment qualification.
 
@@ -15,7 +34,13 @@ Only the status vocabulary `PLANNED`, `IMPLEMENTED_TESTING_DEFERRED`, `TESTED`, 
 - **Platform Hardening PH-1:** `IMPLEMENTED_TESTING_DEFERRED` — Web-console structural hardening complete in source.
 - **Platform Hardening PH-2:** `IMPLEMENTED_TESTING_DEFERRED` — PostgreSQL core/distributed operation complete in source, with real service-backed qualification debt.
 - **Platform Hardening PH-3:** `IMPLEMENTED_TESTING_DEFERRED` — bounded NETCONF/RESTCONF/gNMI structured adapters complete in source, with real vendor/TLS interoperability debt.
-- **Qualification Q-1:** `IMPLEMENTED_TESTING_DEFERRED` — current track. Source implementation and offline regression are complete; live PostgreSQL, AlmaLinux RPM/systemd, Ruff/mypy and service-backed gates are not yet all executed in this environment.
+- **Platform Hardening PH-4:** `IMPLEMENTED_TESTING_DEFERRED` — structured configuration transactions complete in source.
+- **Network Intelligence NI-5:** `IMPLEMENTED_TESTING_DEFERRED` — bounded streaming telemetry/time-series foundation complete in source.
+- **Vendor Models VM-1:** `IMPLEMENTED_TESTING_DEFERRED` — validated vendor/model packs and device bindings complete in source.
+- **Network Automation NA-1:** `IMPLEMENTED_TESTING_DEFERRED` — desired-state lifecycle and compensating rollback complete in source.
+- **Network Automation NA-2:** `IMPLEMENTED_TESTING_DEFERRED` — fleet campaign/canary/wave orchestration complete in source.
+- **HA-1:** `IMPLEMENTED_TESTING_DEFERRED` — control-plane drain/readiness/recovery foundation complete in source.
+- **Qualification Q-1:** `IMPLEMENTED_TESTING_DEFERRED` — production/runtime qualification track remains open; real PostgreSQL, AlmaLinux RPM/systemd, Ruff/mypy and other service-backed gates are not yet all executed in this environment.
 
 Session idle/absolute expiry remains explicitly deferred security debt and is not part of Q-1. No Q-2 is assigned.
 

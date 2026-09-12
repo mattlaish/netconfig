@@ -1,8 +1,24 @@
 # NetConfig API Contract
 
-> **Canonical project state — 2026-09-12:** **CURRENT** = Qualification Track **Q-1 — Production Runtime & Service-backed Qualification** (`IMPLEMENTED_TESTING_DEFERRED`). **LATEST FEATURE BASELINE** = Platform Hardening **PH-3 — NETCONF / RESTCONF / gNMI Structured Adapters** (`IMPLEMENTED_TESTING_DEFERRED`). Q-1 implementation is complete in source, but live PostgreSQL/AlmaLinux/systemd/service-backed gates remain explicitly deferred in this environment. No Q-2 is assigned. RPM source Release is `2.0.0-32`.
+> **Canonical project state — 2026-09-12:** **CURRENT IMPLEMENTATION BASELINE** = **HA-1 — Control-plane HA & Recovery Foundation** (`IMPLEMENTED_TESTING_DEFERRED`). **PH-4, NI-5, VM-1, NA-1, NA-2, and HA-1** are implemented in source; consolidated Release 33 offline regression is green, while live/service-backed qualification remains deferred. Qualification **Q-1** remains `IMPLEMENTED_TESTING_DEFERRED`; its live PostgreSQL/AlmaLinux/systemd/service-backed gates remain deferred. No further development phase is assigned until the post-implementation qualification/roadmap review. RPM source Release is `2.0.0-33`.
 
-> **Current continuation pointer:** use the Q-1 full source baseline from 2026-09-12 as the active source. Historical CURRENT/NEXT statements below are chronology only. Execute the remaining Q-1 live gates before any promotion to `TESTED`/`RELEASED`; after Q-1 qualification, perform a fresh roadmap review before assigning Q-2.
+## Release 33 automation API contract
+
+New bearer scopes are `automation:read|write`, `telemetry:read|write`, `desired:read|write`, `campaign:read|write`, `model:read|write`, and `ha:read|write`. Existing role checks continue to apply in addition to scopes.
+
+Primary read/write surfaces include:
+
+- `/api/v1/automation-requests` for durable submit/approve/execute workflow; structured change, desired-state apply, campaign wave and rollback intents execute only through this approval path;
+- `/api/v1/structured-changes` plus transaction detail/interrupted/recovery operations; direct generic mutation is not exposed;
+- `/api/v1/telemetry/subscriptions`, `/samples`, `/points`, `/summary`, bounded capture/stream-window, enable/disable/delete and `/api/v1/telemetry/run-due`;
+- `/api/v1/desired-states`, per-state plan/evaluate/runs, clone/update/publish, plus `/api/v1/desired-state-runs` evidence;
+- `/api/v1/campaigns` with create/start/pause/resume/retry/abort and read surfaces; direct wave mutation returns approval-required and must use an automation request;
+- `/api/v1/vendor-model-packs` plus device binding/effective resource inspection; model writes require `model:write` and validated specs;
+- `/api/v1/ha/nodes`, `/api/v1/ha/readiness`, node-state drain/activate and recovery-drill evidence.
+
+All structured resource selection is server-side/model-pack resolved. API clients cannot supply arbitrary southbound XML, arbitrary RESTCONF URLs/bodies, arbitrary gNMI proto requests, or secrets in protocol traces/audit responses.
+
+> **Current continuation pointer:** use the Release 33 full source baseline as the active implementation source. Historical CURRENT/NEXT statements below are chronology only. Use the recorded Release 33 offline/artifact evidence and run the applicable Q-1 live gates before any promotion to `TESTED`/`RELEASED`; then perform a fresh roadmap review before assigning another development phase.
 
 ## Q-1 API impact
 

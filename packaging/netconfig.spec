@@ -1,6 +1,6 @@
 Name:           netconfig
 Version:        2.0.0
-Release:        32%{?dist}
+Release:        33%{?dist}
 Summary:        Network configuration and security operations console
 License:        Proprietary
 BuildArch:      noarch
@@ -84,6 +84,11 @@ exit 0
 %dir %attr(0700,netconfig,netconfig) %{_localstatedir}/lib/netconfig
 
 %changelog
+* Sat Sep 12 2026 OpenAI <noreply@openai.com> - 2.0.0-33
+- Add PH-4 structured configuration transactions with durable approval, verification, rollback and recovery evidence
+- Add NI-5 telemetry, VM-1 model packs, NA-1 desired state, NA-2 fleet campaigns, and HA-1 control-plane recovery foundation
+- Harden automation writes behind frozen change-request snapshots and preserve executable/source quality gates
+
 * Sat Sep 12 2026 OpenAI <noreply@openai.com> - 2.0.0-32
 - Qualification Q-1: production runtime/service-backed qualification harnesses
 - Add controlled PostgreSQL core pg_dump/pg_restore workflow with checksum and destructive-restore guard

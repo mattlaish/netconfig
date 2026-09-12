@@ -174,13 +174,16 @@ def test_netconf_get_and_unsupported_datastore_fail_closed(tmp_path, monkeypatch
     seen = []
 
     class FakeSSH:
-        def __init__(self, *a, **kw): self.ready_data = b""
+        def __init__(self, *a, **kw):
+            self.ready_data = b""
         def connect(self, ready_pattern=None, ready_max_bytes=None):
             self.ready_data = netconf_hello()
-        def write_raw(self, b): seen.append(b)
+        def write_raw(self, b):
+            seen.append(b)
         def read_raw_until(self, ptn, timeout=None, max_bytes=None):
             return b'<rpc-reply xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"><data/></rpc-reply>]]>]]>'
-        def close(self): pass
+        def close(self):
+            pass
 
     monkeypatch.setattr("netconfig.structured_protocols.SSHTransport", FakeSSH)
     text, meta = m.structured_collector.read_state(m.inv.get("r1"), p)
@@ -195,12 +198,15 @@ def test_netconf_malformed_or_base11_only_hello_fails_closed(tmp_path, monkeypat
     p = m.protocol_profiles.set("r1", "netconf")
 
     class FakeSSH:
-        def __init__(self, *a, **kw): self.ready_data = b""
+        def __init__(self, *a, **kw):
+            self.ready_data = b""
         def connect(self, ready_pattern=None, ready_max_bytes=None):
             self.ready_data = netconf_hello("urn:ietf:params:netconf:base:1.1").replace(
                 b"<capability>urn:ietf:params:netconf:base:1.0</capability>", b"")
-        def write_raw(self, b): pass
-        def close(self): pass
+        def write_raw(self, b):
+            pass
+        def close(self):
+            pass
 
     monkeypatch.setattr("netconfig.structured_protocols.SSHTransport", FakeSSH)
     with pytest.raises(StructuredProtocolError, match="base:1.1-only"):
@@ -217,9 +223,12 @@ def test_restconf_discovery_get_content_validation_and_secret_not_in_url(tmp_pat
         def __init__(self, body, ctype):
             self.body = body
             self.headers = {"Content-Type": ctype, "ETag": '"v1"'}
-        def __enter__(self): return self
-        def __exit__(self, *a): pass
-        def read(self, n): return self.body
+        def __enter__(self):
+            return self
+        def __exit__(self, *a):
+            pass
+        def read(self, n):
+            return self.body
 
     def fake(req, timeout=None, context=None):
         seen.append((req.full_url, req.headers.get("Authorization")))
@@ -246,10 +255,14 @@ def test_restconf_malformed_and_oversized_payload_rejected(tmp_path, monkeypatch
     class Resp:
         status = 200
         headers = {"Content-Type": "application/yang-data+json"}
-        def __init__(self, body): self.body = body
-        def __enter__(self): return self
-        def __exit__(self, *a): pass
-        def read(self, n): return self.body
+        def __init__(self, body):
+            self.body = body
+        def __enter__(self):
+            return self
+        def __exit__(self, *a):
+            pass
+        def read(self, n):
+            return self.body
 
     monkeypatch.setattr("netconfig.structured_protocols.urllib.request.urlopen", lambda *a, **k: Resp(b"{bad"))
     with pytest.raises(StructuredProtocolError, match="malformed"):
@@ -274,9 +287,12 @@ def test_restconf_controlled_replace_pre_post_verify_and_rollback(tmp_path, monk
         def __init__(self, body=b"{}"):
             self.body = body
             self.headers = {"Content-Type": "application/yang-data+json", "ETag": '"e1"'}
-        def __enter__(self): return self
-        def __exit__(self, *a): pass
-        def read(self, n): return self.body
+        def __enter__(self):
+            return self
+        def __exit__(self, *a):
+            pass
+        def read(self, n):
+            return self.body
 
     def fake(req, timeout=None, context=None):
         nonlocal state
@@ -457,7 +473,8 @@ def test_protocol_api_and_web_rbac_surface(tmp_path, monkeypatch):
 
     class H:
         manager = m
-        def _csrf_field(self): return '<input name=csrf value=x>'
+        def _csrf_field(self):
+            return '<input name=csrf value=x>'
 
     viewer = render_protocols_page(H(), {"role": "viewer"})
     operator = render_protocols_page(H(), {"role": "operator"})

@@ -1,14 +1,11 @@
 import json
-import os
-import stat
-import time
 from contextlib import contextmanager
 
 from netconfig.config import DEFAULT_SETTINGS
 from netconfig.credentials import postgres_core_password
 from netconfig.db import Database
 from netconfig.postgres_core import (
-    PostgresConn, PostgresDatabase, postgres_params, postgres_schema_statements,
+    PostgresDatabase, postgres_params, postgres_schema_statements,
     translate_sql,
 )
 from netconfig.cli import build_parser

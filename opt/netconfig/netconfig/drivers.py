@@ -53,7 +53,7 @@ class Driver:
 
     def enter_enable(self, tp, enable_password):
         tp.send_line(self.enable_command)
-        idx, m, _ = tp.expect([_RE_PW, _RE_DENIED, re.escape(tp.prompt or b"")], timeout=tp.command_timeout)
+        idx, _, _ = tp.expect([_RE_PW, _RE_DENIED, re.escape(tp.prompt or b"")], timeout=tp.command_timeout)
         if idx == 0:
             tp.send_line(enable_password)
             # re-discover prompt (should now end in '#')

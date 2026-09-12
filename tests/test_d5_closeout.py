@@ -40,7 +40,6 @@ def test_diagnostic_maintenance_prunes_bounded_artifacts_and_preserves_metadata(
     m.db.conn.commit()
 
     # One old unlinked trace is prunable. Incident-linked evidence is retained.
-    unlinked = m.protocol_traces.start("missing", "cli_ssh", actor="test") if False else None
     # Insert directly so the test does not need an inventory device.
     m.db.conn.execute(
         "INSERT INTO protocol_trace_sessions(trace_key,device,protocol,status,created_ts,expires_ts,stopped_ts) "

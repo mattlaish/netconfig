@@ -5,7 +5,7 @@ Creates redacted, deterministic support bundles. Secrets are never copied.
 """
 from __future__ import annotations
 import hashlib, json, os, tarfile, tempfile, shutil
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from pathlib import Path
 
 from .evidence_signing import (
@@ -68,7 +68,7 @@ class DebugBundle:
         return removed
 
     def collect(self, output=None, require_signature=False):
-        stamp=datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        stamp=datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
         base=Path(tempfile.mkdtemp(prefix="netconfig-support-"))
         for d in ("system","config","logs","database","security"):
             (base/d).mkdir(parents=True, exist_ok=True)
@@ -103,7 +103,7 @@ class DebugBundle:
 
     def device_capture(self, device_name, output=None, require_signature=False):
         """Create a redacted single-device diagnostic capture."""
-        stamp=datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        stamp=datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
         base=Path(tempfile.mkdtemp(prefix="netconfig-device-debug-"))
         (base / "device").mkdir(parents=True, exist_ok=True)
         dev=self.manager.inv.get(device_name)
@@ -122,9 +122,9 @@ class DebugBundle:
         return self._archive(base, output, "device", require_signature=require_signature)
 
     def _archive(self, base, output, prefix, require_signature=False):
-        out=Path(output) if output else self.root/f"netconfig-{prefix}-support-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}.tar.gz"
+        out=Path(output) if output else self.root/f"netconfig-{prefix}-support-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}.tar.gz"
         try:
-            self._finalize_manifest(base, datetime.now(timezone.utc).isoformat(),
+            self._finalize_manifest(base, datetime.now(UTC).isoformat(),
                                     require_signature=require_signature)
             with tarfile.open(out,"w:gz") as tar:
                 tar.add(base, arcname=base.name)

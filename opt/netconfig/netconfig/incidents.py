@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 import secrets
 import time
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from pathlib import Path
 
 SEVERITIES = ("LOW", "MEDIUM", "HIGH", "CRITICAL")
@@ -115,7 +115,7 @@ class Incidents:
                 "created_by,created_ts,updated_by,updated_ts) VALUES(?,?,?,?,?,?,?,?,?,?)",
                 (placeholder, title, description, sev, "OPEN", json.dumps(tag_list),
                  created_by or "", now, created_by or "", now))
-            incident_key = f"INC-{datetime.fromtimestamp(now, timezone.utc).year}-{cur.lastrowid:06d}"
+            incident_key = f"INC-{datetime.fromtimestamp(now, UTC).year}-{cur.lastrowid:06d}"
             self.conn.execute("UPDATE incidents SET incident_key=? WHERE id=?",
                               (incident_key, cur.lastrowid))
             self.conn.commit()

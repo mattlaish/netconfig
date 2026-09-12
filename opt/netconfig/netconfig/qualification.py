@@ -1,6 +1,7 @@
 """Q-1 runtime qualification/preflight helpers."""
 from __future__ import annotations
 
+import importlib.util
 import os
 import platform
 import shutil
@@ -24,11 +25,7 @@ def runtime_preflight(manager) -> dict:
     add("core-storage", bool(storage.get("ok") and storage.get("reachable")),
         f"backend={storage.get('backend')} revision={storage.get('schema_revision')}")
     if storage.get("backend") == "postgres":
-        try:
-            import psycopg  # noqa: F401
-            psycopg_ok = True
-        except Exception:
-            psycopg_ok = False
+        psycopg_ok = importlib.util.find_spec("psycopg") is not None
         add("psycopg", psycopg_ok, "required for PostgreSQL core")
         add("pg_dump", bool(shutil.which("pg_dump")), "required for PostgreSQL core backup")
         add("pg_restore", bool(shutil.which("pg_restore")), "required for PostgreSQL restore drill")

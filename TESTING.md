@@ -1,13 +1,19 @@
 # NetConfig Testing
 
-> **Canonical project state — 2026-09-12:** **CURRENT** = Qualification Track **Q-1 — Production Runtime & Service-backed Qualification** (`IMPLEMENTED_TESTING_DEFERRED`). **LATEST FEATURE BASELINE** = Platform Hardening **PH-3 — NETCONF / RESTCONF / gNMI Structured Adapters** (`IMPLEMENTED_TESTING_DEFERRED`). Q-1 implementation is complete in source, but live PostgreSQL/AlmaLinux/systemd/service-backed gates remain explicitly deferred in this environment. No Q-2 is assigned. RPM source Release is `2.0.0-32`.
+> **Canonical project state — 2026-09-12:** **CURRENT IMPLEMENTATION BASELINE** = **HA-1 — Control-plane HA & Recovery Foundation** (`IMPLEMENTED_TESTING_DEFERRED`). **PH-4, NI-5, VM-1, NA-1, NA-2, and HA-1** are implemented in source; consolidated Release 33 offline regression is green, while live/service-backed qualification remains deferred. Qualification **Q-1** remains `IMPLEMENTED_TESTING_DEFERRED`; its live PostgreSQL/AlmaLinux/systemd/service-backed gates remain deferred. No further development phase is assigned until the post-implementation qualification/roadmap review. RPM source Release is `2.0.0-33`.
 
-> **Current continuation pointer:** use the Q-1 full source baseline from 2026-09-12 as the active source. Historical CURRENT/NEXT statements below are chronology only. Execute the remaining Q-1 live gates before any promotion to `TESTED`/`RELEASED`; after Q-1 qualification, perform a fresh roadmap review before assigning Q-2.
+## Release 33 consolidated verification plan
 
-## Current Q-1 qualification summary
+Release 33 adds focused coverage in `tests/test_automation_expansion.py` for PH-4, NI-5, VM-1, NA-1, NA-2 and HA-1. Final evidence must run only after source/docs freeze and must include: focused expansion tests; PH-2/PH-3/Q-1 focused regressions; full pytest; legacy selftest; compileall and launcher py_compile; shell syntax; CR/cache/symlink/path hygiene; executable-mode checks; Ruff with the configured `E/F/W/B/UP` rule set when a real Ruff binary is available; mypy over the configured security/core plus Release 33 automation boundaries when mypy is available; then clean-extraction repetition against the delivery ZIP itself.
 
-- CURRENT: **Q-1 — Production Runtime & Service-backed Qualification** (`IMPLEMENTED_TESTING_DEFERRED`).
-- Latest feature baseline: PH-3 (`IMPLEMENTED_TESTING_DEFERRED`).
+Ruff/mypy may be marked only `PASS` when the actual tools execute successfully. Tool absence is `NOT_RUN`, never PASS. Q-1 real PostgreSQL/AlmaLinux/systemd/OpenSSH/Net-SNMP/vendor/live SMTP gates remain separate and must not be inferred from offline tests.
+
+> **Current continuation pointer:** use the Release 33 full source baseline as the active implementation source. Historical CURRENT/NEXT statements below are chronology only. Use the recorded Release 33 offline/artifact evidence and run the applicable Q-1 live gates before any promotion to `TESTED`/`RELEASED`; then perform a fresh roadmap review before assigning another development phase.
+
+## Historical Q-1 baseline qualification summary
+
+- Historical Q-1 state: **Q-1 — Production Runtime & Service-backed Qualification** (`IMPLEMENTED_TESTING_DEFERRED`).
+- Historical feature baseline at Q-1 creation: PH-3 (`IMPLEMENTED_TESTING_DEFERRED`).
 - Q-1 focused offline suite: **11 passed** before final artifact packaging.
 - Full offline repository: **147 passed / 7 skipped** before final artifact packaging.
 - Existing service skips: OpenSSH, Net-SNMP, PostgreSQL interface-history.
@@ -356,3 +362,32 @@ Still required/not run: real NETCONF/RESTCONF/gNMI devices, vendor-specific Cisc
 Clean candidate `netconfig_platform_hardening_ph3_candidate_completed_2026-09-12.zip` (SHA-256 `ea4c2f56f277e76ab85f49b0647269799002d00d5ee79fedd5f6f0fa84450136`) passed system-unzip validation: **118/118** source byte identity; **114/114** entries in `RELEASE_MANIFEST.json` and each of the three SHA manifests; ZIP CRC **PASS**; traversal **0**; symlinks **0**; caches **0**; CR offenders **0**; hidden control paths **3/3 exact**; required executable modes **4/4 = 0755**; extracted focused PH-3 **22 passed**; extracted full regression **136 passed / 3 skipped**; legacy selftest **ALL PASS**; compileall/launcher py_compile/packaging shell syntax **PASS**. The direct RPM helper exits `2` only because `rpmbuild` is unavailable.
 
 The delivered FULL ZIP is rebuilt after this evidence is recorded and is independently re-extracted/retested before handoff. PH-3 remains `IMPLEMENTED_TESTING_DEFERRED` regardless of offline pass counts until applicable live/service-backed qualification is executed.
+
+## Release 33 consolidated verification result
+
+Status remains `IMPLEMENTED_TESTING_DEFERRED`. Final source-tree evidence before artifact creation:
+
+```text
+automation + repo hygiene focused   23 passed
+PH-2 focused                         9 passed
+PH-3 focused                        22 passed
+Q-1 focused                         11 passed
+full pytest                        168 passed / 7 skipped
+legacy selftest                    RESULT: ALL PASS
+compileall                         PASS
+launcher py_compile                PASS
+packaging shell syntax             PASS
+source text CR offenders            0
+cache entries after cleanup         0
+symlinks                            0
+historical E701-style suites        0
+required executable modes           7/7 = 0755
+Ruff                               NOT_RUN (binary unavailable)
+mypy                               NOT_RUN (binary unavailable)
+```
+
+The seven skips remain explicit live/service-backed gates: four real PostgreSQL/Q-1 gates and three protocol/service-backed integrations. Ruff/mypy package installation and direct binary retrieval were attempted but this isolated environment could not retrieve them; therefore the quality-tool gate is not reported as passing. `packaging/q1-source-gates.sh` exits `2` at its required Ruff precondition.
+
+During the consolidated focused run, tests exposed and implementation fixed: (1) NA-2 allowed resume with unresolved failed targets and lacked its advertised explicit retry service method; (2) PH-4 gNMI typed Set accidentally changed the PH-3 generic capability contract; and (3) a hygiene refactor moved Web query parsing below the API dispatch. All affected focused suites are green after correction.
+
+Candidate artifact evidence: Clean Release 33 candidate `netconfig_release33_candidate_2026-09-12.zip` (SHA-256 `d03720a411b796458747f7d8976a8fa01f4f40859b5e51341ef031aaa343f538`) passed the artifact gate: ZIP CRC **PASS**; path traversal **0**; symlinks **0**; caches **0**; text CR offenders **0**; source/extracted byte identity **132/132 PASS**; payload plus each SHA/release manifest **128/128 PASS**; required executable modes **7/7 = 0755**. From the clean extraction: Release 33 focused **23 passed**, PH-2 **9 passed**, PH-3 **22 passed**, Q-1 **11 passed**, full repository **168 passed / 7 skipped** in the isolated full-suite rerun, legacy selftest **ALL PASS**, and compileall/launcher py_compile/packaging shell syntax **PASS**. A first command that chained all suites hit the execution-tool timeout after full pytest reached ~82%; that interrupted run is not counted as PASS. The same candidate full suite was then rerun alone and completed cleanly (**168 passed / 7 skipped in 22.90s**).

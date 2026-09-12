@@ -22,7 +22,7 @@ def proto_name(n):
 
 
 def _ip(v):
-    return "%d.%d.%d.%d" % ((v >> 24) & 0xFF, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF)
+    return f"{(v >> 24) & 0xFF}.{(v >> 16) & 0xFF}.{(v >> 8) & 0xFF}.{v & 0xFF}"
 
 
 # v9 field type -> (our key, length-agnostic reader)

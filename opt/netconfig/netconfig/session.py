@@ -30,7 +30,7 @@ class SessionRecorder:
             return None
         d = os.path.join(self.root, _safe(device))
         os.makedirs(d, exist_ok=True)
-        stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        stamp = datetime.datetime.now(datetime.UTC).strftime("%Y%m%dT%H%M%SZ")
         path = os.path.join(d, f"{stamp}.log")
         text = bytes(transcript_bytes).decode("utf-8", "replace")
         if self.do_scrub:

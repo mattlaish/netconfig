@@ -20,7 +20,7 @@ import stat
 import subprocess
 import tarfile
 import tempfile
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from pathlib import Path, PurePosixPath
 
 SIGNATURE_FILE = "manifest.signature.json"
@@ -198,7 +198,7 @@ class EvidenceSigner:
             "signed_file": MANIFEST_FILE,
             "signed_sha256": hashlib.sha256(raw).hexdigest(),
             "signature_base64": base64.b64encode(signature).decode("ascii"),
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
             "trust_model": (
                 "embedded public key proves signature validity only; authenticity requires an "
                 "independently trusted key fingerprint"

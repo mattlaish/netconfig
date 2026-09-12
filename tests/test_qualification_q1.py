@@ -167,11 +167,14 @@ def test_postgres_restore_requires_integrity_confirmation_and_separate_target(tm
 
 def test_runtime_preflight_only_requires_gnmic_when_configured(monkeypatch):
     class Profiles:
-        def __init__(self, rows): self.rows = rows
-        def list(self): return self.rows
+        def __init__(self, rows):
+            self.rows = rows
+        def list(self):
+            return self.rows
 
     class Manager:
-        def __init__(self, rows): self.protocol_profiles = Profiles(rows)
+        def __init__(self, rows):
+            self.protocol_profiles = Profiles(rows)
         def storage_status(self):
             return {"backend": "sqlite", "reachable": True, "ok": True, "schema_revision": "ph3-1"}
 

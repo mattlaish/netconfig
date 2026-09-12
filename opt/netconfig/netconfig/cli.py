@@ -507,6 +507,35 @@ def cmd_request(m, args):
         rid = wf.submit(title=args.title, body=body, target_kind=kind,
                         target_value=value, mode=args.mode, requested_by=args.actor)
         print(f"submitted change request CR#{rid} (pending)")
+    elif args.action == "submit-structured":
+        rid = wf.submit_automation(
+            title=args.title, requested_by=args.actor,
+            intent={
+                "kind": "structured_change", "device": args.device,
+                "resource": args.resource, "selectors": _selector_args(args.selector),
+                "value": _json_value_arg(args.value),
+            },
+        )
+        print(f"submitted structured change request CR#{rid} (pending)")
+    elif args.action == "submit-desired":
+        rid = wf.submit_automation(
+            title=args.title, requested_by=args.actor,
+            intent={"kind": "desired_apply", "desired_state_id": args.id,
+                    "rollback_on_failure": not args.no_rollback},
+        )
+        print(f"submitted desired-state apply request CR#{rid} (pending)")
+    elif args.action == "submit-campaign-wave":
+        rid = wf.submit_automation(
+            title=args.title, requested_by=args.actor,
+            intent={"kind": "campaign_wave", "campaign_id": args.id},
+        )
+        print(f"submitted campaign-wave request CR#{rid} (pending)")
+    elif args.action == "submit-rollback":
+        rid = wf.submit_automation(
+            title=args.title, requested_by=args.actor,
+            intent={"kind": "structured_rollback", "transaction_id": args.id},
+        )
+        print(f"submitted structured rollback request CR#{rid} (pending)")
     elif args.action == "list":
         for r in wf.list(status=args.status):
             print(f"  CR#{r['id']:<4} [{r['status']:<9}] {r['title']}  "
@@ -523,11 +552,16 @@ def cmd_request(m, args):
         if cr["reviewed_by"]:
             print(f"  reviewed by {cr['reviewed_by']} — {cr['review_note'] or 'ok'}")
         print("  --- resolved plan ---")
-        for t in prev["targets"]:
-            un = f"  !! unresolved: {t['unresolved']}" if t["unresolved"] else ""
-            print(f"  {t['device']} ({t['host']}){un}")
-            for ln in t["lines"]:
-                print(f"      {ln}")
+        if cr["mode"] == "automation":
+            auto = prev["automation"]
+            print(f"  snapshot match: {auto['snapshot_matches']}")
+            print(json.dumps(auto["submitted_snapshot"], indent=4, sort_keys=True))
+        else:
+            for t in prev["targets"]:
+                un = f"  !! unresolved: {t['unresolved']}" if t["unresolved"] else ""
+                print(f"  {t['device']} ({t['host']}){un}")
+                for ln in t["lines"]:
+                    print(f"      {ln}")
     elif args.action == "approve":
         wf.approve(args.id, args.actor)
         print(f"CR#{args.id} approved")
@@ -860,7 +894,8 @@ def cmd_alerts(m, args):
     life = m.alert_lifecycle
     if args.action == "list":
         rows = life.list(state=args.state, device=args.device, limit=args.limit)
-        if args.json: print(json.dumps(rows, indent=2, sort_keys=True)); return
+        if args.json:
+            print(json.dumps(rows, indent=2, sort_keys=True)); return
         for r in rows:
             print(f"#{r['id']} {r['state']} {r['severity']} {r['device'] or '-'} {r['event_type']} x{r['event_count']} {r['message']}")
         return
@@ -873,8 +908,10 @@ def cmd_alerts(m, args):
         print(json.dumps(row,indent=2,sort_keys=True) if args.json else f"maintenance #{row['id']} {row['name']}"); return
     if args.action == "maintenance-list":
         rows=life.maintenance(active_only=args.active_only)
-        if args.json: print(json.dumps(rows,indent=2,sort_keys=True)); return
-        for r in rows: print(f"#{r['id']} {r['name']} device={r['device'] or 'all'} {int(r['start_ts'])}-{int(r['end_ts'])} cancelled={bool(r.get('cancelled_ts'))}")
+        if args.json:
+            print(json.dumps(rows,indent=2,sort_keys=True)); return
+        for r in rows:
+            print(f"#{r['id']} {r['name']} device={r['device'] or 'all'} {int(r['start_ts'])}-{int(r['end_ts'])} cancelled={bool(r.get('cancelled_ts'))}")
         return
     if args.action == "maintenance-cancel":
         row=life.cancel_maintenance(args.id,args.actor); print(json.dumps(row,indent=2,sort_keys=True) if args.json else f"maintenance #{row['id']} cancelled"); return
@@ -883,9 +920,12 @@ def cmd_alerts(m, args):
         print(json.dumps(row,indent=2,sort_keys=True) if args.json else f"report schedule #{row['id']} {row['name']}"); return
     if args.action == "report-list":
         value={"schedules":life.report_schedules(),"runs":life.report_runs(args.limit)}
-        if args.json: print(json.dumps(value,indent=2,sort_keys=True)); return
-        for r in value["schedules"]: print(f"schedule #{r['id']} {'on' if r['enabled'] else 'off'} {r['name']} every={r['interval_seconds']}s lookback={r['lookback_hours']}h")
-        for r in value["runs"][:10]: print(f"run #{r['id']} status={r['status']} {int(r['finished_ts'])}")
+        if args.json:
+            print(json.dumps(value,indent=2,sort_keys=True)); return
+        for r in value["schedules"]:
+            print(f"schedule #{r['id']} {'on' if r['enabled'] else 'off'} {r['name']} every={r['interval_seconds']}s lookback={r['lookback_hours']}h")
+        for r in value["runs"][:10]:
+            print(f"run #{r['id']} status={r['status']} {int(r['finished_ts'])}")
         return
     if args.action == "report-run":
         row=life.run_report(schedule_id=args.id,lookback_hours=args.lookback_hours,actor=args.actor)
@@ -894,8 +934,10 @@ def cmd_alerts(m, args):
         row=life.set_report_schedule_enabled(args.id,args.enabled,args.actor); print(json.dumps(row,indent=2,sort_keys=True) if args.json else f"schedule #{row['id']} {'enabled' if row['enabled'] else 'disabled'}"); return
     if args.action == "deliveries":
         rows=life.notifications(args.limit)
-        if args.json: print(json.dumps(rows,indent=2,sort_keys=True)); return
-        for r in rows: print(f"#{r['id']} {r['kind']} {r['state']} attempts={r['attempts']} next={int(r['next_attempt_ts'])}")
+        if args.json:
+            print(json.dumps(rows,indent=2,sort_keys=True)); return
+        for r in rows:
+            print(f"#{r['id']} {r['kind']} {r['state']} attempts={r['attempts']} next={int(r['next_attempt_ts'])}")
         return
     if args.action == "tick":
         out=life.tick(); print(json.dumps(out,indent=2,sort_keys=True)); return
@@ -1013,7 +1055,8 @@ def cmd_protocol(m, args):
     if args.action == "collect":
         result = m.protocol_collect(args.device)
         print(json.dumps({"device":result.device,"ok":result.ok,"changed":result.changed,"message":result.message,"version":result.version}, indent=2, sort_keys=True))
-        if not result.ok: sys.exit(1)
+        if not result.ok:
+            sys.exit(1)
         return
     if args.action == "capabilities":
         print(json.dumps(m.protocol_capabilities(args.device), indent=2, sort_keys=True)); return
@@ -1022,6 +1065,350 @@ def cmd_protocol(m, args):
     if args.action == "subscribe-once":
         print(json.dumps(m.protocol_subscribe_once(args.device, path=args.path), indent=2, sort_keys=True)); return
 
+
+def _json_value_arg(value):
+    raw = str(value or "")
+    if raw.startswith("@"):
+        with open(raw[1:], encoding="utf-8") as fh:
+            return json.load(fh)
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError("JSON argument must be valid JSON or @file.json") from exc
+
+
+def _selector_args(values):
+    out = {}
+    for item in values or []:
+        if "=" not in item:
+            raise ValueError("selector must be KEY=VALUE")
+        key, value = item.split("=", 1)
+        key = key.strip()
+        if not key or key in out:
+            raise ValueError("selector keys must be non-empty and unique")
+        out[key] = value
+    return out
+
+
+def cmd_automation(m, args):
+    action = args.action
+    if action == "status":
+        print(json.dumps(m.automation_status(), indent=2, sort_keys=True))
+        return
+    if action == "model-list":
+        print(json.dumps(m.vendor_models.list(), indent=2, sort_keys=True))
+        return
+    if action == "model-show":
+        print(json.dumps(m.vendor_models.get(args.pack), indent=2, sort_keys=True))
+        return
+    if action == "model-resources":
+        print(json.dumps(m.vendor_models.resources(args.device, args.protocol), indent=2, sort_keys=True))
+        return
+    if action == "model-create":
+        row = m.vendor_models.create(
+            name=args.pack,
+            revision=args.revision,
+            spec=_json_value_arg(args.spec),
+            actor=args.actor,
+        )
+        print(json.dumps(row, indent=2, sort_keys=True))
+        return
+    if action in {"model-enable", "model-disable"}:
+        row = m.vendor_models.set_enabled(
+            args.pack, action == "model-enable", actor=args.actor
+        )
+        print(json.dumps(row, indent=2, sort_keys=True))
+        return
+    if action == "model-delete":
+        m.vendor_models.delete(args.pack, actor=args.actor)
+        print(json.dumps({"deleted": args.pack}, indent=2, sort_keys=True))
+        return
+    if action == "model-bind":
+        print(
+            json.dumps(
+                m.vendor_models.bind(args.device, args.pack, actor=args.actor),
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return
+    if action == "model-unbind":
+        m.vendor_models.unbind(args.device, actor=args.actor)
+        print(json.dumps({"device": args.device, "binding": None}, indent=2, sort_keys=True))
+        return
+    if action == "model-bindings":
+        print(json.dumps(m.vendor_models.list_bindings(), indent=2, sort_keys=True))
+        return
+    if action == "model-binding":
+        print(json.dumps(m.vendor_models.binding_detail(args.device), indent=2, sort_keys=True))
+        return
+    if action == "change":
+        raise ValueError("direct structured writes are disabled; use request submit-structured, approve, then execute")
+    if action == "change-list":
+        print(json.dumps(m.structured_changes.list(args.limit), indent=2, sort_keys=True))
+        return
+    if action == "change-rollback":
+        raise ValueError("direct rollback is disabled; use request submit-rollback, approve, then execute")
+    if action == "change-interrupted":
+        print(
+            json.dumps(
+                m.structured_changes.interrupted(args.stale_seconds),
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return
+    if action == "change-mark-interrupted":
+        print(
+            json.dumps(
+                m.structured_changes.mark_interrupted_for_recovery(
+                    actor=args.actor, stale_seconds=args.stale_seconds
+                ),
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return
+    if action == "change-recover":
+        print(
+            json.dumps(
+                m.structured_changes.recover(args.id, actor=args.actor),
+                indent=2, sort_keys=True,
+            )
+        )
+        return
+    if action == "telemetry-add":
+        row = m.telemetry.create(
+            name=args.name,
+            device=args.device,
+            path=args.path,
+            mode=args.mode,
+            sample_interval_ms=args.sample_interval_ms,
+            heartbeat_interval_ms=args.heartbeat_interval_ms,
+            window_seconds=args.window_seconds,
+            collection_interval_seconds=args.collection_interval_seconds,
+            retention_days=args.retention_days,
+            actor=args.actor,
+        )
+        print(json.dumps(row, indent=2, sort_keys=True))
+        return
+    if action == "telemetry-list":
+        print(json.dumps(m.telemetry.list(), indent=2, sort_keys=True))
+        return
+    if action == "telemetry-capture":
+        print(json.dumps(m.telemetry.capture_once(args.id, actor=args.actor), indent=2, sort_keys=True))
+        return
+    if action == "telemetry-window":
+        print(
+            json.dumps(
+                m.telemetry.capture_window(
+                    args.id, duration_seconds=args.duration_seconds, actor=args.actor
+                ),
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return
+    if action == "telemetry-samples":
+        print(json.dumps(m.telemetry.samples(args.id, args.limit), indent=2, sort_keys=True))
+        return
+    if action == "telemetry-points":
+        print(
+            json.dumps(
+                m.telemetry.points(
+                    args.id,
+                    value_path=args.value_path,
+                    since_ts=args.since_ts,
+                    limit=args.limit,
+                ),
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return
+    if action == "telemetry-summary":
+        print(
+            json.dumps(
+                m.telemetry.summary(
+                    args.id,
+                    value_path=args.value_path,
+                    since_ts=args.since_ts,
+                    limit=args.limit,
+                ),
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return
+    if action == "telemetry-run-due":
+        print(json.dumps(m.telemetry.run_due(actor=args.actor, limit=args.limit), indent=2, sort_keys=True))
+        return
+    if action in {"telemetry-enable", "telemetry-disable"}:
+        print(
+            json.dumps(
+                m.telemetry.set_enabled(
+                    args.id, action == "telemetry-enable", actor=args.actor
+                ),
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return
+    if action == "telemetry-delete":
+        print(json.dumps(m.telemetry.delete(args.id, actor=args.actor), indent=2, sort_keys=True))
+        return
+    if action == "desired-create":
+        row = m.desired_state.create(
+            name=args.name,
+            target_kind=args.target_kind,
+            target_value=args.target_value,
+            document=_json_value_arg(args.document),
+            actor=args.actor,
+            description=args.description or "",
+        )
+        print(json.dumps(row, indent=2, sort_keys=True))
+        return
+    if action == "desired-list":
+        print(json.dumps(m.desired_state.list(), indent=2, sort_keys=True))
+        return
+    if action == "desired-show":
+        print(json.dumps(m.desired_state.get(args.id), indent=2, sort_keys=True))
+        return
+    if action == "desired-update":
+        document = _json_value_arg(args.document) if args.document else None
+        print(
+            json.dumps(
+                m.desired_state.update(
+                    args.id, document=document, description=args.description,
+                    target_kind=args.target_kind, target_value=args.target_value, actor=args.actor,
+                ),
+                indent=2, sort_keys=True,
+            )
+        )
+        return
+    if action == "desired-publish":
+        print(json.dumps(m.desired_state.publish(args.id, args.actor), indent=2, sort_keys=True))
+        return
+    if action == "desired-plan":
+        print(json.dumps(m.desired_state.plan(args.id), indent=2, sort_keys=True))
+        return
+    if action == "desired-evaluate":
+        print(json.dumps(m.desired_state.evaluate(args.id), indent=2, sort_keys=True))
+        return
+    if action == "desired-clone":
+        print(
+            json.dumps(
+                m.desired_state.clone_revision(args.id, actor=args.actor, name=args.name),
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return
+    if action == "desired-runs":
+        print(json.dumps(m.desired_state.runs(args.id, args.limit), indent=2, sort_keys=True))
+        return
+    if action == "desired-apply":
+        raise ValueError("direct desired-state apply is disabled; use request submit-desired, approve, then execute")
+    if action == "campaign-create":
+        row = m.campaigns.create(
+            name=args.name,
+            desired_state_id=args.desired_state_id,
+            wave_size=args.wave_size,
+            max_failures=args.max_failures,
+            canary_size=args.canary_size,
+            rollback_on_failure=args.rollback_on_failure,
+            actor=args.actor,
+        )
+        print(json.dumps(row, indent=2, sort_keys=True))
+        return
+    if action == "campaign-list":
+        print(json.dumps(m.campaigns.list(), indent=2, sort_keys=True))
+        return
+    if action == "campaign-show":
+        print(json.dumps(m.campaigns.get(args.id), indent=2, sort_keys=True))
+        return
+    if action in {"campaign-start", "campaign-pause", "campaign-resume", "campaign-abort"}:
+        method = getattr(m.campaigns, action.split("-", 1)[1])
+        print(json.dumps(method(args.id, args.actor), indent=2, sort_keys=True))
+        return
+    if action == "campaign-retry":
+        print(
+            json.dumps(
+                m.campaigns.retry_failed(args.id, args.actor, wave=args.wave),
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return
+    if action == "campaign-wave":
+        raise ValueError("direct campaign wave execution is disabled; use request submit-campaign-wave, approve, then execute")
+    if action == "ha-status":
+        print(json.dumps(m.ha.readiness(), indent=2, sort_keys=True))
+        return
+    if action == "ha-nodes":
+        print(json.dumps(m.ha.nodes(args.stale_seconds), indent=2, sort_keys=True))
+        return
+    if action == "ha-drain":
+        print(
+            json.dumps(
+                m.ha.set_node_state(
+                    state="DRAINED" if args.final else "DRAINING",
+                    actor=args.actor,
+                    node_id=args.node_id or None,
+                    reason=args.reason,
+                ),
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return
+    if action == "ha-activate":
+        print(
+            json.dumps(
+                m.ha.set_node_state(
+                    state="ACTIVE", actor=args.actor, node_id=args.node_id or None
+                ),
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return
+    if action == "ha-drill-record":
+        detail = _json_value_arg(args.detail) if args.detail else {}
+        print(
+            json.dumps(
+                m.ha.record_drill(
+                    kind=args.kind,
+                    actor=args.actor,
+                    state=args.state,
+                    detail=detail,
+                    verification_ref=args.verification_ref or "",
+                ),
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return
+    if action == "ha-drill-complete":
+        detail = _json_value_arg(args.detail) if args.detail else {}
+        print(
+            json.dumps(
+                m.ha.complete_drill(
+                    args.id,
+                    actor=args.actor,
+                    state=args.state,
+                    detail=detail,
+                    verification_ref=args.verification_ref or "",
+                ),
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return
+    if action == "ha-drills":
+        print(json.dumps(m.ha.drills(args.limit), indent=2, sort_keys=True))
+        return
+    raise ValueError("unsupported automation action")
 
 def build_parser():
     p = argparse.ArgumentParser(prog="netconfig",
@@ -1151,6 +1538,16 @@ def build_parser():
     rsub.add_argument("--target", required=True)
     rsub.add_argument("--mode", default="config", choices=["config", "remediate"])
     rsub.add_argument("--script"); rsub.add_argument("--command")
+    rs = rqs.add_parser("submit-structured")
+    rs.add_argument("device"); rs.add_argument("resource"); rs.add_argument("--title", required=True)
+    rs.add_argument("--selector", action="append", default=[])
+    rs.add_argument("--value", required=True, help="JSON scalar/object or @file.json")
+    rd = rqs.add_parser("submit-desired")
+    rd.add_argument("id", type=int); rd.add_argument("--title", required=True); rd.add_argument("--no-rollback", action="store_true")
+    rcw = rqs.add_parser("submit-campaign-wave")
+    rcw.add_argument("id", type=int); rcw.add_argument("--title", required=True)
+    rr = rqs.add_parser("submit-rollback")
+    rr.add_argument("id", type=int); rr.add_argument("--title", required=True)
     rlist = rqs.add_parser("list"); rlist.add_argument("--status")
     rshow = rqs.add_parser("show"); rshow.add_argument("id", type=int)
     rap = rqs.add_parser("approve"); rap.add_argument("id", type=int)
@@ -1226,6 +1623,159 @@ def build_parser():
     pst = prs.add_parser("state"); pst.add_argument("device"); pst.add_argument("--path")
     psub = prs.add_parser("subscribe-once"); psub.add_argument("device"); psub.add_argument("--path")
     pr.set_defaults(func=cmd_protocol)
+
+    auto = sub.add_parser("automation", help="PH-4/NI-5/NA/VM/HA structured automation")
+    aus = auto.add_subparsers(dest="action", required=True)
+    aus.add_parser("status")
+    aus.add_parser("model-list")
+    mshow = aus.add_parser("model-show")
+    mshow.add_argument("pack")
+    mres = aus.add_parser("model-resources")
+    mres.add_argument("device")
+    mres.add_argument("--protocol", choices=["netconf", "restconf", "gnmi"])
+    mcreate = aus.add_parser("model-create")
+    mcreate.add_argument("pack")
+    mcreate.add_argument("revision")
+    mcreate.add_argument("--spec", required=True, help="JSON object or @file.json")
+    for name in ("model-enable", "model-disable", "model-delete"):
+        parser = aus.add_parser(name)
+        parser.add_argument("pack")
+    mbind = aus.add_parser("model-bind")
+    mbind.add_argument("device")
+    mbind.add_argument("pack")
+    munbind = aus.add_parser("model-unbind")
+    munbind.add_argument("device")
+    aus.add_parser("model-bindings")
+    mbinding = aus.add_parser("model-binding")
+    mbinding.add_argument("device")
+
+    change = aus.add_parser("change")
+    change.add_argument("device")
+    change.add_argument("resource")
+    change.add_argument("--selector", action="append", default=[])
+    change.add_argument("--value", required=True, help="JSON scalar/object or @file.json")
+    change.add_argument("--reference")
+    change.add_argument("--approved", action="store_true")
+    change_list = aus.add_parser("change-list")
+    change_list.add_argument("--limit", type=int, default=200)
+    change_rollback = aus.add_parser("change-rollback")
+    change_rollback.add_argument("id", type=int)
+    change_rollback.add_argument("--reference")
+    change_rollback.add_argument("--approved", action="store_true")
+    for name in ("change-interrupted", "change-mark-interrupted"):
+        parser = aus.add_parser(name)
+        parser.add_argument("--stale-seconds", type=int, default=300)
+    change_recover = aus.add_parser("change-recover")
+    change_recover.add_argument("id", type=int)
+
+    telemetry_add = aus.add_parser("telemetry-add")
+    telemetry_add.add_argument("name")
+    telemetry_add.add_argument("device")
+    telemetry_add.add_argument("path")
+    telemetry_add.add_argument(
+        "--mode", choices=["ON_CHANGE", "SAMPLE", "TARGET_DEFINED"], default="ON_CHANGE"
+    )
+    telemetry_add.add_argument("--sample-interval-ms", type=int, default=10_000)
+    telemetry_add.add_argument("--heartbeat-interval-ms", type=int, default=0)
+    telemetry_add.add_argument("--window-seconds", type=int, default=30)
+    telemetry_add.add_argument("--collection-interval-seconds", type=int, default=60)
+    telemetry_add.add_argument("--retention-days", type=int, default=30)
+    aus.add_parser("telemetry-list")
+    telemetry_capture = aus.add_parser("telemetry-capture")
+    telemetry_capture.add_argument("id", type=int)
+    telemetry_window = aus.add_parser("telemetry-window")
+    telemetry_window.add_argument("id", type=int)
+    telemetry_window.add_argument("--duration-seconds", type=int)
+    telemetry_samples = aus.add_parser("telemetry-samples")
+    telemetry_samples.add_argument("id", type=int)
+    telemetry_samples.add_argument("--limit", type=int, default=500)
+    telemetry_points = aus.add_parser("telemetry-points")
+    telemetry_points.add_argument("id", type=int)
+    telemetry_points.add_argument("--value-path")
+    telemetry_points.add_argument("--since-ts", type=float, default=0)
+    telemetry_points.add_argument("--limit", type=int, default=2000)
+    telemetry_summary = aus.add_parser("telemetry-summary")
+    telemetry_summary.add_argument("id", type=int)
+    telemetry_summary.add_argument("value_path")
+    telemetry_summary.add_argument("--since-ts", type=float, default=0)
+    telemetry_summary.add_argument("--limit", type=int, default=20_000)
+    telemetry_due = aus.add_parser("telemetry-run-due")
+    telemetry_due.add_argument("--limit", type=int, default=32)
+    for name in ("telemetry-enable", "telemetry-disable", "telemetry-delete"):
+        parser = aus.add_parser(name)
+        parser.add_argument("id", type=int)
+
+    desired_create = aus.add_parser("desired-create")
+    desired_create.add_argument("name")
+    desired_create.add_argument("target_kind", choices=["device", "group", "tag"])
+    desired_create.add_argument("target_value")
+    desired_create.add_argument("--document", required=True, help="JSON object or @file.json")
+    desired_create.add_argument("--description")
+    aus.add_parser("desired-list")
+    desired_update = aus.add_parser("desired-update")
+    desired_update.add_argument("id", type=int)
+    desired_update.add_argument("--document", help="JSON object or @file.json")
+    desired_update.add_argument("--description")
+    desired_update.add_argument("--target-kind", choices=["device", "group", "tag"])
+    desired_update.add_argument("--target-value")
+    for name in ("desired-show", "desired-publish", "desired-plan", "desired-evaluate"):
+        parser = aus.add_parser(name)
+        parser.add_argument("id", type=int)
+    desired_clone = aus.add_parser("desired-clone")
+    desired_clone.add_argument("id", type=int)
+    desired_clone.add_argument("--name")
+    desired_runs = aus.add_parser("desired-runs")
+    desired_runs.add_argument("id", type=int, nargs="?")
+    desired_runs.add_argument("--limit", type=int, default=100)
+    desired_apply = aus.add_parser("desired-apply")
+    desired_apply.add_argument("id", type=int)
+    desired_apply.add_argument("--approved", action="store_true")
+    desired_apply.add_argument("--no-rollback", action="store_true")
+
+    campaign_create = aus.add_parser("campaign-create")
+    campaign_create.add_argument("name")
+    campaign_create.add_argument("desired_state_id", type=int)
+    campaign_create.add_argument("--wave-size", type=int, default=1)
+    campaign_create.add_argument("--canary-size", type=int, default=0)
+    campaign_create.add_argument("--max-failures", type=int, default=0)
+    campaign_create.add_argument("--rollback-on-failure", action="store_true")
+    aus.add_parser("campaign-list")
+    campaign_show = aus.add_parser("campaign-show")
+    campaign_show.add_argument("id", type=int)
+    for name in ("campaign-start", "campaign-pause", "campaign-resume", "campaign-abort"):
+        parser = aus.add_parser(name)
+        parser.add_argument("id", type=int)
+    campaign_retry = aus.add_parser("campaign-retry")
+    campaign_retry.add_argument("id", type=int)
+    campaign_retry.add_argument("--wave", type=int)
+    campaign_wave = aus.add_parser("campaign-wave")
+    campaign_wave.add_argument("id", type=int)
+    campaign_wave.add_argument("--approved", action="store_true")
+
+    aus.add_parser("ha-status")
+    ha_nodes = aus.add_parser("ha-nodes")
+    ha_nodes.add_argument("--stale-seconds", type=int, default=86_400)
+    ha_drain = aus.add_parser("ha-drain")
+    ha_drain.add_argument("--reason", required=True)
+    ha_drain.add_argument("--final", action="store_true")
+    ha_drain.add_argument("--node-id")
+    ha_activate = aus.add_parser("ha-activate")
+    ha_activate.add_argument("--node-id")
+    ha_record = aus.add_parser("ha-drill-record")
+    ha_record.add_argument(
+        "kind", choices=["NODE_FAILOVER", "DATABASE_RESTORE", "REBOOT_RECOVERY", "BACKUP_VERIFY"]
+    )
+    ha_record.add_argument("state", choices=["STARTED", "PASSED", "FAILED", "NOT_RUN"])
+    ha_record.add_argument("--detail", help="JSON object or @file.json")
+    ha_record.add_argument("--verification-ref")
+    ha_complete = aus.add_parser("ha-drill-complete")
+    ha_complete.add_argument("id", type=int)
+    ha_complete.add_argument("state", choices=["PASSED", "FAILED", "NOT_RUN"])
+    ha_complete.add_argument("--detail", help="JSON object or @file.json")
+    ha_complete.add_argument("--verification-ref")
+    ha_drills = aus.add_parser("ha-drills")
+    ha_drills.add_argument("--limit", type=int, default=100)
+    auto.set_defaults(func=cmd_automation)
 
     st = sub.add_parser("storage", help="PH-2 core database and distributed coordination")
     sts = st.add_subparsers(dest="action", required=True)

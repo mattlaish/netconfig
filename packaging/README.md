@@ -1,8 +1,8 @@
 # NetConfig RPM build (AlmaLinux 10)
 
-> **Canonical project state — 2026-09-12:** **CURRENT** = Qualification Track **Q-1 — Production Runtime & Service-backed Qualification** (`IMPLEMENTED_TESTING_DEFERRED`). **LATEST FEATURE BASELINE** = Platform Hardening **PH-3 — NETCONF / RESTCONF / gNMI Structured Adapters** (`IMPLEMENTED_TESTING_DEFERRED`). Q-1 implementation is complete in source, but live PostgreSQL/AlmaLinux/systemd/service-backed gates remain explicitly deferred in this environment. No Q-2 is assigned. RPM source Release is `2.0.0-32`.
+> **Canonical project state — 2026-09-12:** **CURRENT IMPLEMENTATION BASELINE** = **HA-1 — Control-plane HA & Recovery Foundation** (`IMPLEMENTED_TESTING_DEFERRED`). **PH-4, NI-5, VM-1, NA-1, NA-2, and HA-1** are implemented in source; consolidated Release 33 offline regression is green, while live/service-backed qualification remains deferred. Qualification **Q-1** remains `IMPLEMENTED_TESTING_DEFERRED`; its live PostgreSQL/AlmaLinux/systemd/service-backed gates remain deferred. No further development phase is assigned until the post-implementation qualification/roadmap review. RPM source Release is `2.0.0-33`.
 
-> **Current continuation pointer:** use the Q-1 full source baseline from 2026-09-12 as the active source. Historical CURRENT/NEXT statements below are chronology only. Execute the remaining Q-1 live gates before any promotion to `TESTED`/`RELEASED`; after Q-1 qualification, perform a fresh roadmap review before assigning Q-2.
+> **Current continuation pointer:** use the Release 33 full source baseline as the active implementation source. Historical CURRENT/NEXT statements below are chronology only. Use the recorded Release 33 offline/artifact evidence and run the applicable Q-1 live gates before any promotion to `TESTED`/`RELEASED`; then perform a fresh roadmap review before assigning another development phase.
 
 This directory reconstructs the missing RPM source/build inputs. It builds an
 unsigned test binary RPM and SRPM without using Git or including runtime data.
@@ -18,10 +18,8 @@ cd "C:\path\to\netconfig"
 .\packaging\prepare-transfer.ps1
 ```
 
-With the current spec this produces `netconfig-2.0.0-32-rpm-build-source.zip`. Transfer that one ZIP
-file to the AlmaLinux build host. **Before producing the next distributable RPM, verify whether Release
-30 is the current source Release. Before producing a later distributable RPM, bump the spec Release as needed; do not reuse a published
-release number for newer source.** The bundle contains only the application
+With the current spec this produces `netconfig-2.0.0-33-rpm-build-source.zip`. Transfer that one ZIP
+file to the AlmaLinux build host. **Release 33 is the current source Release. Before producing a later distributable RPM, bump the spec Release; do not reuse a published release number for newer source.** The bundle contains only the application
 payload, RPM tooling, and development/handover documents; it excludes Git data,
 runtime state, Python caches, and previous RPM outputs.
 
@@ -37,20 +35,20 @@ chmod +x packaging/*.sh
 
 Artifacts are copied directly to the NetConfig project directory:
 
-- `netconfig-2.0.0-32.el10.noarch.rpm`
-- `netconfig-2.0.0-32.el10.src.rpm`
+- `netconfig-2.0.0-33.el10.noarch.rpm`
+- `netconfig-2.0.0-33.el10.src.rpm`
 
 Inspect before installation:
 
 ```bash
-./packaging/inspect-rpm.sh ./netconfig-2.0.0-32.el10.noarch.rpm
+./packaging/inspect-rpm.sh ./netconfig-2.0.0-33.el10.noarch.rpm
 ```
 
 ## Safe test sequence
 
 1. Snapshot or clone an AlmaLinux 10.2 test VM.
 2. Record `rpm -q netconfig` and back up `/var/lib/netconfig`.
-3. Install the new RPM with `sudo dnf upgrade ./netconfig-2.0.0-32.el10.noarch.rpm`.
+3. Install the new RPM with `sudo dnf upgrade ./netconfig-2.0.0-33.el10.noarch.rpm`.
 4. Run `./packaging/smoke-installed.sh`.
 5. Start the service and verify the web, SNMP, MIB, backup timer, ownership,
    SELinux journal messages, and upgrade-retained vault/database content.
@@ -93,4 +91,4 @@ Q-1 adds three fail-closed qualification entry points. They report an unavailabl
 
 `q1-source-gates.sh` requires Python 3.12+, pytest, Ruff, mypy and a psycopg-capable development environment, then runs lint/type/compile/focused/full/selftest/shell/line-ending gates. `q1-qualify-postgres.sh` requires a real PostgreSQL service plus `pg_dump`, `pg_restore`, psycopg and an explicitly supplied `NETCONFIG_TEST_PG_PASSWORD`; it executes the real concurrency, advisory-lock/session-loss, migration/sequence and backup/restore drill tests. `q1-qualify-almalinux.sh` requires AlmaLinux 10 and RPM build tooling; package installation is not performed unless both `--install` and `NETCONFIG_Q1_ALLOW_INSTALL=1` are supplied.
 
-Current spec metadata is **Version 2.0.0 / Release 32**. A later source change intended for distribution must increment Release before creating another RPM.
+Current spec metadata is **Version 2.0.0 / Release 33**. A later source change intended for distribution must increment Release before creating another RPM.

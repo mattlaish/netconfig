@@ -11,7 +11,7 @@ import json
 import re
 import secrets
 import time
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 
 PROTOCOLS = ("cli_ssh", "snmp", "netconf", "restconf", "gnmi")
 IMPLEMENTED_CAPTURE_PROTOCOLS = ("cli_ssh", "snmp", "netconf", "restconf", "gnmi")
@@ -132,7 +132,7 @@ class ProtocolTraceStore:
             if not incident:
                 raise ValueError("incident not found")
         now = time.time()
-        key = f"PTR-{datetime.fromtimestamp(now, timezone.utc).year}-{secrets.token_hex(6).upper()}"
+        key = f"PTR-{datetime.fromtimestamp(now, UTC).year}-{secrets.token_hex(6).upper()}"
         cur = self.conn.execute(
             "INSERT INTO protocol_trace_sessions(trace_key,device,protocol,incident_id,status,"
             "created_by,created_ts,expires_ts,reason,max_events,max_bytes,event_count,bytes_count) "

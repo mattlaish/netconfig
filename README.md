@@ -1,6 +1,12 @@
 # NetConfig
 
-> **Canonical project state — 2026-09-12:** **CURRENT** = Qualification Track **Q-1 — Production Runtime & Service-backed Qualification** (`IMPLEMENTED_TESTING_DEFERRED`). **LATEST FEATURE BASELINE** = Platform Hardening **PH-3 — NETCONF / RESTCONF / gNMI Structured Adapters** (`IMPLEMENTED_TESTING_DEFERRED`). Q-1 implementation is complete in source, but live PostgreSQL/AlmaLinux/systemd/service-backed gates remain explicitly deferred in this environment. No Q-2 is assigned. RPM source Release is `2.0.0-32`.
+> **Canonical project state — 2026-09-12:** **CURRENT IMPLEMENTATION BASELINE** = **HA-1 — Control-plane HA & Recovery Foundation** (`IMPLEMENTED_TESTING_DEFERRED`). **PH-4, NI-5, VM-1, NA-1, NA-2, and HA-1** are implemented in source; consolidated Release 33 offline regression is green, while live/service-backed qualification remains deferred. Qualification **Q-1** remains `IMPLEMENTED_TESTING_DEFERRED`; its live PostgreSQL/AlmaLinux/systemd/service-backed gates remain deferred. No further development phase is assigned until the post-implementation qualification/roadmap review. RPM source Release is `2.0.0-33`.
+
+## Release 33 structured automation expansion
+
+Release 33 builds on PH-3/Q-1 without replacing their safety boundaries. Structured network writes now flow through a single typed transaction plane: submit a durable change request, freeze the resolved device/model/resource plan, obtain separate approval, then execute with pre-read/change/post-read verification and rollback/recovery evidence. Caller-supplied arbitrary RPC XML, REST URLs/bodies, protobuf requests, shell/CLI tunnelling, and caller-declared approval remain prohibited.
+
+The same transaction plane is used by desired-state runs and fleet campaigns. NI-5 adds bounded gNMI telemetry collection and time-series normalization; VM-1 owns model/resource mappings; HA-1 adds drain/readiness/recovery evidence on the PH-2 distributed core. These capabilities are source-complete but remain `IMPLEMENTED_TESTING_DEFERRED` until consolidated and live qualification evidence is recorded.
 
 NetConfig is a network configuration, diagnostics, topology/intelligence, alerting, and controlled-change platform. SQLite remains the default development/single-node backend; PostgreSQL is an explicit fail-closed distributed-core option.
 

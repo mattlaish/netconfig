@@ -187,6 +187,9 @@ def poller(manager, interval, stop):
     retain = float(manager.settings.get("monitor_history_days", 7)) * 86400
     while not stop.is_set():
         try:
+            if not manager.ha.accepts_automation_work():
+                stop.wait(interval)
+                continue
             poll_once(manager)
             manager.db.prune_results(time.time() - retain)
         except Exception:

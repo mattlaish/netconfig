@@ -200,8 +200,13 @@ class Console(WebApiMixin, http.server.BaseHTTPRequestHandler):
                 raise ValueError("JSON request body must be an object")
             out = {}
             for key, item in value.items():
-                if isinstance(item, list):
-                    out[str(key)] = [str(v) for v in item]
+                if isinstance(item, dict):
+                    out[str(key)] = [json.dumps(item, separators=(",", ":"), sort_keys=True)]
+                elif isinstance(item, list):
+                    if any(isinstance(v, (dict, list)) for v in item):
+                        out[str(key)] = [json.dumps(item, separators=(",", ":"), sort_keys=True)]
+                    else:
+                        out[str(key)] = [str(v) for v in item]
                 elif item is None:
                     out[str(key)] = [""]
                 else:
@@ -263,7 +268,7 @@ class Console(WebApiMixin, http.server.BaseHTTPRequestHandler):
         import traceback
         tb = traceback.format_exc()
         try:
-            sys.stderr.write("NetConfig 500 on %s %s\n%s\n" % (self.command, self.path, tb))
+            sys.stderr.write(f"NetConfig 500 on {self.command} {self.path}\n{tb}\n")
             sys.stderr.flush()
         except Exception:
             pass
@@ -368,7 +373,8 @@ class Console(WebApiMixin, http.server.BaseHTTPRequestHandler):
         for a in alerts:
             actions=""
             if can_write and a["state"]!="RESOLVED":
-                if a["state"]=="OPEN": actions += f'<form method=post action="/op-alert-action" style="display:inline">{self._csrf_field()}<input type=hidden name=id value="{a["id"]}"><input type=hidden name=action value=ack><button class=ghost>Acknowledge</button></form> '
+                if a["state"]=="OPEN":
+                    actions += f'<form method=post action="/op-alert-action" style="display:inline">{self._csrf_field()}<input type=hidden name=id value="{a["id"]}"><input type=hidden name=action value=ack><button class=ghost>Acknowledge</button></form> '
                 actions += f'<form method=post action="/op-alert-action" style="display:inline">{self._csrf_field()}<input type=hidden name=id value="{a["id"]}"><input type=hidden name=action value=resolve><button class=ghost>Resolve</button></form>'
             rows.append(f'<tr><td>#{a["id"]}</td><td>{html.escape(a["state"])}</td><td>{html.escape(a["severity"])}</td><td>{html.escape(a["device"] or "-")}</td><td>{html.escape(a["event_type"])}</td><td>{a["event_count"]}</td><td>{html.escape(a["message"])}</td><td>{actions}</td></tr>')
         maint=life.maintenance(False); mrows=[]
@@ -398,41 +404,60 @@ class Console(WebApiMixin, http.server.BaseHTTPRequestHandler):
         return self._send(self._page("Ops Alerts",body,sess,flash))
 
     def _do_op_alert_action(self, form, sess):
-        if sess.get("role") not in {"operator","approver","admin"}: return self._send(self._page("Ops Alerts", '<div class="err">Not permitted.</div>', sess), 403)
+        if sess.get("role") not in {"operator","approver","admin"}:
+            return self._send(self._page("Ops Alerts", '<div class="err">Not permitted.</div>', sess), 403)
         try:
             aid=int((form.get("id") or [0])[0]); action=(form.get("action") or [""])[0]; note=(form.get("note") or [""])[0]
-            if action=="ack": self.manager.alert_lifecycle.acknowledge(aid,sess["username"],note)
-            elif action=="resolve": self.manager.alert_lifecycle.resolve(aid,sess["username"],note)
-            else: raise ValueError("invalid alert action")
-        except (ValueError,TypeError) as exc: return self._op_alerts_page({},sess,flash=str(exc))
+            if action=="ack":
+                self.manager.alert_lifecycle.acknowledge(aid,sess["username"],note)
+            elif action=="resolve":
+                self.manager.alert_lifecycle.resolve(aid,sess["username"],note)
+            else:
+                raise ValueError("invalid alert action")
+        except (ValueError,TypeError) as exc:
+            return self._op_alerts_page({},sess,flash=str(exc))
         return self._redirect("/op-alerts")
 
     def _do_maintenance_add(self, form, sess):
-        if sess.get("role") not in {"operator","approver","admin"}: return self._send(self._page("Ops Alerts", '<div class="err">Not permitted.</div>', sess), 403)
-        try:self.manager.alert_lifecycle.add_maintenance((form.get("name") or [""])[0],sess["username"],minutes=int((form.get("minutes") or [60])[0]),device=(form.get("device") or [""])[0],reason=(form.get("reason") or [""])[0])
-        except (ValueError,TypeError) as exc:return self._op_alerts_page({},sess,flash=str(exc))
+        if sess.get("role") not in {"operator","approver","admin"}:
+            return self._send(self._page("Ops Alerts", '<div class="err">Not permitted.</div>', sess), 403)
+        try:
+            self.manager.alert_lifecycle.add_maintenance((form.get("name") or [""])[0],sess["username"],minutes=int((form.get("minutes") or [60])[0]),device=(form.get("device") or [""])[0],reason=(form.get("reason") or [""])[0])
+        except (ValueError,TypeError) as exc:
+            return self._op_alerts_page({},sess,flash=str(exc))
         return self._redirect("/op-alerts")
 
     def _do_maintenance_cancel(self, form, sess):
-        if sess.get("role") not in {"operator","approver","admin"}: return self._send(self._page("Ops Alerts", '<div class="err">Not permitted.</div>', sess), 403)
-        try:self.manager.alert_lifecycle.cancel_maintenance(int((form.get("id") or [0])[0]),sess["username"])
-        except (ValueError,TypeError) as exc:return self._op_alerts_page({},sess,flash=str(exc))
+        if sess.get("role") not in {"operator","approver","admin"}:
+            return self._send(self._page("Ops Alerts", '<div class="err">Not permitted.</div>', sess), 403)
+        try:
+            self.manager.alert_lifecycle.cancel_maintenance(int((form.get("id") or [0])[0]),sess["username"])
+        except (ValueError,TypeError) as exc:
+            return self._op_alerts_page({},sess,flash=str(exc))
         return self._redirect("/op-alerts")
 
     def _do_report_schedule_add(self, form, sess):
-        if sess.get("role") not in {"operator","approver","admin"}: return self._send(self._page("Ops Alerts", '<div class="err">Not permitted.</div>', sess), 403)
-        try:self.manager.alert_lifecycle.add_report_schedule((form.get("name") or [""])[0],sess["username"],interval_seconds=int((form.get("interval_seconds") or [86400])[0]),lookback_hours=int((form.get("lookback_hours") or [24])[0]))
-        except (ValueError,TypeError) as exc:return self._op_alerts_page({},sess,flash=str(exc))
+        if sess.get("role") not in {"operator","approver","admin"}:
+            return self._send(self._page("Ops Alerts", '<div class="err">Not permitted.</div>', sess), 403)
+        try:
+            self.manager.alert_lifecycle.add_report_schedule((form.get("name") or [""])[0],sess["username"],interval_seconds=int((form.get("interval_seconds") or [86400])[0]),lookback_hours=int((form.get("lookback_hours") or [24])[0]))
+        except (ValueError,TypeError) as exc:
+            return self._op_alerts_page({},sess,flash=str(exc))
         return self._redirect("/op-alerts")
 
     def _do_report_schedule_action(self, form, sess):
-        if sess.get("role") not in {"operator","approver","admin"}: return self._send(self._page("Ops Alerts", '<div class="err">Not permitted.</div>', sess), 403)
+        if sess.get("role") not in {"operator","approver","admin"}:
+            return self._send(self._page("Ops Alerts", '<div class="err">Not permitted.</div>', sess), 403)
         try:
             sid=int((form.get("id") or [0])[0]); action=(form.get("action") or [""])[0]
-            if action=="run": self.manager.alert_lifecycle.run_report(schedule_id=sid,actor=sess["username"])
-            elif action in {"enable","disable"}: self.manager.alert_lifecycle.set_report_schedule_enabled(sid,action=="enable",sess["username"])
-            else: raise ValueError("invalid report action")
-        except (ValueError,TypeError) as exc:return self._op_alerts_page({},sess,flash=str(exc))
+            if action=="run":
+                self.manager.alert_lifecycle.run_report(schedule_id=sid,actor=sess["username"])
+            elif action in {"enable","disable"}:
+                self.manager.alert_lifecycle.set_report_schedule_enabled(sid,action=="enable",sess["username"])
+            else:
+                raise ValueError("invalid report action")
+        except (ValueError,TypeError) as exc:
+            return self._op_alerts_page({},sess,flash=str(exc))
         return self._redirect("/op-alerts")
 
     def _incidents_page(self, q, sess):
@@ -778,9 +803,9 @@ class Console(WebApiMixin, http.server.BaseHTTPRequestHandler):
 
     def _route_get(self):
         u = urllib.parse.urlparse(self.path)
-        if u.path.startswith("/api/v1/") and self._handle_api_get(u.path):
-            return
         q = urllib.parse.parse_qs(u.query)
+        if u.path.startswith("/api/v1/") and self._handle_api_get(u.path, q):
+            return
         if u.path == "/healthz":
             return self._health(False)
         if u.path == "/readyz":
@@ -1478,7 +1503,8 @@ an optional expected status code. HTTPS URLs also get a TLS certificate check
     toggle(platform,managed);
     toggle(credentials,managed);
     toggle(managementOptions,managed,'flex');
-    if(hostLabel) hostLabel.textContent=managed?'Host / IP':'Primary hostname / FQDN'; }}
+    if(hostLabel) hostLabel.textContent=managed?'Host / IP':
+        'Primary hostname / FQDN'; }}
   for(var i=0;i<boxes.length;i++) boxes[i].addEventListener('change',upd);
   upd();
 }})();
@@ -1538,7 +1564,8 @@ an optional expected status code. HTTPS URLs also get a TLS certificate check
     def _do_device_save(self, form, sess):
         if not _can(sess["role"], "manage_devices"):
             return self._dashboard(sess, flash="Not permitted.")
-        g = lambda k, d="": (form.get(k) or [d])[0]
+        def g(k, d=""):
+            return (form.get(k) or [d])[0]
         name = g("name").strip()
         if not name:
             return self._dashboard(sess, flash="Device name required.")
@@ -1752,7 +1779,8 @@ an optional expected status code. HTTPS URLs also get a TLS certificate check
             return self._vault_page({}, sess)
         if not self.manager.vault_ready():
             return self._dashboard(sess, flash="Vault locked.")
-        g = lambda k: (form.get(k) or [""])[0].strip()
+        def g(k):
+            return (form.get(k) or [""])[0].strip()
         name = g("name")
         if not name:
             return self._redirect("/vault")
@@ -1856,6 +1884,8 @@ an optional expected status code. HTTPS URLs also get a TLS certificate check
 <div class="row">{field("digest_interval","Compliance/drift digest interval (s)","0 = off; 86400 = daily; uses configured email")}</div>
 <h3>NI-4 alert/report lifecycle</h3>
 <div class="row">{field("operational_alert_min_severity","Alert minimum severity","INFO / NOTICE / WARNING / MINOR / MAJOR / CRITICAL")}{field("operational_lifecycle_interval","Lifecycle scheduler interval (s)","0 = off; processes report schedules and notification retries")}</div>
+<h3>NI-5 telemetry lifecycle</h3>
+<div class="row">{field("telemetry_scheduler_interval","Telemetry scheduler interval (s)","0 = off; runs due bounded gNMI streaming windows")}</div>
 <div class="row">{field("operational_notification_max_attempts","Notification max attempts")}{field("operational_notification_backoff_base_seconds","Retry base seconds")}{field("operational_notification_backoff_max_seconds","Retry max seconds")}</div>
 <label style="color:var(--txt);font-weight:400"><input type=checkbox name=operational_notifications_enabled value=1 style="width:auto" {"checked" if s.get("operational_notifications_enabled") else ""}> enable NI-4 alert/report SMTP notifications</label>
 <h3>Diagnostic retention</h3>
@@ -2027,7 +2057,8 @@ The client secret is stored in the vault.</p>
         if not _can(sess["role"], "settings"):
             return self._settings_page(sess, flash="Admin only.")
         s = self.manager.settings
-        g = lambda k: (form.get(k) or [""])[0].strip()
+        def g(k):
+            return (form.get(k) or [""])[0].strip()
         for k in ("web_bind", "host_key_policy"):
             if g(k):
                 s[k] = g(k)
@@ -2079,7 +2110,8 @@ The client secret is stored in the vault.</p>
         if not _can(sess["role"], "settings"):
             return self._settings_page_v2(sess, flash="Admin only.")
         s = self.manager.settings
-        g = lambda k: (form.get(k) or [""])[0].strip()
+        def g(k):
+            return (form.get(k) or [""])[0].strip()
         section = g("section") or "general"
         valid_sections = {"general", "snmp", "netflow", "monitoring", "email", "db"}
         if section not in valid_sections:
@@ -2102,7 +2134,7 @@ The client secret is stored in the vault.</p>
                         "command_timeout", "bulk_workers"),
             "snmp": ("snmp_port", "snmp_poll_interval", "snmp_history_seconds", "network_intelligence_max_age_seconds"),
             "netflow": ("netflow_port", "netflow_max_flows"),
-            "monitoring": ("monitor_poll_interval", "monitor_history_days", "syslog_port", "syslog_queue_size", "syslog_debounce_seconds", "snmp_trap_port", "snmp_trap_queue_size", "snmp_trap_repoll_debounce_seconds", "operational_event_dedup_seconds", "operational_suppression_ttl_seconds", "operational_lifecycle_interval", "operational_notification_max_attempts", "operational_notification_backoff_base_seconds", "operational_notification_backoff_max_seconds", "digest_interval", "diagnostic_maintenance_interval", "debug_bundle_keep", "case_export_retention_days", "protocol_trace_retention_days"),
+            "monitoring": ("monitor_poll_interval", "monitor_history_days", "syslog_port", "syslog_queue_size", "syslog_debounce_seconds", "snmp_trap_port", "snmp_trap_queue_size", "snmp_trap_repoll_debounce_seconds", "operational_event_dedup_seconds", "operational_suppression_ttl_seconds", "operational_lifecycle_interval", "operational_notification_max_attempts", "operational_notification_backoff_base_seconds", "operational_notification_backoff_max_seconds", "digest_interval", "telemetry_scheduler_interval", "diagnostic_maintenance_interval", "debug_bundle_keep", "case_export_retention_days", "protocol_trace_retention_days"),
             "email": ("smtp_port",),
             "db": ("pg_port", "if_history_hours", "if_history_bucket_seconds"),
         }.get(section, ())
@@ -2129,7 +2161,8 @@ The client secret is stored in the vault.</p>
             s["snmp_trap_targeted_repoll"] = bool(form.get("snmp_trap_targeted_repoll"))
             s["operational_notifications_enabled"] = bool(form.get("operational_notifications_enabled"))
             sev=g("operational_alert_min_severity").upper()
-            if sev in {"DEBUG","INFO","NOTICE","WARNING","MINOR","MAJOR","ERROR","CRITICAL"}: s["operational_alert_min_severity"] = sev
+            if sev in {"DEBUG","INFO","NOTICE","WARNING","MINOR","MAJOR","ERROR","CRITICAL"}:
+                s["operational_alert_min_severity"] = sev
         elif section == "email":
             s["smtp_enabled"] = bool(form.get("smtp_enabled"))
             s["smtp_starttls"] = bool(form.get("smtp_starttls"))
@@ -3236,7 +3269,8 @@ The client secret is stored in the vault.</p>
     def _do_alert_rule_add(self, form, sess):
         if not _can(sess["role"], "settings"):
             return self._alerts_page({}, sess, flash="Not permitted.")
-        g = lambda k, d="": (form.get(k) or [d])[0].strip()
+        def g(k, d=""):
+            return (form.get(k) or [d])[0].strip()
         name = g("name")
         metric = g("metric")
         if not name or metric not in ("port_state","http_status","response_time","tls_expiry","tls_valid"):
@@ -3296,7 +3330,8 @@ The client secret is stored in the vault.</p>
         if not _can(sess["role"], "settings"):
             return self._settings_page_v2(sess, q={"section": ["db"]}, flash="Not permitted.")
         from . import ifhistory as _ifh
-        g = lambda k: (form.get(k) or [""])[0].strip()
+        def g(k):
+            return (form.get(k) or [""])[0].strip()
         s = dict(self.manager.settings)
         for k in ("pg_host", "pg_dbname", "pg_user", "pg_sslmode"):
             if g(k):
@@ -3664,7 +3699,7 @@ def _snmp_poller(manager, interval, stop):
         if stop.is_set():
             break
         try:
-            if manager.vault_ready():
+            if manager.ha.accepts_automation_work() and manager.vault_ready():
                 manager.snmp_poll_all()
         except Exception:
             pass
@@ -3767,6 +3802,15 @@ def serve(manager, bind="127.0.0.1", port=8778):
         from . import operational_alerts as _op_alerts
         threading.Thread(target=_op_alerts.poller, args=(manager, life_iv, stop), daemon=True).start()
         print(f"  NI-4 operational alert/report lifecycle: every {max(30,life_iv)}s")
+    telemetry_iv = int(manager.settings.get("telemetry_scheduler_interval", 0) or 0)
+    if telemetry_iv > 0 and manager.scheduler_leader("telemetry-lifecycle"):
+        if telemetry_iv < 5:
+            telemetry_iv = 5
+        from . import telemetry as _telemetry
+        threading.Thread(
+            target=_telemetry.poller, args=(manager, telemetry_iv, stop), daemon=True
+        ).start()
+        print(f"  NI-5 telemetry lifecycle: every {telemetry_iv}s")
     diag_iv = int(manager.settings.get("diagnostic_maintenance_interval", 0) or 0)
     if diag_iv > 0 and manager.scheduler_leader("diagnostic-maintenance"):
         if diag_iv < 60:
@@ -3804,6 +3848,8 @@ def serve(manager, bind="127.0.0.1", port=8778):
         print("\nshutting down")
     finally:
         stop.set()
-        if Console.netflow: Console.netflow.stop()
-        if Console.syslog: Console.syslog.stop()
+        if Console.netflow:
+            Console.netflow.stop()
+        if Console.syslog:
+            Console.syslog.stop()
         httpd.shutdown()

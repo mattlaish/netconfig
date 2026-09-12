@@ -183,7 +183,6 @@ def evaluate_application(dev, standard=None):
     tls = [r.get("tls") for r in https if r.get("tls")]
     valid = [t for t in tls if t.get("valid")]
     soon = [t for t in valid if t.get("expires_days") is not None and t["expires_days"] < 30]
-    weak = [t for t in valid if t.get("version") in ("SSLv3", "TLSv1", "TLSv1.1")]
     unhealthy = [r for r in results if not r.get("ok")]
     response_results = [r for r in results if r.get("status") is not None]
     legacy = [state for t in tls for state in (t.get("legacy_protocols") or {}).values()]
