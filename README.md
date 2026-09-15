@@ -1,6 +1,17 @@
 # NetConfig
 
-> **Canonical project state — 2026-09-12:** **CURRENT IMPLEMENTATION BASELINE** = **HA-1 — Control-plane HA & Recovery Foundation** (`IMPLEMENTED_TESTING_DEFERRED`). **PH-4, NI-5, VM-1, NA-1, NA-2, and HA-1** are implemented in source; consolidated Release 33 offline regression is green, while live/service-backed qualification remains deferred. Qualification **Q-1** remains `IMPLEMENTED_TESTING_DEFERRED`; its live PostgreSQL/AlmaLinux/systemd/service-backed gates remain deferred. No further development phase is assigned until the post-implementation qualification/roadmap review. RPM source Release is `2.0.0-33`.
+> **Canonical project state — 2026-09-13:** **CURRENT IMPLEMENTATION BASELINE** = **UI-1 — Unified Automation & Operations Console** (`IMPLEMENTED_TESTING_DEFERRED`). Parent baseline is Release `2.0.0-33` (SHA-256 `ca0a8b9dc525118d7b542f03c715f6d20139e3584ada56bdca148e3d9ff0dccb`); UI-1 is implemented on top of PH-4/NI-5/VM-1/NA-1/NA-2/HA-1 and preserves the durable request/approve/execute safety plane. Qualification **Q-1** remains `IMPLEMENTED_TESTING_DEFERRED`; live PostgreSQL/AlmaLinux/systemd/real-device gates remain deferred. RPM source Release is `2.0.0-34`.
+
+## Release 34 — UI-1 Unified Automation & Operations Console
+
+UI-1 adds a single `/operations` Web Console for the Release 33 automation plane without creating a second execution path. The console covers PH-4 structured transaction review/recovery, NI-5 telemetry lifecycle and time-series summaries, VM-1 model packs and device bindings, NA-1 desired-state revision/plan/drift/run evidence, NA-2 fleet campaign waves/retry/abort/approval, and HA-1 node lifecycle/recovery-drill evidence.
+
+All network mutation requests continue through the existing durable `change_requests` workflow: submit intent → freeze model/device/resource snapshot and SHA-256 → independent approval → revalidate current snapshot → execute → verify → audit/recovery evidence. The UI cannot supply caller-declared approval, arbitrary RPC XML, arbitrary REST bodies, protobuf requests, or shell/CLI tunnels. Admin-only recovery/model/HA controls remain admin-only in the Web layer and the underlying service/API boundaries.
+
+Release 34 also adds an audited telemetry subscription edit contract; device rebinding is intentionally not supported in-place. Delete/recreate is required to preserve unambiguous device history.
+
+Offline source verification after UI-1 implementation: UI-1 focused **7 passed**; combined UI-1/automation/PH-1/PH-2/PH-3/Q-1 focused **73 passed**; full repository **175 passed / 7 skipped**; legacy selftest **ALL PASS**; compileall, launcher `py_compile`, and packaging shell syntax **PASS**. Ruff/mypy and live/service-backed gates remain `NOT_RUN`/deferred where the required tooling or environment is unavailable.
+
 
 ## Release 33 structured automation expansion
 

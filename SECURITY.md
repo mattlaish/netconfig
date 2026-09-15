@@ -1,6 +1,15 @@
 # Security
 
-> **Canonical project state — 2026-09-12:** **CURRENT IMPLEMENTATION BASELINE** = **HA-1 — Control-plane HA & Recovery Foundation** (`IMPLEMENTED_TESTING_DEFERRED`). **PH-4, NI-5, VM-1, NA-1, NA-2, and HA-1** are implemented in source; consolidated Release 33 offline regression is green, while live/service-backed qualification remains deferred. Qualification **Q-1** remains `IMPLEMENTED_TESTING_DEFERRED`; its live PostgreSQL/AlmaLinux/systemd/service-backed gates remain deferred. No further development phase is assigned until the post-implementation qualification/roadmap review. RPM source Release is `2.0.0-33`.
+> **Canonical project state — 2026-09-13:** **CURRENT IMPLEMENTATION BASELINE** = **UI-1 — Unified Automation & Operations Console** (`IMPLEMENTED_TESTING_DEFERRED`). Parent baseline is Release `2.0.0-33` (SHA-256 `ca0a8b9dc525118d7b542f03c715f6d20139e3584ada56bdca148e3d9ff0dccb`); UI-1 is implemented on top of PH-4/NI-5/VM-1/NA-1/NA-2/HA-1 and preserves the durable request/approve/execute safety plane. Qualification **Q-1** remains `IMPLEMENTED_TESTING_DEFERRED`; live PostgreSQL/AlmaLinux/systemd/real-device gates remain deferred. RPM source Release is `2.0.0-34`.
+
+## Release 34 / UI-1 security boundaries
+
+UI-1 adds no direct network-write primitive. Structured changes, desired-state application, rollback, and fleet waves are submitted as durable automation change requests. Approval reviews a frozen resolved snapshot and SHA-256; approval/execution revalidates the current resolved snapshot and fails closed on drift.
+
+Web role boundaries mirror the service/API plane: viewers are read-only; operators may create operational objects and submit approvals; approvers may publish desired-state revisions and approve/execute CRs; only admins may mark/reconcile interrupted structured transactions, manage model packs/bindings, or change cluster-node lifecycle state. CSRF is required for every UI mutation. Strict CSP nonce processing and `script-src-attr/style-src-attr 'none'` remain unchanged.
+
+Telemetry edits cannot change the bound device and cannot modify a RUNNING subscription. This prevents retained sample/audit history from being silently reassigned. Session idle/absolute expiry remains explicitly deferred security debt and was not implemented by UI-1.
+
 
 ## Release 33 security invariants
 
@@ -18,7 +27,7 @@ Release 33 preserves the existing fail-closed boundaries and adds the following 
 
 Session idle/absolute expiry remains deliberately deferred security debt and is unchanged.
 
-> **Current continuation pointer:** use the Release 33 full source baseline as the active implementation source. Historical CURRENT/NEXT statements below are chronology only. Use the recorded Release 33 offline/artifact evidence and run the applicable Q-1 live gates before any promotion to `TESTED`/`RELEASED`; then perform a fresh roadmap review before assigning another development phase.
+> **Current continuation pointer:** use the Release 34 FULL source baseline as the active implementation source. UI-1 remains `IMPLEMENTED_TESTING_DEFERRED`; execute the applicable Q-1/live qualification gates before any promotion to `TESTED`/`RELEASED`. No next development phase is auto-assigned; perform a fresh roadmap review after qualification.
 
 ## Q-1 production qualification security boundaries
 
@@ -224,3 +233,222 @@ Every HTML response generates a fresh CSP nonce. Enforced CSP authorizes first-p
 - Session idle timeout / absolute session expiry remains deliberately deferred and was not changed by PH-3.
 
 PH-3 remains `IMPLEMENTED_TESTING_DEFERRED`: offline/fake-driver evidence does not qualify real NETCONF/RESTCONF/gNMI devices, TLS/mTLS interoperability, packaged `gnmic`, vendor-specific behavior, live PostgreSQL/OpenSSH/Net-SNMP services, or AlmaLinux RPM/systemd deployment.
+
+
+# Canonical Architecture Split — PH vs NI
+
+## PH — Platform Hardening / Safe Device Change
+
+PH answers:
+
+> How do we safely change network devices?
+
+### PH-4 — Structured Configuration Transaction Engine
+
+Status: `IMPLEMENTED_IN_SOURCE / COMPLETION_HARDENING`
+
+Scope:
+
+- Structured change lifecycle
+- Approval binding
+- Pre-read snapshot
+- Typed NETCONF / RESTCONF / gNMI operations
+- Post-change verification
+- Rollback and recovery workflow
+- Audit evidence and provenance
+- Confirmed-commit transaction handling
+
+### PH-5 — Intent / Desired State Automation
+
+Status: `PLANNED`
+
+Scope:
+
+- Desired state model
+- Current vs desired comparison
+- Drift detection
+- Change plan generation
+- Intent validation
+- Approval workflow integration
+- Remediation through PH-4 transaction engine
+
+### PH-6 — Distributed Execution / HA
+
+Status: `PLANNED`
+
+Scope:
+
+- Worker execution model
+- Distributed queue
+- Execution ownership
+- Leader/fencing model
+- Failover recovery
+- Large-scale change orchestration
+- Multi-node reliability
+
+
+# NI — Network Intelligence
+
+NI answers:
+
+> What exists in the network and what is happening?
+
+## NI-1 — Endpoint Location Correlation
+
+Status: `IMPLEMENTED_TESTING_DEFERRED`
+
+Scope:
+
+- IP → MAC correlation
+- MAC → VLAN mapping
+- VLAN → Switch port mapping
+- Endpoint location discovery
+- Q-BRIDGE FDB correlation
+- Neighbor table correlation
+
+Example:
+
+```
+IP
+ |
+MAC
+ |
+VLAN
+ |
+Switch Port
+```
+
+## NI-2 — Topology Identity
+
+Status: `IMPLEMENTED_TESTING_DEFERRED`
+
+Scope:
+
+- LLDP discovery
+- CDP handling
+- Device identity
+- Chassis identity
+- Interface identity
+- Neighbor relationship
+- Downstream impact traversal
+
+## NI-3 — Network Events
+
+Status: `IMPLEMENTED_TESTING_DEFERRED`
+
+Scope:
+
+- SNMP Trap
+- Syslog
+- Link events
+- Authentication events
+- Reachability events
+- Event normalization
+
+## NI-4 — Alert Lifecycle
+
+Status: `IMPLEMENTED_TESTING_DEFERRED`
+
+Scope:
+
+- Alert promotion
+- Severity handling
+- Acknowledge workflow
+- Resolve workflow
+- Maintenance suppression
+- Notification workflow
+
+## NI-5 — Telemetry
+
+Status: `PLANNED`
+
+Scope:
+
+- SNMP polling
+- gNMI telemetry
+- Streaming metrics
+- Interface statistics
+- CPU/memory/environment telemetry
+- Time-series storage
+- Trend analysis
+- Performance baseline
+
+## NI-6 — Discovery Analytics
+
+Status: `PLANNED`
+
+Scope:
+
+### Auto Seed Discovery
+
+- Seed device input
+- Credential selection
+- Discovery start workflow
+
+### Full Network Crawl
+
+- LLDP/CDP neighbor crawling
+- Discovery queue
+- Visited device tracking
+- Crawl depth control
+- Rate limiting
+- Failure handling
+
+### Topology Database
+
+Nodes:
+
+- Device
+- Interface
+- Link
+- VLAN
+- VRF
+- Subnet
+- Endpoint
+
+Edges:
+
+- CONNECTED_TO
+- ATTACHED_TO
+- CARRIES
+- ROUTES_TO
+
+### Unified L2/L3 Topology
+
+- MAC path
+- VLAN path
+- IP path
+- VRF path
+- Routing relationship
+
+### Topology Visualization
+
+- Interactive topology graph
+- Device map
+- Link status
+- VLAN view
+- VRF view
+- Path tracing
+- Impact highlighting
+
+
+## Release 35 PH-4 Completion Hardening
+
+- NETCONF confirmed-commit lifecycle state model added.
+- Recovery evidence schema integrated as transaction evidence boundary.
+- PH-4 regression coverage added.
+- Final qualification remains IMPLEMENTED_TESTING_DEFERRED until executed.
+
+
+# PH-5 Intent / Desired State Automation
+
+Status: IMPLEMENTED_TESTING_DEFERRED
+
+Scope: DesiredState, Intent lifecycle, revisions, drift detection, Change Plan generation, PH-4 transaction integration boundary, approval and audit linkage.
+
+
+# PH-5 API and Operations Surface
+
+Status: IMPLEMENTED_TESTING_DEFERRED
+
+Added PH-5 API helpers, intent workflow surface, and Web Console Intent Automation entry point. Device changes remain delegated to PH-4 transaction workflow.

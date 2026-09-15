@@ -1,6 +1,25 @@
 # Roadmap
 
-> **Canonical project state — 2026-09-12:** **CURRENT IMPLEMENTATION BASELINE** = **HA-1 — Control-plane HA & Recovery Foundation** (`IMPLEMENTED_TESTING_DEFERRED`). **PH-4, NI-5, VM-1, NA-1, NA-2, and HA-1** are implemented in source; consolidated Release 33 offline regression is green, while live/service-backed qualification remains deferred. Qualification **Q-1** remains `IMPLEMENTED_TESTING_DEFERRED`; its live PostgreSQL/AlmaLinux/systemd/service-backed gates remain deferred. No further development phase is assigned until the post-implementation qualification/roadmap review. RPM source Release is `2.0.0-33`.
+> **Canonical project state — 2026-09-13:** **CURRENT IMPLEMENTATION BASELINE** = **UI-1 — Unified Automation & Operations Console** (`IMPLEMENTED_TESTING_DEFERRED`). Parent baseline is Release `2.0.0-33` (SHA-256 `ca0a8b9dc525118d7b542f03c715f6d20139e3584ada56bdca148e3d9ff0dccb`); UI-1 is implemented on top of PH-4/NI-5/VM-1/NA-1/NA-2/HA-1 and preserves the durable request/approve/execute safety plane. Qualification **Q-1** remains `IMPLEMENTED_TESTING_DEFERRED`; live PostgreSQL/AlmaLinux/systemd/real-device gates remain deferred. RPM source Release is `2.0.0-34`.
+
+## UI-1 — Unified Automation & Operations Console — `IMPLEMENTED_TESTING_DEFERRED`
+
+Implemented in source:
+
+- unified `/operations` navigation with Structured Changes, Telemetry, Model Packs, Desired State, Campaigns, and HA / DR panels;
+- PH-4 transaction ledger/detail, pre/post evidence, rollback approval submission, admin-only interrupted-transaction intake and reconciliation;
+- NI-5 subscription create/edit/enable/disable/delete/capture/window, due-run maintenance, retention prune, bounded sample view and scalar time-series summary/trend;
+- VM-1 built-in/custom pack inspection, admin lifecycle, explicit device binding/unbinding, effective resource browser and protocol filtering;
+- NA-1 DRAFT edit/clone, approver publish, plan/drift evaluation, approval-gated apply request, run/evidence inspection;
+- NA-2 campaign create/start/pause/resume/retry/abort, frozen-plan/target progress, and approval-gated next-wave request;
+- HA-1 readiness, node heartbeat history, admin ACTIVE/DRAINING/DRAINED lifecycle, recovery-drill record/detail/complete evidence;
+- automation Change Request review renders frozen/current snapshots and SHA-256 drift status instead of presenting automation JSON as CLI commands;
+- all existing CSRF, RBAC, CSP nonce, vault, frozen-snapshot, audit and recovery invariants are retained.
+
+**CURRENT:** UI-1 — `IMPLEMENTED_TESTING_DEFERRED`.
+
+**NEXT:** no new development phase is assigned automatically. Complete the remaining Q-1/live qualification gates and perform a fresh roadmap review before assigning another phase. Session idle/absolute expiry remains explicitly deferred security debt.
+
 
 ## Release 33 implementation expansion — source complete, qualification pending
 
@@ -21,7 +40,7 @@ The following development phases are now implemented in source. All remain `IMPL
 
 **NEXT:** no new development phase is assigned. Rebuild and independently verify the formal Release 33 FULL ZIP, then execute the available Q-1 live gates and perform another roadmap/qualification review.
 
-> **Current continuation pointer:** use the Release 33 full source baseline as the active implementation source. Historical CURRENT/NEXT statements below are chronology only. Use the recorded Release 33 offline/artifact evidence and run the applicable Q-1 live gates before any promotion to `TESTED`/`RELEASED`; then perform a fresh roadmap review before assigning another development phase.
+> **Current continuation pointer:** use the Release 34 FULL source baseline as the active implementation source. UI-1 remains `IMPLEMENTED_TESTING_DEFERRED`; execute the applicable Q-1/live qualification gates before any promotion to `TESTED`/`RELEASED`. No next development phase is auto-assigned; perform a fresh roadmap review after qualification.
 
 Status vocabulary for new work: `PLANNED`, `IMPLEMENTED_TESTING_DEFERRED`, `TESTED`, `RELEASED`. Older `IMPLEMENTED` labels predate this vocabulary and should not be interpreted as live-environment qualification.
 
@@ -409,3 +428,226 @@ Clean candidate `netconfig_platform_hardening_ph3_candidate_completed_2026-09-12
 ### Historical next action after PH-3 — Roadmap / Qualification Review
 
 That review was completed on 2026-09-12 and selected **Qualification Track Q-1 — Production Runtime & Service-backed Qualification**. Q-1 is now the current track; this PH-3 next-action text is chronology only.
+
+
+# Canonical Architecture Split — PH vs NI
+
+## PH — Platform Hardening / Safe Device Change
+
+PH answers:
+
+> How do we safely change network devices?
+
+### PH-4 — Structured Configuration Transaction Engine
+
+Status: `IMPLEMENTED_IN_SOURCE / COMPLETION_HARDENING`
+
+Scope:
+
+- Structured change lifecycle
+- Approval binding
+- Pre-read snapshot
+- Typed NETCONF / RESTCONF / gNMI operations
+- Post-change verification
+- Rollback and recovery workflow
+- Audit evidence and provenance
+- Confirmed-commit transaction handling
+
+### PH-5 — Intent / Desired State Automation
+
+Status: `PLANNED`
+
+Scope:
+
+- Desired state model
+- Current vs desired comparison
+- Drift detection
+- Change plan generation
+- Intent validation
+- Approval workflow integration
+- Remediation through PH-4 transaction engine
+
+### PH-6 — Distributed Execution / HA
+
+Status: `PLANNED`
+
+Scope:
+
+- Worker execution model
+- Distributed queue
+- Execution ownership
+- Leader/fencing model
+- Failover recovery
+- Large-scale change orchestration
+- Multi-node reliability
+
+
+# NI — Network Intelligence
+
+NI answers:
+
+> What exists in the network and what is happening?
+
+## NI-1 — Endpoint Location Correlation
+
+Status: `IMPLEMENTED_TESTING_DEFERRED`
+
+Scope:
+
+- IP → MAC correlation
+- MAC → VLAN mapping
+- VLAN → Switch port mapping
+- Endpoint location discovery
+- Q-BRIDGE FDB correlation
+- Neighbor table correlation
+
+Example:
+
+```
+IP
+ |
+MAC
+ |
+VLAN
+ |
+Switch Port
+```
+
+## NI-2 — Topology Identity
+
+Status: `IMPLEMENTED_TESTING_DEFERRED`
+
+Scope:
+
+- LLDP discovery
+- CDP handling
+- Device identity
+- Chassis identity
+- Interface identity
+- Neighbor relationship
+- Downstream impact traversal
+
+## NI-3 — Network Events
+
+Status: `IMPLEMENTED_TESTING_DEFERRED`
+
+Scope:
+
+- SNMP Trap
+- Syslog
+- Link events
+- Authentication events
+- Reachability events
+- Event normalization
+
+## NI-4 — Alert Lifecycle
+
+Status: `IMPLEMENTED_TESTING_DEFERRED`
+
+Scope:
+
+- Alert promotion
+- Severity handling
+- Acknowledge workflow
+- Resolve workflow
+- Maintenance suppression
+- Notification workflow
+
+## NI-5 — Telemetry
+
+Status: `PLANNED`
+
+Scope:
+
+- SNMP polling
+- gNMI telemetry
+- Streaming metrics
+- Interface statistics
+- CPU/memory/environment telemetry
+- Time-series storage
+- Trend analysis
+- Performance baseline
+
+## NI-6 — Discovery Analytics
+
+Status: `PLANNED`
+
+Scope:
+
+### Auto Seed Discovery
+
+- Seed device input
+- Credential selection
+- Discovery start workflow
+
+### Full Network Crawl
+
+- LLDP/CDP neighbor crawling
+- Discovery queue
+- Visited device tracking
+- Crawl depth control
+- Rate limiting
+- Failure handling
+
+### Topology Database
+
+Nodes:
+
+- Device
+- Interface
+- Link
+- VLAN
+- VRF
+- Subnet
+- Endpoint
+
+Edges:
+
+- CONNECTED_TO
+- ATTACHED_TO
+- CARRIES
+- ROUTES_TO
+
+### Unified L2/L3 Topology
+
+- MAC path
+- VLAN path
+- IP path
+- VRF path
+- Routing relationship
+
+### Topology Visualization
+
+- Interactive topology graph
+- Device map
+- Link status
+- VLAN view
+- VRF view
+- Path tracing
+- Impact highlighting
+
+
+## Release 35 PH-4 Completion Hardening
+
+- NETCONF confirmed-commit lifecycle state model added.
+- Recovery evidence schema integrated as transaction evidence boundary.
+- PH-4 regression coverage added.
+- Final qualification remains IMPLEMENTED_TESTING_DEFERRED until executed.
+
+
+# PH-5 Intent / Desired State Automation
+
+Status: IMPLEMENTED_TESTING_DEFERRED
+
+Scope: DesiredState, Intent lifecycle, revisions, drift detection, Change Plan generation, PH-4 transaction integration boundary, approval and audit linkage.
+
+
+# PH-5 API and Operations Surface
+
+Status: IMPLEMENTED_TESTING_DEFERRED
+
+Added PH-5 API helpers, intent workflow surface, and Web Console Intent Automation entry point. Device changes remain delegated to PH-4 transaction workflow.
+
+
+## PH-6 Distributed Execution / HA
+Status: IMPLEMENTED_TESTING_DEFERRED

@@ -1,6 +1,13 @@
 # AI Development Handoff
 
-> **Canonical project state — 2026-09-12:** **CURRENT IMPLEMENTATION BASELINE** = **HA-1 — Control-plane HA & Recovery Foundation** (`IMPLEMENTED_TESTING_DEFERRED`). **PH-4, NI-5, VM-1, NA-1, NA-2, and HA-1** are implemented in source; consolidated Release 33 offline regression is green, while live/service-backed qualification remains deferred. Qualification **Q-1** remains `IMPLEMENTED_TESTING_DEFERRED`; its live PostgreSQL/AlmaLinux/systemd/service-backed gates remain deferred. No further development phase is assigned until the post-implementation qualification/roadmap review. RPM source Release is `2.0.0-33`.
+> **Canonical project state — 2026-09-13:** **CURRENT IMPLEMENTATION BASELINE** = **UI-1 — Unified Automation & Operations Console** (`IMPLEMENTED_TESTING_DEFERRED`). Parent baseline is Release `2.0.0-33` (SHA-256 `ca0a8b9dc525118d7b542f03c715f6d20139e3584ada56bdca148e3d9ff0dccb`); UI-1 is implemented on top of PH-4/NI-5/VM-1/NA-1/NA-2/HA-1 and preserves the durable request/approve/execute safety plane. Qualification **Q-1** remains `IMPLEMENTED_TESTING_DEFERRED`; live PostgreSQL/AlmaLinux/systemd/real-device gates remain deferred. RPM source Release is `2.0.0-34`.
+
+## Release 34 handoff truth
+
+The current implementation baseline is UI-1 / Release `2.0.0-34`, built directly from the verified Release 33 FULL source artifact (`ca0a8b9d...0dccb`). UI-1 is a Web Console layer over the already-implemented PH-4/NI-5/VM-1/NA-1/NA-2/HA-1 services; it does not replace or bypass those services.
+
+Continue from the Release 34 FULL source baseline. Preserve: durable CR approval and frozen snapshot/hash revalidation for all network writes; admin-only structured recovery/model lifecycle/cluster-node state changes; viewer read-only access; CSRF and CSP nonce enforcement; `web.py` <4000 lines and <240 KB; metadata-only protocol trace; Q-1/live qualification truth; session idle/absolute expiry remains deferred. Do not claim live device/PostgreSQL/RPM qualification from the offline UI-1 evidence.
+
 
 ## Release 33 handoff truth
 
@@ -8,7 +15,7 @@ The latest implementation baseline is Release `2.0.0-33`, schema revision `ha1-2
 
 Preserve these Release 33 invariants: all network mutations use the durable request/approve/execute workflow; automation snapshots/model-pack hashes are frozen and revalidated; `RECOVERY_REQUIRED` blocks blind replay; desired-state rollback is compensating/reverse-order; campaign plans are frozen with stable retry identity; DRAINING/DRAINED HA nodes reject new automation work. Session idle/absolute expiry is still explicitly deferred.
 
-> **Current continuation pointer:** use the Release 33 full source baseline as the active implementation source. Historical CURRENT/NEXT statements below are chronology only. Use the recorded Release 33 offline/artifact evidence and run the applicable Q-1 live gates before any promotion to `TESTED`/`RELEASED`; then perform a fresh roadmap review before assigning another development phase.
+> **Current continuation pointer:** use the Release 34 FULL source baseline as the active implementation source. UI-1 remains `IMPLEMENTED_TESTING_DEFERRED`; execute the applicable Q-1/live qualification gates before any promotion to `TESTED`/`RELEASED`. No next development phase is auto-assigned; perform a fresh roadmap review after qualification.
 
 ## Historical checkpoint — Qualification Q-1
 
@@ -16,13 +23,13 @@ Q-1 remains `IMPLEMENTED_TESTING_DEFERRED`, but Release 33 is now the active imp
 
 Key Q-1 invariants: PostgreSQL backup/restore is fixed-function only; DB credentials use a short-lived mode-0600 `PGPASSFILE` and never argv; restore requires a verified checksum plus explicit `RESTORE_DATABASE` and may not target the configured active core database; the recovery-safe restore path must not require opening the failed active core first. `netconfig qualify` is configuration-aware. AlmaLinux installation qualification is permitted only on a disposable target with explicit `--install` plus `NETCONFIG_Q1_ALLOW_INSTALL=1`.
 
-Historical Q-1 offline evidence before its package gate: Q-1 focused **11 passed**, full repository **147 passed / 7 skipped**. The four new Q-1 service skips are real PostgreSQL multi-node claim/leadership, session-loss lock release, SQLite migration/sequence repair, and pg_dump/pg_restore recovery. Ruff/mypy, real PostgreSQL tooling, and AlmaLinux 10 are `NOT_RUN` in this environment. Q-1 live gates remain outstanding; Release 33 must also complete consolidated verification before a new roadmap review.
+Historical Q-1 offline evidence before its package gate: Q-1 focused **11 passed**, full repository **147 passed / 7 skipped**. The four new Q-1 service skips are real PostgreSQL multi-node claim/leadership, session-loss lock release, SQLite migration/sequence repair, and pg_dump/pg_restore recovery. Ruff/mypy, real PostgreSQL tooling, and AlmaLinux 10 are `NOT_RUN` in this environment. Q-1 live gates remain outstanding; Release 34 UI-1 offline/artifact evidence does not promote Q-1 or the feature phases to `TESTED`.
 
 Clean Q-1 candidate `netconfig_qualification_q1_candidate_2026-09-12.zip` (SHA-256 `185039eadf8e8e63a8dad358df35f759a7a1f099d5fa6a3456a50e023920a2b1`) passed the artifact gate: ZIP CRC **PASS**; path traversal **0**; symlinks **0**; caches **0**; CR offenders **0**; source/extracted byte identity **125/125 PASS**; payload plus each SHA manifest **121/121 PASS**; required executable modes **7/7 = 0755**; extracted Q-1 focused **11 passed**; extracted full regression **147 passed / 7 skipped**; legacy selftest **ALL PASS**; compileall/launcher py_compile/packaging shell syntax **PASS**.
 
 ## Project
 NetConfig (reconstructed from `netconfig-2.0.0-14`; current packaging target
-`netconfig-2.0.0-33.el10` per the current source spec; RPM build/install qualification remains deferred until the Q-1 AlmaLinux gate is run)
+`netconfig-2.0.0-34.el10` per the current source spec; RPM build/install qualification remains deferred until the Q-1 AlmaLinux gate is run)
 
 ## Objective
 Continue development and improvement of the NetConfig platform from the
@@ -678,3 +685,222 @@ Real vendor protocol interoperability, TLS/mTLS interoperability, production cre
 ### Continuation rule
 
 No next implementation phase is assigned. When the user asks for the next phase, perform the roadmap / qualification review first and choose a phase explicitly; do not infer a numbered implementation phase from historical labels.
+
+
+# Canonical Architecture Split — PH vs NI
+
+## PH — Platform Hardening / Safe Device Change
+
+PH answers:
+
+> How do we safely change network devices?
+
+### PH-4 — Structured Configuration Transaction Engine
+
+Status: `IMPLEMENTED_IN_SOURCE / COMPLETION_HARDENING`
+
+Scope:
+
+- Structured change lifecycle
+- Approval binding
+- Pre-read snapshot
+- Typed NETCONF / RESTCONF / gNMI operations
+- Post-change verification
+- Rollback and recovery workflow
+- Audit evidence and provenance
+- Confirmed-commit transaction handling
+
+### PH-5 — Intent / Desired State Automation
+
+Status: `PLANNED`
+
+Scope:
+
+- Desired state model
+- Current vs desired comparison
+- Drift detection
+- Change plan generation
+- Intent validation
+- Approval workflow integration
+- Remediation through PH-4 transaction engine
+
+### PH-6 — Distributed Execution / HA
+
+Status: `PLANNED`
+
+Scope:
+
+- Worker execution model
+- Distributed queue
+- Execution ownership
+- Leader/fencing model
+- Failover recovery
+- Large-scale change orchestration
+- Multi-node reliability
+
+
+# NI — Network Intelligence
+
+NI answers:
+
+> What exists in the network and what is happening?
+
+## NI-1 — Endpoint Location Correlation
+
+Status: `IMPLEMENTED_TESTING_DEFERRED`
+
+Scope:
+
+- IP → MAC correlation
+- MAC → VLAN mapping
+- VLAN → Switch port mapping
+- Endpoint location discovery
+- Q-BRIDGE FDB correlation
+- Neighbor table correlation
+
+Example:
+
+```
+IP
+ |
+MAC
+ |
+VLAN
+ |
+Switch Port
+```
+
+## NI-2 — Topology Identity
+
+Status: `IMPLEMENTED_TESTING_DEFERRED`
+
+Scope:
+
+- LLDP discovery
+- CDP handling
+- Device identity
+- Chassis identity
+- Interface identity
+- Neighbor relationship
+- Downstream impact traversal
+
+## NI-3 — Network Events
+
+Status: `IMPLEMENTED_TESTING_DEFERRED`
+
+Scope:
+
+- SNMP Trap
+- Syslog
+- Link events
+- Authentication events
+- Reachability events
+- Event normalization
+
+## NI-4 — Alert Lifecycle
+
+Status: `IMPLEMENTED_TESTING_DEFERRED`
+
+Scope:
+
+- Alert promotion
+- Severity handling
+- Acknowledge workflow
+- Resolve workflow
+- Maintenance suppression
+- Notification workflow
+
+## NI-5 — Telemetry
+
+Status: `PLANNED`
+
+Scope:
+
+- SNMP polling
+- gNMI telemetry
+- Streaming metrics
+- Interface statistics
+- CPU/memory/environment telemetry
+- Time-series storage
+- Trend analysis
+- Performance baseline
+
+## NI-6 — Discovery Analytics
+
+Status: `PLANNED`
+
+Scope:
+
+### Auto Seed Discovery
+
+- Seed device input
+- Credential selection
+- Discovery start workflow
+
+### Full Network Crawl
+
+- LLDP/CDP neighbor crawling
+- Discovery queue
+- Visited device tracking
+- Crawl depth control
+- Rate limiting
+- Failure handling
+
+### Topology Database
+
+Nodes:
+
+- Device
+- Interface
+- Link
+- VLAN
+- VRF
+- Subnet
+- Endpoint
+
+Edges:
+
+- CONNECTED_TO
+- ATTACHED_TO
+- CARRIES
+- ROUTES_TO
+
+### Unified L2/L3 Topology
+
+- MAC path
+- VLAN path
+- IP path
+- VRF path
+- Routing relationship
+
+### Topology Visualization
+
+- Interactive topology graph
+- Device map
+- Link status
+- VLAN view
+- VRF view
+- Path tracing
+- Impact highlighting
+
+
+## Release 35 PH-4 Completion Hardening
+
+- NETCONF confirmed-commit lifecycle state model added.
+- Recovery evidence schema integrated as transaction evidence boundary.
+- PH-4 regression coverage added.
+- Final qualification remains IMPLEMENTED_TESTING_DEFERRED until executed.
+
+
+# PH-5 Intent / Desired State Automation
+
+Status: IMPLEMENTED_TESTING_DEFERRED
+
+Scope: DesiredState, Intent lifecycle, revisions, drift detection, Change Plan generation, PH-4 transaction integration boundary, approval and audit linkage.
+
+
+# PH-5 API and Operations Surface
+
+Status: IMPLEMENTED_TESTING_DEFERRED
+
+Added PH-5 API helpers, intent workflow surface, and Web Console Intent Automation entry point. Device changes remain delegated to PH-4 transaction workflow.

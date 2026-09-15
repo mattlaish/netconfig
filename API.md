@@ -1,6 +1,15 @@
 # NetConfig API Contract
 
-> **Canonical project state — 2026-09-12:** **CURRENT IMPLEMENTATION BASELINE** = **HA-1 — Control-plane HA & Recovery Foundation** (`IMPLEMENTED_TESTING_DEFERRED`). **PH-4, NI-5, VM-1, NA-1, NA-2, and HA-1** are implemented in source; consolidated Release 33 offline regression is green, while live/service-backed qualification remains deferred. Qualification **Q-1** remains `IMPLEMENTED_TESTING_DEFERRED`; its live PostgreSQL/AlmaLinux/systemd/service-backed gates remain deferred. No further development phase is assigned until the post-implementation qualification/roadmap review. RPM source Release is `2.0.0-33`.
+> **Canonical project state — 2026-09-13:** **CURRENT IMPLEMENTATION BASELINE** = **UI-1 — Unified Automation & Operations Console** (`IMPLEMENTED_TESTING_DEFERRED`). Parent baseline is Release `2.0.0-33` (SHA-256 `ca0a8b9dc525118d7b542f03c715f6d20139e3584ada56bdca148e3d9ff0dccb`); UI-1 is implemented on top of PH-4/NI-5/VM-1/NA-1/NA-2/HA-1 and preserves the durable request/approve/execute safety plane. Qualification **Q-1** remains `IMPLEMENTED_TESTING_DEFERRED`; live PostgreSQL/AlmaLinux/systemd/real-device gates remain deferred. RPM source Release is `2.0.0-34`.
+
+## Release 34 / UI-1 API alignment
+
+UI-1 consumes the existing PH-4/NI-5/VM-1/NA-1/NA-2/HA-1 service contracts and does not create a privileged browser-only execution API. The existing `/api/v1/automation-requests` request/approve/execute path remains the canonical network-mutation contract.
+
+Release 34 adds parity for telemetry edit: `POST /api/v1/telemetry/subscriptions/{id}/update` accepts the same bounded fields as creation except `device`; device rebinding is deliberately unsupported. Existing telemetry create/capture/window/enable/disable/delete/run-due and read/points/summary contracts remain unchanged.
+
+The Web `/operations` routes are HTML operator workflows, not a replacement REST contract. All mutations still enforce the underlying role/service rules and CSRF.
+
 
 ## Release 33 automation API contract
 
@@ -18,7 +27,7 @@ Primary read/write surfaces include:
 
 All structured resource selection is server-side/model-pack resolved. API clients cannot supply arbitrary southbound XML, arbitrary RESTCONF URLs/bodies, arbitrary gNMI proto requests, or secrets in protocol traces/audit responses.
 
-> **Current continuation pointer:** use the Release 33 full source baseline as the active implementation source. Historical CURRENT/NEXT statements below are chronology only. Use the recorded Release 33 offline/artifact evidence and run the applicable Q-1 live gates before any promotion to `TESTED`/`RELEASED`; then perform a fresh roadmap review before assigning another development phase.
+> **Current continuation pointer:** use the Release 34 FULL source baseline as the active implementation source. UI-1 remains `IMPLEMENTED_TESTING_DEFERRED`; execute the applicable Q-1/live qualification gates before any promotion to `TESTED`/`RELEASED`. No next development phase is auto-assigned; perform a fresh roadmap review after qualification.
 
 ## Q-1 API impact
 
@@ -267,3 +276,25 @@ Scopes: `protocol:read` may be granted to viewer tokens. `protocol:write` requir
 CLI-only bounded read helpers additionally expose `netconfig protocol capabilities`, `netconfig protocol state`, and `netconfig protocol subscribe-once` (gNMI ONCE only).
 
 No public PH-3 API/CLI surface accepts arbitrary NETCONF RPC XML, arbitrary RESTCONF URL/method/body, arbitrary protobuf, NETCONF `edit-config`, RESTCONF generic mutation, or gNMI Set. The internal RESTCONF JSON subtree replacement primitive is approval-gated and intentionally not exposed as a generic remote-execution endpoint.
+
+
+## Release 35 PH-4 Completion Hardening
+
+- NETCONF confirmed-commit lifecycle state model added.
+- Recovery evidence schema integrated as transaction evidence boundary.
+- PH-4 regression coverage added.
+- Final qualification remains IMPLEMENTED_TESTING_DEFERRED until executed.
+
+
+# PH-5 Intent / Desired State Automation
+
+Status: IMPLEMENTED_TESTING_DEFERRED
+
+Scope: DesiredState, Intent lifecycle, revisions, drift detection, Change Plan generation, PH-4 transaction integration boundary, approval and audit linkage.
+
+
+# PH-5 API and Operations Surface
+
+Status: IMPLEMENTED_TESTING_DEFERRED
+
+Added PH-5 API helpers, intent workflow surface, and Web Console Intent Automation entry point. Device changes remain delegated to PH-4 transaction workflow.

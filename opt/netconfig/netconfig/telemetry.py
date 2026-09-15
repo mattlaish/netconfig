@@ -135,6 +135,71 @@ class TelemetryService:
             ).fetchall()
         ]
 
+    def update(
+        self,
+        sid,
+        *,
+        name,
+        path,
+        mode="ON_CHANGE",
+        sample_interval_ms=10_000,
+        heartbeat_interval_ms=0,
+        window_seconds=30,
+        collection_interval_seconds=60,
+        retention_days=30,
+        actor="system",
+    ):
+        """Update a subscription without changing its bound device.
+
+        Device rebinding is intentionally not supported: delete/recreate is
+        required so audit history remains unambiguous. Running collectors are
+        also fail-closed against concurrent mutation.
+        """
+        with self._subscription_lock(sid):
+            item = self.get(sid)
+            if not item:
+                raise TelemetryError("unknown telemetry subscription")
+            if item.get("state") == "RUNNING":
+                raise TelemetryError("running telemetry subscription cannot be edited")
+            _dev, profile = self.manager._structured_profile_for(item["device"])
+            if profile["protocol"] != "gnmi":
+                raise TelemetryError("NI-5 telemetry requires a gNMI protocol profile")
+            typed = GnmiPath.parse(path)
+            mode = str(mode or "ON_CHANGE").upper()
+            if mode not in _ALLOWED_MODES:
+                raise TelemetryError("unsupported telemetry subscription mode")
+            sample = int(sample_interval_ms)
+            heartbeat = int(heartbeat_interval_ms)
+            window = int(window_seconds)
+            collection = int(collection_interval_seconds)
+            retention = int(retention_days)
+            if sample < 1000 or sample > 3_600_000 or heartbeat < 0 or heartbeat > 3_600_000:
+                raise TelemetryError("telemetry interval outside safe bounds")
+            if window < 1 or window > _MAX_WINDOW_SECONDS:
+                raise TelemetryError("telemetry collection window must be 1..300 seconds")
+            if collection < max(5, window) or collection > 86_400:
+                raise TelemetryError("telemetry collection interval must be >= window and <= 86400 seconds")
+            if retention < 1 or retention > 3650:
+                raise TelemetryError("telemetry retention must be 1..3650 days")
+            name = str(name or "").strip()
+            if not name or len(name) > 128:
+                raise TelemetryError("telemetry subscription name is required and must be <=128 characters")
+            now = time.time()
+            self.conn.execute(
+                "UPDATE telemetry_subscriptions SET name=?,path=?,mode=?,sample_interval_ms=?,"
+                "heartbeat_interval_ms=?,window_seconds=?,collection_interval_seconds=?,"
+                "retention_days=?,updated_ts=? WHERE id=?",
+                (name, typed.render(), mode, sample, heartbeat, window, collection, retention, now, int(sid)),
+            )
+            self.conn.commit()
+            self.manager.db.audit(
+                actor,
+                "telemetry_subscription_update",
+                item["device"],
+                f"id={int(sid)};mode={mode};path={typed.render()};window={window};interval={collection}",
+            )
+            return self.get(sid)
+
     def set_enabled(self, sid, enabled, actor="system"):
         with self._subscription_lock(sid):
             item = self.get(sid)

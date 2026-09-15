@@ -24,6 +24,27 @@ class StructuredChangeError(RuntimeError):
 _ALLOWED_SOURCES = {"manual", "api", "desired_state", "campaign", "rollback", "remediation"}
 
 
+_ALLOWED_TRANSITIONS = {
+    "PENDING": {"RUNNING", "FAILED", "RECOVERY_REQUIRED"},
+    "RUNNING": {"SUCCEEDED", "FAILED", "RECOVERY_REQUIRED"},
+    "SUCCEEDED": set(),
+    "FAILED": {"RECOVERY_REQUIRED"},
+    "RECOVERY_REQUIRED": {"ROLLING_BACK", "RECOVERED"},
+    "ROLLING_BACK": {"RECOVERED", "FAILED"},
+    "RECOVERED": set(),
+}
+
+
+def _validate_transition(current, target):
+    if current == target:
+        return
+    allowed = _ALLOWED_TRANSITIONS.get(str(current), set())
+    if str(target) not in allowed:
+        raise StructuredChangeError(
+            f"invalid structured transaction transition: {current} -> {target}"
+        )
+
+
 def _json(value) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"))
 
@@ -221,6 +242,7 @@ class StructuredChangeEngine:
         self.manager.db.audit(
             actor, "structured_change_prepare", device,
             f"tx={txid};protocol={protocol};resource={resource};source={source_kind};approval={approval_ref}")
+        _validate_transition("PENDING", "RUNNING")
         self.conn.execute(
             "UPDATE structured_change_transactions SET state='RUNNING',started_ts=? WHERE id=?",
             (time.time(), txid))
@@ -276,6 +298,7 @@ class StructuredChangeEngine:
             rollback = "UNKNOWN"
             if "rollback=" in detail:
                 rollback = detail.rsplit("rollback=", 1)[-1].split(";", 1)[0][:64]
+            _validate_transition("RUNNING", "FAILED")
             self.conn.execute(
                 "UPDATE structured_change_transactions SET state='FAILED',verification_state='FAILED',"
                 "rollback_state=?,error=?,finished_ts=? WHERE id=?",

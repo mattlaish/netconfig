@@ -1,0 +1,17 @@
+{
+  "artifact": "netconfig_release34_roadmap_ni_ph_sync_baseline",
+  "parent": "netconfig_ui1_release34_FULL_source_baseline_2026-09-13.zip",
+  "change_scope": "PH and NI roadmap canonical split documentation synchronization",
+  "status": "DOCUMENTATION_SYNC_COMPLETE",
+  "modified_files": [
+    "ROADMAP.md",
+    "DEVELOPMENT.md",
+    "AI_HANDOFF.md",
+    "ARCHITECTURE.md",
+    "SECURITY.md",
+    "TESTING.md",
+    "HANDOVER_PROMPT.md"
+  ],
+  "implementation": "No source code changes",
+  "validation": "Documentation consistency package created; full regression not run"
+}

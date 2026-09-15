@@ -1,20 +1,7 @@
-"""
-web.py -- Self-hosted web console, stdlib http.server only.
+"""Self-hosted, air-gapped NetConfig web console.
 
-Theme: dark ink / brass, consistent with the suite's "Security Operations" login.
-No external CSS/JS -- everything inlined so the console runs air-gapped.
-
-v2 security model:
-  * Login is per-user (username + PBKDF2 password), not the vault master. Roles
-    (viewer/operator/approver/admin) gate every action, which is what makes the
-    change-approval workflow real: a junior can submit but not approve or execute.
-  * The credential vault is separate. Talking to devices (collect / run jobs /
-    SNMP) needs it unlocked; an admin unlocks it once per process from the console
-    (or via $NETCONFIG_MASTER at startup). Its key then lives in memory for the
-    process, same threat model as the CLI.
-  * http.server speaks PLAIN HTTP; bind 127.0.0.1 and front with the WAF for TLS.
-    Sessions are random tokens (HttpOnly, SameSite=Strict) with a per-session
-    CSRF token required on every POST.
+Authentication, RBAC, CSRF, vault separation and strict CSP are enforced by the
+existing security/workflow layers; UI-1 adds only operator presentation/routes.
 """
 
 import html
@@ -44,6 +31,7 @@ from .incidents import EVIDENCE_TYPES as _INCIDENT_EVIDENCE_TYPES
 from .incidents import SEVERITIES as _INCIDENT_SEVERITIES
 from .incidents import STATUSES as _INCIDENT_STATUSES
 from .web_api import WebApiMixin
+from .web_ops import WebOpsMixin
 
 _SESSIONS = {}   # token -> {username, role, csrf, created}; expiry intentionally deferred
 _LOGIN_THROTTLE = LoginThrottle()
@@ -56,7 +44,7 @@ from .web_ui import (
 )
 
 
-class Console(WebApiMixin, http.server.BaseHTTPRequestHandler):
+class Console(WebOpsMixin, WebApiMixin, http.server.BaseHTTPRequestHandler):
     manager = None
     tls_enabled = False
     netflow = None
@@ -147,7 +135,7 @@ class Console(WebApiMixin, http.server.BaseHTTPRequestHandler):
     def _nav(self, sess):
         role = sess["role"]
         links = [("/", "Devices"), ("/groups", "Groups"), ("/automation", "Automation"),
-                 ("/requests", "Change Requests"), ("/compliance", "Compliance"),
+                 ("/operations", "Operations"), ("/requests", "Change Requests"), ("/compliance", "Compliance"),
                  ("/alerts", "Alerts"), ("/snmp", "SNMP"), ("/protocols", "Protocols"), ("/topology", "Topology"),
                  ("/endpoints", "Endpoints"), ("/events", "Events"), ("/op-alerts", "Ops Alerts"), ("/incidents", "Incidents"), ("/diagnostics", "Diagnostics")]
         if _can(role, "manage_devices"):
@@ -822,6 +810,7 @@ class Console(WebApiMixin, http.server.BaseHTTPRequestHandler):
             "/diff": lambda s: self._diff_page(q, s),
             "/groups": lambda s: self._groups_page(s),
             "/automation": lambda s: self._automation_page(s),
+            "/operations": lambda s: self._operations_page(q, s),
             "/requests": lambda s: self._requests_page(s),
             "/request": lambda s: self._request_page(q, s),
             "/compliance": lambda s: self._compliance_page(q, s),
@@ -880,6 +869,10 @@ class Console(WebApiMixin, http.server.BaseHTTPRequestHandler):
         if not self._check_csrf(form):
             return self._send(self._page("Error",
                               '<div class="err">CSRF check failed.</div>', sess), 403)
+        if u.path.startswith("/ops-"):
+            if self._dispatch_ops_post(u.path, form, sess):
+                return
+            return self._send("not found", 404, "text/plain")
         handlers = {
             "/logout": lambda: self._do_logout(),
             "/unlock-vault": lambda: self._do_unlock(form, sess),
@@ -3097,6 +3090,8 @@ The client secret is stored in the vault.</p>
         if not prev:
             return self._send(self._page("Request", '<div class="err">No such request.</div>', sess), 404)
         cr = prev["request"]
+        if prev.get("automation"):
+            return self._send(self._page("Change Request", self._ops_request_detail(prev, sess), sess))
         badge = _STATUS_BADGE.get(cr["status"], "b-dim")
         tgt_rows = ""
         for t in prev["targets"]:

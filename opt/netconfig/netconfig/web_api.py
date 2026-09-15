@@ -199,7 +199,22 @@ class WebApiMixin:
             try:
                 sid_text, action = rest.split("/", 1)
                 sid = int(sid_text)
-                if action == "capture":
+                if action == "update":
+                    item = self.manager.telemetry.update(
+                        sid,
+                        name=(form.get("name") or [""])[0],
+                        path=(form.get("path") or [""])[0],
+                        mode=(form.get("mode") or ["ON_CHANGE"])[0],
+                        sample_interval_ms=int((form.get("sample_interval_ms") or [10_000])[0]),
+                        heartbeat_interval_ms=int((form.get("heartbeat_interval_ms") or [0])[0]),
+                        window_seconds=int((form.get("window_seconds") or [30])[0]),
+                        collection_interval_seconds=int(
+                            (form.get("collection_interval_seconds") or [60])[0]
+                        ),
+                        retention_days=int((form.get("retention_days") or [30])[0]),
+                        actor=actor,
+                    )
+                elif action == "capture":
                     item = self.manager.telemetry.capture_once(sid, actor=actor)
                 elif action == "stream-window":
                     raw_duration = (form.get("duration_seconds") or [None])[0]

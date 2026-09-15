@@ -1,6 +1,18 @@
 # NetConfig development baseline
 
-> **Canonical project state — 2026-09-12:** **CURRENT IMPLEMENTATION BASELINE** = **HA-1 — Control-plane HA & Recovery Foundation** (`IMPLEMENTED_TESTING_DEFERRED`). **PH-4, NI-5, VM-1, NA-1, NA-2, and HA-1** are implemented in source; consolidated Release 33 offline regression is green, while live/service-backed qualification remains deferred. Qualification **Q-1** remains `IMPLEMENTED_TESTING_DEFERRED`; its live PostgreSQL/AlmaLinux/systemd/service-backed gates remain deferred. No further development phase is assigned until the post-implementation qualification/roadmap review. RPM source Release is `2.0.0-33`.
+> **Canonical project state — 2026-09-13:** **CURRENT IMPLEMENTATION BASELINE** = **UI-1 — Unified Automation & Operations Console** (`IMPLEMENTED_TESTING_DEFERRED`). Parent baseline is Release `2.0.0-33` (SHA-256 `ca0a8b9dc525118d7b542f03c715f6d20139e3584ada56bdca148e3d9ff0dccb`); UI-1 is implemented on top of PH-4/NI-5/VM-1/NA-1/NA-2/HA-1 and preserves the durable request/approve/execute safety plane. Qualification **Q-1** remains `IMPLEMENTED_TESTING_DEFERRED`; live PostgreSQL/AlmaLinux/systemd/real-device gates remain deferred. RPM source Release is `2.0.0-34`.
+
+## Release 34 baseline identity
+
+- Parent artifact: `netconfig_release33_FULL_source_baseline_2026-09-12.zip`
+- Parent SHA-256: `ca0a8b9dc525118d7b542f03c715f6d20139e3584ada56bdca148e3d9ff0dccb`
+- Current application version: `2.0.0`
+- Current RPM source Release: `34`
+- Current phase: UI-1 — Unified Automation & Operations Console
+- Status: `IMPLEMENTED_TESTING_DEFERRED`
+- Schema revision: unchanged from Release 33 (`ha1-2`)
+- Primary new source: `opt/netconfig/netconfig/web_ops.py`, telemetry edit contract, Web/API route wiring, UI-1 tests and synchronized documentation.
+
 
 ## Release 33 baseline
 
@@ -8,7 +20,7 @@ Application/project Version: `2.0.0`. RPM source Release: `33`. Database schema 
 
 Source includes PH-4 structured transactions, NI-5 telemetry/time-series foundation, VM-1 vendor model packs, NA-1 desired state, NA-2 fleet campaigns and HA-1 control-plane recovery/drain foundation. All are `IMPLEMENTED_TESTING_DEFERRED`; Q-1 real-service/RPM qualification remains outstanding. The source tree is the authoritative modifiable baseline; no claim is made that Release 33 RPM or real network devices have been qualified until corresponding evidence exists.
 
-> **Current continuation pointer:** use the Release 33 full source baseline as the active implementation source. Historical CURRENT/NEXT statements below are chronology only. Use the recorded Release 33 offline/artifact evidence and run the applicable Q-1 live gates before any promotion to `TESTED`/`RELEASED`; then perform a fresh roadmap review before assigning another development phase.
+> **Current continuation pointer:** use the Release 34 FULL source baseline as the active implementation source. UI-1 remains `IMPLEMENTED_TESTING_DEFERRED`; execute the applicable Q-1/live qualification gates before any promotion to `TESTED`/`RELEASED`. No next development phase is auto-assigned; perform a fresh roadmap review after qualification.
 
 ## Historical Q-1 baseline note
 

@@ -1,6 +1,6 @@
 Name:           netconfig
 Version:        2.0.0
-Release:        33%{?dist}
+Release:        34%{?dist}
 Summary:        Network configuration and security operations console
 License:        Proprietary
 BuildArch:      noarch
@@ -84,6 +84,11 @@ exit 0
 %dir %attr(0700,netconfig,netconfig) %{_localstatedir}/lib/netconfig
 
 %changelog
+* Sun Sep 13 2026 OpenAI <noreply@openai.com> - 2.0.0-34
+- Add UI-1 Unified Automation & Operations Console for PH-4, NI-5, VM-1, NA-1, NA-2 and HA-1
+- Preserve durable approval/snapshot verification for all network mutations; add telemetry edit and recovery evidence workflows
+- Add UI-1 focused Web/RBAC/CSRF/CSP regressions and full source/artifact lineage evidence
+
 * Sat Sep 12 2026 OpenAI <noreply@openai.com> - 2.0.0-33
 - Add PH-4 structured configuration transactions with durable approval, verification, rollback and recovery evidence
 - Add NI-5 telemetry, VM-1 model packs, NA-1 desired state, NA-2 fleet campaigns, and HA-1 control-plane recovery foundation

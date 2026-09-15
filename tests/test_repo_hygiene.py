@@ -47,23 +47,26 @@ def test_required_raw_source_executables_are_0755():
         assert path.stat().st_mode & 0o777 == 0o755, relative
 
 
-def test_release_33_version_truth_is_consistent():
+def test_release_34_version_truth_is_consistent():
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     package = (ROOT / "opt/netconfig/netconfig/__init__.py").read_text(encoding="utf-8")
     spec = (ROOT / "packaging/netconfig.spec").read_text(encoding="utf-8")
     assert 'version = "2.0.0"' in pyproject
     assert '__version__ = "2.0.0"' in package
     assert "Version:        2.0.0" in spec
-    assert "Release:        33%{?dist}" in spec
+    assert "Release:        34%{?dist}" in spec
     for relative in (
         "README.md", "DEVELOPMENT.md", "AI_HANDOFF.md", "ROADMAP.md",
         "SECURITY.md", "API.md", "TESTING.md", "DEV_BASELINE.md",
-        "HANDOVER_PROMPT.md", "patch.md",
+        "HANDOVER_PROMPT.md", "patch.md", "AGENTS.md", "CLAUDE.md",
+        "WEBGUI.md", "packaging/README.md", "opt/netconfig/CREDENTIALS.md",
+        "opt/netconfig/INSTALL.md", "opt/netconfig/README.md", "opt/netconfig/WEBGUI.md",
     ):
         text = (ROOT / relative).read_text(encoding="utf-8")
         canonical = next(line for line in text.splitlines() if line.startswith("> **Canonical project state"))
-        assert "2.0.0-33" in canonical, relative
-        assert "HA-1" in canonical, relative
+        assert "2.0.0-34" in canonical, relative
+        assert "UI-1" in canonical, relative
+        assert "Release 33 full source baseline as the active implementation source" not in text, relative
 
 
 def test_no_compound_statement_suite_on_same_line():

@@ -1,6 +1,24 @@
 # NetConfig Testing
 
-> **Canonical project state — 2026-09-12:** **CURRENT IMPLEMENTATION BASELINE** = **HA-1 — Control-plane HA & Recovery Foundation** (`IMPLEMENTED_TESTING_DEFERRED`). **PH-4, NI-5, VM-1, NA-1, NA-2, and HA-1** are implemented in source; consolidated Release 33 offline regression is green, while live/service-backed qualification remains deferred. Qualification **Q-1** remains `IMPLEMENTED_TESTING_DEFERRED`; its live PostgreSQL/AlmaLinux/systemd/service-backed gates remain deferred. No further development phase is assigned until the post-implementation qualification/roadmap review. RPM source Release is `2.0.0-33`.
+> **Canonical project state — 2026-09-13:** **CURRENT IMPLEMENTATION BASELINE** = **UI-1 — Unified Automation & Operations Console** (`IMPLEMENTED_TESTING_DEFERRED`). Parent baseline is Release `2.0.0-33` (SHA-256 `ca0a8b9dc525118d7b542f03c715f6d20139e3584ada56bdca148e3d9ff0dccb`); UI-1 is implemented on top of PH-4/NI-5/VM-1/NA-1/NA-2/HA-1 and preserves the durable request/approve/execute safety plane. Qualification **Q-1** remains `IMPLEMENTED_TESTING_DEFERRED`; live PostgreSQL/AlmaLinux/systemd/real-device gates remain deferred. RPM source Release is `2.0.0-34`.
+
+## Release 34 / UI-1 verification matrix
+
+Offline executed evidence:
+
+- `tests/test_ui1_web_console.py`: **7 passed**;
+- combined UI-1 + automation expansion + PH-1 + PH-2 + PH-3 + Q-1 focused suite: **73 passed**;
+- full repository: **175 passed / 7 skipped**;
+- legacy selftest: **ALL PASS**;
+- compileall / launcher `py_compile` / packaging shell syntax: **PASS**;
+- source CR offenders **0**, cache entries **0** after cleanup, symlinks **0**, required executable modes **7/7 = 0755**.
+
+The seven skipped tests remain the explicit live/service-backed PostgreSQL and protocol integration gates. Ruff/mypy are `NOT_RUN` because those binaries are unavailable in this environment; absence is not PASS. UI-1 does not change the requirement for real PostgreSQL, AlmaLinux RPM/systemd, OpenSSH/Net-SNMP, NETCONF/RESTCONF/gNMI vendor/TLS, SMTP/O365, scale/load/failure, backup/restore/PITR and other Q-1 qualification.
+
+### UI-1 candidate artifact evidence
+
+Candidate `netconfig_ui1_release34_candidate_2026-09-13.zip` (SHA-256 `760cb9d411e54b991cc1c285e09fdd276c2364d8e4a497da6bd2d6d756e70d2a`) passed clean-extraction verification: ZIP CRC **PASS**; path traversal **0**; symlinks **0**; caches **0** before testing; text CR offenders **0**; source/extracted byte identity **138/138 PASS**; payload and each of the three SHA manifests **133/133 PASS**; required executable modes **7/7 = 0755**. From the clean extraction, UI-1 focused **7 passed**, combined UI-1/automation/PH-1/PH-2/PH-3/Q-1 focused **73 passed**, full repository **175 passed / 7 skipped**, legacy selftest **ALL PASS**, and compileall/launcher `py_compile`/packaging shell syntax **PASS**. Ruff, mypy, `rpmbuild`, and PostgreSQL `pg_dump`/`pg_restore` remain **NOT_RUN** because the binaries are unavailable; none are counted as passing.
+
 
 ## Release 33 consolidated verification plan
 
@@ -8,7 +26,7 @@ Release 33 adds focused coverage in `tests/test_automation_expansion.py` for PH-
 
 Ruff/mypy may be marked only `PASS` when the actual tools execute successfully. Tool absence is `NOT_RUN`, never PASS. Q-1 real PostgreSQL/AlmaLinux/systemd/OpenSSH/Net-SNMP/vendor/live SMTP gates remain separate and must not be inferred from offline tests.
 
-> **Current continuation pointer:** use the Release 33 full source baseline as the active implementation source. Historical CURRENT/NEXT statements below are chronology only. Use the recorded Release 33 offline/artifact evidence and run the applicable Q-1 live gates before any promotion to `TESTED`/`RELEASED`; then perform a fresh roadmap review before assigning another development phase.
+> **Current continuation pointer:** use the Release 34 FULL source baseline as the active implementation source. UI-1 remains `IMPLEMENTED_TESTING_DEFERRED`; execute the applicable Q-1/live qualification gates before any promotion to `TESTED`/`RELEASED`. No next development phase is auto-assigned; perform a fresh roadmap review after qualification.
 
 ## Historical Q-1 baseline qualification summary
 
@@ -386,8 +404,232 @@ Ruff                               NOT_RUN (binary unavailable)
 mypy                               NOT_RUN (binary unavailable)
 ```
 
-The seven skips remain explicit live/service-backed gates: four real PostgreSQL/Q-1 gates and three protocol/service-backed integrations. Ruff/mypy package installation and direct binary retrieval were attempted but this isolated environment could not retrieve them; therefore the quality-tool gate is not reported as passing. `packaging/q1-source-gates.sh` exits `2` at its required Ruff precondition.
+The seven skips remain explicit live/service-backed gates: four real PostgreSQL/Q-1 gates and three protocol/service-backed integrations.
+
 
 During the consolidated focused run, tests exposed and implementation fixed: (1) NA-2 allowed resume with unresolved failed targets and lacked its advertised explicit retry service method; (2) PH-4 gNMI typed Set accidentally changed the PH-3 generic capability contract; and (3) a hygiene refactor moved Web query parsing below the API dispatch. All affected focused suites are green after correction.
 
 Candidate artifact evidence: Clean Release 33 candidate `netconfig_release33_candidate_2026-09-12.zip` (SHA-256 `d03720a411b796458747f7d8976a8fa01f4f40859b5e51341ef031aaa343f538`) passed the artifact gate: ZIP CRC **PASS**; path traversal **0**; symlinks **0**; caches **0**; text CR offenders **0**; source/extracted byte identity **132/132 PASS**; payload plus each SHA/release manifest **128/128 PASS**; required executable modes **7/7 = 0755**. From the clean extraction: Release 33 focused **23 passed**, PH-2 **9 passed**, PH-3 **22 passed**, Q-1 **11 passed**, full repository **168 passed / 7 skipped** in the isolated full-suite rerun, legacy selftest **ALL PASS**, and compileall/launcher py_compile/packaging shell syntax **PASS**. A first command that chained all suites hit the execution-tool timeout after full pytest reached ~82%; that interrupted run is not counted as PASS. The same candidate full suite was then rerun alone and completed cleanly (**168 passed / 7 skipped in 22.90s**).
+
+
+# Canonical Architecture Split — PH vs NI
+
+## PH — Platform Hardening / Safe Device Change
+
+PH answers:
+
+> How do we safely change network devices?
+
+### PH-4 — Structured Configuration Transaction Engine
+
+Status: `IMPLEMENTED_IN_SOURCE / COMPLETION_HARDENING`
+
+Scope:
+
+- Structured change lifecycle
+- Approval binding
+- Pre-read snapshot
+- Typed NETCONF / RESTCONF / gNMI operations
+- Post-change verification
+- Rollback and recovery workflow
+- Audit evidence and provenance
+- Confirmed-commit transaction handling
+
+### PH-5 — Intent / Desired State Automation
+
+Status: `PLANNED`
+
+Scope:
+
+- Desired state model
+- Current vs desired comparison
+- Drift detection
+- Change plan generation
+- Intent validation
+- Approval workflow integration
+- Remediation through PH-4 transaction engine
+
+### PH-6 — Distributed Execution / HA
+
+Status: `PLANNED`
+
+Scope:
+
+- Worker execution model
+- Distributed queue
+- Execution ownership
+- Leader/fencing model
+- Failover recovery
+- Large-scale change orchestration
+- Multi-node reliability
+
+
+# NI — Network Intelligence
+
+NI answers:
+
+> What exists in the network and what is happening?
+
+## NI-1 — Endpoint Location Correlation
+
+Status: `IMPLEMENTED_TESTING_DEFERRED`
+
+Scope:
+
+- IP → MAC correlation
+- MAC → VLAN mapping
+- VLAN → Switch port mapping
+- Endpoint location discovery
+- Q-BRIDGE FDB correlation
+- Neighbor table correlation
+
+Example:
+
+```
+IP
+ |
+MAC
+ |
+VLAN
+ |
+Switch Port
+```
+
+## NI-2 — Topology Identity
+
+Status: `IMPLEMENTED_TESTING_DEFERRED`
+
+Scope:
+
+- LLDP discovery
+- CDP handling
+- Device identity
+- Chassis identity
+- Interface identity
+- Neighbor relationship
+- Downstream impact traversal
+
+## NI-3 — Network Events
+
+Status: `IMPLEMENTED_TESTING_DEFERRED`
+
+Scope:
+
+- SNMP Trap
+- Syslog
+- Link events
+- Authentication events
+- Reachability events
+- Event normalization
+
+## NI-4 — Alert Lifecycle
+
+Status: `IMPLEMENTED_TESTING_DEFERRED`
+
+Scope:
+
+- Alert promotion
+- Severity handling
+- Acknowledge workflow
+- Resolve workflow
+- Maintenance suppression
+- Notification workflow
+
+## NI-5 — Telemetry
+
+Status: `PLANNED`
+
+Scope:
+
+- SNMP polling
+- gNMI telemetry
+- Streaming metrics
+- Interface statistics
+- CPU/memory/environment telemetry
+- Time-series storage
+- Trend analysis
+- Performance baseline
+
+## NI-6 — Discovery Analytics
+
+Status: `PLANNED`
+
+Scope:
+
+### Auto Seed Discovery
+
+- Seed device input
+- Credential selection
+- Discovery start workflow
+
+### Full Network Crawl
+
+- LLDP/CDP neighbor crawling
+- Discovery queue
+- Visited device tracking
+- Crawl depth control
+- Rate limiting
+- Failure handling
+
+### Topology Database
+
+Nodes:
+
+- Device
+- Interface
+- Link
+- VLAN
+- VRF
+- Subnet
+- Endpoint
+
+Edges:
+
+- CONNECTED_TO
+- ATTACHED_TO
+- CARRIES
+- ROUTES_TO
+
+### Unified L2/L3 Topology
+
+- MAC path
+- VLAN path
+- IP path
+- VRF path
+- Routing relationship
+
+### Topology Visualization
+
+- Interactive topology graph
+- Device map
+- Link status
+- VLAN view
+- VRF view
+- Path tracing
+- Impact highlighting
+
+
+## Release 35 PH-4 Completion Hardening
+
+- NETCONF confirmed-commit lifecycle state model added.
+- Recovery evidence schema integrated as transaction evidence boundary.
+- PH-4 regression coverage added.
+- Final qualification remains IMPLEMENTED_TESTING_DEFERRED until executed.
+
+
+# PH-5 Intent / Desired State Automation
+
+Status: IMPLEMENTED_TESTING_DEFERRED
+
+Scope: DesiredState, Intent lifecycle, revisions, drift detection, Change Plan generation, PH-4 transaction integration boundary, approval and audit linkage.
+
+
+# PH-5 API and Operations Surface
+
+Status: IMPLEMENTED_TESTING_DEFERRED
+
+Added PH-5 API helpers, intent workflow surface, and Web Console Intent Automation entry point. Device changes remain delegated to PH-4 transaction workflow.
+
+
+## PH-6 Distributed Execution / HA
+Status: IMPLEMENTED_TESTING_DEFERRED
