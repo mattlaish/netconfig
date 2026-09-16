@@ -1,12 +1,13 @@
 {
-  "artifact": "netconfig_release36_PH5_FULL_source_baseline_FINAL",
+  "artifact": "netconfig_release37_PH6_FULL_source_baseline_FINAL",
   "parent": "Release 36 PH5 candidate fixed",
-  "phase": "PH-5 Intent / Desired State Automation",
+  "phase": "PH-6 Distributed Execution / HA",
   "status": "IMPLEMENTED_TESTING_DEFERRED",
   "changes": [
-    "PH-5 API surface",
-    "Intent Automation Web Console entry",
-    "PH-4 linkage helper"
+    "PH-6 Distributed Execution / HA baseline",
+    "Network Intelligence NI-1 through NI-4 source baseline",
+    "NI-5 streaming telemetry foundation present in source"
   ],
-  "tests": "NOT_RUN"
+  "tests": "QUALIFICATION_PENDING",
+  "release": "Release 37 PH6 FULL source baseline FINAL"
 }
