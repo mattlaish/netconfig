@@ -1,6 +1,29 @@
 # NetConfig
 
-> **Canonical project state — 2026-09-13:** **CURRENT IMPLEMENTATION BASELINE** = **UI-1 — Unified Automation & Operations Console** (`IMPLEMENTED_TESTING_DEFERRED`). Parent baseline is Release `2.0.0-33` (SHA-256 `ca0a8b9dc525118d7b542f03c715f6d20139e3584ada56bdca148e3d9ff0dccb`); UI-1 is implemented on top of PH-4/NI-5/VM-1/NA-1/NA-2/HA-1 and preserves the durable request/approve/execute safety plane. Qualification **Q-1** remains `IMPLEMENTED_TESTING_DEFERRED`; live PostgreSQL/AlmaLinux/systemd/real-device gates remain deferred. RPM source Release is `2.0.0-34`.
+> **Canonical project state — 2026-09-16:** **CURRENT IMPLEMENTATION BASELINE** = **Release 37 / NI-6 Enterprise Operations & Qualification Hardening** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-37`; NI-6.1 through NI-6.6 are complete in source, and NI-6 is now wired through `Manager.analytics` to scoped REST API and the Operations Network Intelligence console. Q-1 Ruff/mypy and live PostgreSQL/protocol/vendor/device/scale gates remain deferred and are not PASS.
+
+## NI-6 Enterprise Operations & Qualification Hardening
+
+The NI-6 analytics foundation is now a product surface rather than a library-only layer. `Manager.analytics` owns the durable analytics boundary, `network_insights` and `analytics_jobs` persist operator-visible evidence and execution history, bearer API scopes `analytics:read` / `analytics:write` protect the REST surface, and the Web Console exposes an Operations → **Network Intelligence** dashboard.
+
+The console supports durable insight lifecycle (`NEW`, `ACKNOWLEDGED`, `RESOLVED`, `EXPIRED`), type/state/object/search filters, evidence and affected-object drill-down, explicit managed-topology impact simulation, Capacity/Failure Risk/Health refresh, and links to topology, endpoint, event and telemetry evidence. The product boundary is intentionally non-remediating: analytics output contains no device command path. Any change action continues through Structured Changes, Desired State or Campaign approval.
+
+Impact simulation now treats existing resolved managed L2 adjacency as authoritative and directional. Unmanaged/unresolved topology is not traversed. Health supports `UNKNOWN` when there is no evidence.
+
+Source-tree verification before packaging: **202 passed / 7 skipped / 0 failed**, selftest **ALL PASS**, compileall and launcher/package shell syntax **PASS**. `web.py` remains **239,648 bytes / 3,850 lines**, preserving the PH-1 size boundary.
+
+## Installation
+
+Production packaging targets **AlmaLinux 10** with RPM identity `netconfig-2.0.0-37.el10.noarch`.
+
+```bash
+sudo dnf install ./netconfig-2.0.0-37.el10.noarch.rpm
+sudo -u netconfig /usr/bin/netconfig user add admin \
+  --role admin --fullname "NetConfig Administrator"
+sudo systemctl enable --now netconfig-web.service netconfig-backup.timer
+```
+
+The web console binds to `127.0.0.1:8778` by default; use an SSH tunnel or TLS reverse proxy/WAF for remote administration. Existing upgrades retain `/var/lib/netconfig`, and `/etc/default/netconfig` is installed as `%config(noreplace)`. See `opt/netconfig/INSTALL.md` for the full fresh-install, upgrade, secrets, PostgreSQL, verification, and recovery procedure; use `packaging/build-rpm.sh`, `packaging/inspect-rpm.sh`, and `packaging/install-rpm.sh` for the RPM lifecycle.
 
 ## Release 34 — UI-1 Unified Automation & Operations Console
 
@@ -57,3 +80,13 @@ python -m compileall -q opt/netconfig
 ```
 
 See `DEVELOPMENT.md`, `ROADMAP.md`, `SECURITY.md`, `API.md`, `TESTING.md`, and `TESTING_RESULT_2026-09-12.md` for implementation and qualification truth. Do not promote Q-1 or PH-3 to `TESTED` or `RELEASED` from offline/fake-driver evidence alone.
+
+## NI-6.4 Failure Risk Foundation
+
+NI-6.4 adds deterministic, evidence-backed operational failure-risk analysis in `netconfig.analytics.failure_risk`. The analyzer accepts only normalized allow-listed signals, preserves tenant and evidence references, and emits `FAILURE_RISK` insight data. It does not expose device execution, shutdown, configuration, remediation, or approval-bypass behavior.
+
+Current offline evidence for this delivery: focused NI-6.3/NI-6.4 analytics **9 passed**; full repository **192 passed / 7 skipped**; legacy selftest **ALL PASS**; analytics/source `compileall` **PASS**. The seven skips remain existing live/service-backed PostgreSQL and protocol gates. Q-1/Ruff remains `NOT_RUN` by explicit deferral and is not counted as PASS.
+
+
+
+NI-6.6 Health Dashboard: IMPLEMENTED_TESTING_DEFERRED

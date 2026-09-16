@@ -1,32 +1,123 @@
 # NetConfig — Install & Operations
 
-> **Canonical project state — 2026-09-13:** **CURRENT IMPLEMENTATION BASELINE** = **UI-1 — Unified Automation & Operations Console** (`IMPLEMENTED_TESTING_DEFERRED`). Parent baseline is Release `2.0.0-33` (SHA-256 `ca0a8b9dc525118d7b542f03c715f6d20139e3584ada56bdca148e3d9ff0dccb`); UI-1 is implemented on top of PH-4/NI-5/VM-1/NA-1/NA-2/HA-1 and preserves the durable request/approve/execute safety plane. Qualification **Q-1** remains `IMPLEMENTED_TESTING_DEFERRED`; live PostgreSQL/AlmaLinux/systemd/real-device gates remain deferred. RPM source Release is `2.0.0-34`.
+> **Canonical project state — 2026-09-16:** **CURRENT IMPLEMENTATION BASELINE** = **Release 37 / NI-6 Enterprise Operations & Qualification Hardening** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-37`; NI-6.1 through NI-6.6 are complete in source and wired through `Manager.analytics` to scoped REST API and the Operations Network Intelligence console. Q-1 Ruff/mypy and live PostgreSQL/protocol/vendor/device/scale gates remain deferred and are not PASS.
 
-> **Current continuation pointer:** use the Release 34 FULL source baseline as the active implementation source. UI-1 remains `IMPLEMENTED_TESTING_DEFERRED`; execute the applicable Q-1/live qualification gates before any promotion to `TESTED`/`RELEASED`. No next development phase is auto-assigned; perform a fresh roadmap review after qualification.
+## Production installation — AlmaLinux 10 RPM
 
-## Quick install (AlmaLinux 10 RPM)
+The supported production package target is **AlmaLinux 10**. Use RPM Release
+`2.0.0-37` for this Release 37 source baseline. Do not install an older
+`2.0.0-34` package and assume it contains the current NI-6 source.
 
-The filename below reflects the current source spec. Do not reuse a previously distributed RPM Release for newer source; bump the Release before a later distributable build.
+### A. Install or upgrade the RPM
+
+On a clean or existing AlmaLinux 10 host:
 
 ```bash
-sudo dnf install ./netconfig-2.0.0-33.el10.noarch.rpm
-sudo systemctl enable --now netconfig-web.service netconfig-backup.timer
+sudo dnf install ./netconfig-2.0.0-37.el10.noarch.rpm
+# For an existing installation, dnf install is also upgrade-safe; alternatively:
+# sudo dnf upgrade ./netconfig-2.0.0-37.el10.noarch.rpm
+sudo systemctl daemon-reload
 ```
 
-The RPM installs code under `/opt/netconfig`, the launcher at
-`/usr/bin/netconfig`, creates the `netconfig` service account and the protected
-`/var/lib/netconfig` data directory, and installs the web and backup systemd
-units. Upgrades retain runtime data and preserve a locally edited
-`/etc/default/netconfig`. See `packaging/README.md` in the source tree for the
-reproducible RPM/SRPM build and test procedure.
+From the source bundle you can use the guarded helper instead:
 
-Zero-dependency network configuration manager. Logs into your devices over SSH,
-runs commands, and archives text copies of their configs with versioned diffs.
+```bash
+sudo ./packaging/install-rpm.sh ./netconfig-2.0.0-37.el10.noarch.rpm
+```
 
-- **Runtime:** Python 3.12+. No pip packages. Python stdlib only.
-- **System requirement:** the OpenSSH client (`ssh`) must be on `PATH`. On Debian:
-  `sudo apt-get install openssh-client`. That's the *only* non-Python dependency,
-  and it's there because stdlib has no SSH client — see the note below.
+The RPM:
+
+- installs application code under `/opt/netconfig`;
+- installs `/usr/bin/netconfig` with a Python 3.12 shebang;
+- creates the non-login `netconfig` service account;
+- owns `/var/lib/netconfig` but does not package runtime database/vault content;
+- installs `netconfig-web.service`, `netconfig-backup.service`, and
+  `netconfig-backup.timer`;
+- installs `/etc/default/netconfig` as `%config(noreplace)`, so local settings are
+  preserved across upgrades;
+- requires the system OpenSSH client and OpenSSL; optional PostgreSQL mode still
+  requires its separately qualified psycopg/PostgreSQL runtime.
+
+### B. Fresh install: create the first admin explicitly
+
+Do this **before starting the web console**. The package does not manufacture a
+password or administrator account:
+
+```bash
+sudo -u netconfig /usr/bin/netconfig user add admin \
+  --role admin --fullname "NetConfig Administrator"
+```
+
+The command prompts twice for the console password. On an **upgrade**, skip this
+step if users already exist; `/var/lib/netconfig` is retained.
+
+### C. Start the service and backup timer
+
+```bash
+sudo systemctl enable --now netconfig-web.service netconfig-backup.timer
+systemctl is-active netconfig-web.service
+systemctl is-active netconfig-backup.timer
+```
+
+The web console binds to `127.0.0.1:8778` by default. For remote administration,
+use an SSH tunnel or a TLS reverse proxy/WAF. Do not expose the default plain HTTP
+listener directly to an untrusted network.
+
+Example SSH tunnel from an administrator workstation:
+
+```bash
+ssh -L 8778:127.0.0.1:8778 admin@netconfig-server
+```
+
+Then open `http://127.0.0.1:8778/` locally.
+
+### D. Verify the installed runtime
+
+From the source/qualification bundle:
+
+```bash
+./packaging/inspect-rpm.sh ./netconfig-2.0.0-37.el10.noarch.rpm
+./packaging/smoke-installed.sh
+```
+
+Useful service checks:
+
+```bash
+sudo systemctl status --no-pager netconfig-web.service
+sudo journalctl -u netconfig-web.service -n 100 --no-pager
+sudo -u netconfig /usr/bin/netconfig --home /var/lib/netconfig qualify
+```
+
+`qualify` is configuration-aware. Optional PostgreSQL/gNMI paths are required
+only when enabled. A `NOT_RUN` Q-1/live gate is not a production qualification
+pass.
+
+## Building the RPM
+
+Build on an **AlmaLinux 10** build host/VM, not on the production host:
+
+```bash
+sudo dnf install -y rpm-build python3.12 systemd-rpm-macros
+chmod 0755 packaging/*.sh
+./packaging/build-rpm.sh
+./packaging/inspect-rpm.sh ./netconfig-2.0.0-37.el10.noarch.rpm
+```
+
+Expected outputs:
+
+```text
+netconfig-2.0.0-37.el10.noarch.rpm
+netconfig-2.0.0-37.el10.src.rpm
+```
+
+The provided source delivery can be transferred to AlmaLinux as-is; the separate
+`netconfig-2.0.0-37-rpm-build-source.zip` is a minimized build-transfer bundle.
+
+## Manual source install
+
+Manual copying into `/opt/netconfig` is **development/recovery only**. Production
+installations should use the RPM so service account ownership, systemd units,
+`%config(noreplace)`, and upgrade semantics remain deterministic.
 
 ## 1. Why it shells out to `ssh`
 

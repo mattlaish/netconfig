@@ -116,12 +116,14 @@ class Manager:
         from .desired_state import DesiredStateService
         from .campaigns import CampaignService
         from .ha import HAService
+        from .analytics import AnalyticsService
         self.vendor_models = VendorModelRegistry(self)
         self.structured_changes = StructuredChangeEngine(self)
         self.telemetry = TelemetryService(self)
         self.desired_state = DesiredStateService(self)
         self.campaigns = CampaignService(self)
         self.ha = HAService(self)
+        self.analytics = AnalyticsService(self)
         self.alert_lifecycle = OperationalAlertLifecycle(self)
         self.events = OperationalEventStore(self)
         self.recorder = SessionRecorder(

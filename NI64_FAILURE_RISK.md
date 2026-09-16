@@ -1,0 +1,34 @@
+# NI-6.4 Failure Risk Foundation
+
+Status: `IMPLEMENTED_TESTING_DEFERRED`
+
+NI-6.4 adds a deterministic, evidence-backed failure-risk analyzer on top of normalized operational evidence. It is intentionally an analytics-only foundation and does not execute remediation.
+
+## Implemented
+
+- `FailureRiskAnalyzer`
+- `FailureRiskSignal`
+- `FailureRiskObservation`
+- allow-listed normalized signal types:
+  - `INTERFACE_ERROR_SPIKE`
+  - `LINK_FLAPPING`
+  - `TEMPERATURE_ANOMALY`
+  - `PACKET_DROP_INCREASE`
+  - `TELEMETRY_DEGRADATION`
+- deterministic `NORMAL` / `WARNING` / `CRITICAL` state calculation
+- bounded confidence output
+- evidence reference preservation
+- `FAILURE_RISK` NetworkInsight-compatible mapping
+- tenant context is supplied by the caller and is not accepted from signal payloads
+
+## Security boundary
+
+The analyzer produces only observations and evidence-backed insight. It has no interface for device commands, shutdown, configuration changes, automated replacement, remediation, or approval bypass. Unknown signal types and unsupported severities fail closed.
+
+## Deferred
+
+- production-scale calibration of thresholds and confidence
+- live vendor telemetry validation
+- real-device failure correlation
+- automatic API/UI surfacing of NI-6.4 insight
+- any remediation workflow, which must remain behind existing operator/change/SOAR controls

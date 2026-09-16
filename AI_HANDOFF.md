@@ -1,6 +1,6 @@
 # AI Development Handoff
 
-> **Canonical project state — 2026-09-13:** **CURRENT IMPLEMENTATION BASELINE** = **UI-1 — Unified Automation & Operations Console** (`IMPLEMENTED_TESTING_DEFERRED`). Parent baseline is Release `2.0.0-33` (SHA-256 `ca0a8b9dc525118d7b542f03c715f6d20139e3584ada56bdca148e3d9ff0dccb`); UI-1 is implemented on top of PH-4/NI-5/VM-1/NA-1/NA-2/HA-1 and preserves the durable request/approve/execute safety plane. Qualification **Q-1** remains `IMPLEMENTED_TESTING_DEFERRED`; live PostgreSQL/AlmaLinux/systemd/real-device gates remain deferred. RPM source Release is `2.0.0-34`.
+> **Canonical project state — 2026-09-16:** **CURRENT IMPLEMENTATION BASELINE** = **Release 37 / NI-6 Enterprise Operations & Qualification Hardening** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-37`; NI-6.1 through NI-6.6 are complete in source, and NI-6 is now wired through `Manager.analytics` to scoped REST API and the Operations Network Intelligence console. Q-1 Ruff/mypy and live PostgreSQL/protocol/vendor/device/scale gates remain deferred and are not PASS.
 
 ## Release 34 handoff truth
 
@@ -904,3 +904,29 @@ Scope: DesiredState, Intent lifecycle, revisions, drift detection, Change Plan g
 Status: IMPLEMENTED_TESTING_DEFERRED
 
 Added PH-5 API helpers, intent workflow surface, and Web Console Intent Automation entry point. Device changes remain delegated to PH-4 transaction workflow.
+
+## Current analytics handoff — NI-6.4
+
+Current delivery line includes NI-6.3 Capacity Analytics and NI-6.4 Failure Risk Foundation. NI-6.4 source is `opt/netconfig/netconfig/analytics/failure_risk.py`; focused tests are `tests/test_failure_risk_analyzer.py`, `tests/test_failure_risk_insight.py`, and `tests/test_failure_risk_security_boundary.py`. Status remains `IMPLEMENTED_TESTING_DEFERRED`.
+
+NI-6.4 is deterministic and evidence-only. It does not execute device actions. Supported normalized signal classes are interface-error spike, link flapping, temperature anomaly, packet-drop increase, and telemetry degradation. Unknown signal classes fail closed. Full offline repository evidence for this delivery is `192 passed / 7 skipped`; selftest is `ALL PASS`. Q-1/Ruff and live infrastructure gates remain `NOT_RUN`/deferred.
+
+Next planned milestone: NI-6.5 Impact Simulation. Do not claim NI-6.5 or NI-6.6 as implemented until source/tests are present in the delivery artifact.
+
+
+
+NI-6.6 Health Dashboard: IMPLEMENTED_TESTING_DEFERRED
+
+## 2026-09-16 current continuation point
+
+NI-6.1 through NI-6.6 plus Enterprise Operations & Qualification Hardening are implemented and remain `IMPLEMENTED_TESTING_DEFERRED`. Continue from the final enterprise-hardening artifact, not the older NI-6.6 package. `Manager.analytics` is the canonical NI-6 product boundary. Do not bypass it from Web/API. `network_insights` and `analytics_jobs` are durable evidence; GETs remain read-only. Configuration action must remain in the existing request/approve/execute workflows. Q-1/Ruff and live PostgreSQL/protocol/vendor/scale qualification are still deferred/NOT_RUN.
+
+## Current NI-6 enterprise handoff
+
+Active source is Release 37 NI-6 Enterprise Operations & Qualification Hardening. Offline source and clean-extraction qualification are green (202 passed / 7 skipped, selftest ALL PASS); Q-1/live PostgreSQL/protocol/vendor/device/scale gates remain deferred. Continue from the final full-source artifact, not an older NI-6.6 library-only package.
+
+## Release 37 RPM install handoff — 2026-09-16
+
+The current distributable RPM identity is now `2.0.0-37` (Version 2.0.0, Release 37). Build it on AlmaLinux 10 with `packaging/build-rpm.sh`; install/upgrade with `packaging/install-rpm.sh` or `dnf install`. Fresh installs explicitly create the first admin as the `netconfig` service user before enabling `netconfig-web.service`. The console remains bound to `127.0.0.1:8778` by default and should be reached through an SSH tunnel or TLS reverse proxy/WAF. Do not claim the AlmaLinux RPM build/install gate PASS until it is actually run on AlmaLinux 10.
+
+RPM-install v3 candidate artifact qualification is clean: 175/175 file byte identity, 202 passed / 7 skipped / 0 failed from clean extraction, selftest ALL PASS, and manifest/mode/cache/CR gates PASS. Continue to treat the real AlmaLinux 10 binary RPM build/install/restart smoke as `NOT_RUN` until executed on target infrastructure.

@@ -1,13 +1,36 @@
 {
-  "artifact": "netconfig_release37_PH6_FULL_source_baseline_FINAL",
-  "parent": "Release 36 PH5 candidate fixed",
-  "phase": "PH-6 Distributed Execution / HA",
+  "artifact": "netconfig_release37_NI6_Enterprise_Operations_RPM_Install_v3",
+  "parent": "netconfig_release37_NI6_Enterprise_Operations_Qualified_v2.zip",
+  "phase": "Release 37 RPM Installation Hardening",
+  "release": "Release 37 NI-6 Enterprise Operations RPM Install v3",
+  "rpm_identity": "netconfig-2.0.0-37.el10.noarch",
   "status": "IMPLEMENTED_TESTING_DEFERRED",
   "changes": [
-    "PH-6 Distributed Execution / HA baseline",
-    "Network Intelligence NI-1 through NI-4 source baseline",
-    "NI-5 streaming telemetry foundation present in source"
+    "Bumped RPM Release identity from historical 2.0.0-34 to 2.0.0-37 for current Release 37 source",
+    "Added fail-closed AlmaLinux 10 packaging/install-rpm.sh install and upgrade helper",
+    "Added explicit first-admin bootstrap before web service enablement",
+    "Rewrote canonical RPM build/install/upgrade verification documentation",
+    "Preserved runtime state and config noreplace semantics",
+    "Kept local-only default web bind and existing secret/service hardening boundaries"
   ],
-  "tests": "QUALIFICATION_PENDING",
-  "release": "Release 37 PH6 FULL source baseline FINAL"
+  "tests": {
+    "source_full": "202 passed / 7 skipped / 0 failed",
+    "repo_hygiene": "5 passed / 0 failed",
+    "selftest": "ALL PASS",
+    "compileall": "PASS",
+    "packaging_shell_syntax": "PASS",
+    "install_helper_non_almalinux_guard": "PASS (exit 20 on Debian runner)",
+    "rpm_build": "NOT_RUN (Debian runner has no rpmbuild/Python 3.12 target environment)",
+    "almalinux_install_runtime": "NOT_RUN",
+    "candidate_clean_extraction": "202 passed / 7 skipped / 0 failed",
+    "candidate_byte_identity": "175/175 PASS",
+    "candidate_artifact_structure": "CRC/traversal/symlink/cache/CR/modes/manifests PASS"
+  },
+  "deferred": [
+    "Q-1 Ruff/mypy source gate",
+    "real AlmaLinux 10 RPM build/payload inspection/dnf install/restart smoke",
+    "live PostgreSQL backup/restore qualification",
+    "live protocol/vendor/device qualification",
+    "production telemetry/analytics scale and threshold calibration"
+  ]
 }

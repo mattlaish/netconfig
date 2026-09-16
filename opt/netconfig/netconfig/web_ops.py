@@ -20,6 +20,7 @@ _TABS = (
     ("desired", "Desired State"),
     ("intents", "Intent Automation"),
     ("campaigns", "Campaigns"),
+    ("intelligence", "Network Intelligence"),
     ("ha", "HA / DR"),
 )
 _OPERATOR_ROLES = {"operator", "approver", "admin"}
@@ -101,6 +102,10 @@ class WebOpsMixin:
             "/ops-campaign-create": self._do_ops_campaign_create,
             "/ops-campaign-action": self._do_ops_campaign_action,
             "/ops-campaign-wave-request": self._do_ops_campaign_wave_request,
+            "/ops-analytics-refresh": self._do_ops_analytics_refresh,
+            "/ops-analytics-impact": self._do_ops_analytics_impact,
+            "/ops-insight-state": self._do_ops_insight_state,
+            "/ops-analytics-expire": self._do_ops_analytics_expire,
             "/ops-ha-node": self._do_ops_ha_node,
             "/ops-ha-drill-create": self._do_ops_ha_drill_create,
             "/ops-ha-drill-complete": self._do_ops_ha_drill_complete,
@@ -142,6 +147,7 @@ class WebOpsMixin:
             "models": self._ops_models,
             "desired": self._ops_desired,
             "campaigns": self._ops_campaigns,
+            "intelligence": self._ops_intelligence,
             "ha": self._ops_ha,
         }[active]
         body = self._ops_tabs(active) + renderer(q, sess)
@@ -757,6 +763,170 @@ class WebOpsMixin:
             return self._redirect(f"/request?id={rid}")
         except Exception as exc:
             return self._ops_redirect("campaigns", f"Wave approval request failed: {exc}")
+
+    # ---- NI-6 enterprise network intelligence ---------------------------
+    def _ops_intelligence(self, q, sess):
+        state_filter = str((q.get("state") or [""])[0] or "").upper()
+        type_filter = str((q.get("type") or [""])[0] or "").upper()
+        object_filter = str((q.get("object_id") or [""])[0] or "")
+        search = str((q.get("search") or [""])[0] or "")
+        try:
+            insights = self.manager.analytics.list(
+                state=state_filter, insight_type=type_filter, object_id=object_filter,
+                search=search, limit=250)
+        except ValueError:
+            insights = self.manager.analytics.list(limit=250)
+            state_filter = type_filter = object_filter = search = ""
+        dashboard = self.manager.analytics.dashboard()
+        devices = self.manager.inv.all()
+        device_opts = ''.join(
+            f'<option value="{_e(d["name"])}">{_e(d["name"])}</option>' for d in devices
+        )
+        forms = ""
+        if sess["role"] in _OPERATOR_ROLES:
+            forms = (
+                '<div class="row"><div class="panel"><h2>Refresh analytics</h2>'
+                '<p class="muted">Generate durable Capacity, Failure Risk and Health insights from current evidence. This does not change network state.</p>'
+                f'<form method="post" action="/ops-analytics-refresh">{self._csrf_field()}'
+                f'<label>Managed object</label><select name="object_id">{device_opts}</select>'
+                '<button>Analyze and persist</button></form></div>'
+                '<div class="panel"><h2>Impact simulation</h2>'
+                '<p class="muted">Traverses only resolved managed L2 adjacency and correlated endpoint evidence. Simulation only.</p>'
+                f'<form method="post" action="/ops-analytics-impact">{self._csrf_field()}'
+                f'<label>Managed root</label><select name="object_id">{device_opts}</select>'
+                '<label>Max depth (1-16)</label><input name="max_depth" value="5">'
+                '<button>Simulate impact</button></form></div></div>'
+                '<div class="panel"><h2>Lifecycle housekeeping</h2>'
+                f'<form method="post" action="/ops-analytics-expire">{self._csrf_field()}'
+                '<label>Expire unseen NEW/ACKNOWLEDGED insights older than seconds</label>'
+                '<input name="max_age_seconds" value="604800"><button class="ghost">Expire stale insights</button></form></div>'
+            )
+        summary = (
+            '<div class="panel"><h2>Operational intelligence health</h2>'
+            f'<div class="row"><div><b>{int(dashboard.get("active",0))}</b><br><span class="muted">active insights</span></div>'
+            f'<div><b>{int(dashboard.get("states",{}).get("NEW",0))}</b><br><span class="muted">new</span></div>'
+            f'<div><b>{int(dashboard.get("states",{}).get("ACKNOWLEDGED",0))}</b><br><span class="muted">acknowledged</span></div>'
+            f'<div><b>{int(dashboard.get("types",{}).get("HEALTH",0))}</b><br><span class="muted">health observations</span></div></div>'
+            '<p class="muted">Insights are evidence and recommendations only. Any configuration action must use the existing approved Structured Changes, Desired State or Campaign workflow.</p></div>'
+        )
+        filter_form = (
+            '<div class="panel"><h2>Insight search</h2><form method="get" action="/operations">'
+            '<input type="hidden" name="tab" value="intelligence"><div class="row">'
+            f'<div><label>State</label><select name="state"><option value="">all</option>{self._ops_select_options(["NEW","ACKNOWLEDGED","RESOLVED","EXPIRED"], state_filter)}</select></div>'
+            f'<div><label>Type</label><select name="type"><option value="">all</option>{self._ops_select_options(["CAPACITY","FAILURE_RISK","DEPENDENCY_IMPACT","HEALTH"], type_filter)}</select></div>'
+            f'<div><label>Object</label><input name="object_id" value="{_e(object_filter)}"></div>'
+            f'<div><label>Search</label><input name="search" value="{_e(search)}"></div></div>'
+            '<button class="ghost">Filter</button></form></div>'
+        )
+        rows = ''.join(
+            '<tr>'
+            f'<td><a href="/operations?tab=intelligence&insight={int(x["id"])}">INSIGHT#{int(x["id"])}</a></td>'
+            f'<td>{_e(x.get("insight_type"))}</td><td>{_e(x.get("object_id"))}</td>'
+            f'<td>{_status(x.get("severity"))}</td><td>{_status(x.get("state"))}</td>'
+            f'<td>{float(x.get("confidence") or 0):.2f}</td><td>{_e(x.get("summary"))}</td></tr>'
+            for x in insights
+        ) or '<tr><td colspan="7" class="muted">No persisted analytics insights match this filter.</td></tr>'
+        ledger = (
+            '<div class="panel"><h2>Persisted insights</h2><table><tr><th>Insight</th><th>Type</th><th>Object</th><th>Severity</th><th>Lifecycle</th><th>Confidence</th><th>Summary</th></tr>'
+            + rows + '</table></div>'
+        )
+        detail = ""
+        raw = str((q.get("insight") or [""])[0] or "")
+        if raw.isdigit():
+            item = self.manager.analytics.get(int(raw))
+            if item:
+                affected = ''.join(
+                    f'<tr><td>{_e(a.get("object_type"))}</td><td>{_e(a.get("object_id"))}</td><td>{_e(a.get("device"))}</td><td>{_e(a.get("depth"))}</td></tr>'
+                    for a in (item.get("affected") or [])
+                ) or '<tr><td colspan="4" class="muted">No affected-object records.</td></tr>'
+                lifecycle = ""
+                if sess["role"] in _OPERATOR_ROLES and item.get("state") not in {"RESOLVED","EXPIRED"}:
+                    lifecycle = (
+                        f'<form method="post" action="/ops-insight-state">{self._csrf_field()}<input type="hidden" name="insight_id" value="{int(item["id"])}">'
+                        '<label>Lifecycle</label><select name="state"><option>ACKNOWLEDGED</option><option>RESOLVED</option><option>EXPIRED</option></select>'
+                        '<label>Operator note</label><input name="note"><button>Update lifecycle</button></form>'
+                    )
+                objq = urllib.parse.quote(str(item.get("object_id") or ""))
+                drill = (
+                    '<div class="row">'
+                    f'<a class="btn ghost" href="/topology?device={objq}">Topology evidence</a>'
+                    f'<a class="btn ghost" href="/endpoints?device={objq}">Endpoint evidence</a>'
+                    f'<a class="btn ghost" href="/events?device={objq}">Event evidence</a>'
+                    '<a class="btn ghost" href="/operations?tab=telemetry">Telemetry evidence</a></div>'
+                )
+                workflow = (
+                    '<div class="panel"><h3>Action boundary</h3><p class="muted">Analytics cannot execute remediation. Continue only through an approved existing workflow.</p>'
+                    '<div class="row"><a class="btn" href="/operations?tab=structured">Structured Change</a>'
+                    '<a class="btn ghost" href="/operations?tab=desired">Desired State</a>'
+                    '<a class="btn ghost" href="/operations?tab=campaigns">Campaign</a></div></div>'
+                )
+                detail = (
+                    f'<div class="panel"><h2>INSIGHT#{int(item["id"])} · {_e(item.get("insight_type"))} · {_status(item.get("state"))}</h2>'
+                    f'<p><b>{_e(item.get("object_id"))}</b> — {_e(item.get("summary"))}</p>{drill}{lifecycle}'
+                    '<h3>Evidence</h3><pre>' + _pretty(item.get("evidence")) + '</pre>'
+                    '<h3>Affected objects</h3><table><tr><th>Type</th><th>Object</th><th>Attached device</th><th>Depth</th></tr>' + affected + '</table></div>' + workflow
+                )
+        jobs = self.manager.analytics.jobs(30)
+        job_rows = ''.join(
+            f'<tr><td>{int(j["id"])}</td><td>{_e(j.get("job_type"))}</td><td>{_e(j.get("object_id"))}</td><td>{_status(j.get("status"))}</td><td>{_e(j.get("actor"))}</td></tr>'
+            for j in jobs
+        ) or '<tr><td colspan="5" class="muted">No analytics jobs yet.</td></tr>'
+        job_panel = '<div class="panel"><h2>Analytics execution history</h2><table><tr><th>Job</th><th>Analyzer</th><th>Object</th><th>Status</th><th>Actor</th></tr>' + job_rows + '</table></div>'
+        return summary + forms + filter_form + detail + ledger + job_panel
+
+    @staticmethod
+    def _ops_select_options(values, selected=""):
+        return ''.join(f'<option value="{_e(value)}"{" selected" if value == selected else ""}>{_e(value)}</option>' for value in values)
+
+    def _do_ops_analytics_refresh(self, form, sess):
+        if not self._ops_require(sess, _OPERATOR_ROLES):
+            return
+        try:
+            object_id = _value(form, "object_id").strip()
+            if not self.manager.inv.get(object_id):
+                raise ValueError("managed object not found")
+            result = self.manager.analytics.refresh(object_id, actor=sess["username"])
+            hid = ((result.get("health") or {}).get("insight") or {}).get("id")
+            loc = "/operations?tab=intelligence&notice=Analytics+refreshed"
+            if hid:
+                loc += f"&insight={int(hid)}"
+            return self._redirect(loc)
+        except Exception as exc:
+            return self._ops_redirect("intelligence", f"Analytics refresh failed: {exc}")
+
+    def _do_ops_analytics_impact(self, form, sess):
+        if not self._ops_require(sess, _OPERATOR_ROLES):
+            return
+        try:
+            object_id = _value(form, "object_id").strip()
+            if not self.manager.inv.get(object_id):
+                raise ValueError("managed object not found")
+            result = self.manager.analytics.simulate_impact(
+                object_id, actor=sess["username"], max_depth=int(_value(form, "max_depth", "5")))
+            iid = (result.get("insight") or {}).get("id")
+            return self._redirect(f"/operations?tab=intelligence&insight={int(iid)}&notice=Impact+simulation+stored")
+        except Exception as exc:
+            return self._ops_redirect("intelligence", f"Impact simulation failed: {exc}")
+
+    def _do_ops_insight_state(self, form, sess):
+        if not self._ops_require(sess, _OPERATOR_ROLES):
+            return
+        try:
+            iid = int(_value(form, "insight_id", "0"))
+            item = self.manager.analytics.set_state(iid, _value(form, "state"), sess["username"], _value(form, "note"))
+            return self._redirect(f"/operations?tab=intelligence&insight={iid}&notice=Insight+state+updated")
+        except Exception as exc:
+            return self._ops_redirect("intelligence", f"Insight lifecycle update failed: {exc}")
+
+    def _do_ops_analytics_expire(self, form, sess):
+        if not self._ops_require(sess, _OPERATOR_ROLES):
+            return
+        try:
+            result = self.manager.analytics.expire_stale(
+                actor=sess["username"], max_age_seconds=int(_value(form, "max_age_seconds", "604800")))
+            return self._ops_redirect("intelligence", f"Expired {int(result['expired'])} stale insights")
+        except Exception as exc:
+            return self._ops_redirect("intelligence", f"Insight expiry failed: {exc}")
 
     # ---- HA-1 -----------------------------------------------------------
     def _ops_ha(self, q, sess):

@@ -1,6 +1,6 @@
 # Security
 
-> **Canonical project state — 2026-09-13:** **CURRENT IMPLEMENTATION BASELINE** = **UI-1 — Unified Automation & Operations Console** (`IMPLEMENTED_TESTING_DEFERRED`). Parent baseline is Release `2.0.0-33` (SHA-256 `ca0a8b9dc525118d7b542f03c715f6d20139e3584ada56bdca148e3d9ff0dccb`); UI-1 is implemented on top of PH-4/NI-5/VM-1/NA-1/NA-2/HA-1 and preserves the durable request/approve/execute safety plane. Qualification **Q-1** remains `IMPLEMENTED_TESTING_DEFERRED`; live PostgreSQL/AlmaLinux/systemd/real-device gates remain deferred. RPM source Release is `2.0.0-34`.
+> **Canonical project state — 2026-09-16:** **CURRENT IMPLEMENTATION BASELINE** = **Release 37 / NI-6 Enterprise Operations & Qualification Hardening** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-37`; NI-6.1 through NI-6.6 are complete in source, and NI-6 is now wired through `Manager.analytics` to scoped REST API and the Operations Network Intelligence console. Q-1 Ruff/mypy and live PostgreSQL/protocol/vendor/device/scale gates remain deferred and are not PASS.
 
 ## Release 34 / UI-1 security boundaries
 
@@ -452,3 +452,15 @@ Scope: DesiredState, Intent lifecycle, revisions, drift detection, Change Plan g
 Status: IMPLEMENTED_TESTING_DEFERRED
 
 Added PH-5 API helpers, intent workflow surface, and Web Console Intent Automation entry point. Device changes remain delegated to PH-4 transaction workflow.
+
+## NI-6.4 Failure Risk security boundary
+
+Failure-risk analysis is observation-only. Inputs are normalized against an explicit allow-list and unknown signal types/severities fail closed. Tenant identity is supplied by trusted caller context; a tenant value embedded in a signal payload is ignored. Evidence stores only bounded source identifiers/metric/value fields used by the analyzer. The returned insight has no command, configuration, shutdown, remediation, or automatic action surface. Any future action must traverse the existing operator/change/SOAR approval boundary.
+
+
+
+NI-6.6 Health Dashboard: IMPLEMENTED_TESTING_DEFERRED
+
+## NI-6 analytics security boundary
+
+`AnalyticsService` is evidence-only. It can persist, acknowledge, resolve and expire insights and can run bounded analysis/simulation. It cannot call transport/device-write functions. Capacity and Failure Risk derive from normalized evidence. Impact uses the existing resolved managed NI-2 directional topology and does not traverse unmanaged/unresolved adjacency. Web analytics mutations require CSRF plus operator-or-higher role; API mutations require `analytics:write` plus operator-or-higher role. Viewer/API read paths cannot trigger analysis as a side effect. Any remediation is performed only by navigating to the existing Structured Changes / Desired State / Campaign request/approve/execute safety plane.

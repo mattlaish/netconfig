@@ -29,7 +29,11 @@ class CapacityAnalyzer:
         difference = current_value - baseline_value
         ratio = 0.0 if baseline_value == 0 else difference / baseline_value
 
-        if ratio >= 1.0:
+        # NI-6.3 contract: a sustained increase of at least 50% over baseline
+        # is WARNING; reserve CRITICAL for a >=200% increase over baseline.
+        # This keeps the documented 30% -> 85% example at WARNING while a
+        # 30% -> 120% observation is CRITICAL.
+        if ratio >= 2.0:
             state = "CRITICAL"
         elif ratio >= 0.5:
             state = "WARNING"

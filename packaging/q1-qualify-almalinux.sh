@@ -33,6 +33,8 @@ rm -rf .rpmbuild
 ./packaging/build-rpm.sh
 RPM=$(find . -maxdepth 1 -type f -name 'netconfig-2.0.0-*.el10.noarch.rpm' -printf '%f\n' | sort -V | tail -1)
 [[ -n $RPM ]] || { echo "built binary RPM not found" >&2; exit 1; }
+IDENTITY=$(rpm -qp --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}\n' "$RPM")
+[[ $IDENTITY == 2.0.0-37.*.noarch ]] || { echo "unexpected built RPM identity: $IDENTITY" >&2; exit 1; }
 ./packaging/inspect-rpm.sh "$RPM"
 systemd-analyze verify \
     usr/lib/systemd/system/netconfig-web.service \

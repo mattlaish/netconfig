@@ -1,6 +1,6 @@
 # NetConfig Web Console — Release 34 UI-1
 
-> **Canonical project state — 2026-09-13:** **CURRENT IMPLEMENTATION BASELINE** = **UI-1 — Unified Automation & Operations Console** (`IMPLEMENTED_TESTING_DEFERRED`). Parent baseline is Release `2.0.0-33` (SHA-256 `ca0a8b9dc525118d7b542f03c715f6d20139e3584ada56bdca148e3d9ff0dccb`); UI-1 is implemented on top of PH-4/NI-5/VM-1/NA-1/NA-2/HA-1 and preserves the durable request/approve/execute safety plane. Qualification **Q-1** remains `IMPLEMENTED_TESTING_DEFERRED`; live PostgreSQL/AlmaLinux/systemd/real-device gates remain deferred. RPM source Release is `2.0.0-34`.
+> **Canonical project state — 2026-09-16:** **CURRENT IMPLEMENTATION BASELINE** = **Release 37 / NI-6 Enterprise Operations & Qualification Hardening** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-37`; NI-6.1 through NI-6.6 are complete in source, and NI-6 is now wired through `Manager.analytics` to scoped REST API and the Operations Network Intelligence console. Q-1 Ruff/mypy and live PostgreSQL/protocol/vendor/device/scale gates remain deferred and are not PASS.
 > UI-1 is an operator presentation layer over existing services. It does not create a direct device-write path.
 
 ## Operations navigation
@@ -34,3 +34,10 @@ Every POST requires the existing session CSRF token. Existing CSP nonce processi
 ## Telemetry edit boundary
 
 A subscription can be edited only when it is not RUNNING. Its bound device cannot be changed in-place; delete/recreate is required so retained samples and audit history cannot be silently reassigned.
+
+
+NI-6.6 Health Dashboard: IMPLEMENTED_TESTING_DEFERRED
+
+## Network Intelligence / Health dashboard
+
+The main navigation now links directly to Operations → **Network Intelligence**. The dashboard shows active/new/acknowledged/health counts, explicit Capacity/Failure Risk/Health refresh, managed impact simulation, insight filters/search, durable lifecycle controls, analytics job history, evidence JSON and affected-object drill-down. Insight details link to Topology, Endpoints, Events and Telemetry evidence. Viewer sessions remain read-only. The UI never executes a recommendation; action buttons route operators to Structured Changes, Desired State or Campaigns where normal approval applies.

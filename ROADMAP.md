@@ -1,6 +1,6 @@
 # Roadmap
 
-> **Canonical project state — 2026-09-13:** **CURRENT IMPLEMENTATION BASELINE** = **UI-1 — Unified Automation & Operations Console** (`IMPLEMENTED_TESTING_DEFERRED`). Parent baseline is Release `2.0.0-33` (SHA-256 `ca0a8b9dc525118d7b542f03c715f6d20139e3584ada56bdca148e3d9ff0dccb`); UI-1 is implemented on top of PH-4/NI-5/VM-1/NA-1/NA-2/HA-1 and preserves the durable request/approve/execute safety plane. Qualification **Q-1** remains `IMPLEMENTED_TESTING_DEFERRED`; live PostgreSQL/AlmaLinux/systemd/real-device gates remain deferred. RPM source Release is `2.0.0-34`.
+> **Canonical project state — 2026-09-16:** **CURRENT IMPLEMENTATION BASELINE** = **Release 37 / NI-6 Enterprise Operations & Qualification Hardening** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-37`; NI-6.1 through NI-6.6 are complete in source, and NI-6 is now wired through `Manager.analytics` to scoped REST API and the Operations Network Intelligence console. Q-1 Ruff/mypy and live PostgreSQL/protocol/vendor/device/scale gates remain deferred and are not PASS.
 
 ## UI-1 — Unified Automation & Operations Console — `IMPLEMENTED_TESTING_DEFERRED`
 
@@ -16,9 +16,9 @@ Implemented in source:
 - automation Change Request review renders frozen/current snapshots and SHA-256 drift status instead of presenting automation JSON as CLI commands;
 - all existing CSRF, RBAC, CSP nonce, vault, frozen-snapshot, audit and recovery invariants are retained.
 
-**CURRENT:** UI-1 — `IMPLEMENTED_TESTING_DEFERRED`.
+**CURRENT:** Release 37 / NI-6 Enterprise Operations & Qualification Hardening — `IMPLEMENTED_TESTING_DEFERRED`.
 
-**NEXT:** no new development phase is assigned automatically. Complete the remaining Q-1/live qualification gates and perform a fresh roadmap review before assigning another phase. Session idle/absolute expiry remains explicitly deferred security debt.
+**NEXT:** NI-6 offline source/artifact qualification is complete; execute the remaining applicable Q-1/live PostgreSQL/protocol/vendor/device/scale gates before any promotion to `TESTED`/`RELEASED`. No NI-7 phase is auto-assigned. Session idle/absolute expiry remains explicitly deferred security debt.
 
 
 ## Release 33 implementation expansion — source complete, qualification pending
@@ -38,9 +38,9 @@ The following development phases are now implemented in source. All remain `IMPL
 
 **Release 33 candidate artifact:** Clean Release 33 candidate `netconfig_release33_candidate_2026-09-12.zip` (SHA-256 `d03720a411b796458747f7d8976a8fa01f4f40859b5e51341ef031aaa343f538`) passed the artifact gate: ZIP CRC **PASS**; path traversal **0**; symlinks **0**; caches **0**; text CR offenders **0**; source/extracted byte identity **132/132 PASS**; payload plus each SHA/release manifest **128/128 PASS**; required executable modes **7/7 = 0755**. From the clean extraction: Release 33 focused **23 passed**, PH-2 **9 passed**, PH-3 **22 passed**, Q-1 **11 passed**, full repository **168 passed / 7 skipped** in the isolated full-suite rerun, legacy selftest **ALL PASS**, and compileall/launcher py_compile/packaging shell syntax **PASS**. A first command that chained all suites hit the execution-tool timeout after full pytest reached ~82%; that interrupted run is not counted as PASS. The same candidate full suite was then rerun alone and completed cleanly (**168 passed / 7 skipped in 22.90s**).
 
-**NEXT:** no new development phase is assigned. Rebuild and independently verify the formal Release 33 FULL ZIP, then execute the available Q-1 live gates and perform another roadmap/qualification review.
+**Historical NEXT (Release 33):** rebuild and independently verify the formal Release 33 FULL ZIP, then execute the available Q-1 live gates and perform another roadmap/qualification review.
 
-> **Current continuation pointer:** use the Release 34 FULL source baseline as the active implementation source. UI-1 remains `IMPLEMENTED_TESTING_DEFERRED`; execute the applicable Q-1/live qualification gates before any promotion to `TESTED`/`RELEASED`. No next development phase is auto-assigned; perform a fresh roadmap review after qualification.
+> **Current continuation pointer:** use the Release 37 NI-6 Enterprise Operations source baseline as the active implementation source. NI-6 remains `IMPLEMENTED_TESTING_DEFERRED`; execute the artifact and applicable Q-1/live qualification gates before any promotion to `TESTED`/`RELEASED`. No NI-7 phase is auto-assigned.
 
 Status vocabulary for new work: `PLANNED`, `IMPLEMENTED_TESTING_DEFERRED`, `TESTED`, `RELEASED`. Older `IMPLEMENTED` labels predate this vocabulary and should not be interpreted as live-environment qualification.
 
@@ -55,6 +55,7 @@ Only the status vocabulary `PLANNED`, `IMPLEMENTED_TESTING_DEFERRED`, `TESTED`, 
 - **Platform Hardening PH-3:** `IMPLEMENTED_TESTING_DEFERRED` — bounded NETCONF/RESTCONF/gNMI structured adapters complete in source, with real vendor/TLS interoperability debt.
 - **Platform Hardening PH-4:** `IMPLEMENTED_TESTING_DEFERRED` — structured configuration transactions complete in source.
 - **Network Intelligence NI-5:** `IMPLEMENTED_TESTING_DEFERRED` — bounded streaming telemetry/time-series foundation complete in source.
+- **Network Intelligence NI-6:** `IMPLEMENTED_TESTING_DEFERRED` — analytics, durable insights/jobs, Capacity/Failure Risk/Impact/Health and Network Intelligence operator workflow complete in source; live calibration/device/scale qualification remains deferred.
 - **Vendor Models VM-1:** `IMPLEMENTED_TESTING_DEFERRED` — validated vendor/model packs and device bindings complete in source.
 - **Network Automation NA-1:** `IMPLEMENTED_TESTING_DEFERRED` — desired-state lifecycle and compensating rollback complete in source.
 - **Network Automation NA-2:** `IMPLEMENTED_TESTING_DEFERRED` — fleet campaign/canary/wave orchestration complete in source.
@@ -555,7 +556,7 @@ Scope:
 
 ## NI-5 — Telemetry
 
-Status: `PLANNED`
+Status: `IMPLEMENTED_TESTING_DEFERRED`
 
 Scope:
 
@@ -568,64 +569,25 @@ Scope:
 - Trend analysis
 - Performance baseline
 
-## NI-6 — Discovery Analytics
+## NI-6 — Network Analytics / Operational Intelligence
 
-Status: `PLANNED`
+Status: `IMPLEMENTED_TESTING_DEFERRED`
 
-Scope:
+Implemented milestones:
 
-### Auto Seed Discovery
+- NI-6.1 Analytics Engine Foundation — `IMPLEMENTED_TESTING_DEFERRED`
+- NI-6.2 Insight Model — `IMPLEMENTED_TESTING_DEFERRED`
+- NI-6.3 Capacity Analytics — `IMPLEMENTED_TESTING_DEFERRED`
+- NI-6.4 Failure Risk Foundation — `IMPLEMENTED_TESTING_DEFERRED`
+- NI-6.5 Impact Simulation — `IMPLEMENTED_TESTING_DEFERRED`
+- NI-6.6 Health Dashboard — `IMPLEMENTED_TESTING_DEFERRED`
+- NI-6 Enterprise Operations & Qualification Hardening — `IMPLEMENTED_TESTING_DEFERRED`
 
-- Seed device input
-- Credential selection
-- Discovery start workflow
+Enterprise operations hardening adds durable `network_insights` / `analytics_jobs`, Manager → API → UI integration, `analytics:read` / `analytics:write` RBAC scopes, insight acknowledgement/resolution/expiry, filter/search, affected-object/evidence drill-down, managed directional impact simulation, and the Operations → Network Intelligence dashboard. Analytics remains evidence-only and does not execute remediation; configuration action must use the existing approved Structured Changes / Desired State / Campaign plane.
 
-### Full Network Crawl
+Offline source evidence after hardening: **202 passed / 7 skipped / 0 failed**, selftest **ALL PASS**, compileall/launcher/package-shell syntax **PASS**. Q-1/Ruff and live PostgreSQL/protocol/vendor/scale gates remain `NOT_RUN`/deferred.
 
-- LLDP/CDP neighbor crawling
-- Discovery queue
-- Visited device tracking
-- Crawl depth control
-- Rate limiting
-- Failure handling
-
-### Topology Database
-
-Nodes:
-
-- Device
-- Interface
-- Link
-- VLAN
-- VRF
-- Subnet
-- Endpoint
-
-Edges:
-
-- CONNECTED_TO
-- ATTACHED_TO
-- CARRIES
-- ROUTES_TO
-
-### Unified L2/L3 Topology
-
-- MAC path
-- VLAN path
-- IP path
-- VRF path
-- Routing relationship
-
-### Topology Visualization
-
-- Interactive topology graph
-- Device map
-- Link status
-- VLAN view
-- VRF view
-- Path tracing
-- Impact highlighting
-
+Scope retained for future expansion (not claimed by this milestone): unified L3/VRF path analytics, route-dependency simulation, production threshold calibration and live scale qualification.
 
 ## Release 35 PH-4 Completion Hardening
 
@@ -651,3 +613,8 @@ Added PH-5 API helpers, intent workflow surface, and Web Console Intent Automati
 
 ## PH-6 Distributed Execution / HA
 Status: IMPLEMENTED_TESTING_DEFERRED
+
+
+## Release 37 — RPM Installation Hardening — `IMPLEMENTED_TESTING_DEFERRED`
+
+The current package identity is `2.0.0-37`, aligned with the Release 37 NI-6 source baseline. Canonical production installation targets AlmaLinux 10 and uses the RPM lifecycle (`build-rpm.sh` -> `inspect-rpm.sh` -> `install-rpm.sh` -> explicit first-admin bootstrap -> systemd enable/start -> installed smoke). Source-side regression and packaging-script checks pass; the real AlmaLinux 10 RPM build/install/restart gate remains `NOT_RUN` until executed on suitable infrastructure.

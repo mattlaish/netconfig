@@ -1,6 +1,6 @@
 # Development Ledger
 
-> **Canonical project state — 2026-09-13:** **CURRENT IMPLEMENTATION BASELINE** = **UI-1 — Unified Automation & Operations Console** (`IMPLEMENTED_TESTING_DEFERRED`). Parent baseline is Release `2.0.0-33` (SHA-256 `ca0a8b9dc525118d7b542f03c715f6d20139e3584ada56bdca148e3d9ff0dccb`); UI-1 is implemented on top of PH-4/NI-5/VM-1/NA-1/NA-2/HA-1 and preserves the durable request/approve/execute safety plane. Qualification **Q-1** remains `IMPLEMENTED_TESTING_DEFERRED`; live PostgreSQL/AlmaLinux/systemd/real-device gates remain deferred. RPM source Release is `2.0.0-34`.
+> **Canonical project state — 2026-09-16:** **CURRENT IMPLEMENTATION BASELINE** = **Release 37 / NI-6 Enterprise Operations & Qualification Hardening** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-37`; NI-6.1 through NI-6.6 are complete in source, and NI-6 is now wired through `Manager.analytics` to scoped REST API and the Operations Network Intelligence console. Q-1 Ruff/mypy and live PostgreSQL/protocol/vendor/device/scale gates remain deferred and are not PASS.
 
 ## 2026-09-13 — Release 34 — UI-1 Unified Automation & Operations Console
 
@@ -871,3 +871,38 @@ Added PH-5 API helpers, intent workflow surface, and Web Console Intent Automati
 
 ## PH-6 Distributed Execution / HA
 Status: IMPLEMENTED_TESTING_DEFERRED
+
+## NI-6.4 Failure Risk Foundation — 2026-09-16
+
+Status: `IMPLEMENTED_TESTING_DEFERRED`.
+
+Implemented `opt/netconfig/netconfig/analytics/failure_risk.py` with `FailureRiskSignal`, `FailureRiskObservation`, and `FailureRiskAnalyzer`. The analyzer accepts only `INTERFACE_ERROR_SPIKE`, `LINK_FLAPPING`, `TEMPERATURE_ANOMALY`, `PACKET_DROP_INCREASE`, and `TELEMETRY_DEGRADATION`; unsupported signal types/severities fail closed. Tenant identity is authoritative caller context and is not taken from signal payloads. Output is observation/evidence plus a `FAILURE_RISK` insight mapping only; there is no execution/remediation surface.
+
+NI-6.3 inherited regression repaired in the same delivery: the capacity threshold now matches the documented contract (`30 -> 85` remains WARNING; >=200% increase over baseline is CRITICAL). This was required because the parent NI-6.3 artifact carried a test/code mismatch.
+
+Validation: focused NI-6.3 + NI-6.4 `9 passed`; full repository `192 passed / 7 skipped`; selftest `ALL PASS`; `compileall` PASS. An initial full-suite invocation with only `PYTHONPATH=opt/netconfig` produced four collection errors for tests importing the repository-root `opt` package; the canonical extracted-tree invocation `PYTHONPATH=.:opt/netconfig pytest -q` passed. Q-1/Ruff remains explicitly deferred/`NOT_RUN`.
+
+Deferred: production threshold calibration, real-device failure correlation, live vendor telemetry qualification, API/UI surfacing, and all remediation. NI-6.5/NI-6.6 remain planned.
+
+
+
+NI-6.6 Health Dashboard: IMPLEMENTED_TESTING_DEFERRED
+
+## 2026-09-16 — NI-6 Enterprise Operations & Qualification Hardening
+
+Implemented the product integration layer that was missing from the NI-6 foundation. Added durable `network_insights` and `analytics_jobs` tables (portable SQLite/PostgreSQL schema), `AnalyticsService`, Manager wiring, `analytics:read`/`analytics:write` token scopes, read-only GET APIs and explicit mutation POST APIs, and an Operations → Network Intelligence console. Insight lifecycle is auditable and persistent; dashboard GETs do not implicitly mutate state.
+
+Impact simulation is now routed through NI-2 `downstream_impact()` so only resolved managed directional adjacency is traversed. The lower-level simulator is also fail-closed when managed/resolution metadata is present. Health returns `UNKNOWN` without evidence. No analytics path can execute remediation; operator actions are navigation into existing approved change workflows.
+
+Validation before artifact freeze: 202 passed / 7 skipped / 0 failed; selftest ALL PASS; compileall/launcher/package-shell syntax PASS. First full run exposed only same-line compound-statement hygiene violations in newly added code; these were corrected, then the full suite passed.
+
+## 2026-09-16 — NI-6 enterprise qualification hardening
+
+NI-6 was wired into `Manager.analytics`, REST and the Operations Network Intelligence console with durable insights/jobs and approval-plane-only action routing. Frozen-source full regression passed 202/7/0. A clean-extraction candidate passed CRC/traversal/symlink/cache/CR/mode/manifests and reran 202 passed / 7 skipped / 0 failed plus selftest ALL PASS. Q-1/live gates remain deferred.
+
+## 2026-09-16 — Release 37 RPM installation hardening
+
+- Promoted RPM package identity from historical `2.0.0-34` to `2.0.0-37` so the distributable package identifies the current Release 37 NI-6 source.
+- Added `packaging/install-rpm.sh`, a fail-closed AlmaLinux 10 install/upgrade helper. It validates package identity, preserves runtime state/config semantics, and deliberately does not auto-create an administrator/vault or silently expose the web console.
+- Reworked `opt/netconfig/INSTALL.md` and `packaging/README.md` around the supported production sequence: RPM install -> explicit first-admin bootstrap -> enable local-only web + backup timer -> smoke/qualification checks.
+- RPM binary/SRPM build and installed-runtime qualification remain `NOT_RUN` in the current Debian runner; use an AlmaLinux 10 qualification host for those gates.

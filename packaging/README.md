@@ -1,78 +1,97 @@
-# NetConfig RPM build (AlmaLinux 10)
+# NetConfig RPM build and installation (AlmaLinux 10)
 
-> **Canonical project state — 2026-09-13:** **CURRENT IMPLEMENTATION BASELINE** = **UI-1 — Unified Automation & Operations Console** (`IMPLEMENTED_TESTING_DEFERRED`). Parent baseline is Release `2.0.0-33` (SHA-256 `ca0a8b9dc525118d7b542f03c715f6d20139e3584ada56bdca148e3d9ff0dccb`); UI-1 is implemented on top of PH-4/NI-5/VM-1/NA-1/NA-2/HA-1 and preserves the durable request/approve/execute safety plane. Qualification **Q-1** remains `IMPLEMENTED_TESTING_DEFERRED`; live PostgreSQL/AlmaLinux/systemd/real-device gates remain deferred. RPM source Release is `2.0.0-34`.
+> **Canonical project state — 2026-09-16:** **CURRENT IMPLEMENTATION BASELINE** = **Release 37 / NI-6 Enterprise Operations & Qualification Hardening** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-37`; NI-6.1 through NI-6.6 are complete in source and wired through `Manager.analytics` to scoped REST API and the Operations Network Intelligence console. Q-1 Ruff/mypy and live PostgreSQL/protocol/vendor/device/scale gates remain deferred and are not PASS.
 
-> **Release 34 continuation:** use the complete Release 34 source baseline. UI-1 is source-implemented; Q-1 live qualification remains outstanding. Do not treat historical Release 33 CURRENT/NEXT prose as active state.
+The supported production package target is AlmaLinux 10. Release 37 source uses
+RPM identity `netconfig-2.0.0-37.el10.noarch`. Older `2.0.0-34` packages are
+historical UI-1 packages and do not identify the current NI-6 delivery.
 
+## Build host
 
-> **Current continuation pointer:** use the Release 34 FULL source baseline as the active implementation source. UI-1 remains `IMPLEMENTED_TESTING_DEFERRED`; execute the applicable Q-1/live qualification gates before any promotion to `TESTED`/`RELEASED`. No next development phase is auto-assigned; perform a fresh roadmap review after qualification.
-
-This directory reconstructs the missing RPM source/build inputs. It builds an
-unsigned test binary RPM and SRPM without using Git or including runtime data.
-
-
-## Prepare the source on Windows
-
-When the working copy is on Windows and the RPM will be built on AlmaLinux,
-create a clean transfer bundle in the project root (not under `dist`):
-
-```powershell
-cd "C:\path\to\netconfig"
-.\packaging\prepare-transfer.ps1
-```
-
-With the current spec this produces `netconfig-2.0.0-34-rpm-build-source.zip`. Transfer that one ZIP
-file to the AlmaLinux build host. **Release 34 is the current source Release. Before producing a later distributable RPM, bump the spec Release; do not reuse a published release number for newer source.** The bundle contains only the application
-payload, RPM tooling, and development/handover documents; it excludes Git data,
-runtime state, Python caches, and previous RPM outputs.
-
-## Build host preparation
-
-Use an AlmaLinux 10 build host or disposable VM, not the production server:
+Use a disposable AlmaLinux 10 build host or VM:
 
 ```bash
-sudo dnf install rpm-build python3.12
-chmod +x packaging/*.sh
+sudo dnf install -y rpm-build python3.12 systemd-rpm-macros
+chmod 0755 packaging/*.sh
 ./packaging/build-rpm.sh
 ```
 
-Artifacts are copied directly to the NetConfig project directory:
+Expected outputs in the project root:
 
-- `netconfig-2.0.0-34.el10.noarch.rpm`
-- `netconfig-2.0.0-34.el10.src.rpm`
+- `netconfig-2.0.0-37.el10.noarch.rpm`
+- `netconfig-2.0.0-37.el10.src.rpm`
 
-Inspect before installation:
+Inspect the binary RPM before installation:
 
 ```bash
-./packaging/inspect-rpm.sh ./netconfig-2.0.0-34.el10.noarch.rpm
+./packaging/inspect-rpm.sh ./netconfig-2.0.0-37.el10.noarch.rpm
 ```
 
-## Safe test sequence
+## Install / upgrade
 
-1. Snapshot or clone an AlmaLinux 10.2 test VM.
-2. Record `rpm -q netconfig` and back up `/var/lib/netconfig`.
-3. Install the new RPM with `sudo dnf upgrade ./netconfig-2.0.0-34.el10.noarch.rpm`.
-4. Run `./packaging/smoke-installed.sh`.
-5. Start the service and verify the web, SNMP, MIB, backup timer, ownership,
-   SELinux journal messages, and upgrade-retained vault/database content.
-6. Do not deploy to production until a real-device SNMPv3 CPU/collection soak
-   test passes.
+The guarded helper validates AlmaLinux 10 and Release 37 package identity:
 
-The RPM intentionally leaves `/etc/default/netconfig` as `%config(noreplace)`
-and owns only the `/var/lib/netconfig` directory, never its runtime contents.
-The build also normalizes Linux launcher/unit text to LF; this prevents a
-Windows-prepared source tree from producing systemd `203/EXEC` due to a CRLF
-shebang.
+```bash
+sudo ./packaging/install-rpm.sh ./netconfig-2.0.0-37.el10.noarch.rpm
+```
 
+Equivalent manual package command:
 
-## Phase 4D evidence signing runtime
+```bash
+sudo dnf install ./netconfig-2.0.0-37.el10.noarch.rpm
+sudo systemctl daemon-reload
+```
 
-The RPM now requires `/usr/bin/openssl` because Ed25519 evidence signing/verification uses a fixed-function OpenSSL adapter. No signing private key is packaged. Supply one separately via a systemd credential or a protected file only when evidence signing is enabled.
+For a **fresh installation**, create the first admin explicitly before starting
+the web console:
 
+```bash
+sudo -u netconfig /usr/bin/netconfig user add admin \
+  --role admin --fullname "NetConfig Administrator"
+```
 
----
+Then enable the local-only web console and backup timer:
 
-Historical NI-1 documentation snapshot: `netconfig_network_intelligence_ni1_markdown_refresh_FULL_source_baseline_2026-09-11.zip`. The current baseline is the Q-1 FULL source artifact described by the canonical header.
+```bash
+sudo systemctl enable --now netconfig-web.service netconfig-backup.timer
+```
+
+The console binds to `127.0.0.1:8778` by default. Use an SSH tunnel or a TLS
+reverse proxy/WAF for remote administration; do not directly expose the plain
+HTTP listener.
+
+Upgrade semantics are intentionally conservative: `/var/lib/netconfig` is
+retained, `/etc/default/netconfig` is `%config(noreplace)`, and the package never
+ships runtime database/vault content or a pre-created administrator password.
+
+## Installed-runtime smoke
+
+```bash
+./packaging/smoke-installed.sh
+```
+
+The smoke checks package identity, launcher line endings, state ownership,
+systemd unit hardening, selftest, and configuration-aware runtime qualification.
+
+## Transfer bundle
+
+`packaging/prepare-transfer.ps1` creates the Windows-to-AlmaLinux transfer bundle
+using the Release number read from `netconfig.spec`. For this baseline its default
+name is:
+
+```text
+netconfig-2.0.0-37-rpm-build-source.zip
+```
+
+A source change intended for a later distributable package must increment the RPM
+Release; never reuse a published Release number for different source.
+
+## Qualification boundary
+
+`q1-source-gates.sh`, `q1-qualify-postgres.sh`, and `q1-qualify-almalinux.sh`
+remain the fail-closed qualification entry points. Missing infrastructure is
+`NOT_RUN`, not PASS. The Debian artifact runner can validate source and shell
+syntax but cannot claim an AlmaLinux RPM build/install result.
 
 ## PH-2 PostgreSQL packaging note
 
@@ -94,4 +113,4 @@ Q-1 adds three fail-closed qualification entry points. They report an unavailabl
 
 `q1-source-gates.sh` requires Python 3.12+, pytest, Ruff, mypy and a psycopg-capable development environment, then runs lint/type/compile/focused/full/selftest/shell/line-ending gates. `q1-qualify-postgres.sh` requires a real PostgreSQL service plus `pg_dump`, `pg_restore`, psycopg and an explicitly supplied `NETCONFIG_TEST_PG_PASSWORD`; it executes the real concurrency, advisory-lock/session-loss, migration/sequence and backup/restore drill tests. `q1-qualify-almalinux.sh` requires AlmaLinux 10 and RPM build tooling; package installation is not performed unless both `--install` and `NETCONFIG_Q1_ALLOW_INSTALL=1` are supplied.
 
-Current spec metadata is **Version 2.0.0 / Release 34**. A later source change intended for distribution must increment Release before creating another RPM.
+Current spec metadata is **Version 2.0.0 / Release 37**. A later source change intended for distribution must increment Release before creating another RPM.

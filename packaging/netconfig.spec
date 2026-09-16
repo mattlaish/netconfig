@@ -1,6 +1,6 @@
 Name:           netconfig
 Version:        2.0.0
-Release:        34%{?dist}
+Release:        37%{?dist}
 Summary:        Network configuration and security operations console
 License:        Proprietary
 BuildArch:      noarch
@@ -84,6 +84,11 @@ exit 0
 %dir %attr(0700,netconfig,netconfig) %{_localstatedir}/lib/netconfig
 
 %changelog
+* Wed Sep 16 2026 OpenAI <noreply@openai.com> - 2.0.0-37
+- Package Release 37 NI-6 Enterprise Operations & Qualification Hardening
+- Add canonical AlmaLinux 10 RPM install/upgrade workflow and explicit first-admin bootstrap
+- Preserve local-only web bind, noreplace configuration, runtime state, and deferred live qualification boundaries
+
 * Sun Sep 13 2026 OpenAI <noreply@openai.com> - 2.0.0-34
 - Add UI-1 Unified Automation & Operations Console for PH-4, NI-5, VM-1, NA-1, NA-2 and HA-1
 - Preserve durable approval/snapshot verification for all network mutations; add telemetry edit and recovery evidence workflows

@@ -50,6 +50,7 @@ python3 -m py_compile usr/bin/netconfig
 required_executables=(
     usr/bin/netconfig
     packaging/build-rpm.sh
+    packaging/install-rpm.sh
     packaging/inspect-rpm.sh
     packaging/q1-qualify-almalinux.sh
     packaging/q1-qualify-postgres.sh

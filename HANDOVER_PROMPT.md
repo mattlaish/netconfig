@@ -1,6 +1,6 @@
 # New Chat Handover Prompt
 
-> **Canonical project state — 2026-09-13:** **CURRENT IMPLEMENTATION BASELINE** = **UI-1 — Unified Automation & Operations Console** (`IMPLEMENTED_TESTING_DEFERRED`). Parent baseline is Release `2.0.0-33` (SHA-256 `ca0a8b9dc525118d7b542f03c715f6d20139e3584ada56bdca148e3d9ff0dccb`); UI-1 is implemented on top of PH-4/NI-5/VM-1/NA-1/NA-2/HA-1 and preserves the durable request/approve/execute safety plane. Qualification **Q-1** remains `IMPLEMENTED_TESTING_DEFERRED`; live PostgreSQL/AlmaLinux/systemd/real-device gates remain deferred. RPM source Release is `2.0.0-34`.
+> **Canonical project state — 2026-09-16:** **CURRENT IMPLEMENTATION BASELINE** = **Release 37 / NI-6 Enterprise Operations & Qualification Hardening** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-37`; NI-6.1 through NI-6.6 are complete in source, and NI-6 is now wired through `Manager.analytics` to scoped REST API and the Operations Network Intelligence console. Q-1 Ruff/mypy and live PostgreSQL/protocol/vendor/device/scale gates remain deferred and are not PASS.
 
 ## Release 34 continuation prompt
 
@@ -359,3 +359,11 @@ Scope: DesiredState, Intent lifecycle, revisions, drift detection, Change Plan g
 Status: IMPLEMENTED_TESTING_DEFERRED
 
 Added PH-5 API helpers, intent workflow surface, and Web Console Intent Automation entry point. Device changes remain delegated to PH-4 transaction workflow.
+
+## NI-6.4 handover update — 2026-09-16
+
+NI-6.4 Failure Risk Foundation is implemented in the current delivery artifact and remains `IMPLEMENTED_TESTING_DEFERRED`. Source: `opt/netconfig/netconfig/analytics/failure_risk.py`. Focused analytics: 9 passed including the NI-6.3 capacity regression repair. Full offline regression: 192 passed / 7 skipped. Selftest: ALL PASS. Q-1/Ruff remains NOT_RUN/deferred. Next planned milestone is NI-6.5 Impact Simulation.
+
+## 2026-09-16 NI-6 enterprise-hardening handover
+
+NI-6.1–NI-6.6 are implemented and productized through Manager/API/UI. Durable insights support NEW/ACKNOWLEDGED/RESOLVED/EXPIRED, filters/search, evidence/affected-object drill-down and managed impact simulation. Do not reimplement NI-6 foundation. Preserve non-remediation analytics and route all change action into the existing approval plane. Current source evidence: 202 passed / 7 skipped / 0 failed; Q-1/Ruff and live/service/vendor/scale gates remain deferred.

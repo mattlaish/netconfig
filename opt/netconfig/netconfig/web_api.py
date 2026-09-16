@@ -42,6 +42,47 @@ class WebApiMixin:
                 "campaign_wave": "campaign:write",
             }.get(kind, "automation:write")
 
+        if path == "/api/v1/analytics/refresh":
+            if "analytics:write" not in token["scopes"] or token.get("role") not in {"operator", "approver", "admin"}:
+                self._api_json({"error": "insufficient_scope", "required": "analytics:write+operator"}, 403); return True
+            try:
+                object_id = str((form.get("object_id") or [""])[0]).strip()
+                if not object_id or not self.manager.inv.get(object_id):
+                    raise ValueError("managed object_id is required")
+                value = self.manager.analytics.refresh(object_id, actor=actor)
+            except Exception as exc:
+                self._api_json({"error": "analytics_refresh_failed", "detail": str(exc)}, 400); return True
+            self._api_json(value, 201); return True
+        if path == "/api/v1/analytics/impact/simulate":
+            if "analytics:write" not in token["scopes"] or token.get("role") not in {"operator", "approver", "admin"}:
+                self._api_json({"error": "insufficient_scope", "required": "analytics:write+operator"}, 403); return True
+            try:
+                object_id = str((form.get("object_id") or [""])[0]).strip()
+                max_depth = int((form.get("max_depth") or ["5"])[0])
+                if not object_id or not self.manager.inv.get(object_id):
+                    raise ValueError("managed object_id is required")
+                value = self.manager.analytics.simulate_impact(object_id, actor=actor, max_depth=max_depth)
+            except Exception as exc:
+                self._api_json({"error": "impact_simulation_failed", "detail": str(exc)}, 400); return True
+            self._api_json(value, 201); return True
+        if path.startswith("/api/v1/analytics/insights/") and path.endswith("/state"):
+            if "analytics:write" not in token["scopes"] or token.get("role") not in {"operator", "approver", "admin"}:
+                self._api_json({"error": "insufficient_scope", "required": "analytics:write+operator"}, 403); return True
+            try:
+                insight_id = int(path.split("/")[-2])
+                value = self.manager.analytics.set_state(
+                    insight_id, (form.get("state") or [""])[0], actor, (form.get("note") or [""])[0])
+            except Exception as exc:
+                self._api_json({"error": "insight_state_failed", "detail": str(exc)}, 400); return True
+            self._api_json(value); return True
+        if path == "/api/v1/analytics/expire":
+            if "analytics:write" not in token["scopes"] or token.get("role") not in {"operator", "approver", "admin"}:
+                self._api_json({"error": "insufficient_scope", "required": "analytics:write+operator"}, 403); return True
+            try:
+                value = self.manager.analytics.expire_stale(actor=actor, max_age_seconds=int((form.get("max_age_seconds") or ["604800"])[0]))
+            except Exception as exc:
+                self._api_json({"error": "insight_expire_failed", "detail": str(exc)}, 400); return True
+            self._api_json(value); return True
         if path == "/api/v1/automation-requests":
             try:
                 intent = _form_json("intent", {}) or {}
@@ -665,6 +706,35 @@ class WebApiMixin:
         if not token:
             self._api_json({"error": "invalid_or_missing_bearer_token"}, 401); return True
         scopes = token["scopes"]
+        if path == "/api/v1/analytics/dashboard":
+            if "analytics:read" not in scopes:
+                self._api_json({"error":"insufficient_scope","required":"analytics:read"},403); return True
+            self._api_json(self.manager.analytics.dashboard()); return True
+        if path == "/api/v1/analytics/jobs":
+            if "analytics:read" not in scopes:
+                self._api_json({"error":"insufficient_scope","required":"analytics:read"},403); return True
+            self._api_json(self.manager.analytics.jobs(int((query.get("limit") or [100])[0]))); return True
+        if path == "/api/v1/analytics/insights":
+            if "analytics:read" not in scopes:
+                self._api_json({"error":"insufficient_scope","required":"analytics:read"},403); return True
+            try:
+                value=self.manager.analytics.list(
+                    state=(query.get("state") or [""])[0], insight_type=(query.get("type") or [""])[0],
+                    severity=(query.get("severity") or [""])[0], object_id=(query.get("object_id") or [""])[0],
+                    search=(query.get("search") or [""])[0], limit=int((query.get("limit") or [200])[0]))
+            except Exception as exc:
+                self._api_json({"error":"analytics_query_failed","detail":str(exc)},400); return True
+            self._api_json(value); return True
+        if path.startswith("/api/v1/analytics/insights/"):
+            if "analytics:read" not in scopes:
+                self._api_json({"error":"insufficient_scope","required":"analytics:read"},403); return True
+            rest=path[len("/api/v1/analytics/insights/"):].strip("/")
+            if not rest.isdigit():
+                return False
+            item=self.manager.analytics.get(int(rest))
+            if not item:
+                self._api_json({"error":"insight_not_found"},404); return True
+            self._api_json(item); return True
         if path == "/api/v1/protocol-profiles":
             if "protocol:read" not in scopes:
                 self._api_json({"error":"insufficient_scope","required":"protocol:read"},403); return True

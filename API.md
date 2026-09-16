@@ -1,6 +1,6 @@
 # NetConfig API Contract
 
-> **Canonical project state — 2026-09-13:** **CURRENT IMPLEMENTATION BASELINE** = **UI-1 — Unified Automation & Operations Console** (`IMPLEMENTED_TESTING_DEFERRED`). Parent baseline is Release `2.0.0-33` (SHA-256 `ca0a8b9dc525118d7b542f03c715f6d20139e3584ada56bdca148e3d9ff0dccb`); UI-1 is implemented on top of PH-4/NI-5/VM-1/NA-1/NA-2/HA-1 and preserves the durable request/approve/execute safety plane. Qualification **Q-1** remains `IMPLEMENTED_TESTING_DEFERRED`; live PostgreSQL/AlmaLinux/systemd/real-device gates remain deferred. RPM source Release is `2.0.0-34`.
+> **Canonical project state — 2026-09-16:** **CURRENT IMPLEMENTATION BASELINE** = **Release 37 / NI-6 Enterprise Operations & Qualification Hardening** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-37`; NI-6.1 through NI-6.6 are complete in source, and NI-6 is now wired through `Manager.analytics` to scoped REST API and the Operations Network Intelligence console. Q-1 Ruff/mypy and live PostgreSQL/protocol/vendor/device/scale gates remain deferred and are not PASS.
 
 ## Release 34 / UI-1 API alignment
 
@@ -298,3 +298,31 @@ Scope: DesiredState, Intent lifecycle, revisions, drift detection, Change Plan g
 Status: IMPLEMENTED_TESTING_DEFERRED
 
 Added PH-5 API helpers, intent workflow surface, and Web Console Intent Automation entry point. Device changes remain delegated to PH-4 transaction workflow.
+
+## NI-6.4 Failure Risk API boundary
+
+NI-6.4 in this delivery is an internal analytics foundation and does **not** add a new public HTTP route. `FailureRiskAnalyzer` emits a NetworkInsight-compatible `FAILURE_RISK` mapping containing tenant/object identity, severity, confidence, summary, and bounded evidence. Public API/UI surfacing is deferred to a later slice. No API accepts device commands, remediation actions, arbitrary analytics payloads, or caller-supplied approval state through this feature.
+
+
+
+NI-6.6 Health Dashboard: IMPLEMENTED_TESTING_DEFERRED
+
+## NI-6 Enterprise Analytics API
+
+Bearer scopes: `analytics:read` for reads; `analytics:write` plus role `operator|approver|admin` for analytics execution/lifecycle mutation. Bearer transport protections remain unchanged.
+
+Read-only endpoints:
+
+- `GET /api/v1/analytics/dashboard`
+- `GET /api/v1/analytics/jobs?limit=N`
+- `GET /api/v1/analytics/insights?state=&type=&severity=&object_id=&search=&limit=`
+- `GET /api/v1/analytics/insights/{id}`
+
+Explicit mutation endpoints:
+
+- `POST /api/v1/analytics/refresh` with `object_id` — runs Capacity, Failure Risk and Health and persists evidence.
+- `POST /api/v1/analytics/impact/simulate` with `object_id`, optional `max_depth` — managed directional what-if simulation only.
+- `POST /api/v1/analytics/insights/{id}/state` with `state=ACKNOWLEDGED|RESOLVED|EXPIRED`, optional `note`.
+- `POST /api/v1/analytics/expire` with optional `max_age_seconds`.
+
+Analytics responses include workflow navigation references but never contain an executable remediation primitive.

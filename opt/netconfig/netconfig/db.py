@@ -636,6 +636,31 @@ CREATE TABLE IF NOT EXISTS recovery_drills (
     node_id TEXT NOT NULL DEFAULT '', verification_ref TEXT NOT NULL DEFAULT '',
     detail_json TEXT NOT NULL DEFAULT '{}', started_ts REAL NOT NULL, finished_ts REAL NOT NULL DEFAULT 0
 );
+
+-- ---- NI-6 enterprise analytics workflow ---------------------------------
+CREATE TABLE IF NOT EXISTS network_insights (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, tenant_id TEXT NOT NULL DEFAULT 'default',
+    insight_type TEXT NOT NULL, object_type TEXT NOT NULL DEFAULT 'DEVICE', object_id TEXT NOT NULL,
+    severity TEXT NOT NULL, confidence REAL NOT NULL DEFAULT 0, summary TEXT NOT NULL DEFAULT '',
+    state TEXT NOT NULL DEFAULT 'NEW', evidence_json TEXT NOT NULL DEFAULT '{}',
+    affected_json TEXT NOT NULL DEFAULT '[]', fingerprint TEXT NOT NULL UNIQUE,
+    first_seen_ts REAL NOT NULL, last_seen_ts REAL NOT NULL, occurrence_count INTEGER NOT NULL DEFAULT 1,
+    acknowledged_by TEXT NOT NULL DEFAULT '', acknowledged_ts REAL NOT NULL DEFAULT 0,
+    resolved_by TEXT NOT NULL DEFAULT '', resolved_ts REAL NOT NULL DEFAULT 0,
+    expired_ts REAL NOT NULL DEFAULT 0, note TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_network_insights_state
+    ON network_insights(state, insight_type, last_seen_ts);
+CREATE INDEX IF NOT EXISTS idx_network_insights_object
+    ON network_insights(object_id, insight_type, last_seen_ts);
+CREATE TABLE IF NOT EXISTS analytics_jobs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, tenant_id TEXT NOT NULL DEFAULT 'default',
+    job_type TEXT NOT NULL, object_id TEXT NOT NULL DEFAULT '', actor TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL, input_json TEXT NOT NULL DEFAULT '{}', result_json TEXT NOT NULL DEFAULT '{}',
+    error TEXT NOT NULL DEFAULT '', created_ts REAL NOT NULL, finished_ts REAL NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_analytics_jobs_created
+    ON analytics_jobs(job_type, created_ts);
 """
 
 # Additive column migrations: (table, column, coldef). Applied only if absent.
@@ -756,7 +781,7 @@ class _LockedConn:
 class Database:
     dialect = "sqlite"
     distributed_capable = False
-    schema_revision = "ha1-2"
+    schema_revision = "ni6-enterprise-1"
 
     def __init__(self, path):
         self.path = path

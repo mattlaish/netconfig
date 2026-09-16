@@ -1,6 +1,6 @@
 # NetConfig Patch Ledger
 
-> **Canonical project state — 2026-09-13:** **CURRENT IMPLEMENTATION BASELINE** = **UI-1 — Unified Automation & Operations Console** (`IMPLEMENTED_TESTING_DEFERRED`). Parent baseline is Release `2.0.0-33` (SHA-256 `ca0a8b9dc525118d7b542f03c715f6d20139e3584ada56bdca148e3d9ff0dccb`); UI-1 is implemented on top of PH-4/NI-5/VM-1/NA-1/NA-2/HA-1 and preserves the durable request/approve/execute safety plane. Qualification **Q-1** remains `IMPLEMENTED_TESTING_DEFERRED`; live PostgreSQL/AlmaLinux/systemd/real-device gates remain deferred. RPM source Release is `2.0.0-34`.
+> **Canonical project state — 2026-09-16:** **CURRENT IMPLEMENTATION BASELINE** = **Release 37 / NI-6 Enterprise Operations & Qualification Hardening** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-37`; NI-6.1 through NI-6.6 are complete in source, and NI-6 is now wired through `Manager.analytics` to scoped REST API and the Operations Network Intelligence console. Q-1 Ruff/mypy and live PostgreSQL/protocol/vendor/device/scale gates remain deferred and are not PASS.
 
 ## PATCH-20260913-01 — Release 34 — UI-1 Unified Automation & Operations Console
 
@@ -462,3 +462,11 @@ Status: Ready for integration (source implementation; live PostgreSQL/RPM qualif
 - Offline verification: PH-2 focused 9 passed; full repository 114 passed / 3 skipped.
 
 PH-2 candidate packaging integrity: `6dfd6e554b08883c51a6f268bbe604bf95cc7819dad8f4bda6f023d688807d21`; 114/114 files, 110/110 manifests, hidden paths/modes/security gates PASS, extracted repository 114/3 and PH-2 9/9 PASS. Final artifact rebuilt afterward.
+
+## PATCH-20260916-RPM37 — Release 37 RPM installation hardening
+
+- **Target package:** `2.0.0-37`.
+- Bump `packaging/netconfig.spec` Release from 34 to 37 for the current NI-6 source baseline.
+- Add guarded AlmaLinux 10 `packaging/install-rpm.sh` with explicit fresh-install administrator bootstrap and safe upgrade preservation.
+- Rewrite current RPM installation/build documentation and add root `INSTALL_RPM.md`.
+- Preserve `IMPLEMENTED_TESTING_DEFERRED`: source/offline checks pass; real AlmaLinux RPM build/install gate remains `NOT_RUN` on the Debian artifact runner.

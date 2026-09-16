@@ -17,14 +17,26 @@ systemd-analyze verify /usr/lib/systemd/system/netconfig-web.service \
 
 PYCACHE=$(mktemp -d "${TMPDIR:-/tmp}/netconfig-pycache.XXXXXX")
 trap 'rm -rf -- "$PYCACHE"' EXIT
-sudo -u netconfig env NETCONFIG_HOME=/var/lib/netconfig PYTHONPYCACHEPREFIX="$PYCACHE" \
+
+run_as_netconfig() {
+    if [[ ${EUID:-$(id -u)} -eq 0 ]] && command -v runuser >/dev/null 2>&1; then
+        runuser -u netconfig -- "$@"
+    elif command -v sudo >/dev/null 2>&1; then
+        sudo -u netconfig -- "$@"
+    else
+        echo "smoke-installed.sh requires root+runuser or sudo to execute as netconfig" >&2
+        exit 2
+    fi
+}
+
+run_as_netconfig env NETCONFIG_HOME=/var/lib/netconfig PYTHONPYCACHEPREFIX="$PYCACHE" \
     /usr/bin/python3.12 /opt/netconfig/selftest.py
 
 # Q-1 runtime preflight is configuration-aware. PostgreSQL client tools and
 # gnmic become required only when those production paths are active.
 Q1_REPORT=$(mktemp "${TMPDIR:-/tmp}/netconfig-q1-preflight.XXXXXX")
 trap 'rm -rf -- "$PYCACHE"; rm -f -- "$Q1_REPORT"' EXIT
-sudo -u netconfig env NETCONFIG_HOME=/var/lib/netconfig \
+run_as_netconfig env NETCONFIG_HOME=/var/lib/netconfig \
     /usr/bin/netconfig qualify > "$Q1_REPORT"
 grep -q '"ok": true' "$Q1_REPORT"
 

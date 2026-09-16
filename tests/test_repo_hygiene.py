@@ -32,6 +32,7 @@ def test_repository_operational_text_has_no_crlf():
 REQUIRED_EXECUTABLES = (
     "usr/bin/netconfig",
     "packaging/build-rpm.sh",
+    "packaging/install-rpm.sh",
     "packaging/inspect-rpm.sh",
     "packaging/q1-qualify-almalinux.sh",
     "packaging/q1-qualify-postgres.sh",
@@ -47,14 +48,14 @@ def test_required_raw_source_executables_are_0755():
         assert path.stat().st_mode & 0o777 == 0o755, relative
 
 
-def test_release_34_version_truth_is_consistent():
+def test_release_37_ni6_canonical_truth_is_consistent():
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     package = (ROOT / "opt/netconfig/netconfig/__init__.py").read_text(encoding="utf-8")
     spec = (ROOT / "packaging/netconfig.spec").read_text(encoding="utf-8")
     assert 'version = "2.0.0"' in pyproject
     assert '__version__ = "2.0.0"' in package
     assert "Version:        2.0.0" in spec
-    assert "Release:        34%{?dist}" in spec
+    assert "Release:        37%{?dist}" in spec
     for relative in (
         "README.md", "DEVELOPMENT.md", "AI_HANDOFF.md", "ROADMAP.md",
         "SECURITY.md", "API.md", "TESTING.md", "DEV_BASELINE.md",
@@ -64,8 +65,9 @@ def test_release_34_version_truth_is_consistent():
     ):
         text = (ROOT / relative).read_text(encoding="utf-8")
         canonical = next(line for line in text.splitlines() if line.startswith("> **Canonical project state"))
-        assert "2.0.0-34" in canonical, relative
-        assert "UI-1" in canonical, relative
+        assert "2.0.0-37" in canonical, relative
+        assert "Release 37" in canonical, relative
+        assert "NI-6 Enterprise Operations" in canonical, relative
         assert "Release 33 full source baseline as the active implementation source" not in text, relative
 
 

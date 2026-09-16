@@ -135,7 +135,7 @@ class Console(WebOpsMixin, WebApiMixin, http.server.BaseHTTPRequestHandler):
     def _nav(self, sess):
         role = sess["role"]
         links = [("/", "Devices"), ("/groups", "Groups"), ("/automation", "Automation"),
-                 ("/operations", "Operations"), ("/requests", "Change Requests"), ("/compliance", "Compliance"),
+                 ("/operations", "Operations"), ("/operations?tab=intelligence", "Network Intelligence"), ("/requests", "Change Requests"), ("/compliance", "Compliance"),
                  ("/alerts", "Alerts"), ("/snmp", "SNMP"), ("/protocols", "Protocols"), ("/topology", "Topology"),
                  ("/endpoints", "Endpoints"), ("/events", "Events"), ("/op-alerts", "Ops Alerts"), ("/incidents", "Incidents"), ("/diagnostics", "Diagnostics")]
         if _can(role, "manage_devices"):

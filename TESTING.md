@@ -1,6 +1,6 @@
 # NetConfig Testing
 
-> **Canonical project state — 2026-09-13:** **CURRENT IMPLEMENTATION BASELINE** = **UI-1 — Unified Automation & Operations Console** (`IMPLEMENTED_TESTING_DEFERRED`). Parent baseline is Release `2.0.0-33` (SHA-256 `ca0a8b9dc525118d7b542f03c715f6d20139e3584ada56bdca148e3d9ff0dccb`); UI-1 is implemented on top of PH-4/NI-5/VM-1/NA-1/NA-2/HA-1 and preserves the durable request/approve/execute safety plane. Qualification **Q-1** remains `IMPLEMENTED_TESTING_DEFERRED`; live PostgreSQL/AlmaLinux/systemd/real-device gates remain deferred. RPM source Release is `2.0.0-34`.
+> **Canonical project state — 2026-09-16:** **CURRENT IMPLEMENTATION BASELINE** = **Release 37 / NI-6 Enterprise Operations & Qualification Hardening** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-37`; NI-6.1 through NI-6.6 are complete in source, and NI-6 is now wired through `Manager.analytics` to scoped REST API and the Operations Network Intelligence console. Q-1 Ruff/mypy and live PostgreSQL/protocol/vendor/device/scale gates remain deferred and are not PASS.
 
 ## Release 34 / UI-1 verification matrix
 
@@ -537,7 +537,7 @@ Scope:
 
 ## NI-5 — Telemetry
 
-Status: `PLANNED`
+Status: `IMPLEMENTED_TESTING_DEFERRED`
 
 Scope:
 
@@ -550,9 +550,9 @@ Scope:
 - Trend analysis
 - Performance baseline
 
-## NI-6 — Discovery Analytics
+## NI-6 — Network Analytics / Operational Intelligence
 
-Status: `PLANNED`
+Status: `IMPLEMENTED_TESTING_DEFERRED`
 
 Scope:
 
@@ -633,3 +633,36 @@ Added PH-5 API helpers, intent workflow surface, and Web Console Intent Automati
 
 ## PH-6 Distributed Execution / HA
 Status: IMPLEMENTED_TESTING_DEFERRED
+
+## NI-6.4 Failure Risk validation — 2026-09-16
+
+Status remains `IMPLEMENTED_TESTING_DEFERRED`.
+
+Executed offline:
+
+- NI-6.3 capacity + NI-6.4 focused analytics: **9 passed**.
+- Full repository with `PYTHONPATH=.:opt/netconfig pytest -q`: **192 passed / 7 skipped / 0 failed**.
+- Legacy `opt/netconfig/selftest.py`: **ALL PASS**.
+- Python `compileall`: **PASS**.
+
+The seven skips remain the existing live/service-backed PostgreSQL backup/restore and protocol integration gates. Q-1 source gate/Ruff remains explicitly deferred and is `NOT_RUN`, not PASS. Real vendor telemetry, real failure scenarios, production-scale calibration, and live infrastructure qualification remain deferred.
+
+
+
+NI-6.6 Health Dashboard: IMPLEMENTED_TESTING_DEFERRED
+
+## 2026-09-16 — NI-6 Enterprise Operations hardening
+
+Added `tests/test_analytics_enterprise_workflow.py` covering durable insight lifecycle, managed directional impact, operator UI, viewer read-only behavior, API scopes and persisted API mutations. Source tree after hygiene repair: **202 passed / 7 skipped / 0 failed**. Legacy selftest: **ALL PASS**. Compileall, launcher py_compile and packaging shell syntax: **PASS**. Required executable modes: **7/7 = 0755**. Q-1/Ruff remains **NOT_RUN** by explicit deferral. Final artifact evidence is recorded in `VALIDATION_SUMMARY.md` after clean-extraction repetition.
+
+## NI-6 Enterprise Operations qualification — 2026-09-16
+
+Source: 202 passed / 7 skipped / 0 failed. Clean extraction: 202 passed / 7 skipped / 0 failed. Selftest ALL PASS. CRC, traversal, symlink, cache, CR, executable modes, `source-manifest.sha256` and internal metadata checksum gates PASS. Q-1 Ruff/mypy and live/service-backed gates remain NOT_RUN/deferred.
+
+## Release 37 RPM installation hardening — 2026-09-16
+
+Required source-side checks: repository regression, compileall, `bash -n` on every packaging shell script, Release 37 package identity consistency, install helper fail-closed behavior on non-AlmaLinux systems, cache/CRLF/mode hygiene, and source-manifest verification. The binary RPM build, RPM payload inspection, systemd installed-runtime smoke, and restart test require AlmaLinux 10 and remain `NOT_RUN` when executed only on the Debian artifact runner.
+
+### RPM install v3 clean-artifact evidence
+
+The candidate full-source archive was clean-extracted and requalified: `175/175` full-file byte identity, source/metadata manifests PASS, 8/8 required executable modes at 0755, zero cache/symlink/path-traversal/CR findings, `202 passed / 7 skipped / 0 failed`, legacy selftest `ALL PASS`, packaging shell syntax PASS, and the installer correctly refused a Debian host with exit 20. AlmaLinux binary RPM build/install/restart remains `NOT_RUN` and is not promoted by these offline results.
