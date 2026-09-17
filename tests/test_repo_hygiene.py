@@ -48,14 +48,14 @@ def test_required_raw_source_executables_are_0755():
         assert path.stat().st_mode & 0o777 == 0o755, relative
 
 
-def test_release_37_ni6_canonical_truth_is_consistent():
+def test_release_40_ni7_canonical_truth_is_consistent():
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     package = (ROOT / "opt/netconfig/netconfig/__init__.py").read_text(encoding="utf-8")
     spec = (ROOT / "packaging/netconfig.spec").read_text(encoding="utf-8")
     assert 'version = "2.0.0"' in pyproject
     assert '__version__ = "2.0.0"' in package
     assert "Version:        2.0.0" in spec
-    assert "Release:        37%{?dist}" in spec
+    assert "Release:        40%{?dist}" in spec
     for relative in (
         "README.md", "DEVELOPMENT.md", "AI_HANDOFF.md", "ROADMAP.md",
         "SECURITY.md", "API.md", "TESTING.md", "DEV_BASELINE.md",
@@ -65,9 +65,9 @@ def test_release_37_ni6_canonical_truth_is_consistent():
     ):
         text = (ROOT / relative).read_text(encoding="utf-8")
         canonical = next(line for line in text.splitlines() if line.startswith("> **Canonical project state"))
-        assert "2.0.0-37" in canonical, relative
-        assert "Release 37" in canonical, relative
-        assert "NI-6 Enterprise Operations" in canonical, relative
+        assert "2.0.0-40" in canonical, relative
+        assert "Release 40" in canonical, relative
+        assert "NI-7 L3/VRF Path & Route Dependency Intelligence" in canonical, relative
         assert "Release 33 full source baseline as the active implementation source" not in text, relative
 
 
@@ -93,3 +93,34 @@ def test_no_compound_statement_suite_on_same_line():
                         if handler.body and handler.body[0].lineno == handler.lineno:
                             offenders.append(f"{path.relative_to(ROOT)}:{handler.lineno}")
     assert offenders == []
+
+
+def test_release_40_ci_enforces_git_modes_quality_pins_and_almalinux_build():
+    workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    quality = (ROOT / "requirements-quality.txt").read_text(encoding="utf-8")
+    q1 = (ROOT / "packaging/q1-source-gates.sh").read_text(encoding="utf-8")
+    assert "ruff==0.16.7" in quality
+    assert "mypy==2.3.1" in quality
+    assert "git ls-files --stage" in workflow
+    assert "packaging/install-rpm.sh" in workflow
+    assert "mode" in workflow and "100755" in workflow
+    assert "EXPECTED_RUFF_VERSION=0.16.7" in q1
+    assert "EXPECTED_MYPY_VERSION=2.3.1" in q1
+    assert "almalinux-10-rpm-build:" in workflow
+    assert "3d3c42e5aac5ba805825da76410c181273ba90b1" in workflow
+    assert "5fda3b95a4ea91299a34e894583c3862153e4b97" in workflow
+
+
+def test_release_40_required_executable_list_matches_ci_contract():
+    workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    for relative in REQUIRED_EXECUTABLES:
+        assert relative in workflow, relative
+
+
+def test_release_40_installer_accepts_release_40_identity():
+    installer = (ROOT / "packaging/install-rpm.sh").read_text(encoding="utf-8")
+    alma = (ROOT / "packaging/q1-qualify-almalinux.sh").read_text(encoding="utf-8")
+    assert '${RELEASE%%.*} != "40"' in installer
+    assert 'expected NetConfig RPM release 40' in installer
+    assert '2.0.0-40.*.noarch' in alma
+    assert '${RELEASE%%.*} != "37"' not in installer

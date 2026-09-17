@@ -1,9 +1,9 @@
 # NetConfig RPM build and installation (AlmaLinux 10)
 
-> **Canonical project state — 2026-09-16:** **CURRENT IMPLEMENTATION BASELINE** = **Release 37 / NI-6 Enterprise Operations & Qualification Hardening** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-37`; NI-6.1 through NI-6.6 are complete in source and wired through `Manager.analytics` to scoped REST API and the Operations Network Intelligence console. Q-1 Ruff/mypy and live PostgreSQL/protocol/vendor/device/scale gates remain deferred and are not PASS.
+> **Canonical project state — 2026-09-17:** **CURRENT IMPLEMENTATION BASELINE** = **Release 40 / NI-7 L3/VRF Path & Route Dependency Intelligence** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-40`; NI-1 through NI-7 and Enterprise Operations are implemented in source. Q-1 live PostgreSQL/protocol/vendor/device/AlmaLinux gates remain deferred/`NOT_RUN`; Release 40 does not promote them to PASS.
 
-The supported production package target is AlmaLinux 10. Release 37 source uses
-RPM identity `netconfig-2.0.0-37.el10.noarch`. Older `2.0.0-34` packages are
+The supported production package target is AlmaLinux 10. Release 39 source uses
+RPM identity `netconfig-2.0.0-40.el10.noarch`. Older `2.0.0-34` packages are
 historical UI-1 packages and do not identify the current NI-6 delivery.
 
 ## Build host
@@ -18,27 +18,27 @@ chmod 0755 packaging/*.sh
 
 Expected outputs in the project root:
 
-- `netconfig-2.0.0-37.el10.noarch.rpm`
-- `netconfig-2.0.0-37.el10.src.rpm`
+- `netconfig-2.0.0-40.el10.noarch.rpm`
+- `netconfig-2.0.0-40.el10.src.rpm`
 
 Inspect the binary RPM before installation:
 
 ```bash
-./packaging/inspect-rpm.sh ./netconfig-2.0.0-37.el10.noarch.rpm
+./packaging/inspect-rpm.sh ./netconfig-2.0.0-40.el10.noarch.rpm
 ```
 
 ## Install / upgrade
 
-The guarded helper validates AlmaLinux 10 and Release 37 package identity:
+The guarded helper validates AlmaLinux 10 and Release 39 package identity:
 
 ```bash
-sudo ./packaging/install-rpm.sh ./netconfig-2.0.0-37.el10.noarch.rpm
+sudo ./packaging/install-rpm.sh ./netconfig-2.0.0-40.el10.noarch.rpm
 ```
 
 Equivalent manual package command:
 
 ```bash
-sudo dnf install ./netconfig-2.0.0-37.el10.noarch.rpm
+sudo dnf install ./netconfig-2.0.0-40.el10.noarch.rpm
 sudo systemctl daemon-reload
 ```
 
@@ -80,7 +80,7 @@ using the Release number read from `netconfig.spec`. For this baseline its defau
 name is:
 
 ```text
-netconfig-2.0.0-37-rpm-build-source.zip
+netconfig-2.0.0-40-rpm-build-source.zip
 ```
 
 A source change intended for a later distributable package must increment the RPM
@@ -113,4 +113,4 @@ Q-1 adds three fail-closed qualification entry points. They report an unavailabl
 
 `q1-source-gates.sh` requires Python 3.12+, pytest, Ruff, mypy and a psycopg-capable development environment, then runs lint/type/compile/focused/full/selftest/shell/line-ending gates. `q1-qualify-postgres.sh` requires a real PostgreSQL service plus `pg_dump`, `pg_restore`, psycopg and an explicitly supplied `NETCONFIG_TEST_PG_PASSWORD`; it executes the real concurrency, advisory-lock/session-loss, migration/sequence and backup/restore drill tests. `q1-qualify-almalinux.sh` requires AlmaLinux 10 and RPM build tooling; package installation is not performed unless both `--install` and `NETCONFIG_Q1_ALLOW_INSTALL=1` are supplied.
 
-Current spec metadata is **Version 2.0.0 / Release 37**. A later source change intended for distribution must increment Release before creating another RPM.
+Current spec metadata is **Version 2.0.0 / Release 39**. A later source change intended for distribution must increment Release before creating another RPM.

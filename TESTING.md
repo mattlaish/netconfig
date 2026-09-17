@@ -1,7 +1,32 @@
 # NetConfig Testing
 
-> **Canonical project state — 2026-09-16:** **CURRENT IMPLEMENTATION BASELINE** = **Release 37 / NI-6 Enterprise Operations & Qualification Hardening** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-37`; NI-6.1 through NI-6.6 are complete in source, and NI-6 is now wired through `Manager.analytics` to scoped REST API and the Operations Network Intelligence console. Q-1 Ruff/mypy and live PostgreSQL/protocol/vendor/device/scale gates remain deferred and are not PASS.
+> **Canonical project state — 2026-09-17:** **CURRENT IMPLEMENTATION BASELINE** = **Release 40 / NI-7 L3/VRF Path & Route Dependency Intelligence** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-40`; NI-1 through NI-7 and Enterprise Operations are implemented in source. Q-1 live PostgreSQL/protocol/vendor/device/AlmaLinux gates remain deferred/`NOT_RUN`; Release 40 does not promote them to PASS.
 
+## Release 40 NI-7 verification ledger
+
+NI-7 focused tests: **5 passed**. Full source regression before final packaging: **211 passed / 7 skipped / 0 failed**. Coverage includes same-VRF path traversal, explicit terminal route evidence, unresolved next-device fail-closed behavior, multipath ambiguity, distinct dependency-candidate preservation, alternate-route evidence, scoped API, Operations UI/RBAC, and no direct execution surface. The seven existing live/service skips remain deferred Q-1 evidence and are not Release 40 failures.
+
+### Release 40 fresh-clone gate
+
+A clean clone of the frozen Release 40 candidate commit executed the full repository test inventory in bounded groups: **211 passed / 7 skipped / 0 failed**. NI-7 focused **5 passed**. `source-manifest.sha256` / metadata checksums, 8/8 Git `100755` modes, legacy selftest, compileall, launcher compile and packaging shell syntax all passed. Cache cleanup restored a clean worktree. The seven skips remain the pre-existing PostgreSQL/backup and OpenSSH/Net-SNMP service-backed tests.
+
+### Release 40 final delivery qualification
+
+The frozen delivery surface is independently qualified. The full-source Git-archive ZIP contains **199 archive entries**, matches **181/181 Git-tracked files byte-for-byte**, and has **0** path-traversal entries, **0** symlinks, **0** cache/bytecode entries, **0** operational-text CR offenders, and **8/8** required executable files at mode `0755`; source and metadata manifests verify. From its clean extraction, the complete repository test inventory executes as **211 passed / 7 skipped / 0 failed**, with legacy selftest **ALL PASS** and compile/launcher/package-shell checks **PASS**. The clonable Git bundle reproduces the same commit, manifest and 8/8 Git `100755` modes and executes the same **211/7/0** regression plus selftest/compile with a clean post-test worktree. The `2.0.0-40` RPM build-source bundle has no traversal/symlink/cache entries, preserves all eight executable modes, verifies manifests/package identity, and passes **25/25** focused NI-7/repository-hygiene/Q-1 tests. Actual AlmaLinux RPM build/install and Q-1 live service/vendor gates remain `NOT_RUN`/deferred. The final archive SHA-256 is intentionally carried in external `.sha256` sidecars so the payload does not self-reference its own digest.
+
+## Historical Release 39 Q-1 qualification ledger
+
+Release 39 must be evaluated from a clean Git checkout. The local artifact runner can execute pytest/selftest/compile/shell, Git index modes, staged systemd unit syntax/hardening, and fail-closed qualification harness behavior. It cannot claim Ruff/mypy, real PostgreSQL, OpenSSH/Net-SNMP, or AlmaLinux installed-runtime PASS without those tools/services. `Q1_PRODUCTION_QUALIFICATION.md` records the exact gate matrix and exit semantics.
+
+Current pre-final-package evidence: full repository **206 passed / 7 skipped / 0 failed**; Q-1 focused **12 passed**; legacy selftest **ALL PASS**; compileall/launcher `py_compile`/all packaging `bash -n`/workflow YAML parse/CR scan **PASS**; Git index executable modes **8/8 = 100755**; staged installed-filesystem `systemd-analyze verify` **PASS**. `q1-source-gates.sh` = exit `2` (`ruff` unavailable), `q1-qualify-postgres.sh` = exit `2` (`pg_dump` unavailable), `q1-qualify-almalinux.sh` = exit `20` (Debian 13 is not target), and `netconfig qualify` reports this runner not ready because required `ssh` is absent. None of those unavailable target/service gates is counted as PASS.
+
+
+## Release 38 Git reproducibility qualification
+
+The Git gate is now independent of archive metadata. CI inspects the tracked index mode (`git ls-files --stage`) for `usr/bin/netconfig` and all seven packaging scripts and requires `100755`. Candidate fresh-clone evidence: 8/8 Git modes `100755`; full pytest **204 passed / 7 skipped / 0 failed**; selftest **ALL PASS**; compileall, launcher `py_compile`, and packaging shell syntax **PASS**; worktree remained clean after tests. The local runner cannot install or execute Ruff/mypy, so those gates remain **NOT_RUN**, not PASS.
+
+
+Ruff is pinned to `0.16.7` in `requirements-quality.txt` and CI; this runner still records Ruff as **NOT_RUN** because the executable cannot be installed/downloaded here.
 ## Release 34 / UI-1 verification matrix
 
 Offline executed evidence:
@@ -26,7 +51,7 @@ Release 33 adds focused coverage in `tests/test_automation_expansion.py` for PH-
 
 Ruff/mypy may be marked only `PASS` when the actual tools execute successfully. Tool absence is `NOT_RUN`, never PASS. Q-1 real PostgreSQL/AlmaLinux/systemd/OpenSSH/Net-SNMP/vendor/live SMTP gates remain separate and must not be inferred from offline tests.
 
-> **Current continuation pointer:** use the Release 34 FULL source baseline as the active implementation source. UI-1 remains `IMPLEMENTED_TESTING_DEFERRED`; execute the applicable Q-1/live qualification gates before any promotion to `TESTED`/`RELEASED`. No next development phase is auto-assigned; perform a fresh roadmap review after qualification.
+> **Current continuation pointer:** use **Release 40 / NI-7 L3/VRF Path & Route Dependency Intelligence** as the active full-source baseline. Q-1 live gates remain deferred/NOT_RUN.
 
 ## Historical Q-1 baseline qualification summary
 
@@ -666,3 +691,11 @@ Required source-side checks: repository regression, compileall, `bash -n` on eve
 ### RPM install v3 clean-artifact evidence
 
 The candidate full-source archive was clean-extracted and requalified: `175/175` full-file byte identity, source/metadata manifests PASS, 8/8 required executable modes at 0755, zero cache/symlink/path-traversal/CR findings, `202 passed / 7 skipped / 0 failed`, legacy selftest `ALL PASS`, packaging shell syntax PASS, and the installer correctly refused a Debian host with exit 20. AlmaLinux binary RPM build/install/restart remains `NOT_RUN` and is not promoted by these offline results.
+
+## Release 40 NI-7 verification
+
+Focused NI-7 tests: **5 passed**. Full source regression before packaging: **211 passed / 7 skipped / 0 failed**. NI-7 coverage includes VRF isolation, explicit terminal routes, unresolved next-device fail-closed behavior, multipath ambiguity, preservation of distinct route dependency candidates, alternate-route evidence, analytics API scope/operator boundary, Operations UI/RBAC, and no direct execution surface. The seven existing service-backed skips remain four PostgreSQL/backup gates and three OpenSSH/Net-SNMP protocol-service gates. Q-1 live qualification is deliberately deferred.
+
+### Release 40 fresh-clone qualification
+
+A clean clone from the Release 40 candidate commit reproduced **8/8 Git index/worktree executable modes**, verified `source-manifest.sha256` and `SHA256SUMS`, completed **211 passed / 7 skipped / 0 failed**, legacy selftest **ALL PASS**, compileall/launcher/package-shell/workflow-YAML checks **PASS**, and returned to a clean Git worktree after test-cache removal. The seven service-backed skips remain deferred Q-1 gates.

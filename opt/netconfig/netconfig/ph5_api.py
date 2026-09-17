@@ -2,7 +2,6 @@
 
 No direct device mutation is performed here; execution must flow through PH-4.
 """
-from dataclasses import asdict
 from .ph5_intent import compare_desired
 
 

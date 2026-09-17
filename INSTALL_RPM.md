@@ -1,6 +1,6 @@
-# NetConfig Release 37 — RPM Installation
+# NetConfig Release 39 — RPM Installation
 
-Current package identity: **`netconfig-2.0.0-37.el10.noarch.rpm`**.
+Current package identity: **`netconfig-2.0.0-40.el10.noarch.rpm`**.
 Production package target: **AlmaLinux 10**.
 
 ## Build the RPM on AlmaLinux 10
@@ -9,7 +9,7 @@ Production package target: **AlmaLinux 10**.
 sudo dnf install -y rpm-build python3.12 systemd-rpm-macros
 chmod 0755 packaging/*.sh
 ./packaging/build-rpm.sh
-./packaging/inspect-rpm.sh ./netconfig-2.0.0-37.el10.noarch.rpm
+./packaging/inspect-rpm.sh ./netconfig-2.0.0-40.el10.noarch.rpm
 ```
 
 Do the build on a build VM/host, not on the production NetConfig server.
@@ -17,13 +17,13 @@ Do the build on a build VM/host, not on the production NetConfig server.
 ## Install or upgrade
 
 ```bash
-sudo ./packaging/install-rpm.sh ./netconfig-2.0.0-37.el10.noarch.rpm
+sudo ./packaging/install-rpm.sh ./netconfig-2.0.0-40.el10.noarch.rpm
 ```
 
 Equivalent package-manager command:
 
 ```bash
-sudo dnf install ./netconfig-2.0.0-37.el10.noarch.rpm
+sudo dnf install ./netconfig-2.0.0-40.el10.noarch.rpm
 sudo systemctl daemon-reload
 ```
 

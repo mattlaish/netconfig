@@ -42,6 +42,46 @@ class WebApiMixin:
                 "campaign_wave": "campaign:write",
             }.get(kind, "automation:write")
 
+        if path == "/api/v1/analytics/l3/routes":
+            if "analytics:write" not in token["scopes"] or token.get("role") not in {"operator", "approver", "admin"}:
+                self._api_json({"error": "insufficient_scope", "required": "analytics:write+operator"}, 403); return True
+            try:
+                terminal = str((form.get("terminal") or [""])[0]).lower() in {"1", "true", "yes", "on"}
+                value = self.manager.analytics.add_l3_route(
+                    device=(form.get("device") or [""])[0],
+                    vrf=(form.get("vrf") or ["default"])[0],
+                    destination_prefix=(form.get("destination_prefix") or [""])[0],
+                    protocol=(form.get("protocol") or [""])[0],
+                    next_hop=(form.get("next_hop") or [""])[0],
+                    outgoing_interface=(form.get("outgoing_interface") or [""])[0],
+                    next_device=(form.get("next_device") or [""])[0],
+                    metric=int((form.get("metric") or ["0"])[0] or 0),
+                    terminal=terminal, evidence_ref=(form.get("evidence_ref") or [""])[0],
+                    actor=actor)
+            except Exception as exc:
+                self._api_json({"error": "l3_route_observation_failed", "detail": str(exc)}, 400); return True
+            self._api_json(value, 201); return True
+        if path == "/api/v1/analytics/l3/path/simulate":
+            if "analytics:write" not in token["scopes"] or token.get("role") not in {"operator", "approver", "admin"}:
+                self._api_json({"error": "insufficient_scope", "required": "analytics:write+operator"}, 403); return True
+            try:
+                value = self.manager.analytics.simulate_l3_path(
+                    (form.get("source_device") or [""])[0],
+                    (form.get("vrf") or ["default"])[0],
+                    (form.get("destination_prefix") or [""])[0],
+                    actor=actor, max_hops=int((form.get("max_hops") or ["16"])[0] or 16))
+            except Exception as exc:
+                self._api_json({"error": "l3_path_simulation_failed", "detail": str(exc)}, 400); return True
+            self._api_json(value, 201); return True
+        if path == "/api/v1/analytics/l3/dependencies/analyze":
+            if "analytics:write" not in token["scopes"] or token.get("role") not in {"operator", "approver", "admin"}:
+                self._api_json({"error": "insufficient_scope", "required": "analytics:write+operator"}, 403); return True
+            try:
+                value = self.manager.analytics.analyze_route_dependencies(
+                    (form.get("failed_device") or [""])[0], actor=actor)
+            except Exception as exc:
+                self._api_json({"error": "route_dependency_analysis_failed", "detail": str(exc)}, 400); return True
+            self._api_json(value, 201); return True
         if path == "/api/v1/analytics/refresh":
             if "analytics:write" not in token["scopes"] or token.get("role") not in {"operator", "approver", "admin"}:
                 self._api_json({"error": "insufficient_scope", "required": "analytics:write+operator"}, 403); return True
@@ -706,6 +746,18 @@ class WebApiMixin:
         if not token:
             self._api_json({"error": "invalid_or_missing_bearer_token"}, 401); return True
         scopes = token["scopes"]
+        if path == "/api/v1/analytics/l3/routes":
+            if "analytics:read" not in scopes:
+                self._api_json({"error":"insufficient_scope","required":"analytics:read"},403); return True
+            try:
+                value = self.manager.analytics.l3_routes(
+                    device=(query.get("device") or [""])[0],
+                    vrf=(query.get("vrf") or [""])[0],
+                    destination_prefix=(query.get("destination_prefix") or [""])[0],
+                    limit=int((query.get("limit") or [250])[0]))
+            except Exception as exc:
+                self._api_json({"error":"l3_route_query_failed","detail":str(exc)},400); return True
+            self._api_json(value); return True
         if path == "/api/v1/analytics/dashboard":
             if "analytics:read" not in scopes:
                 self._api_json({"error":"insufficient_scope","required":"analytics:read"},403); return True

@@ -1,6 +1,6 @@
 # NetConfig Web Console — Release 34 UI-1
 
-> **Canonical project state — 2026-09-16:** **CURRENT IMPLEMENTATION BASELINE** = **Release 37 / NI-6 Enterprise Operations & Qualification Hardening** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-37`; NI-6.1 through NI-6.6 are complete in source, and NI-6 is now wired through `Manager.analytics` to scoped REST API and the Operations Network Intelligence console. Q-1 Ruff/mypy and live PostgreSQL/protocol/vendor/device/scale gates remain deferred and are not PASS.
+> **Canonical project state — 2026-09-17:** **CURRENT IMPLEMENTATION BASELINE** = **Release 40 / NI-7 L3/VRF Path & Route Dependency Intelligence** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-40`; NI-1 through NI-7 and Enterprise Operations are implemented in source. Q-1 live PostgreSQL/protocol/vendor/device/AlmaLinux gates remain deferred/`NOT_RUN`; Release 40 does not promote them to PASS.
 > UI-1 is an operator presentation layer over existing services. It does not create a direct device-write path.
 
 ## Operations navigation
@@ -41,3 +41,7 @@ NI-6.6 Health Dashboard: IMPLEMENTED_TESTING_DEFERRED
 ## Network Intelligence / Health dashboard
 
 The main navigation now links directly to Operations → **Network Intelligence**. The dashboard shows active/new/acknowledged/health counts, explicit Capacity/Failure Risk/Health refresh, managed impact simulation, insight filters/search, durable lifecycle controls, analytics job history, evidence JSON and affected-object drill-down. Insight details link to Topology, Endpoints, Events and Telemetry evidence. Viewer sessions remain read-only. The UI never executes a recommendation; action buttons route operators to Structured Changes, Desired State or Campaigns where normal approval applies.
+
+## NI-7 Network Intelligence operations
+
+`/operations?tab=intelligence` now includes explicit L3 route-evidence entry, VRF/path simulation, route-dependency candidate analysis, recent L3 route evidence, and the existing persisted-insight lifecycle. Viewer sessions remain read-only. Operator forms do not perform configuration changes; the page keeps the approved change-workflow boundary visible.

@@ -1,6 +1,6 @@
 # NetConfig Patch Ledger
 
-> **Canonical project state — 2026-09-16:** **CURRENT IMPLEMENTATION BASELINE** = **Release 37 / NI-6 Enterprise Operations & Qualification Hardening** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-37`; NI-6.1 through NI-6.6 are complete in source, and NI-6 is now wired through `Manager.analytics` to scoped REST API and the Operations Network Intelligence console. Q-1 Ruff/mypy and live PostgreSQL/protocol/vendor/device/scale gates remain deferred and are not PASS.
+> **Canonical project state — 2026-09-17:** **CURRENT IMPLEMENTATION BASELINE** = **Release 40 / NI-7 L3/VRF Path & Route Dependency Intelligence** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-40`; NI-1 through NI-7 and Enterprise Operations are implemented in source. Q-1 live PostgreSQL/protocol/vendor/device/AlmaLinux gates remain deferred/`NOT_RUN`; Release 40 does not promote them to PASS.
 
 ## PATCH-20260913-01 — Release 34 — UI-1 Unified Automation & Operations Console
 
@@ -470,3 +470,11 @@ PH-2 candidate packaging integrity: `6dfd6e554b08883c51a6f268bbe604bf95cc7819dad
 - Add guarded AlmaLinux 10 `packaging/install-rpm.sh` with explicit fresh-install administrator bootstrap and safe upgrade preservation.
 - Rewrite current RPM installation/build documentation and add root `INSTALL_RPM.md`.
 - Preserve `IMPLEMENTED_TESTING_DEFERRED`: source/offline checks pass; real AlmaLinux RPM build/install gate remains `NOT_RUN` on the Debian artifact runner.
+
+## PATCH-20260917-NI7 — Release 40 — L3/VRF Path & Route Dependency Intelligence
+
+- **Parent:** Release 39 Q-1 Production Qualification Hardening v5.
+- **Target RPM release:** `2.0.0-40`; schema revision `ni7-l3-route-1`.
+- **Scope:** durable route observations; same-VRF bounded path simulation; route dependency candidates; `L3_PATH`/`ROUTE_DEPENDENCY` insights; API/UI integration.
+- **Safety:** no next-hop identity inference, no VRF crossing, no arbitrary ECMP selection, no direct remediation/configuration execution.
+- **Verification before packaging:** NI-7 focused **5 passed**; full repository **211 passed / 7 skipped / 0 failed**. Q-1 live gates remain deferred.

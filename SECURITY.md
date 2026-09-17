@@ -1,6 +1,6 @@
 # Security
 
-> **Canonical project state — 2026-09-16:** **CURRENT IMPLEMENTATION BASELINE** = **Release 37 / NI-6 Enterprise Operations & Qualification Hardening** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-37`; NI-6.1 through NI-6.6 are complete in source, and NI-6 is now wired through `Manager.analytics` to scoped REST API and the Operations Network Intelligence console. Q-1 Ruff/mypy and live PostgreSQL/protocol/vendor/device/scale gates remain deferred and are not PASS.
+> **Canonical project state — 2026-09-17:** **CURRENT IMPLEMENTATION BASELINE** = **Release 40 / NI-7 L3/VRF Path & Route Dependency Intelligence** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-40`; NI-1 through NI-7 and Enterprise Operations are implemented in source. Q-1 live PostgreSQL/protocol/vendor/device/AlmaLinux gates remain deferred/`NOT_RUN`; Release 40 does not promote them to PASS.
 
 ## Release 34 / UI-1 security boundaries
 
@@ -464,3 +464,10 @@ NI-6.6 Health Dashboard: IMPLEMENTED_TESTING_DEFERRED
 ## NI-6 analytics security boundary
 
 `AnalyticsService` is evidence-only. It can persist, acknowledge, resolve and expire insights and can run bounded analysis/simulation. It cannot call transport/device-write functions. Capacity and Failure Risk derive from normalized evidence. Impact uses the existing resolved managed NI-2 directional topology and does not traverse unmanaged/unresolved adjacency. Web analytics mutations require CSRF plus operator-or-higher role; API mutations require `analytics:write` plus operator-or-higher role. Viewer/API read paths cannot trigger analysis as a side effect. Any remediation is performed only by navigating to the existing Structured Changes / Desired State / Campaign request/approve/execute safety plane.
+
+## NI-7 L3/VRF intelligence boundary
+
+- Route observations may identify a `next_device` only when it is already a managed inventory object; next-hop IP addresses are never promoted to device identity by inference.
+- Path simulation is strictly scoped to one explicit VRF and destination prefix, with bounded hop count and loop detection. Missing, unmanaged, mixed terminal/non-terminal, or distinct multipath next-device evidence stops traversal.
+- Route-dependency analysis reports **dependency candidates** and observed alternates; it does not claim outage or select an ECMP/FIB winner without authoritative forwarding evidence.
+- NI-7 analytics cannot execute network changes. Any operator remediation must enter the existing approval-gated Structured Changes, Desired State, or Campaign plane.

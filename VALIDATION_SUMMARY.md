@@ -1,6 +1,41 @@
-# NI-6 Enterprise Operations & Qualification Validation Summary
+# NetConfig Production Qualification Validation Summary
 
-Status: `IMPLEMENTED_TESTING_DEFERRED`.
+## Release 40 — NI-7 L3/VRF Path & Route Dependency Intelligence
+
+- Release/RPM identity: **2.0.0-40**.
+- Schema revision: **ni7-l3-route-1**.
+- NI-7 focused: **5 passed**.
+- Full source regression before final packaging: **211 passed / 7 skipped / 0 failed**.
+- Selftest: **ALL PASS**. Compileall/launcher/shell/YAML/operational-CR checks: **PASS**.
+- Safety: same-VRF only, explicit managed next-device identity, bounded/cycle-safe traversal, no arbitrary ECMP winner, route-dependency candidate only, no direct configuration execution.
+- Q-1 live PostgreSQL/protocol/vendor/AlmaLinux qualification remains deferred/NOT_RUN.
+
+### Release 40 candidate fresh-clone evidence
+
+Candidate commit fresh clone reproduced the complete test inventory in bounded groups: **211 passed / 7 skipped / 0 failed**. NI-7 focused **5 passed**; `source-manifest.sha256` and metadata checksums **PASS**; required Git index modes **8/8 = 100755**; legacy selftest **ALL PASS**; compileall, launcher compile, and packaging shell syntax **PASS**. After cache removal the clone returned to a clean Git worktree. The seven live/service tests remain intentionally skipped and Q-1 live gates remain deferred/`NOT_RUN`.
+
+### Release 40 final delivery qualification
+
+The frozen delivery surface is independently qualified. The full-source Git-archive ZIP contains **199 archive entries**, matches **181/181 Git-tracked files byte-for-byte**, and has **0** path-traversal entries, **0** symlinks, **0** cache/bytecode entries, **0** operational-text CR offenders, and **8/8** required executable files at mode `0755`; source and metadata manifests verify. From its clean extraction, the complete repository test inventory executes as **211 passed / 7 skipped / 0 failed**, with legacy selftest **ALL PASS** and compile/launcher/package-shell checks **PASS**. The clonable Git bundle reproduces the same commit, manifest and 8/8 Git `100755` modes and executes the same **211/7/0** regression plus selftest/compile with a clean post-test worktree. The `2.0.0-40` RPM build-source bundle has no traversal/symlink/cache entries, preserves all eight executable modes, verifies manifests/package identity, and passes **25/25** focused NI-7/repository-hygiene/Q-1 tests. Actual AlmaLinux RPM build/install and Q-1 live service/vendor gates remain `NOT_RUN`/deferred. The final archive SHA-256 is intentionally carried in external `.sha256` sidecars so the payload does not self-reference its own digest.
+
+## Historical Release 39 — Q-1 Production Qualification Hardening
+
+- Release/RPM identity: **2.0.0-39**.
+- Release 38 installer defect fixed: the guarded installer now validates RPM Release `39`; stale comparison against `37` is prohibited by regression.
+- Git index executable modes: **8/8 = 100755 PASS**.
+- Source full pytest: **206 passed / 7 skipped / 0 failed**.
+- Q-1 focused pytest: **12 passed / 0 failed**.
+- Legacy selftest: **ALL PASS**.
+- compileall / launcher `py_compile` / packaging shell syntax / workflow YAML / CR scan: **PASS**.
+- Staged installed-filesystem systemd unit verification: **PASS**.
+- Runtime `netconfig qualify` on this runner: **NOT READY** — required SSH client absent; Python/openssl/SQLite core storage pass; gNMI is optional while disabled.
+- Ruff `0.16.7`: **NOT_RUN** — pinned but executable unavailable and package download unavailable.
+- mypy `2.3.1`: **NOT_RUN** — pinned but executable unavailable and package download unavailable.
+- PostgreSQL service-backed Q-1: **NOT_RUN** — `pg_dump`/server tooling unavailable.
+- OpenSSH/Net-SNMP integration: **NOT_RUN** — services/tools unavailable.
+- AlmaLinux 10 RPM build/install: **NOT_RUN** on this Debian runner; source CI now contains an AlmaLinux 10 build/static job, but no workflow execution is claimed here.
+
+Release 39 remains `IMPLEMENTED_TESTING_DEFERRED`; source/offline qualification is green, while production/service-backed qualification is still open.
 
 ## Implemented boundary
 
@@ -78,3 +113,11 @@ Offline source and clean-extraction artifact qualification are complete. NI-6 re
 - Candidate extracted-tree `packaging/*.sh` syntax: PASS.
 - Candidate extracted-tree `install-rpm.sh` non-AlmaLinux fail-closed guard: PASS (exit `20` on Debian 13).
 - Binary RPM build/install remains `NOT_RUN` because this artifact runner is Debian 13 without the AlmaLinux 10 `rpmbuild`/Python 3.12 target environment.
+
+## Release 40 NI-7 current validation
+
+Source workspace validation before final artifact freeze: NI-7 focused **5 passed**; full repository **211 passed / 7 skipped / 0 failed**. NI-7 uses explicit managed route observations only and remains decision-support/read-only. Final artifact/fresh-clone evidence must be recorded after packaging; Q-1 live service, vendor/device, AlmaLinux and scale gates remain deferred/NOT_RUN.
+
+### Release 40 fresh-clone evidence
+
+Clean Git clone: **211 passed / 7 skipped / 0 failed**; 8/8 required executables `100755` in the index and `0755` in the worktree; source manifest and metadata checksum verification PASS; selftest ALL PASS; compile/shell/YAML PASS; post-test worktree clean after cache removal.

@@ -1,47 +1,43 @@
 {
-  "artifact": "netconfig_release37_NI6_Enterprise_Operations_RPM_Install_v3",
-  "parent": "netconfig_release37_NI6_Enterprise_Operations_Qualified_v2.zip",
-  "phase": "Release 37 RPM Installation Hardening",
-  "status": "IMPLEMENTED_TESTING_DEFERRED",
-  "rpm_identity": "netconfig-2.0.0-37.el10.noarch",
-  "qualification": {
-    "source_full_regression": "202 passed / 7 skipped / 0 failed",
-    "candidate_clean_extraction_full": "202 passed / 7 skipped / 0 failed",
-    "candidate_byte_identity": "175/175 PASS",
-    "selftest": "ALL PASS",
-    "compileall": "PASS",
-    "packaging_shell_syntax": "PASS",
-    "repo_hygiene": "5 passed / 0 failed",
-    "install_helper_guard": "PASS (non-AlmaLinux exits 20)",
-    "rpm_binary_build": "NOT_RUN on Debian artifact runner",
-    "almalinux_installed_runtime": "NOT_RUN",
-    "required_executable_modes": "8/8 = 0755"
-  },
+  "artifact": "netconfig_release40_NI7_L3_Route_Intelligence_v6",
+  "deferred": [
+    "actual Ruff/mypy execution",
+    "real PostgreSQL backup/restore and distributed service qualification",
+    "OpenSSH/Net-SNMP integration",
+    "AlmaLinux 10 RPM build/install/restart",
+    "live vendor/device routing-table/FIB ingestion and scale qualification"
+  ],
   "manifest_scope": {
-    "payload_files": 170,
-    "source_manifest": "source-manifest.sha256",
-    "cache_policy": "__pycache__, .pytest_cache and *.pyc prohibited from archive",
+    "cache_policy": "__pycache__, .pytest_cache and *.py[co] prohibited from delivery archives",
     "excluded_dynamic_metadata": [
       "ARTIFACT_MANIFEST.json",
       "HANDOVER_MANIFEST_SHA256.txt",
+      "RELEASE_MANIFEST.json",
       "RELEASE_MANIFEST_SHA256.txt",
       "SHA256SUMS",
       "source-manifest.sha256"
-    ]
+    ],
+    "payload_files": 175,
+    "source_manifest": "source-manifest.sha256",
+    "tracked_payload_only": true
   },
-  "source_manifest_sha256": "4a343d022b8d3b526036526c2c273d08074a8827ac022158a65ac4f7cd2e454d",
-  "release_manifest_sha256": "307284d56251dfb1831176d674b69409145ff08bc504a1deec3d3cc65508c988",
-  "handover_prompt_sha256": "4f2a2d22a2eddec82b53999c0490099d50c0e3b6ebc811f805a98ddd90e9d1f7",
-  "install_boundary": {
-    "production_target": "AlmaLinux 10",
-    "fresh_admin": "explicit operator action after RPM install",
-    "default_web_bind": "127.0.0.1:8778",
-    "config": "/etc/default/netconfig is %config(noreplace)",
-    "runtime_state": "/var/lib/netconfig retained across upgrades"
+  "parent": "netconfig_release39_Q1_Production_Qualification_Hardened_v5",
+  "phase": "Release 40 NI-7 L3/VRF Path & Route Dependency Intelligence",
+  "qualification": {
+    "compileall": "PASS",
+    "final_delivery": "ZIP and Git-bundle 211 passed / 7 skipped / 0 failed; RPM build-source focused 25 passed; structural integrity PASS",
+    "fresh_clone": "211 passed / 7 skipped / 0 failed; selftest/compile/shell/manifests PASS; clean worktree",
+    "git_index_modes": "8/8 = 100755 PASS",
+    "launcher_py_compile": "PASS",
+    "mypy_2_3_1": "NOT_RUN (tool unavailable in isolated runner)",
+    "ni7_focused": "5 passed / 0 failed",
+    "packaging_shell_syntax": "PASS",
+    "q1_live_services": "DEFERRED / NOT_RUN",
+    "ruff_0_16_7": "NOT_RUN (tool unavailable in isolated runner)",
+    "selftest": "ALL PASS",
+    "source_full_regression": "211 passed / 7 skipped / 0 failed (complete test inventory executed in bounded groups)"
   },
-  "deferred": [
-    "Q-1 Ruff/mypy",
-    "AlmaLinux RPM build/install/restart gate",
-    "live PostgreSQL/protocol/vendor/device/scale gates"
-  ]
+  "rpm_identity": "netconfig-2.0.0-40.el10.noarch",
+  "source_manifest_sha256": "b94171dd71363f444331be4d68303f69b37cb6fe746ecd4906e042c0ecabd96d",
+  "status": "IMPLEMENTED_TESTING_DEFERRED"
 }

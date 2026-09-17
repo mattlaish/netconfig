@@ -4,8 +4,7 @@ Deterministic, evidence-backed capacity analysis. This module creates
 observations and insights only; it never performs device actions.
 """
 from dataclasses import dataclass, asdict
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 
 @dataclass(frozen=True)
@@ -50,7 +49,7 @@ class CapacityAnalyzer:
             trend=trend,
             state=state,
             confidence=confidence,
-            observed_at=datetime.now(timezone.utc).isoformat(),
+            observed_at=datetime.now(UTC).isoformat(),
         )
 
     def to_insight(self, observation: CapacityObservation) -> dict:

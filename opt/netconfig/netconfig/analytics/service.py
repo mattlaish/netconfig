@@ -15,9 +15,10 @@ from dataclasses import asdict
 from .capacity import CapacityAnalyzer
 from .failure_risk import FailureRiskAnalyzer
 from .health import HealthAnalyzer
+from .l3 import L3RouteAnalyzer
 
 _STATES = {"NEW", "ACKNOWLEDGED", "RESOLVED", "EXPIRED"}
-_TYPES = {"CAPACITY", "FAILURE_RISK", "DEPENDENCY_IMPACT", "HEALTH"}
+_TYPES = {"CAPACITY", "FAILURE_RISK", "DEPENDENCY_IMPACT", "HEALTH", "L3_PATH", "ROUTE_DEPENDENCY"}
 
 
 def _clean(value, limit=512):
@@ -36,6 +37,7 @@ class AnalyticsService:
         self.capacity_analyzer = CapacityAnalyzer()
         self.failure_analyzer = FailureRiskAnalyzer()
         self.health_analyzer = HealthAnalyzer()
+        self.l3_analyzer = L3RouteAnalyzer()
 
     @staticmethod
     def _decode(row):
@@ -267,6 +269,148 @@ class AnalyticsService:
         results["health"]=self.analyze_health(object_id,actor)
         self.db.audit(actor,"analytics_refresh",object_id,"capacity,failure_risk,health")
         return results
+
+    def add_l3_route(self, *, device, vrf="default", destination_prefix, protocol="",
+                     next_hop="", outgoing_interface="", next_device="", metric=0,
+                     terminal=False, evidence_ref="", actor="system"):
+        device = _clean(device, 255)
+        vrf = _clean(vrf or "default", 128) or "default"
+        destination_prefix = _clean(destination_prefix, 255)
+        next_device = _clean(next_device, 255)
+        if not device or not self.manager.inv.get(device):
+            raise ValueError("device must be a managed inventory object")
+        if not destination_prefix:
+            raise ValueError("destination_prefix is required")
+        if next_device and not self.manager.inv.get(next_device):
+            raise ValueError("next_device must be an explicit managed inventory object")
+        if bool(terminal) and next_device:
+            raise ValueError("terminal route cannot specify next_device")
+        cur = self.conn.execute(
+            "INSERT INTO l3_route_observations "
+            "(tenant_id,device,vrf,destination_prefix,protocol,next_hop,outgoing_interface,next_device,metric,terminal,evidence_ref,actor,observed_ts) "
+            "VALUES ('default',?,?,?,?,?,?,?,?,?,?,?,?)",
+            (device, vrf, destination_prefix, _clean(protocol, 64), _clean(next_hop, 255),
+             _clean(outgoing_interface, 255), next_device, int(metric or 0), int(bool(terminal)),
+             _clean(evidence_ref, 512), _clean(actor, 128), time.time()),
+        )
+        self.conn.commit()
+        self.db.audit(actor, "analytics_l3_route_observe", device,
+                      f"route_id={int(cur.lastrowid)};vrf={vrf};destination={destination_prefix}")
+        return self.get_l3_route(cur.lastrowid)
+
+    def get_l3_route(self, route_id):
+        row = self.conn.execute(
+            "SELECT * FROM l3_route_observations WHERE id=?", (int(route_id),)
+        ).fetchone()
+        if not row:
+            return None
+        item = dict(row)
+        item["terminal"] = bool(item.get("terminal"))
+        return item
+
+    def l3_routes(self, *, device="", vrf="", destination_prefix="", limit=250):
+        q = "SELECT * FROM l3_route_observations WHERE tenant_id='default'"
+        args = []
+        if device:
+            q += " AND device=?"; args.append(_clean(device, 255))
+        if vrf:
+            q += " AND vrf=?"; args.append(_clean(vrf, 128))
+        if destination_prefix:
+            q += " AND destination_prefix=?"; args.append(_clean(destination_prefix, 255))
+        q += " ORDER BY observed_ts DESC,id DESC LIMIT ?"
+        args.append(max(1, min(int(limit), 1000)))
+        out = []
+        for row in self.conn.execute(q, tuple(args)).fetchall():
+            item = dict(row); item["terminal"] = bool(item.get("terminal")); out.append(item)
+        return out
+
+    def simulate_l3_path(self, source_device, vrf, destination_prefix, actor="system", max_hops=16):
+        source_device = _clean(source_device, 255)
+        vrf = _clean(vrf or "default", 128) or "default"
+        destination_prefix = _clean(destination_prefix, 255)
+        max_hops = max(1, min(int(max_hops), 64))
+        def run():
+            rows = self.l3_routes(vrf=vrf, destination_prefix=destination_prefix, limit=1000)
+            managed = [d["name"] for d in self.manager.inv.all()]
+            obs = self.l3_analyzer.simulate(
+                source_device, vrf, destination_prefix, rows, managed, max_hops=max_hops
+            )
+            raw = self.l3_analyzer.to_insight(obs)
+            evidence = raw["evidence"]
+            affected = [
+                {"object_type": "DEVICE", "object_id": hop["device"],
+                 "depth": hop["depth"], "route_id": hop["route_id"], "vrf": vrf}
+                for hop in obs.hops
+            ]
+            saved = self._persist(
+                raw, evidence=evidence, affected=affected,
+                fingerprint_key={"vrf": vrf, "destination_prefix": destination_prefix,
+                                 "status": obs.status, "route_ids": list(obs.route_ids)},
+            )
+            return {"path": evidence["path"], "insight": saved}
+        result = self._job(
+            "L3_PATH", source_device, actor,
+            {"source_device": source_device, "vrf": vrf,
+             "destination_prefix": destination_prefix, "max_hops": max_hops}, run
+        )
+        self.db.audit(actor, "analytics_l3_path_simulate", source_device,
+                      f"vrf={vrf};destination={destination_prefix}")
+        return result
+
+    def analyze_route_dependencies(self, failed_device, actor="system"):
+        failed_device = _clean(failed_device, 255)
+        if not failed_device or not self.manager.inv.get(failed_device):
+            raise ValueError("failed_device must be a managed inventory object")
+        def run():
+            rows = [dict(r) for r in self.conn.execute(
+                "SELECT * FROM l3_route_observations WHERE tenant_id='default' AND next_device=? "
+                "ORDER BY observed_ts DESC,id DESC", (failed_device,)
+            ).fetchall()]
+            candidates = []
+            for route in rows:
+                alternates = [dict(r) for r in self.conn.execute(
+                    "SELECT * FROM l3_route_observations WHERE tenant_id='default' AND device=? AND vrf=? "
+                    "AND destination_prefix=? AND id<>? AND (next_device<>? OR terminal=1) "
+                    "ORDER BY observed_ts DESC,id DESC LIMIT 50",
+                    (route["device"], route["vrf"], route["destination_prefix"],
+                     int(route["id"]), failed_device),
+                ).fetchall()]
+                for alt in alternates:
+                    alt["terminal"] = bool(alt.get("terminal"))
+                evidence = {
+                    "candidate": True,
+                    "failed_device": failed_device,
+                    "route": {**route, "terminal": bool(route.get("terminal"))},
+                    "observed_alternates": alternates,
+                    "limitations": "candidate only; ECMP/FIB forwarding choice is not inferred",
+                }
+                raw = {
+                    "type": "ROUTE_DEPENDENCY",
+                    "object_id": route["device"],
+                    "severity": "WARNING",
+                    "confidence": 0.9,
+                    "summary": (
+                        f"Route dependency candidate: {route['device']} VRF {route['vrf']} "
+                        f"{route['destination_prefix']} explicitly references {failed_device}; "
+                        f"{len(alternates)} alternate observation(s)"
+                    ),
+                }
+                saved = self._persist(
+                    raw, evidence=evidence,
+                    affected=[{"object_type": "DEVICE", "object_id": failed_device,
+                               "route_id": int(route["id"]), "vrf": route["vrf"],
+                               "destination_prefix": route["destination_prefix"]}],
+                    fingerprint_key={"route_id": int(route["id"]), "failed_device": failed_device},
+                )
+                candidates.append(saved)
+            return {"failed_device": failed_device, "candidate_count": len(candidates),
+                    "candidates": candidates}
+        result = self._job(
+            "ROUTE_DEPENDENCY", failed_device, actor, {"failed_device": failed_device}, run
+        )
+        self.db.audit(actor, "analytics_route_dependency_analyze", failed_device,
+                      f"candidates={int(result['candidate_count'])}")
+        return result
 
     def dashboard(self):
         insights=self.list(limit=500)

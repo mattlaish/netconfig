@@ -1,7 +1,28 @@
 # Development Ledger
 
-> **Canonical project state — 2026-09-16:** **CURRENT IMPLEMENTATION BASELINE** = **Release 37 / NI-6 Enterprise Operations & Qualification Hardening** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-37`; NI-6.1 through NI-6.6 are complete in source, and NI-6 is now wired through `Manager.analytics` to scoped REST API and the Operations Network Intelligence console. Q-1 Ruff/mypy and live PostgreSQL/protocol/vendor/device/scale gates remain deferred and are not PASS.
+> **Canonical project state — 2026-09-17:** **CURRENT IMPLEMENTATION BASELINE** = **Release 40 / NI-7 L3/VRF Path & Route Dependency Intelligence** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-40`; NI-1 through NI-7 and Enterprise Operations are implemented in source. Q-1 live PostgreSQL/protocol/vendor/device/AlmaLinux gates remain deferred/`NOT_RUN`; Release 40 does not promote them to PASS.
 
+## Release 40 — NI-7 L3/VRF Path & Route Dependency Intelligence
+
+NI-7 resumes product development from Release 39 while explicitly leaving Q-1 live gates deferred. It adds durable explicit route observations, VRF-scoped bounded path simulation, route dependency candidates, `L3_PATH`/`ROUTE_DEPENDENCY` persisted insights, REST/API and Operations UI integration, and schema revision `ni7-l3-route-1`. The implementation never infers managed next-device identity from next-hop IP, never crosses VRFs, stops on ambiguous/incomplete evidence, and cannot execute network configuration. Pre-package regression is **211 passed / 7 skipped / 0 failed**.
+
+### Release 40 final delivery qualification
+
+The frozen delivery surface is independently qualified. The full-source Git-archive ZIP contains **199 archive entries**, matches **181/181 Git-tracked files byte-for-byte**, and has **0** path-traversal entries, **0** symlinks, **0** cache/bytecode entries, **0** operational-text CR offenders, and **8/8** required executable files at mode `0755`; source and metadata manifests verify. From its clean extraction, the complete repository test inventory executes as **211 passed / 7 skipped / 0 failed**, with legacy selftest **ALL PASS** and compile/launcher/package-shell checks **PASS**. The clonable Git bundle reproduces the same commit, manifest and 8/8 Git `100755` modes and executes the same **211/7/0** regression plus selftest/compile with a clean post-test worktree. The `2.0.0-40` RPM build-source bundle has no traversal/symlink/cache entries, preserves all eight executable modes, verifies manifests/package identity, and passes **25/25** focused NI-7/repository-hygiene/Q-1 tests. Actual AlmaLinux RPM build/install and Q-1 live service/vendor gates remain `NOT_RUN`/deferred. The final archive SHA-256 is intentionally carried in external `.sha256` sidecars so the payload does not self-reference its own digest.
+
+## Historical Release 39 — Q-1 Production Qualification Hardening
+
+Q-1 execution against Release 38 reproduced the fresh-clone 204/7 regression but exposed a real RPM installer identity defect: `packaging/install-rpm.sh` still compared the RPM Release against `37` while reporting an expected Release `38`. Release 39 fixes the guard and advances the package identity to `2.0.0-39`. The qualification toolchain is also made deterministic: Ruff is pinned to `0.16.7`, mypy to `2.3.1`, GitHub checkout/setup-python actions are pinned to immutable Node-24-compatible commits, and CI gains an AlmaLinux 10 RPM build/static qualification job. No product feature behavior is added. Live installed-runtime and external service gates remain deferred until actually executed.
+
+Executed Release 39 local evidence: Q-1 focused **12 passed**; full repository **206 passed / 7 skipped / 0 failed**; legacy selftest **ALL PASS**; compileall, launcher compile, shell syntax, workflow YAML parse and CR scan **PASS**; staged installed-filesystem `systemd-analyze verify` **PASS**; Git index modes remain **8/8 = 100755**. Q-1 source gate returns exit `2` at the unavailable Ruff prerequisite, PostgreSQL gate exit `2` at missing `pg_dump`, AlmaLinux gate exit `20` on Debian 13, and runtime preflight returns not-ready because the required SSH client is absent. These are recorded as `NOT_RUN`/environment-not-ready rather than PASS.
+
+
+## Release 38 — Git Reproducibility Hardening
+
+Release 38 fixes the source-control reproducibility gap discovered after Release 37 packaging. Required raw executables are now committed as Git `100755`; CI verifies Git index modes rather than trusting only worktree/ZIP modes. Python 3.12 lint-modernisation changes remove legacy `timezone.utc`, deprecated `typing` collection imports/`Optional`, three confirmed unused imports, ambiguous exception chaining, and legacy `str, Enum` declarations without broadening Ruff ignores. Fresh-clone regression is **204 passed / 7 skipped / 0 failed** with selftest/compile/shell gates PASS. Actual Ruff/mypy execution remains NOT_RUN in this isolated runner. RPM release identity advances to `2.0.0-38` because changed source must not reuse the Release 37 package identity.
+
+
+Ruff is pinned to `0.16.7` in `requirements-quality.txt` and CI; this runner still records Ruff as **NOT_RUN** because the executable cannot be installed/downloaded here.
 ## 2026-09-13 — Release 34 — UI-1 Unified Automation & Operations Console
 
 Parent baseline: Release `2.0.0-33`, SHA-256 `ca0a8b9dc525118d7b542f03c715f6d20139e3584ada56bdca148e3d9ff0dccb`.
@@ -50,7 +71,7 @@ Testing/qualification truth is recorded in `TESTING_RESULT_2026-09-12.md`. Offli
 
 Artifact candidate evidence: Clean Release 33 candidate `netconfig_release33_candidate_2026-09-12.zip` (SHA-256 `d03720a411b796458747f7d8976a8fa01f4f40859b5e51341ef031aaa343f538`) passed the artifact gate: ZIP CRC **PASS**; path traversal **0**; symlinks **0**; caches **0**; text CR offenders **0**; source/extracted byte identity **132/132 PASS**; payload plus each SHA/release manifest **128/128 PASS**; required executable modes **7/7 = 0755**. From the clean extraction: Release 33 focused **23 passed**, PH-2 **9 passed**, PH-3 **22 passed**, Q-1 **11 passed**, full repository **168 passed / 7 skipped** in the isolated full-suite rerun, legacy selftest **ALL PASS**, and compileall/launcher py_compile/packaging shell syntax **PASS**. A first command that chained all suites hit the execution-tool timeout after full pytest reached ~82%; that interrupted run is not counted as PASS. The same candidate full suite was then rerun alone and completed cleanly (**168 passed / 7 skipped in 22.90s**).
 
-> **Current continuation pointer:** use the Release 34 FULL source baseline as the active implementation source. UI-1 remains `IMPLEMENTED_TESTING_DEFERRED`; execute the applicable Q-1/live qualification gates before any promotion to `TESTED`/`RELEASED`. No next development phase is auto-assigned; perform a fresh roadmap review after qualification.
+> **Current continuation pointer:** use **Release 40 / NI-7 L3/VRF Path & Route Dependency Intelligence** as the active full-source baseline. Preserve `IMPLEMENTED_TESTING_DEFERRED`; Q-1 live gates remain deferred and must not be promoted without actual service-backed evidence.
 
 ## 2026-09-12 — Qualification Track Q-1 — Production Runtime & Service-backed Qualification
 
@@ -906,3 +927,9 @@ NI-6 was wired into `Manager.analytics`, REST and the Operations Network Intelli
 - Added `packaging/install-rpm.sh`, a fail-closed AlmaLinux 10 install/upgrade helper. It validates package identity, preserves runtime state/config semantics, and deliberately does not auto-create an administrator/vault or silently expose the web console.
 - Reworked `opt/netconfig/INSTALL.md` and `packaging/README.md` around the supported production sequence: RPM install -> explicit first-admin bootstrap -> enable local-only web + backup timer -> smoke/qualification checks.
 - RPM binary/SRPM build and installed-runtime qualification remain `NOT_RUN` in the current Debian runner; use an AlmaLinux 10 qualification host for those gates.
+
+## 2026-09-17 — Release 40 — NI-7 L3/VRF Path & Route Dependency Intelligence
+
+Implemented durable `l3_route_observations`, `L3RouteAnalyzer`, same-VRF bounded/cycle-safe path simulation, route dependency candidate analysis, `L3_PATH`/`ROUTE_DEPENDENCY` persisted insight types, REST/API and Operations UI integration. Managed next-device identity is explicit only; no IP/topology guess is permitted. Multipath ambiguity stops path traversal instead of selecting a winner. Dependency candidates preserve distinct routes even when they share the same upstream/failed next device and report observed alternatives without claiming outage. Database schema revision advances to `ni7-l3-route-1`; PostgreSQL serial-table compatibility includes the new observation table. Q-1 live qualification remains deferred. Source regression before final packaging: **211 passed / 7 skipped / 0 failed**.
+
+Release 40 candidate fresh-clone qualification reproduced **211 passed / 7 skipped / 0 failed**, selftest ALL PASS, compile/shell/YAML PASS, manifest checks PASS, **8/8 Git executable modes**, and a clean post-test worktree. This is offline source evidence only; it does not close Q-1 live service/vendor/AlmaLinux gates.

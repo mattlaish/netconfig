@@ -1,6 +1,22 @@
 # NetConfig
 
-> **Canonical project state — 2026-09-16:** **CURRENT IMPLEMENTATION BASELINE** = **Release 37 / NI-6 Enterprise Operations & Qualification Hardening** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-37`; NI-6.1 through NI-6.6 are complete in source, and NI-6 is now wired through `Manager.analytics` to scoped REST API and the Operations Network Intelligence console. Q-1 Ruff/mypy and live PostgreSQL/protocol/vendor/device/scale gates remain deferred and are not PASS.
+> **Canonical project state — 2026-09-17:** **CURRENT IMPLEMENTATION BASELINE** = **Release 40 / NI-7 L3/VRF Path & Route Dependency Intelligence** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-40`; NI-1 through NI-7 and Enterprise Operations are implemented in source. Q-1 live PostgreSQL/protocol/vendor/device/AlmaLinux gates remain deferred/`NOT_RUN`; Release 40 does not promote them to PASS.
+
+## Release 40 — NI-7 L3/VRF Path & Route Dependency Intelligence
+
+Release 40 resumes product development while explicitly leaving Q-1 live qualification deferred. NI-7 adds durable `l3_route_observations`, deterministic VRF-scoped route traversal, `L3_PATH` and `ROUTE_DEPENDENCY` insights, scoped REST endpoints, and Network Intelligence operator workflows. Traversal never crosses VRFs, never infers a managed next device from a next-hop IP, is bounded/cycle-safe, and stops on missing, unmanaged, mixed-terminal, or multipath-ambiguous evidence. Route-dependency results are explicitly **candidates**, not outage claims; observed alternate route evidence is surfaced without guessing ECMP/FIB forwarding choice. No NI-7 API or UI path can execute device configuration; configuration actions remain behind the existing approved Structured Changes / Desired State / Campaign workflow.
+
+Current source regression after NI-7 implementation is **211 passed / 7 skipped / 0 failed**. The seven skips remain the existing PostgreSQL backup/live and OpenSSH/Net-SNMP service-backed gates. Q-1 live qualification remains deferred and does not block this feature baseline.
+
+## Release 39 Q-1 Production Qualification Hardening
+
+Release 39 is a qualification/packaging hardening release, not a new product feature slice. Q-1 found and fixes a guarded-installer defect in Release 38 where `install-rpm.sh` displayed Release 38 but still compared the package release against `37`. Release 39 advances the RPM identity to `2.0.0-39`, pins both Ruff `0.16.7` and mypy `2.3.1`, pins GitHub Actions checkout/setup-python to immutable Node-24-compatible revisions, and adds an AlmaLinux 10 RPM build/static qualification job.
+
+Current source verification after the Q-1 fixes is **206 passed / 7 skipped / 0 failed**, Q-1 focused **12 passed**, legacy selftest **ALL PASS**, compileall/launcher/package-shell/YAML checks **PASS**, Git index executable modes **8/8 = 100755**, and staged systemd unit verification **PASS**. The current isolated runner does not contain Ruff/mypy/PostgreSQL/OpenSSH/Net-SNMP/RPM tooling and cannot download packages. `netconfig qualify` therefore correctly fails this host's runtime readiness on the required SSH client. Ruff/mypy, PostgreSQL, protocol-service and AlmaLinux target gates remain `NOT_RUN` here; GitHub CI and disposable target environments must provide actual service-backed evidence before promotion. See `Q1_PRODUCTION_QUALIFICATION.md`.
+
+## Historical Release 38 Git reproducibility baseline
+
+Release 38 closes the difference between ZIP/file-system executable bits and Git checkout truth. The eight launcher/packaging entry points are committed as Git mode `100755`, and CI verifies the index mode with `git ls-files --stage` before Ruff or tests. A fresh local clone from the committed object database reproduced all eight executable bits and passed `204 passed / 7 skipped / 0 failed`, legacy selftest `ALL PASS`, compileall, launcher `py_compile`, and packaging shell syntax. Ruff is pinned to `0.16.7` in `requirements-quality.txt` and CI; this runner still records Ruff as **NOT_RUN** because the executable cannot be installed/downloaded here. Ruff and mypy are **NOT_RUN** in the current isolated runner because those tools are unavailable; this is not a PASS claim. See `GIT_REPRODUCIBILITY.md`.
 
 ## NI-6 Enterprise Operations & Qualification Hardening
 
@@ -14,10 +30,10 @@ Source-tree verification before packaging: **202 passed / 7 skipped / 0 failed**
 
 ## Installation
 
-Production packaging targets **AlmaLinux 10** with RPM identity `netconfig-2.0.0-37.el10.noarch`.
+Production packaging targets **AlmaLinux 10** with RPM identity `netconfig-2.0.0-40.el10.noarch`.
 
 ```bash
-sudo dnf install ./netconfig-2.0.0-37.el10.noarch.rpm
+sudo dnf install ./netconfig-2.0.0-40.el10.noarch.rpm
 sudo -u netconfig /usr/bin/netconfig user add admin \
   --role admin --fullname "NetConfig Administrator"
 sudo systemctl enable --now netconfig-web.service netconfig-backup.timer

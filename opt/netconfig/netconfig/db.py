@@ -661,6 +661,20 @@ CREATE TABLE IF NOT EXISTS analytics_jobs (
 );
 CREATE INDEX IF NOT EXISTS idx_analytics_jobs_created
     ON analytics_jobs(job_type, created_ts);
+
+-- ---- NI-7 explicit L3/VRF route evidence --------------------------------
+CREATE TABLE IF NOT EXISTS l3_route_observations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, tenant_id TEXT NOT NULL DEFAULT 'default',
+    device TEXT NOT NULL, vrf TEXT NOT NULL DEFAULT 'default', destination_prefix TEXT NOT NULL,
+    protocol TEXT NOT NULL DEFAULT '', next_hop TEXT NOT NULL DEFAULT '',
+    outgoing_interface TEXT NOT NULL DEFAULT '', next_device TEXT NOT NULL DEFAULT '',
+    metric INTEGER NOT NULL DEFAULT 0, terminal INTEGER NOT NULL DEFAULT 0,
+    evidence_ref TEXT NOT NULL DEFAULT '', actor TEXT NOT NULL DEFAULT '', observed_ts REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_l3_route_lookup
+    ON l3_route_observations(device, vrf, destination_prefix, observed_ts);
+CREATE INDEX IF NOT EXISTS idx_l3_route_next_device
+    ON l3_route_observations(next_device, vrf, destination_prefix, observed_ts);
 """
 
 # Additive column migrations: (table, column, coldef). Applied only if absent.
@@ -781,7 +795,7 @@ class _LockedConn:
 class Database:
     dialect = "sqlite"
     distributed_capable = False
-    schema_revision = "ni6-enterprise-1"
+    schema_revision = "ni7-l3-route-1"
 
     def __init__(self, path):
         self.path = path

@@ -34,12 +34,36 @@ rm -rf .rpmbuild
 RPM=$(find . -maxdepth 1 -type f -name 'netconfig-2.0.0-*.el10.noarch.rpm' -printf '%f\n' | sort -V | tail -1)
 [[ -n $RPM ]] || { echo "built binary RPM not found" >&2; exit 1; }
 IDENTITY=$(rpm -qp --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}\n' "$RPM")
-[[ $IDENTITY == 2.0.0-37.*.noarch ]] || { echo "unexpected built RPM identity: $IDENTITY" >&2; exit 1; }
+[[ $IDENTITY == 2.0.0-40.*.noarch ]] || { echo "unexpected built RPM identity: $IDENTITY" >&2; exit 1; }
 ./packaging/inspect-rpm.sh "$RPM"
-systemd-analyze verify \
-    usr/lib/systemd/system/netconfig-web.service \
-    usr/lib/systemd/system/netconfig-backup.service \
-    usr/lib/systemd/system/netconfig-backup.timer
+
+# Verify source units against a staged installed filesystem rather than the current
+# host. Non-install qualification must not require or mutate /usr/bin/netconfig.
+VERIFY_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/netconfig-systemd-root.XXXXXX")
+cleanup_verify_root() {
+    rm -rf -- "$VERIFY_ROOT"
+}
+trap cleanup_verify_root EXIT
+mkdir -p "$VERIFY_ROOT/usr/bin" "$VERIFY_ROOT/usr/lib/systemd" \
+    "$VERIFY_ROOT/etc" "$VERIFY_ROOT/opt/netconfig" "$VERIFY_ROOT/var/lib/netconfig"
+cp -a /usr/lib/systemd/system "$VERIFY_ROOT/usr/lib/systemd/"
+install -m 0755 usr/bin/netconfig "$VERIFY_ROOT/usr/bin/netconfig"
+install -m 0644 usr/lib/systemd/system/netconfig-web.service \
+    "$VERIFY_ROOT/usr/lib/systemd/system/netconfig-web.service"
+install -m 0644 usr/lib/systemd/system/netconfig-backup.service \
+    "$VERIFY_ROOT/usr/lib/systemd/system/netconfig-backup.service"
+install -m 0644 usr/lib/systemd/system/netconfig-backup.timer \
+    "$VERIFY_ROOT/usr/lib/systemd/system/netconfig-backup.timer"
+install -m 0644 opt/netconfig/INSTALL.md "$VERIFY_ROOT/opt/netconfig/INSTALL.md"
+printf 'root:x:0:0:root:/root:/bin/sh\nnetconfig:x:998:998:NetConfig:/var/lib/netconfig:/sbin/nologin\n' \
+    > "$VERIFY_ROOT/etc/passwd"
+printf 'root:x:0:\nnetconfig:x:998:\n' > "$VERIFY_ROOT/etc/group"
+systemd-analyze verify --root="$VERIFY_ROOT" \
+    "$VERIFY_ROOT/usr/lib/systemd/system/netconfig-web.service" \
+    "$VERIFY_ROOT/usr/lib/systemd/system/netconfig-backup.service" \
+    "$VERIFY_ROOT/usr/lib/systemd/system/netconfig-backup.timer"
+cleanup_verify_root
+trap - EXIT
 
 if [[ $INSTALL -eq 0 ]]; then
     echo "Q-1 RPM build/static qualification: PASS"

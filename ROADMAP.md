@@ -1,6 +1,22 @@
 # Roadmap
 
-> **Canonical project state — 2026-09-16:** **CURRENT IMPLEMENTATION BASELINE** = **Release 37 / NI-6 Enterprise Operations & Qualification Hardening** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-37`; NI-6.1 through NI-6.6 are complete in source, and NI-6 is now wired through `Manager.analytics` to scoped REST API and the Operations Network Intelligence console. Q-1 Ruff/mypy and live PostgreSQL/protocol/vendor/device/scale gates remain deferred and are not PASS.
+> **Canonical project state — 2026-09-17:** **CURRENT IMPLEMENTATION BASELINE** = **Release 40 / NI-7 L3/VRF Path & Route Dependency Intelligence** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-40`; NI-1 through NI-7 and Enterprise Operations are implemented in source. Q-1 live PostgreSQL/protocol/vendor/device/AlmaLinux gates remain deferred/`NOT_RUN`; Release 40 does not promote them to PASS.
+
+
+## Release 40 — NI-7 L3/VRF Path & Route Dependency Intelligence
+
+State: **IMPLEMENTED_TESTING_DEFERRED**. NI-7 resumes feature development after Release 39 while leaving Q-1 live gates explicitly deferred. Implemented scope: durable explicit L3 route observations; VRF-scoped bounded/cycle-safe path simulation; no next-hop-IP-to-device inference; fail-closed handling for missing/unmanaged/multipath/loop evidence; route dependency candidates with alternate-observation evidence; `L3_PATH` and `ROUTE_DEPENDENCY` insights; analytics REST/API and Network Intelligence UI integration. NI-7 remains read-only decision support and cannot bypass existing change approval.
+
+Offline source evidence before final packaging: **211 passed / 7 skipped / 0 failed**. Live PostgreSQL/protocol/vendor/scale/AlmaLinux Q-1 gates remain deferred and must not be counted as NI-7 qualification PASS.
+
+## Release 39 — Q-1 Production Qualification Hardening
+
+State: **IMPLEMENTED_TESTING_DEFERRED**. Q-1 execution found and repaired the Release 38 RPM installer release-number mismatch and hardened CI/tool reproducibility. This release does not promote Q-1 to `TESTED`: Ruff/mypy and service-backed PostgreSQL/protocol/AlmaLinux installed-runtime/vendor/device/scale gates require actual execution. Release 38 Git mode/fresh-clone work remains inherited and must continue to pass.
+
+
+## Release 38 — Git Reproducibility Hardening
+
+State: **IMPLEMENTED_TESTING_DEFERRED**. Git index/worktree executable-mode reproducibility and fresh-clone pytest/selftest/compile/shell gates are implemented and locally verified. Ruff/mypy and live infrastructure/vendor/AlmaLinux qualification remain NOT_RUN/deferred, so Release 38 is not `TESTED` or `RELEASED`.
 
 ## UI-1 — Unified Automation & Operations Console — `IMPLEMENTED_TESTING_DEFERRED`
 
@@ -16,9 +32,9 @@ Implemented in source:
 - automation Change Request review renders frozen/current snapshots and SHA-256 drift status instead of presenting automation JSON as CLI commands;
 - all existing CSRF, RBAC, CSP nonce, vault, frozen-snapshot, audit and recovery invariants are retained.
 
-**CURRENT:** Release 37 / NI-6 Enterprise Operations & Qualification Hardening — `IMPLEMENTED_TESTING_DEFERRED`.
+**CURRENT:** Release 40 / NI-7 L3/VRF Path & Route Dependency Intelligence — `IMPLEMENTED_TESTING_DEFERRED`.
 
-**NEXT:** NI-6 offline source/artifact qualification is complete; execute the remaining applicable Q-1/live PostgreSQL/protocol/vendor/device/scale gates before any promotion to `TESTED`/`RELEASED`. No NI-7 phase is auto-assigned. Session idle/absolute expiry remains explicitly deferred security debt.
+**NEXT:** perform post-NI-7 roadmap review. Q-1 live qualification remains deferred and can be resumed independently; no NI-8 or Q-2 phase is auto-assigned. Session idle/absolute expiry remains explicitly deferred security debt.
 
 
 ## Release 33 implementation expansion — source complete, qualification pending
@@ -40,7 +56,7 @@ The following development phases are now implemented in source. All remain `IMPL
 
 **Historical NEXT (Release 33):** rebuild and independently verify the formal Release 33 FULL ZIP, then execute the available Q-1 live gates and perform another roadmap/qualification review.
 
-> **Current continuation pointer:** use the Release 37 NI-6 Enterprise Operations source baseline as the active implementation source. NI-6 remains `IMPLEMENTED_TESTING_DEFERRED`; execute the artifact and applicable Q-1/live qualification gates before any promotion to `TESTED`/`RELEASED`. No NI-7 phase is auto-assigned.
+> **Current continuation pointer:** use **Release 40 / NI-7 L3/VRF Path & Route Dependency Intelligence** as the active full-source baseline. Q-1 live qualification remains deferred; no NI-8 or Q-2 is auto-assigned.
 
 Status vocabulary for new work: `PLANNED`, `IMPLEMENTED_TESTING_DEFERRED`, `TESTED`, `RELEASED`. Older `IMPLEMENTED` labels predate this vocabulary and should not be interpreted as live-environment qualification.
 
@@ -68,7 +84,7 @@ Session idle/absolute expiry remains explicitly deferred security debt and is no
 
 Implemented in source:
 
-- release/version truth reconciled: Python package/project/RPM Version `2.0.0`, RPM source Release `32`;
+- release/version truth reconciled: Python package/project Version `2.0.0`, active RPM source Release `39`;
 - configuration-aware `netconfig qualify` runtime preflight for active storage and required external executables;
 - controlled PostgreSQL core backup using atomic custom-format `pg_dump`, SHA-256 sidecar, mode-0600 output and non-interactive authentication;
 - controlled PostgreSQL restore drill requiring SHA-256 verification, explicit `RESTORE_DATABASE` confirmation, and a target database different from the active core database;
@@ -81,14 +97,17 @@ Implemented in source:
 - backup systemd unit hardened to the same filesystem/process baseline as the Web service and documents the pre-vault PostgreSQL systemd credential;
 - source qualification harness fails closed when Ruff/mypy are absent instead of reporting skipped tooling as success.
 
-Current environment evidence:
+Current Release 39 environment evidence:
 
-- Q-1 focused offline tests: **11 passed**;
-- full offline repository: **147 passed / 7 skipped** before final artifact packaging;
-- the seven skips are three existing OpenSSH/Net-SNMP/PostgreSQL-history service tests plus four new Q-1 PostgreSQL live gates;
-- Ruff/mypy: `NOT_RUN` because the tools are absent and this isolated environment cannot resolve packages;
-- PostgreSQL service-backed Q-1 gate: `NOT_RUN` because `pg_dump`/PostgreSQL service tooling is absent;
-- AlmaLinux RPM/systemd installed qualification: `NOT_RUN` because the current host is Debian 13, not AlmaLinux 10.
+- Q-1 focused offline tests: **12 passed**;
+- full offline repository: **206 passed / 7 skipped / 0 failed** before final Release 39 packaging;
+- the seven skips are four PostgreSQL live/backup-restore gates plus three OpenSSH/Net-SNMP protocol-service gates;
+- Git index executable modes: **8/8 = 100755 PASS**;
+- staged installed-filesystem systemd unit verification: **PASS**;
+- runtime preflight on this Debian artifact runner: **NOT READY** because required `ssh` is absent; SQLite storage/openssl/Python checks pass and gNMI is not required when disabled;
+- Ruff/mypy source gate: `NOT_RUN` / exit `2` because the pinned tools are absent and this isolated environment cannot resolve/download packages;
+- PostgreSQL service-backed Q-1 gate: `NOT_RUN` / exit `2` because `pg_dump`/PostgreSQL service tooling is absent;
+- AlmaLinux RPM qualification harness: `NOT_RUN` / exit `20` because the current host is Debian 13, not AlmaLinux 10. CI now contains an AlmaLinux 10 build/static qualification job, but it is not PASS until that workflow actually runs.
 
 Q-1 remains `IMPLEMENTED_TESTING_DEFERRED`. It must not be promoted until the applicable live gates are actually executed and recorded. After Q-1 qualification, perform a new roadmap review; do not invent Q-2 automatically.
 
@@ -456,7 +475,7 @@ Scope:
 
 ### PH-5 — Intent / Desired State Automation
 
-Status: `PLANNED`
+Status: `IMPLEMENTED_TESTING_DEFERRED` — delivered through NA-1 / NA-2 and retained here as historical architecture naming
 
 Scope:
 
@@ -470,7 +489,7 @@ Scope:
 
 ### PH-6 — Distributed Execution / HA
 
-Status: `PLANNED`
+Status: `IMPLEMENTED_TESTING_DEFERRED` — delivered through HA-1 / distributed task foundations and retained here as historical architecture naming
 
 Scope:
 
@@ -585,9 +604,9 @@ Implemented milestones:
 
 Enterprise operations hardening adds durable `network_insights` / `analytics_jobs`, Manager → API → UI integration, `analytics:read` / `analytics:write` RBAC scopes, insight acknowledgement/resolution/expiry, filter/search, affected-object/evidence drill-down, managed directional impact simulation, and the Operations → Network Intelligence dashboard. Analytics remains evidence-only and does not execute remediation; configuration action must use the existing approved Structured Changes / Desired State / Campaign plane.
 
-Offline source evidence after hardening: **202 passed / 7 skipped / 0 failed**, selftest **ALL PASS**, compileall/launcher/package-shell syntax **PASS**. Q-1/Ruff and live PostgreSQL/protocol/vendor/scale gates remain `NOT_RUN`/deferred.
+Offline source evidence after hardening: **204 passed / 7 skipped / 0 failed**, selftest **ALL PASS**, compileall/launcher/package-shell syntax **PASS**. Q-1/Ruff and live PostgreSQL/protocol/vendor/scale gates remain `NOT_RUN`/deferred.
 
-Scope retained for future expansion (not claimed by this milestone): unified L3/VRF path analytics, route-dependency simulation, production threshold calibration and live scale qualification.
+Scope retained for future expansion after Release 40: production threshold calibration, richer routing-table/FIB ingestion, and live scale/vendor qualification. L3/VRF path analytics and route-dependency simulation are implemented by NI-7.
 
 ## Release 35 PH-4 Completion Hardening
 

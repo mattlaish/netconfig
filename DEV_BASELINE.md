@@ -1,8 +1,19 @@
 # NetConfig development baseline
 
-> **Canonical project state — 2026-09-16:** **CURRENT IMPLEMENTATION BASELINE** = **Release 37 / NI-6 Enterprise Operations & Qualification Hardening** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-37`; NI-6.1 through NI-6.6 are complete in source, and NI-6 is now wired through `Manager.analytics` to scoped REST API and the Operations Network Intelligence console. Q-1 Ruff/mypy and live PostgreSQL/protocol/vendor/device/scale gates remain deferred and are not PASS.
+> **Canonical project state — 2026-09-17:** **CURRENT IMPLEMENTATION BASELINE** = **Release 40 / NI-7 L3/VRF Path & Route Dependency Intelligence** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-40`; NI-1 through NI-7 and Enterprise Operations are implemented in source. Q-1 live PostgreSQL/protocol/vendor/device/AlmaLinux gates remain deferred/`NOT_RUN`; Release 40 does not promote them to PASS.
 
-## Release 34 baseline identity
+## Release 40 baseline identity
+
+- Parent artifact: Release 39 Q-1 Production Qualification Hardening v5.
+- Application version: `2.0.0`.
+- RPM source Release: `40`.
+- Current phase: NI-7 — L3/VRF Path & Route Dependency Intelligence.
+- Status: `IMPLEMENTED_TESTING_DEFERRED`.
+- Schema revision: `ni7-l3-route-1`.
+- Primary new source: `opt/netconfig/netconfig/analytics/l3.py`, analytics service/API/UI wiring, `l3_route_observations`, and NI-7 tests.
+- Pre-package source regression: **211 passed / 7 skipped / 0 failed**.
+
+## Historical Release 34 baseline identity
 
 - Parent artifact: `netconfig_release33_FULL_source_baseline_2026-09-12.zip`
 - Parent SHA-256: `ca0a8b9dc525118d7b542f03c715f6d20139e3584ada56bdca148e3d9ff0dccb`
@@ -20,7 +31,7 @@ Application/project Version: `2.0.0`. RPM source Release: `33`. Database schema 
 
 Source includes PH-4 structured transactions, NI-5 telemetry/time-series foundation, VM-1 vendor model packs, NA-1 desired state, NA-2 fleet campaigns and HA-1 control-plane recovery/drain foundation. All are `IMPLEMENTED_TESTING_DEFERRED`; Q-1 real-service/RPM qualification remains outstanding. The source tree is the authoritative modifiable baseline; no claim is made that Release 33 RPM or real network devices have been qualified until corresponding evidence exists.
 
-> **Current continuation pointer:** use the Release 34 FULL source baseline as the active implementation source. UI-1 remains `IMPLEMENTED_TESTING_DEFERRED`; execute the applicable Q-1/live qualification gates before any promotion to `TESTED`/`RELEASED`. No next development phase is auto-assigned; perform a fresh roadmap review after qualification.
+> **Current continuation pointer:** use Release 40 as the active implementation source. Q-1 live qualification remains deferred; perform the next roadmap review from the NI-7 baseline.
 
 ## Historical Q-1 baseline note
 

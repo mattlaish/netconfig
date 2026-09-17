@@ -1,6 +1,6 @@
 """PH-4 completion hardening state/evidence helpers."""
 from dataclasses import dataclass, asdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 class NetconfCommitState:
     COMMIT_REQUESTED="COMMIT_REQUESTED"
@@ -30,6 +30,6 @@ class RecoveryEvidence:
 
     @classmethod
     def create(cls, **kwargs):
-        now=datetime.now(timezone.utc).isoformat()
+        now=datetime.now(UTC).isoformat()
         kwargs.setdefault("created_at", now)
         return cls(**kwargs)

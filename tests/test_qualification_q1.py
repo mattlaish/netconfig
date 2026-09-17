@@ -213,6 +213,14 @@ def test_q1_almalinux_qualification_script_requires_explicit_install_switch():
     assert "packaging/smoke-installed.sh" in script
 
 
+
+def test_q1_almalinux_static_systemd_verify_uses_staged_root():
+    script = (ROOT / "packaging/q1-qualify-almalinux.sh").read_text(encoding="utf-8")
+    assert 'VERIFY_ROOT=$(mktemp -d' in script
+    assert 'systemd-analyze verify --root="$VERIFY_ROOT"' in script
+    assert 'install -m 0755 usr/bin/netconfig "$VERIFY_ROOT/usr/bin/netconfig"' in script
+
+
 def test_q1_transfer_bundle_keeps_qualification_sources_and_control_paths():
     script = (ROOT / "packaging/prepare-transfer.ps1").read_text(encoding="utf-8")
     assert '"tests"' in script

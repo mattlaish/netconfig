@@ -5,9 +5,9 @@ This module produces observations only and never performs remediation.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
-from datetime import datetime, timezone
-from typing import Iterable, Mapping
+from collections.abc import Iterable
+from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
 
 
 @dataclass(frozen=True)
@@ -62,7 +62,7 @@ class HealthAnalyzer:
             overall_state=state,
             confidence=confidence,
             evidence_refs=refs,
-            created_at=datetime.now(timezone.utc).isoformat(),
+            created_at=datetime.now(UTC).isoformat(),
         )
 
     def to_insight(self, observation: NetworkHealthObservation) -> dict:

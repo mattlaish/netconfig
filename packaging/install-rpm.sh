@@ -4,7 +4,7 @@ set -euo pipefail
 RPM_PATH=${1:-}
 if [[ -z "$RPM_PATH" || "$RPM_PATH" == "-h" || "$RPM_PATH" == "--help" ]]; then
     cat <<'USAGE'
-usage: sudo ./packaging/install-rpm.sh ./netconfig-2.0.0-37.el10.noarch.rpm
+usage: sudo ./packaging/install-rpm.sh ./netconfig-2.0.0-40.el10.noarch.rpm
 
 Installs or upgrades the NetConfig RPM on AlmaLinux 10. The script deliberately
 DOES NOT create the first admin, create/unlock the credential vault, or start the
@@ -41,8 +41,8 @@ read -r NAME VERSION RELEASE ARCH <<<"$IDENTITY"
     echo "unexpected package identity: $IDENTITY" >&2
     exit 1
 }
-if [[ ${RELEASE%%.*} != "37" ]]; then
-    echo "expected NetConfig RPM release 37, got: $IDENTITY" >&2
+if [[ ${RELEASE%%.*} != "40" ]]; then
+    echo "expected NetConfig RPM release 40, got: $IDENTITY" >&2
     exit 1
 fi
 

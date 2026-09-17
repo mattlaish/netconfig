@@ -5,9 +5,9 @@ observations and insights; it never executes network actions.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
-from datetime import datetime, timezone
-from typing import Iterable, Mapping
+from collections.abc import Iterable, Mapping
+from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
 
 
 @dataclass(frozen=True)
@@ -46,7 +46,7 @@ class ImpactSimulator:
             if src and dst:
                 graph.setdefault(src, set()).add(dst)
 
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         seen = {source_object}
         queue = [(source_object, 0)]
         result: list[ImpactObservation] = []

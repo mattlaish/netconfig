@@ -22,13 +22,15 @@ jobs:
           --health-timeout=5s
           --health-retries=5
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
           cache: pip
       - name: Install quality tools
-        run: python -m pip install --upgrade pip pytest ruff mypy 'psycopg[binary]'
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-quality.txt pytest 'psycopg[binary]'
       - name: Repository line-ending hygiene
         shell: bash
         run: |
@@ -41,8 +43,20 @@ jobs:
       - name: Executable-mode integrity
         shell: bash
         run: |
-          for f in usr/bin/netconfig packaging/build-rpm.sh packaging/inspect-rpm.sh packaging/q1-qualify-almalinux.sh packaging/q1-qualify-postgres.sh packaging/q1-source-gates.sh packaging/smoke-installed.sh; do
-            test -x "$f" || { echo "Tracked executable mode missing: $f" >&2; exit 1; }
+          required=(
+            usr/bin/netconfig
+            packaging/build-rpm.sh
+            packaging/install-rpm.sh
+            packaging/inspect-rpm.sh
+            packaging/q1-qualify-almalinux.sh
+            packaging/q1-qualify-postgres.sh
+            packaging/q1-source-gates.sh
+            packaging/smoke-installed.sh
+          )
+          for f in "${required[@]}"; do
+            mode="$(git ls-files --stage -- "$f" | awk '{print $1}')"
+            [ "$mode" = "100755" ] || { echo "Git index executable mode must be 100755: $f (got ${mode:-missing})" >&2; exit 1; }
+            test -x "$f" || { echo "Worktree executable mode missing after checkout: $f" >&2; exit 1; }
           done
       - name: Ruff
         run: ruff check opt/netconfig/netconfig tests
@@ -101,3 +115,22 @@ jobs:
           NETCONFIG_TEST_PG_PASSWORD: "netconfig"
           NETCONFIG_TEST_PG_SSLMODE: "disable"
         run: pytest -q tests/integration
+
+
+  almalinux-10-rpm-build:
+    runs-on: ubuntu-latest
+    container:
+      image: almalinux:10
+    steps:
+      - name: Install AlmaLinux build prerequisites
+        run: >-
+          dnf install -y
+          git rpm-build rpm cpio findutils gzip tar systemd systemd-rpm-macros
+          python3.12 python3.12-pip
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install pinned Q-1 quality tools
+        run: |
+          python3.12 -m pip install --upgrade pip
+          python3.12 -m pip install -r requirements-quality.txt pytest 'psycopg[binary]'
+      - name: AlmaLinux 10 RPM build and static qualification
+        run: ./packaging/q1-qualify-almalinux.sh

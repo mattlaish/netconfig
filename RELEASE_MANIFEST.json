@@ -1,36 +1,35 @@
 {
-  "artifact": "netconfig_release37_NI6_Enterprise_Operations_RPM_Install_v3",
-  "parent": "netconfig_release37_NI6_Enterprise_Operations_Qualified_v2.zip",
-  "phase": "Release 37 RPM Installation Hardening",
-  "release": "Release 37 NI-6 Enterprise Operations RPM Install v3",
-  "rpm_identity": "netconfig-2.0.0-37.el10.noarch",
-  "status": "IMPLEMENTED_TESTING_DEFERRED",
   "changes": [
-    "Bumped RPM Release identity from historical 2.0.0-34 to 2.0.0-37 for current Release 37 source",
-    "Added fail-closed AlmaLinux 10 packaging/install-rpm.sh install and upgrade helper",
-    "Added explicit first-admin bootstrap before web service enablement",
-    "Rewrote canonical RPM build/install/upgrade verification documentation",
-    "Preserved runtime state and config noreplace semantics",
-    "Kept local-only default web bind and existing secret/service hardening boundaries"
+    "Add durable explicit l3_route_observations evidence",
+    "Add same-VRF bounded/cycle-safe L3 path simulation with fail-closed ambiguity handling",
+    "Add ROUTE_DEPENDENCY candidate insights with alternate-observation evidence",
+    "Add analytics REST API and Operations Network Intelligence UI integration",
+    "Advance schema revision to ni7-l3-route-1 and RPM identity to 2.0.0-40"
   ],
-  "tests": {
-    "source_full": "202 passed / 7 skipped / 0 failed",
-    "repo_hygiene": "5 passed / 0 failed",
-    "selftest": "ALL PASS",
-    "compileall": "PASS",
-    "packaging_shell_syntax": "PASS",
-    "install_helper_non_almalinux_guard": "PASS (exit 20 on Debian runner)",
-    "rpm_build": "NOT_RUN (Debian runner has no rpmbuild/Python 3.12 target environment)",
-    "almalinux_install_runtime": "NOT_RUN",
-    "candidate_clean_extraction": "202 passed / 7 skipped / 0 failed",
-    "candidate_byte_identity": "175/175 PASS",
-    "candidate_artifact_structure": "CRC/traversal/symlink/cache/CR/modes/manifests PASS"
-  },
   "deferred": [
-    "Q-1 Ruff/mypy source gate",
-    "real AlmaLinux 10 RPM build/payload inspection/dnf install/restart smoke",
-    "live PostgreSQL backup/restore qualification",
-    "live protocol/vendor/device qualification",
-    "production telemetry/analytics scale and threshold calibration"
-  ]
+    "actual Ruff/mypy execution",
+    "real PostgreSQL backup/restore and distributed service qualification",
+    "OpenSSH/Net-SNMP integration",
+    "AlmaLinux 10 RPM build/install/restart",
+    "live vendor/device routing-table/FIB ingestion and scale qualification"
+  ],
+  "parent": "Release 39 Q-1 Production Qualification Hardening v5",
+  "release": "Release 40 NI-7 L3/VRF Path & Route Dependency Intelligence",
+  "rpm_release": 40,
+  "status": "IMPLEMENTED_TESTING_DEFERRED",
+  "tests": {
+    "compileall": "PASS",
+    "final_delivery": "ZIP and Git-bundle 211 passed / 7 skipped / 0 failed; RPM build-source focused 25 passed; structural integrity PASS",
+    "fresh_clone": "211 passed / 7 skipped / 0 failed; selftest/compile/shell/manifests PASS; clean worktree",
+    "git_index_modes": "8/8 = 100755 PASS",
+    "launcher_py_compile": "PASS",
+    "mypy_2_3_1": "NOT_RUN (tool unavailable in isolated runner)",
+    "ni7_focused": "5 passed / 0 failed",
+    "packaging_shell_syntax": "PASS",
+    "q1_live_services": "DEFERRED / NOT_RUN",
+    "ruff_0_16_7": "NOT_RUN (tool unavailable in isolated runner)",
+    "selftest": "ALL PASS",
+    "source_full_regression": "211 passed / 7 skipped / 0 failed (complete test inventory executed in bounded groups)"
+  },
+  "version": "2.0.0"
 }

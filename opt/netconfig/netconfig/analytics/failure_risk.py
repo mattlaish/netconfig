@@ -6,9 +6,9 @@ configuration, remediation, or approval-bypass capability.
 """
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
-from typing import Iterable, Mapping
+from datetime import UTC, datetime
 
 
 _ALLOWED_SIGNAL_TYPES = frozenset({
@@ -83,7 +83,7 @@ class FailureRiskAnalyzer:
                 source_id=_bounded_text(raw.get("source_id"), 160),
                 severity=_bounded_text(raw.get("severity", "WARNING"), 16).upper(),
                 observed_at=_bounded_text(raw.get("observed_at"), 64)
-                or datetime.now(timezone.utc).isoformat(),
+                or datetime.now(UTC).isoformat(),
                 metric=_bounded_text(raw.get("metric"), 128),
                 value=_bounded_text(raw.get("value"), 128),
             )
@@ -104,7 +104,7 @@ class FailureRiskAnalyzer:
             source_id=_bounded_text(signal.source_id, 160),
             severity=severity,
             observed_at=_bounded_text(signal.observed_at, 64)
-            or datetime.now(timezone.utc).isoformat(),
+            or datetime.now(UTC).isoformat(),
             metric=_bounded_text(signal.metric, 128),
             value=_bounded_text(signal.value, 128),
         )
@@ -125,7 +125,7 @@ class FailureRiskAnalyzer:
             raise ValueError("object_id is required")
 
         normalized = tuple(self._normalize_signal(item) for item in signals)
-        now = _bounded_text(observed_at, 64) or datetime.now(timezone.utc).isoformat()
+        now = _bounded_text(observed_at, 64) or datetime.now(UTC).isoformat()
 
         if not normalized:
             return FailureRiskObservation(

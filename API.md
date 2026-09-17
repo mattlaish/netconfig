@@ -1,6 +1,6 @@
 # NetConfig API Contract
 
-> **Canonical project state — 2026-09-16:** **CURRENT IMPLEMENTATION BASELINE** = **Release 37 / NI-6 Enterprise Operations & Qualification Hardening** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-37`; NI-6.1 through NI-6.6 are complete in source, and NI-6 is now wired through `Manager.analytics` to scoped REST API and the Operations Network Intelligence console. Q-1 Ruff/mypy and live PostgreSQL/protocol/vendor/device/scale gates remain deferred and are not PASS.
+> **Canonical project state — 2026-09-17:** **CURRENT IMPLEMENTATION BASELINE** = **Release 40 / NI-7 L3/VRF Path & Route Dependency Intelligence** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-40`; NI-1 through NI-7 and Enterprise Operations are implemented in source. Q-1 live PostgreSQL/protocol/vendor/device/AlmaLinux gates remain deferred/`NOT_RUN`; Release 40 does not promote them to PASS.
 
 ## Release 34 / UI-1 API alignment
 
@@ -326,3 +326,19 @@ Explicit mutation endpoints:
 - `POST /api/v1/analytics/expire` with optional `max_age_seconds`.
 
 Analytics responses include workflow navigation references but never contain an executable remediation primitive.
+
+## NI-7 L3/VRF Path & Route Dependency API
+
+Uses the existing `analytics:read` / `analytics:write` scopes. Write endpoints additionally require operator-or-higher role. NI-7 is evidence capture and simulation only; these endpoints do not expose arbitrary route commands, device configuration, or approval bypass.
+
+Read:
+
+- `GET /api/v1/analytics/l3/routes?device=&vrf=&destination_prefix=&limit=` — list durable explicit route observations.
+
+Operator writes:
+
+- `POST /api/v1/analytics/l3/routes` — persist one explicit route observation (`device`, `vrf`, `destination_prefix`, optional `protocol`, `next_hop`, `outgoing_interface`, explicit managed `next_device`, `metric`, `terminal`).
+- `POST /api/v1/analytics/l3/path/simulate` — simulate a bounded same-VRF path using only explicit managed route evidence (`source_device`, `vrf`, `destination_prefix`, optional `max_hops`).
+- `POST /api/v1/analytics/l3/dependencies/analyze` — persist route-dependency candidate insights for observations explicitly referencing `failed_device`.
+
+Simulation is fail-closed: no next-device inference from next-hop IP, no VRF crossing, no arbitrary ECMP selection, and bounded loop detection. Dependency results are candidates rather than outage assertions.

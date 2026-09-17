@@ -1,6 +1,6 @@
 Name:           netconfig
 Version:        2.0.0
-Release:        37%{?dist}
+Release:        40%{?dist}
 Summary:        Network configuration and security operations console
 License:        Proprietary
 BuildArch:      noarch
@@ -84,6 +84,21 @@ exit 0
 %dir %attr(0700,netconfig,netconfig) %{_localstatedir}/lib/netconfig
 
 %changelog
+* Thu Sep 17 2026 OpenAI <noreply@openai.com> - 2.0.0-40
+- Add NI-7 L3/VRF path and route-dependency intelligence
+- Persist explicit route observations and fail closed on ambiguous/incomplete forwarding evidence
+- Preserve analytics-only decision support; live Q-1 qualification remains deferred
+
+* Wed Sep 16 2026 OpenAI <noreply@openai.com> - 2.0.0-39
+- Q-1 Production Qualification Hardening: fix guarded installer release validation
+- Pin Ruff/mypy qualification tools and GitHub Actions revisions for reproducible CI
+- Add AlmaLinux 10 RPM build/static qualification CI job; keep installed-runtime gate explicit
+
+* Wed Sep 16 2026 OpenAI <noreply@openai.com> - 2.0.0-38
+- Git Reproducibility Hardening: commit required launchers/package helpers as Git 100755
+- Pin Ruff CI gate and modernize Python 3.12 lint debt without broadening lint ignores
+- Require fresh-clone source qualification before packaging
+
 * Wed Sep 16 2026 OpenAI <noreply@openai.com> - 2.0.0-37
 - Package Release 37 NI-6 Enterprise Operations & Qualification Hardening
 - Add canonical AlmaLinux 10 RPM install/upgrade workflow and explicit first-admin bootstrap

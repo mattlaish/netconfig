@@ -5,12 +5,11 @@ fencing and recovery coordination. It intentionally does not bypass PH-4
 transaction controls.
 """
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from enum import Enum
-from typing import Optional
+from datetime import UTC, datetime
+from enum import StrEnum
 
 
-class TaskStatus(str, Enum):
+class TaskStatus(StrEnum):
     QUEUED = "QUEUED"
     CLAIMED = "CLAIMED"
     RUNNING = "RUNNING"
@@ -19,7 +18,7 @@ class TaskStatus(str, Enum):
     RECOVERY_REQUIRED = "RECOVERY_REQUIRED"
 
 
-class WorkerStatus(str, Enum):
+class WorkerStatus(StrEnum):
     ACTIVE = "ACTIVE"
     DRAINING = "DRAINING"
     DRAINED = "DRAINED"
@@ -34,10 +33,10 @@ class DistributedExecutionTask:
     transaction_id: str
     target_device: str
     status: TaskStatus = TaskStatus.QUEUED
-    assigned_worker: Optional[str] = None
+    assigned_worker: str | None = None
     execution_epoch: int = 0
     retry_count: int = 0
-    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     def claim(self, worker_id: str, epoch: int) -> None:
         if self.status != TaskStatus.QUEUED:
@@ -52,22 +51,22 @@ class WorkerHeartbeat:
     worker_id: str
     status: WorkerStatus = WorkerStatus.ACTIVE
     execution_epoch: int = 0
-    last_seen: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    last_seen: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
 
 @dataclass
 class ExecutionLeader:
     node_id: str
     epoch: int = 1
-    acquired_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    acquired_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
 
 @dataclass
 class RecoveryRecord:
     task_id: str
     reason: str
-    previous_worker: Optional[str]
-    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    previous_worker: str | None
+    created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
 
 class RecoveryCoordinator:

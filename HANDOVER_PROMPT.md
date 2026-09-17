@@ -1,8 +1,12 @@
 # New Chat Handover Prompt
 
-> **Canonical project state — 2026-09-16:** **CURRENT IMPLEMENTATION BASELINE** = **Release 37 / NI-6 Enterprise Operations & Qualification Hardening** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-37`; NI-6.1 through NI-6.6 are complete in source, and NI-6 is now wired through `Manager.analytics` to scoped REST API and the Operations Network Intelligence console. Q-1 Ruff/mypy and live PostgreSQL/protocol/vendor/device/scale gates remain deferred and are not PASS.
+> **Canonical project state — 2026-09-17:** **CURRENT IMPLEMENTATION BASELINE** = **Release 40 / NI-7 L3/VRF Path & Route Dependency Intelligence** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-40`; NI-1 through NI-7 and Enterprise Operations are implemented in source. Q-1 live PostgreSQL/protocol/vendor/device/AlmaLinux gates remain deferred/`NOT_RUN`; Release 40 does not promote them to PASS.
 
-## Release 34 continuation prompt
+## Release 40 continuation prompt
+
+Start from the Release 40 FULL source baseline, not Release 39 and not a patch. NI-7 is implemented in source and remains `IMPLEMENTED_TESTING_DEFERRED`. Preserve same-VRF-only route traversal, explicit managed next-device identity, bounded loop-safe simulation, multipath fail-closed behavior, candidate-only dependency semantics, and the existing approval-gated configuration plane. Do not restart NI-1 through NI-7. Q-1 live qualification remains deferred and may be resumed independently.
+
+## Historical Release 34 continuation prompt
 
 Start from the Release 34 FULL source baseline, not Release 33 and not a patch. UI-1 is implemented in source and remains `IMPLEMENTED_TESTING_DEFERRED`. The `/operations` console covers Structured Changes, Telemetry, Model Packs, Desired State, Campaigns, and HA/DR. Do not rebuild these panels from scratch.
 
@@ -15,7 +19,7 @@ The latest implementation baseline is Release `2.0.0-33`, schema revision `ha1-2
 
 Preserve these Release 33 invariants: all network mutations use the durable request/approve/execute workflow; automation snapshots/model-pack hashes are frozen and revalidated; `RECOVERY_REQUIRED` blocks blind replay; desired-state rollback is compensating/reverse-order; campaign plans are frozen with stable retry identity; DRAINING/DRAINED HA nodes reject new automation work. Session idle/absolute expiry is still explicitly deferred.
 
-> **Current continuation pointer:** use the Release 34 FULL source baseline as the active implementation source. UI-1 remains `IMPLEMENTED_TESTING_DEFERRED`; execute the applicable Q-1/live qualification gates before any promotion to `TESTED`/`RELEASED`. No next development phase is auto-assigned; perform a fresh roadmap review after qualification.
+> **Current continuation pointer:** use the Release 40 FULL source baseline as the active implementation source. NI-7 remains `IMPLEMENTED_TESTING_DEFERRED`; Q-1 live gates remain deferred.
 
 ## Historical Q-1 takeover truth
 
@@ -25,7 +29,7 @@ Q-1 source implementation includes `netconfig qualify`; controlled `pg_dump` bac
 
 The Q-1 live qualification debt remains: execute the real PostgreSQL gates, Ruff/mypy, and AlmaLinux 10 RPM/systemd installed-runtime gates when suitable infrastructure is available. Do not count `NOT_RUN` as pass. Release 34 UI-1 offline/artifact evidence does not substitute for those live gates.
 
-I am handing over the NetConfig project at **Release 34 / UI-1 implementation baseline**. UI-1 is implemented over PH-4, NI-5, VM-1, NA-1, NA-2 and HA-1 and remains `IMPLEMENTED_TESTING_DEFERRED`. Use the Release 34 FULL source baseline as the active source of truth; Release 33 is the verified parent baseline and Q-1 remains an open qualification track.
+Historical handover text below describes Release 34. The current handover baseline is **Release 40 / NI-7**; Q-1 remains an open deferred qualification track.
 
 Read these first: `DEV_BASELINE.md`, `TESTING.md`, `ROADMAP.md`, `SECURITY.md`, `API.md`, `DEVELOPMENT.md`, `AI_HANDOFF.md`, then the relevant source under `opt/netconfig/netconfig/` and `tests/`.
 

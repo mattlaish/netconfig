@@ -1,11 +1,11 @@
 # NetConfig — Install & Operations
 
-> **Canonical project state — 2026-09-16:** **CURRENT IMPLEMENTATION BASELINE** = **Release 37 / NI-6 Enterprise Operations & Qualification Hardening** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-37`; NI-6.1 through NI-6.6 are complete in source and wired through `Manager.analytics` to scoped REST API and the Operations Network Intelligence console. Q-1 Ruff/mypy and live PostgreSQL/protocol/vendor/device/scale gates remain deferred and are not PASS.
+> **Canonical project state — 2026-09-17:** **CURRENT IMPLEMENTATION BASELINE** = **Release 40 / NI-7 L3/VRF Path & Route Dependency Intelligence** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-40`; NI-1 through NI-7 and Enterprise Operations are implemented in source. Q-1 live PostgreSQL/protocol/vendor/device/AlmaLinux gates remain deferred/`NOT_RUN`; Release 40 does not promote them to PASS.
 
 ## Production installation — AlmaLinux 10 RPM
 
 The supported production package target is **AlmaLinux 10**. Use RPM Release
-`2.0.0-37` for this Release 37 source baseline. Do not install an older
+`2.0.0-40` for this Release 40 source baseline. Do not install an older
 `2.0.0-34` package and assume it contains the current NI-6 source.
 
 ### A. Install or upgrade the RPM
@@ -13,16 +13,16 @@ The supported production package target is **AlmaLinux 10**. Use RPM Release
 On a clean or existing AlmaLinux 10 host:
 
 ```bash
-sudo dnf install ./netconfig-2.0.0-37.el10.noarch.rpm
+sudo dnf install ./netconfig-2.0.0-40.el10.noarch.rpm
 # For an existing installation, dnf install is also upgrade-safe; alternatively:
-# sudo dnf upgrade ./netconfig-2.0.0-37.el10.noarch.rpm
+# sudo dnf upgrade ./netconfig-2.0.0-40.el10.noarch.rpm
 sudo systemctl daemon-reload
 ```
 
 From the source bundle you can use the guarded helper instead:
 
 ```bash
-sudo ./packaging/install-rpm.sh ./netconfig-2.0.0-37.el10.noarch.rpm
+sudo ./packaging/install-rpm.sh ./netconfig-2.0.0-40.el10.noarch.rpm
 ```
 
 The RPM:
@@ -76,7 +76,7 @@ Then open `http://127.0.0.1:8778/` locally.
 From the source/qualification bundle:
 
 ```bash
-./packaging/inspect-rpm.sh ./netconfig-2.0.0-37.el10.noarch.rpm
+./packaging/inspect-rpm.sh ./netconfig-2.0.0-40.el10.noarch.rpm
 ./packaging/smoke-installed.sh
 ```
 
@@ -100,18 +100,18 @@ Build on an **AlmaLinux 10** build host/VM, not on the production host:
 sudo dnf install -y rpm-build python3.12 systemd-rpm-macros
 chmod 0755 packaging/*.sh
 ./packaging/build-rpm.sh
-./packaging/inspect-rpm.sh ./netconfig-2.0.0-37.el10.noarch.rpm
+./packaging/inspect-rpm.sh ./netconfig-2.0.0-40.el10.noarch.rpm
 ```
 
 Expected outputs:
 
 ```text
-netconfig-2.0.0-37.el10.noarch.rpm
-netconfig-2.0.0-37.el10.src.rpm
+netconfig-2.0.0-40.el10.noarch.rpm
+netconfig-2.0.0-40.el10.src.rpm
 ```
 
 The provided source delivery can be transferred to AlmaLinux as-is; the separate
-`netconfig-2.0.0-37-rpm-build-source.zip` is a minimized build-transfer bundle.
+`netconfig-2.0.0-40-rpm-build-source.zip` is a minimized build-transfer bundle.
 
 ## Manual source install
 

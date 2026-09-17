@@ -24,7 +24,7 @@ SERIAL_ID_TABLES = {
     "protocol_trace_events", "distributed_tasks",
     "structured_change_transactions", "telemetry_subscriptions", "telemetry_samples", "telemetry_points",
     "desired_states", "desired_state_runs", "fleet_campaigns", "fleet_campaign_targets",
-    "recovery_drills", "network_insights", "analytics_jobs",
+    "recovery_drills", "network_insights", "analytics_jobs", "l3_route_observations",
 }
 
 CONFLICT_KEYS = {

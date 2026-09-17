@@ -1,6 +1,23 @@
 # AI Development Handoff
 
-> **Canonical project state — 2026-09-16:** **CURRENT IMPLEMENTATION BASELINE** = **Release 37 / NI-6 Enterprise Operations & Qualification Hardening** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-37`; NI-6.1 through NI-6.6 are complete in source, and NI-6 is now wired through `Manager.analytics` to scoped REST API and the Operations Network Intelligence console. Q-1 Ruff/mypy and live PostgreSQL/protocol/vendor/device/scale gates remain deferred and are not PASS.
+> **Canonical project state — 2026-09-17:** **CURRENT IMPLEMENTATION BASELINE** = **Release 40 / NI-7 L3/VRF Path & Route Dependency Intelligence** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-40`; NI-1 through NI-7 and Enterprise Operations are implemented in source. Q-1 live PostgreSQL/protocol/vendor/device/AlmaLinux gates remain deferred/`NOT_RUN`; Release 40 does not promote them to PASS.
+
+## Release 40 handoff — NI-7 L3/VRF Path & Route Dependency Intelligence
+
+Use Release 40 / `2.0.0-40` as the active full-source baseline. NI-7 is implemented with durable `l3_route_observations`, `analytics/l3.py`, `AnalyticsService` L3 route/path/dependency methods, scoped REST endpoints, and Network Intelligence UI workflows. Preserve fail-closed rules: same-VRF only; never infer managed next-device identity from next-hop IP; stop on missing, unmanaged, mixed terminal/non-terminal, loop, or multipath-ambiguous evidence; route dependency is a candidate rather than an outage verdict; analytics cannot execute configuration. Source regression before final packaging is **211 passed / 7 skipped / 0 failed**. Q-1 live PostgreSQL/protocol/vendor/AlmaLinux gates remain deferred.
+
+### Release 40 final delivery qualification
+
+The frozen delivery surface is independently qualified. The full-source Git-archive ZIP contains **199 archive entries**, matches **181/181 Git-tracked files byte-for-byte**, and has **0** path-traversal entries, **0** symlinks, **0** cache/bytecode entries, **0** operational-text CR offenders, and **8/8** required executable files at mode `0755`; source and metadata manifests verify. From its clean extraction, the complete repository test inventory executes as **211 passed / 7 skipped / 0 failed**, with legacy selftest **ALL PASS** and compile/launcher/package-shell checks **PASS**. The clonable Git bundle reproduces the same commit, manifest and 8/8 Git `100755` modes and executes the same **211/7/0** regression plus selftest/compile with a clean post-test worktree. The `2.0.0-40` RPM build-source bundle has no traversal/symlink/cache entries, preserves all eight executable modes, verifies manifests/package identity, and passes **25/25** focused NI-7/repository-hygiene/Q-1 tests. Actual AlmaLinux RPM build/install and Q-1 live service/vendor gates remain `NOT_RUN`/deferred. The final archive SHA-256 is intentionally carried in external `.sha256` sidecars so the payload does not self-reference its own digest.
+
+## Historical Release 39 handoff — Q-1 Production Qualification Hardening
+
+Historical Release 39 used `2.0.0-39` as the active baseline at that checkpoint. It supersedes Release 38 because Q-1 found the Release-38 guarded installer compared against the stale release number `37`. Release 39 fixes that defect and hardens CI reproducibility with pinned Ruff/mypy and immutable Node-24-compatible GitHub Action revisions. Local source evidence is **206 passed / 7 skipped / 0 failed**, Q-1 focused **12 passed**, selftest/compile/shell/YAML/CR and staged systemd verification PASS, with Git index modes **8/8 = 100755**. Ruff/mypy, live PostgreSQL, OpenSSH/Net-SNMP, AlmaLinux installed-RPM/systemd, vendor protocol/device and NI-6 scale/calibration gates remain `NOT_RUN` until evidence exists; this runner itself is not runtime-ready because the required SSH client is absent.
+
+
+## Release 38 handoff — Git reproducibility
+
+Use Release 38 / `2.0.0-38` as the active baseline. Eight required launcher/packaging files are committed with Git mode `100755`; CI checks the Git index directly. A fresh clone reproduced those modes and passed **204 pytest / 7 skipped / 0 failed**, legacy selftest, compileall, launcher compile, and shell syntax with a clean post-test worktree. Ruff/mypy remain NOT_RUN in the isolated artifact runner; do not report them as PASS until an environment with the real tools executes the configured gates.
 
 ## Release 34 handoff truth
 
@@ -15,7 +32,7 @@ The latest implementation baseline is Release `2.0.0-33`, schema revision `ha1-2
 
 Preserve these Release 33 invariants: all network mutations use the durable request/approve/execute workflow; automation snapshots/model-pack hashes are frozen and revalidated; `RECOVERY_REQUIRED` blocks blind replay; desired-state rollback is compensating/reverse-order; campaign plans are frozen with stable retry identity; DRAINING/DRAINED HA nodes reject new automation work. Session idle/absolute expiry is still explicitly deferred.
 
-> **Current continuation pointer:** use the Release 34 FULL source baseline as the active implementation source. UI-1 remains `IMPLEMENTED_TESTING_DEFERRED`; execute the applicable Q-1/live qualification gates before any promotion to `TESTED`/`RELEASED`. No next development phase is auto-assigned; perform a fresh roadmap review after qualification.
+> **Current continuation pointer:** use **Release 40 / NI-7 L3/VRF Path & Route Dependency Intelligence** as the active full-source baseline. Preserve `IMPLEMENTED_TESTING_DEFERRED`; Q-1 live qualification remains deferred and independent of further roadmap review.
 
 ## Historical checkpoint — Qualification Q-1
 
@@ -927,6 +944,12 @@ Active source is Release 37 NI-6 Enterprise Operations & Qualification Hardening
 
 ## Release 37 RPM install handoff — 2026-09-16
 
-The current distributable RPM identity is now `2.0.0-37` (Version 2.0.0, Release 37). Build it on AlmaLinux 10 with `packaging/build-rpm.sh`; install/upgrade with `packaging/install-rpm.sh` or `dnf install`. Fresh installs explicitly create the first admin as the `netconfig` service user before enabling `netconfig-web.service`. The console remains bound to `127.0.0.1:8778` by default and should be reached through an SSH tunnel or TLS reverse proxy/WAF. Do not claim the AlmaLinux RPM build/install gate PASS until it is actually run on AlmaLinux 10.
+Historical Release 37 packaging used `2.0.0-37` (Version 2.0.0, Release 37); Release 38 supersedes it with `2.0.0-38`. Build it on AlmaLinux 10 with `packaging/build-rpm.sh`; install/upgrade with `packaging/install-rpm.sh` or `dnf install`. Fresh installs explicitly create the first admin as the `netconfig` service user before enabling `netconfig-web.service`. The console remains bound to `127.0.0.1:8778` by default and should be reached through an SSH tunnel or TLS reverse proxy/WAF. Do not claim the AlmaLinux RPM build/install gate PASS until it is actually run on AlmaLinux 10.
 
 RPM-install v3 candidate artifact qualification is clean: 175/175 file byte identity, 202 passed / 7 skipped / 0 failed from clean extraction, selftest ALL PASS, and manifest/mode/cache/CR gates PASS. Continue to treat the real AlmaLinux 10 binary RPM build/install/restart smoke as `NOT_RUN` until executed on target infrastructure.
+
+## Release 40 continuation — NI-7
+
+Active baseline is Release 40 / `2.0.0-40`. NI-7 is implemented through `analytics/l3.py`, `analytics/service.py`, `l3_route_observations`, scoped analytics API routes, and the Network Intelligence Operations tab. Safety invariants: VRF never crosses; next-device identity is never inferred from next-hop IP; missing/unmanaged/multipath/loop evidence fails closed; route dependency is a candidate, not an outage claim; analytics never execute configuration. Q-1 live service/vendor/AlmaLinux gates remain deferred independently. Source regression before packaging is **211 passed / 7 skipped / 0 failed**.
+
+Release 40 fresh-clone evidence: **211 passed / 7 skipped / 0 failed**, selftest/compile/shell/YAML/manifests PASS, 8/8 required Git executable modes, and clean post-test worktree after cache removal. Q-1 live gates remain deferred.

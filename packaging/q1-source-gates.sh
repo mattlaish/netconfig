@@ -16,6 +16,20 @@ require_tool pytest
 require_tool ruff
 require_tool mypy
 
+EXPECTED_RUFF_VERSION=0.16.7
+ACTUAL_RUFF_VERSION=$(ruff --version | awk '{print $2}')
+if [[ $ACTUAL_RUFF_VERSION != "$EXPECTED_RUFF_VERSION" ]]; then
+    echo "Q-1 source gate requires ruff $EXPECTED_RUFF_VERSION; found ${ACTUAL_RUFF_VERSION:-unknown}; gate is NOT_RUN, not PASS" >&2
+    exit 2
+fi
+
+EXPECTED_MYPY_VERSION=2.3.1
+ACTUAL_MYPY_VERSION=$(mypy --version | awk '{print $2}')
+if [[ $ACTUAL_MYPY_VERSION != "$EXPECTED_MYPY_VERSION" ]]; then
+    echo "Q-1 source gate requires mypy $EXPECTED_MYPY_VERSION; found ${ACTUAL_MYPY_VERSION:-unknown}; gate is NOT_RUN, not PASS" >&2
+    exit 2
+fi
+
 python3 - <<'PYVER'
 import sys
 if sys.version_info < (3, 12):
@@ -61,6 +75,13 @@ for executable in "${required_executables[@]}"; do
     if [[ ! -x "$executable" ]]; then
         echo "Required executable mode missing: $executable (raw checkout must preserve 0755)" >&2
         exit 1
+    fi
+    if command -v git >/dev/null 2>&1 && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        mode=$(git ls-files --stage -- "$executable" | awk '{print $1}')
+        if [[ $mode != "100755" ]]; then
+            echo "Git index mode must be 100755: $executable (got ${mode:-missing})" >&2
+            exit 1
+        fi
     fi
 done
 

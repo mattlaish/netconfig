@@ -104,6 +104,9 @@ class WebOpsMixin:
             "/ops-campaign-wave-request": self._do_ops_campaign_wave_request,
             "/ops-analytics-refresh": self._do_ops_analytics_refresh,
             "/ops-analytics-impact": self._do_ops_analytics_impact,
+            "/ops-l3-route-observe": self._do_ops_l3_route_observe,
+            "/ops-l3-path": self._do_ops_l3_path,
+            "/ops-l3-dependencies": self._do_ops_l3_dependencies,
             "/ops-insight-state": self._do_ops_insight_state,
             "/ops-analytics-expire": self._do_ops_analytics_expire,
             "/ops-ha-node": self._do_ops_ha_node,
@@ -801,6 +804,49 @@ class WebOpsMixin:
                 '<label>Expire unseen NEW/ACKNOWLEDGED insights older than seconds</label>'
                 '<input name="max_age_seconds" value="604800"><button class="ghost">Expire stale insights</button></form></div>'
             )
+        routes = self.manager.analytics.l3_routes(limit=100)
+        route_rows = ''.join(
+            '<tr>'
+            f'<td>{int(r["id"])}</td><td>{_e(r.get("device"))}</td><td>{_e(r.get("vrf"))}</td>'
+            f'<td>{_e(r.get("destination_prefix"))}</td><td>{_e(r.get("next_hop"))}</td>'
+            f'<td>{_e(r.get("next_device"))}</td><td>{"yes" if r.get("terminal") else "no"}</td></tr>'
+            for r in routes
+        ) or '<tr><td colspan="7" class="muted">No explicit L3 route observations.</td></tr>'
+        l3_panel = (
+            '<div class="panel"><h2>NI-7 · L3/VRF path intelligence</h2>'
+            '<p class="muted">Explicit route evidence only. No next-hop IP inference, no VRF crossing, no arbitrary ECMP choice, and no network mutation.</p>'
+        )
+        if sess["role"] in _OPERATOR_ROLES:
+            l3_panel += (
+                '<div class="row"><div><h3>Record route evidence</h3>'
+                f'<form method="post" action="/ops-l3-route-observe">{self._csrf_field()}'
+                f'<label>Device</label><select name="device">{device_opts}</select>'
+                '<label>VRF</label><input name="vrf" value="default">'
+                '<label>Destination prefix</label><input name="destination_prefix" placeholder="10.0.0.0/24">'
+                '<label>Protocol</label><input name="protocol" placeholder="static / ospf / bgp">'
+                '<label>Next hop</label><input name="next_hop">'
+                '<label>Outgoing interface</label><input name="outgoing_interface">'
+                f'<label>Explicit managed next device</label><select name="next_device"><option value="">unresolved / none</option>{device_opts}</select>'
+                '<label>Metric</label><input name="metric" value="0">'
+                '<label><input type="checkbox" name="terminal" value="1"> Explicit terminal route</label>'
+                '<label>Evidence reference</label><input name="evidence_ref" placeholder="collector/source reference">'
+                '<button>Persist route evidence</button></form></div>'
+                '<div><h3>Simulate L3 path</h3>'
+                f'<form method="post" action="/ops-l3-path">{self._csrf_field()}'
+                f'<label>Source device</label><select name="source_device">{device_opts}</select>'
+                '<label>VRF</label><input name="vrf" value="default">'
+                '<label>Destination prefix</label><input name="destination_prefix">'
+                '<label>Max hops (1-64)</label><input name="max_hops" value="16">'
+                '<button>Simulate and persist insight</button></form>'
+                '<h3>Route dependency candidates</h3>'
+                f'<form method="post" action="/ops-l3-dependencies">{self._csrf_field()}'
+                f'<label>Failed / unavailable managed device</label><select name="failed_device">{device_opts}</select>'
+                '<button>Analyze dependency candidates</button></form></div></div>'
+            )
+        l3_panel += (
+            '<h3>Recent route evidence</h3><table><tr><th>ID</th><th>Device</th><th>VRF</th><th>Destination</th><th>Next hop</th><th>Next device</th><th>Terminal</th></tr>'
+            + route_rows + '</table></div>'
+        )
         summary = (
             '<div class="panel"><h2>Operational intelligence health</h2>'
             f'<div class="row"><div><b>{int(dashboard.get("active",0))}</b><br><span class="muted">active insights</span></div>'
@@ -813,7 +859,7 @@ class WebOpsMixin:
             '<div class="panel"><h2>Insight search</h2><form method="get" action="/operations">'
             '<input type="hidden" name="tab" value="intelligence"><div class="row">'
             f'<div><label>State</label><select name="state"><option value="">all</option>{self._ops_select_options(["NEW","ACKNOWLEDGED","RESOLVED","EXPIRED"], state_filter)}</select></div>'
-            f'<div><label>Type</label><select name="type"><option value="">all</option>{self._ops_select_options(["CAPACITY","FAILURE_RISK","DEPENDENCY_IMPACT","HEALTH"], type_filter)}</select></div>'
+            f'<div><label>Type</label><select name="type"><option value="">all</option>{self._ops_select_options(["CAPACITY","FAILURE_RISK","DEPENDENCY_IMPACT","HEALTH","L3_PATH","ROUTE_DEPENDENCY"], type_filter)}</select></div>'
             f'<div><label>Object</label><input name="object_id" value="{_e(object_filter)}"></div>'
             f'<div><label>Search</label><input name="search" value="{_e(search)}"></div></div>'
             '<button class="ghost">Filter</button></form></div>'
@@ -872,7 +918,7 @@ class WebOpsMixin:
             for j in jobs
         ) or '<tr><td colspan="5" class="muted">No analytics jobs yet.</td></tr>'
         job_panel = '<div class="panel"><h2>Analytics execution history</h2><table><tr><th>Job</th><th>Analyzer</th><th>Object</th><th>Status</th><th>Actor</th></tr>' + job_rows + '</table></div>'
-        return summary + forms + filter_form + detail + ledger + job_panel
+        return summary + forms + l3_panel + filter_form + detail + ledger + job_panel
 
     @staticmethod
     def _ops_select_options(values, selected=""):
@@ -907,6 +953,51 @@ class WebOpsMixin:
             return self._redirect(f"/operations?tab=intelligence&insight={int(iid)}&notice=Impact+simulation+stored")
         except Exception as exc:
             return self._ops_redirect("intelligence", f"Impact simulation failed: {exc}")
+
+    def _do_ops_l3_route_observe(self, form, sess):
+        if not self._ops_require(sess, _OPERATOR_ROLES):
+            return
+        try:
+            item = self.manager.analytics.add_l3_route(
+                device=_value(form, "device"), vrf=_value(form, "vrf", "default"),
+                destination_prefix=_value(form, "destination_prefix"),
+                protocol=_value(form, "protocol"), next_hop=_value(form, "next_hop"),
+                outgoing_interface=_value(form, "outgoing_interface"),
+                next_device=_value(form, "next_device"), metric=int(_value(form, "metric", "0") or 0),
+                terminal=bool(_value(form, "terminal")), evidence_ref=_value(form, "evidence_ref"),
+                actor=sess["username"])
+            return self._ops_redirect("intelligence", f"Route evidence #{int(item['id'])} stored")
+        except Exception as exc:
+            return self._ops_redirect("intelligence", f"Route evidence failed: {exc}")
+
+    def _do_ops_l3_path(self, form, sess):
+        if not self._ops_require(sess, _OPERATOR_ROLES):
+            return
+        try:
+            result = self.manager.analytics.simulate_l3_path(
+                _value(form, "source_device"), _value(form, "vrf", "default"),
+                _value(form, "destination_prefix"), actor=sess["username"],
+                max_hops=int(_value(form, "max_hops", "16") or 16))
+            iid = (result.get("insight") or {}).get("id")
+            return self._redirect(
+                f"/operations?tab=intelligence&insight={int(iid)}&notice=L3+path+simulation+stored")
+        except Exception as exc:
+            return self._ops_redirect("intelligence", f"L3 path simulation failed: {exc}")
+
+    def _do_ops_l3_dependencies(self, form, sess):
+        if not self._ops_require(sess, _OPERATOR_ROLES):
+            return
+        try:
+            result = self.manager.analytics.analyze_route_dependencies(
+                _value(form, "failed_device"), actor=sess["username"])
+            candidates = result.get("candidates") or []
+            if candidates:
+                iid = int(candidates[0]["id"])
+                return self._redirect(
+                    f"/operations?tab=intelligence&insight={iid}&notice=Route+dependency+candidates+stored")
+            return self._ops_redirect("intelligence", "No explicit route dependency candidates found")
+        except Exception as exc:
+            return self._ops_redirect("intelligence", f"Route dependency analysis failed: {exc}")
 
     def _do_ops_insight_state(self, form, sess):
         if not self._ops_require(sess, _OPERATOR_ROLES):

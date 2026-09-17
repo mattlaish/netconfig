@@ -939,14 +939,14 @@ class StructuredCollector:
                             tp, normalized, rollback_resolved, datastore="candidate", message_id=93)
                         tx += n; rx += r
                         if old_candidate != before_value:
-                            raise StructuredProtocolError("NETCONF compensating candidate verification failed")
+                            raise StructuredProtocolError("NETCONF compensating candidate verification failed") from exc
                         _reply, n, r = self._netconf_rpc(tp, b"<commit/>", message_id=94)
                         tx += n; rx += r
                     old_running, n, r = self._netconf_read_resolved_on_session(
                         tp, normalized, rollback_resolved, datastore="running", message_id=95)
                     tx += n; rx += r
                     if old_running != before_value:
-                        raise StructuredProtocolError("NETCONF compensating running verification failed")
+                        raise StructuredProtocolError("NETCONF compensating running verification failed") from exc
                     rollback = "restored_preimage"
                 except Exception:
                     rollback = "FAILED"
