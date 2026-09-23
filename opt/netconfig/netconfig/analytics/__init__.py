@@ -17,6 +17,8 @@ __all__ = [
     "HealthAnalyzer",
     "NetworkHealthObservation",
     "AnalyticsService",
+    "L3RouteAnalyzer",
+    "L3PathObservation",
 ]
 
 from .l3 import L3RouteAnalyzer, L3PathObservation

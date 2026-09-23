@@ -100,6 +100,8 @@ class Manager:
             if getattr(self.db, "dialect", "sqlite") == "postgres":
                 raise
         self.inv = Inventory(self.storage.conn)
+        from .sensor import SensorEngine
+        self.sensors = SensorEngine(self.storage.conn)
         self.users = Users(self.storage.conn)
         self.vault = Vault(self.paths.vault_file)
         self.store = ConfigStore(self.paths.configs_dir,
@@ -200,6 +202,42 @@ class Manager:
         return _topology.identity_view(
             inventory, self.db.get_topology_device_identities(),
             self.db.get_topology_interfaces())
+
+    def topology_graph(self):
+        """Return a read-only managed topology graph from persisted evidence.
+
+        No device I/O occurs here.  LLDP/CDP rows are OBSERVED adjacency;
+        FDB matches against managed interface/chassis MACs are INFERRED path
+        evidence only.  Every managed inventory device is represented.
+        """
+        inventory = []
+        for item in self.inv.all():
+            enriched = dict(item)
+            facts = self.inv.get_facts(item["name"]) or {}
+            enriched["sysname"] = facts.get("sysname", "")
+            inventory.append(enriched)
+        fdb_rows = list(self.db.get_vlan_fdb())
+        seen = {(r.get("device", ""), str(r.get("mac", "")).lower(),
+                 str(r.get("ifindex", "")), str(r.get("bridge_port", ""))) for r in fdb_rows}
+        # Preserve compatibility with older databases that have only the legacy
+        # mac_table populated.  This is persisted evidence reuse, not extra I/O.
+        for dev in inventory:
+            for row in self.db.get_mac_table(dev["name"]):
+                key = (dev["name"], str(row.get("mac", "")).lower(),
+                       str(row.get("ifindex", "")), str(row.get("port", "")))
+                if key in seen:
+                    continue
+                fdb_rows.append({
+                    "device": dev["name"], "mac": row.get("mac", ""),
+                    "bridge_port": row.get("port", ""), "ifindex": row.get("ifindex", ""),
+                    "ifdescr": row.get("ifdescr", ""), "vlan_id": "",
+                    "source": "legacy-mac-table", "ts": row.get("ts"),
+                })
+                seen.add(key)
+        return _topology.build_graph(
+            self.db.get_neighbors(), inventory,
+            self.db.get_topology_device_identities(),
+            self.db.get_topology_interfaces(), fdb_rows)
 
     def downstream_impact(self, device, port=None, max_depth=16):
         if not self.inv.get(device):
@@ -776,6 +814,22 @@ class Manager:
             self._ifhist = _ifhistory.get_backend(self.settings, password=pw)
         return self._ifhist
 
+    def _refresh_sensors_and_bridge_events(self, device_name):
+        """Refresh canonical Sensors and bridge only newly durable transitions.
+
+        The high-water mark is captured before the DB-only Sensor refresh.  This
+        preserves MC-1/MC-2 no-extra-device-I/O behavior and prevents unchanged
+        refreshes from generating MC-3 operational events.
+        """
+        before_id = self.sensors.latest_transition_id()
+        self.sensors.refresh_inventory_health(self.inv)
+        bridged = []
+        for transition in self.sensors.transitions_after_id(before_id, device=device_name):
+            row = self.events.record_sensor_transition(transition)
+            if row is not None:
+                bridged.append(row)
+        return bridged
+
     def snmp_poll(self, device_name, interfaces=True, vendor_force=False):
         dev = self.inv.get(device_name)
         if not dev:
@@ -851,18 +905,20 @@ class Manager:
                 except Exception as e:
                     # system poll succeeded; interface walk is best-effort
                     iface_count = f"iface walk failed: {e}"
-            if not previous_facts or not previous_facts.get("reachable"):
-                self.events.record(source_type="snmp_poll", source=dev.get("host", ""), device=device_name,
-                    event_type="DEVICE_REACHABLE", severity="INFO", message="SNMP poll reachable",
-                    metadata={"protocol":"snmp-poll","poll_ok":True}, allow_suppression=True)
+            # MC-1/MC-2: collection produces persisted evidence and canonical Sensor
+            # state. MC-3 bridges only durable state transitions into the event stream.
+            try:
+                self._refresh_sensors_and_bridge_events(device_name)
+            except Exception:
+                pass
             return {"ok": True, "interfaces": iface_count,
                     "vendor_mib": vendor_result, **facts}
         except Exception as e:
             self.inv.set_facts(device_name, reachable=False, error=str(e))
-            if not previous_facts or previous_facts.get("reachable"):
-                self.events.record(source_type="snmp_poll", source=dev.get("host", ""), device=device_name,
-                    event_type="DEVICE_UNREACHABLE", severity="MAJOR", message="SNMP poll unreachable",
-                    metadata={"protocol":"snmp-poll","poll_ok":False,"reason":str(e)[:256]}, allow_suppression=True)
+            try:
+                self._refresh_sensors_and_bridge_events(device_name)
+            except Exception:
+                pass
             return {"ok": False, "error": str(e)}
 
     def snmp_poll_all(self, vendor_force=False):

@@ -83,7 +83,7 @@ def test_ui1_viewer_can_read_all_operations_tabs_but_has_no_mutation_forms(tmp_p
             "structured": "Structured transaction ledger",
             "telemetry": "Subscriptions",
             "models": "Vendor model packs",
-            "desired": "Desired states",
+            "desired": "Configuration baselines / templates",
             "campaigns": "Fleet campaigns",
             "ha": "HA readiness",
         }
@@ -467,5 +467,198 @@ def test_ui1_recovery_admin_boundary_and_drill_detail(tmp_path):
         assert status == 200
         assert "backup.dump" in text
         assert "Complete drill" in text
+    finally:
+        _stop(server, thread, manager)
+
+
+def test_ui1_uses_sidebar_navigation_and_neutral_branding(tmp_path):
+    manager = _manager(tmp_path)
+    server, thread, token, _csrf = _start_console(manager, "operator")
+    try:
+        status, _headers, data = _request(server, token, "GET", "/protocols")
+        text = data.decode()
+        assert status == 200
+        assert 'class="sidebar"' in text
+        assert 'class="nav-sidebar"' in text
+        nav = text.split('<nav class="nav-sidebar">', 1)[1].split('</nav>', 1)[0]
+        assert '>Collection<' not in nav
+        assert 'Device collection settings' in text
+        assert 'network devices such as switches, routers, and firewalls' in text
+        assert 'Advanced: change a network-device collection profile' in text
+        assert '<span class="logo">NC</span>' in text
+        assert '<span>NetConfig v' in text
+        assert 'NetConfig v' in text
+    finally:
+        _stop(server, thread, manager)
+
+
+def test_ui1_intent_automation_tab_is_http_renderable(tmp_path):
+    manager = _manager(tmp_path)
+    server, thread, token, _csrf = _start_console(manager, "operator")
+    try:
+        status, _headers, data = _request(server, token, "GET", "/operations?tab=intents")
+        text = data.decode()
+        assert status == 200
+        assert "Automation Requests" in text
+        assert "Automation requests" in text
+        assert "no automation requests" in text
+        assert "Start from the owning workflow" in text
+        assert "Server error" not in text
+    finally:
+        _stop(server, thread, manager)
+
+
+def test_ui1_operations_overview_is_task_oriented_and_no_duplicate_intelligence_nav(tmp_path):
+    manager = _manager(tmp_path)
+    server, thread, token, _csrf = _start_console(manager, "operator")
+    try:
+        status, _headers, data = _request(server, token, "GET", "/operations")
+        text = data.decode()
+        assert status == 200
+        assert "Operations workspace" in text
+        assert "Check templates & drift" in text
+        assert "Analyze the network" in text
+        assert "Controlled changes" in text
+        assert "Configuration Baselines / Templates &amp; Drift" in text
+        assert "Advanced operations" in text
+        # Network Intelligence is an Operations tab, not a duplicate top-level navigation item.
+        nav = text.split('<nav class="nav-sidebar">', 1)[1].split('</nav>', 1)[0]
+        assert 'Network Intelligence' not in nav
+        assert 'href="/operations?tab=intelligence"' in text
+    finally:
+        _stop(server, thread, manager)
+
+
+def test_ui1_mib_library_explains_purpose_and_hides_raw_library_by_default(tmp_path):
+    manager = _manager(tmp_path)
+    server, thread, token, _csrf = _start_console(manager, "operator")
+    try:
+        status, _headers, data = _request(server, token, "GET", "/mib")
+        text = data.decode()
+        assert status == 200
+        assert "MIB support" in text
+        assert "MIB files are dictionaries, not features." in text
+        assert "operator-facing health cards" in text
+        assert "sensor-grid" in text
+        assert "Advanced: MIB library" in text
+    finally:
+        _stop(server, thread, manager)
+
+
+def test_ui1_snmp_device_health_cards_use_cached_evidence_without_extra_poll(tmp_path):
+    manager = _manager(tmp_path)
+    manager.inv.upsert(
+        name="sw1", host="192.0.2.10", port=22, platform="cisco_iosxe",
+        device_type="network", secret_ref="", enable_ref="", use_key=False,
+        legacy=False, scrub=True, enabled=True, tags=["edge"], notes="",
+        snmp_version="v3", snmp_ref=None,
+    )
+    manager.inv.set_facts(
+        "sw1", reachable=True, sysname="sw1", sysdescr="test switch",
+        sysobjectid="1.3.6.1.4.1.9", uptime="1d", contact="", location="", error="",
+    )
+    manager.inv.set_interfaces("sw1", [
+        {"ifindex": "1", "descr": "Gi1", "admin": "up", "oper": "up", "speed": 1000000000,
+         "in_octets": 10, "out_octets": 20, "in_errors": 0, "out_errors": 0}
+    ])
+    manager.db.set_mac_table("sw1", [
+        {"mac": "00:11:22:33:44:55", "port": "1", "ifindex": "1", "ifdescr": "Gi1"}
+    ])
+    manager.db.set_arp("sw1", [
+        {"ip": "192.0.2.55", "mac": "00:11:22:33:44:55", "ifindex": "1"}
+    ])
+    manager.db.set_neighbors("sw1", [
+        {"protocol": "lldp", "local_port": "Gi1", "neighbor_device": "core",
+         "sys_name": "core", "managed_neighbor": True}
+    ])
+    manager.db.set_mib_values("sw1", [
+        {"oid": "1.2.3.1", "name": "arubaWiredLoopProtectPortEnable.1", "value": "1", "mib_source": "ARUBA"},
+        {"oid": "1.2.3.2", "name": "arubaWiredLoopProtectPortLoopDetected.1", "value": "2", "mib_source": "ARUBA"},
+        {"oid": "1.2.3.3", "name": "arubaWiredLoopProtectPortLoopCount.1", "value": "0", "mib_source": "ARUBA"},
+        {"oid": "1.2.3.4", "name": "arubaWiredLoopProtectPortLastLoopTime.1", "value": "0", "mib_source": "ARUBA"},
+    ], roots=1)
+    # MC-1 contract: collection/evidence ingestion refreshes the canonical Sensor
+    # snapshot; opening the WebUI must only consume that snapshot.
+    manager.sensors.refresh_inventory_health(manager.inv)
+    server, thread, token, _csrf = _start_console(manager, "operator")
+    try:
+        status, _headers, data = _request(server, token, "GET", "/snmp?device=sw1")
+        text = data.decode()
+        assert status == 200
+        assert "Device health" in text
+        assert "Opening this page does not add polling or device I/O." in text
+        assert "FDB / MAC learning" in text
+        assert "ARP / IP neighbor" in text
+        assert "Topology neighbors" in text
+        assert "Loop Protection" in text
+        assert "No loop detected" in text
+        assert "Enabled ports: 1" in text
+        assert text.index("Device health") < text.index("Advanced SNMP / OID explorer")
+    finally:
+        _stop(server, thread, manager)
+
+
+def test_ui1_network_device_edit_shows_netflow_section_server_side(tmp_path):
+    manager = _manager(tmp_path)
+    server, thread, token, _csrf = _start_console(manager, "admin")
+    try:
+        status, _headers, data = _request(server, token, "GET", "/device-new?name=sw1")
+        text = data.decode()
+        assert status == 200
+        assert '<div id=netflow_section>' in text
+        assert 'collect NetFlow from this device' in text
+        assert 'id=netflow_section style="display:none"' not in text
+    finally:
+        _stop(server, thread, manager)
+
+
+def test_ui1_nonnetwork_device_edit_keeps_netflow_section_hidden(tmp_path):
+    manager = _manager(tmp_path)
+    manager.inv.upsert(
+        name="app1", host="192.0.2.20", port=22, platform="generic",
+        device_type="application", secret_ref="", enable_ref="", use_key=False,
+        legacy=False, scrub=True, enabled=True, tags=[], notes="",
+        snmp_version="", snmp_ref=None, netflow=False, monitor_ports="", monitor_urls="",
+    )
+    server, thread, token, _csrf = _start_console(manager, "admin")
+    try:
+        status, _headers, data = _request(server, token, "GET", "/device-new?name=app1")
+        text = data.decode()
+        assert status == 200
+        assert '<div id=netflow_section hidden>' in text
+    finally:
+        _stop(server, thread, manager)
+
+
+def test_ui1_snmp_device_renders_recent_sensor_transition_timeline(tmp_path):
+    manager = _manager(tmp_path)
+    manager.inv.upsert(
+        name="sw-history", host="192.0.2.30", port=22, platform="cisco_iosxe",
+        device_type="network", secret_ref="", enable_ref="", use_key=False,
+        legacy=False, scrub=True, enabled=True, tags=[], notes="",
+        snmp_version="v3", snmp_ref=None,
+    )
+    manager.inv.set_facts(
+        "sw-history", reachable=True, sysname="sw-history", sysdescr="test switch",
+        sysobjectid="1.3.6.1.4.1.9", uptime="1d", contact="", location="", error="",
+    )
+    manager.sensors.upsert(
+        "interface.status", device="sw-history", resource="Gi1/0/1",
+        value="UP", status="OK", source="test")
+    manager.sensors.upsert(
+        "interface.status", device="sw-history", resource="Gi1/0/1",
+        value="DOWN", status="WARNING", source="test")
+
+    server, thread, token, _csrf = _start_console(manager, "operator")
+    try:
+        status, _headers, data = _request(server, token, "GET", "/snmp?device=sw-history")
+        text = data.decode()
+        assert status == 200
+        assert "Recent sensor changes" in text
+        assert "interface.status" in text
+        assert "Gi1/0/1" in text
+        assert ">OK<" in text
+        assert ">WARNING<" in text
+        assert "UNKNOWN means evidence is unavailable, not a failure verdict." in text
     finally:
         _stop(server, thread, manager)

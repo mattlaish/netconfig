@@ -1,0 +1,972 @@
+[
+  {
+    "path": ".gitattributes",
+    "sha256": "583817183ab778fd9791eeca67598e12baf14874ef3c0842b478290f1660bd74",
+    "mode": "0o644"
+  },
+  {
+    "path": ".github/workflows/ci.yml",
+    "sha256": "3441c41d04067bcae8e18a0cd44f3725cab4b7e099ba2cba6aba58356b9e52ec",
+    "mode": "0o644"
+  },
+  {
+    "path": ".gitignore",
+    "sha256": "a351406e5baa081171a8b7965ae9bbb118a161b3588ddbcbf9f3ec0fbcc76efc",
+    "mode": "0o644"
+  },
+  {
+    "path": "ADR/ADR-004-ui1-unified-operations-console.md",
+    "sha256": "d3c49a4f8028f53353fd88432680bd24910ba8715452588d184e5986b3ce7927",
+    "mode": "0o644"
+  },
+  {
+    "path": "AGENTS.md",
+    "sha256": "013a98f8dc5775cf0a6be80e6dbaa49fc8b8d17e7d908c2b2f672f4095de3f89",
+    "mode": "0o644"
+  },
+  {
+    "path": "AI_HANDOFF.md",
+    "sha256": "d74ee3224a346f0cc222e3344e52b3940be8e6529d7f6fe119a51d89909f9260",
+    "mode": "0o644"
+  },
+  {
+    "path": "API.md",
+    "sha256": "b7bbf4ee8e0cd3abfc5fdd7cc5eba38cc57d6a1a3fd3fb94b7bbe2b5bb6aa221",
+    "mode": "0o644"
+  },
+  {
+    "path": "ARCHITECTURE.md",
+    "sha256": "2f5604b5431a2b1f4790747055cf25b4fc73e5c6e1f9997b0e578e4d825e5df2",
+    "mode": "0o644"
+  },
+  {
+    "path": "CLAUDE.md",
+    "sha256": "dfc1c32bebde6748d681e660cd20c4f0f161e66efff06367ff161c09490b9328",
+    "mode": "0o644"
+  },
+  {
+    "path": "CSS_UI_REVIEW_2026-09-22.md",
+    "sha256": "97e46ffab42b55b2411bad77f7ad5293100981ce1c907bca7d0569581a5bae1d",
+    "mode": "0o644"
+  },
+  {
+    "path": "CURRENT_PROGRESS_DELIVERY_REPORT.md",
+    "sha256": "f463e7670992947f5b4a0a5f4dd2f39285f203d27b024966f94756e67259dd10",
+    "mode": "0o644"
+  },
+  {
+    "path": "DELIVERY_REPORT.md",
+    "sha256": "d1cd34acb4b843ebfaffd417f1f933269ca90c4e7f127bb984c7779c074f18ff",
+    "mode": "0o644"
+  },
+  {
+    "path": "DELIVERY_REPORT_NI65.md",
+    "sha256": "d4da495dc5308889287505e8319d4404117cf661c21077d265bb19924a5d3d19",
+    "mode": "0o644"
+  },
+  {
+    "path": "DEVELOPMENT.md",
+    "sha256": "dc06e1526b9687c4faa1710bfadbb6297d5895a10da9dd208c7eb4b9f8c873cf",
+    "mode": "0o644"
+  },
+  {
+    "path": "DEV_BASELINE.md",
+    "sha256": "c87eef91edab85db23f7e8a248848ce59dbd83e6d991ab8e2fdafcff0fa37084",
+    "mode": "0o644"
+  },
+  {
+    "path": "DOCUMENTATION_STATUS.md",
+    "sha256": "6a64475e61c87ea7de987828d15699ce04274b11612e4474c5d8654af1f5268b",
+    "mode": "0o644"
+  },
+  {
+    "path": "GIT_REPRODUCIBILITY.md",
+    "sha256": "eb14a6af5fe5eb7ac5f90f62d0bf10bf0a5911854059d84caf9c19f1dd2e9ab4",
+    "mode": "0o644"
+  },
+  {
+    "path": "HANDOVER_2026-09-07.md",
+    "sha256": "164ec22c6c4d3d9dec9fa0e98e8fbb300b6e0503a5d8a2adfc02677ce8f97045",
+    "mode": "0o644"
+  },
+  {
+    "path": "HANDOVER_PROMPT.md",
+    "sha256": "1738964ab07d7673ad67c5a99c76b28df962fe6f08e739131a62527fbcd22ffb",
+    "mode": "0o644"
+  },
+  {
+    "path": "INSTALL_RPM.md",
+    "sha256": "30881af139ca9100a0944fda944c710d46e80937039d54490f0fd4584919bfd1",
+    "mode": "0o644"
+  },
+  {
+    "path": "NETCONFIG_MONITORING_CORRELATION_SLICES.md",
+    "sha256": "b15122be6e09f9d6501334839749011c094c463bac27490c66f15fcb699b79ef",
+    "mode": "0o644"
+  },
+  {
+    "path": "NI63_CAPACITY_ANALYTICS.md",
+    "sha256": "340ef9d88c825757449dfe938472935270b4e43b2bf0f71cb5cc0b79ad72cd0b",
+    "mode": "0o644"
+  },
+  {
+    "path": "NI64_FAILURE_RISK.md",
+    "sha256": "9e2e3ab3ac2dd83d468bc9859ed01f58183359fd6669809d31aa238e71970164",
+    "mode": "0o644"
+  },
+  {
+    "path": "NI65_IMPACT_SIMULATION.md",
+    "sha256": "3c43a29f6b3cdb70fa8197814238fe91d828b54cb6d1b7eb4b77fbfc7351691b",
+    "mode": "0o644"
+  },
+  {
+    "path": "NI66_HEALTH_DASHBOARD.md",
+    "sha256": "03f35279357e7aa151726deb9ccfaf11830047cc59b1667853d5b77dcad1a7b4",
+    "mode": "0o644"
+  },
+  {
+    "path": "NI7_L3_ROUTE_INTELLIGENCE.md",
+    "sha256": "864ebef65e94d2f8bc2c9c85428460df234f4fa005ffed0310bb727cb93552b9",
+    "mode": "0o644"
+  },
+  {
+    "path": "PH6_COMPLETION.md",
+    "sha256": "f502315f5034f23bf0bac550ba677ed7aaa6e3b8bf2daa172e8b55ddb5cfefbe",
+    "mode": "0o644"
+  },
+  {
+    "path": "Q1_PRODUCTION_QUALIFICATION.md",
+    "sha256": "b77c2e44e50e4b48c31e3b79ee544015b4df84ed19310140cf156246c2241eab",
+    "mode": "0o644"
+  },
+  {
+    "path": "README.md",
+    "sha256": "b8c212c1fa09ede5aeeba90b11883e948d60796b02b9f216593fd7d4ec611616",
+    "mode": "0o644"
+  },
+  {
+    "path": "ROADMAP.md",
+    "sha256": "67f5b38caa0db4b9a0ff3435b39178c2601dd08d62f6619eaab9f66914210655",
+    "mode": "0o644"
+  },
+  {
+    "path": "ROADMAP_NI_PH_SYNC_MANIFEST.json",
+    "sha256": "f8642321e3f204ef24d756f7d9dc848c44a05b69eb41725e7d9caef92c6db40f",
+    "mode": "0o644"
+  },
+  {
+    "path": "SECURITY.md",
+    "sha256": "2b584e7656b7357fadef74f8888a707b2a3d83f9c0ece31f5ad1fdca11b19c5a",
+    "mode": "0o644"
+  },
+  {
+    "path": "TESTING.md",
+    "sha256": "ee20f27e3dbad345bfdd7261ff2d18d8fa83bfa4beaae5a67ce6f87ba4f73356",
+    "mode": "0o644"
+  },
+  {
+    "path": "TESTING_RESULT_2026-09-07.md",
+    "sha256": "2d43d44128b0451fd2b13a880652d1d6c4b6f8efbd37184e8534165c88ba2cb9",
+    "mode": "0o644"
+  },
+  {
+    "path": "TESTING_RESULT_2026-09-11.md",
+    "sha256": "ac1a8ec69c6222fc875caa07ba21737f904d4328ca60fea9cb25fa836ba7e809",
+    "mode": "0o644"
+  },
+  {
+    "path": "TESTING_RESULT_2026-09-12.md",
+    "sha256": "62aa3fabde9224b7b4fe98867d6bb08dae30989caef118fbbb17bd35eb9f45e4",
+    "mode": "0o644"
+  },
+  {
+    "path": "TESTING_RESULT_2026-09-13.md",
+    "sha256": "a483eb0ed5b552bf67710306c0bac05fb01c58b26601d59db044c919acef4b51",
+    "mode": "0o644"
+  },
+  {
+    "path": "UPSTREAM_GIT_MODE_FIX.patch",
+    "sha256": "3197fb155002e151107533b82d5ab4ef7e5f9657c1f9634f4ca0326cf596c30a",
+    "mode": "0o644"
+  },
+  {
+    "path": "VALIDATION_SUMMARY.md",
+    "sha256": "c1e2ae7a509199ec17a3ab23cb29283b99ecdc27b2c8d361050aa45fbbe72fc6",
+    "mode": "0o644"
+  },
+  {
+    "path": "WEBGUI.md",
+    "sha256": "d4d806ee29419146834aa29aca331fef86ed751301797cf7bf9360f59bba595b",
+    "mode": "0o644"
+  },
+  {
+    "path": "etc/default/netconfig",
+    "sha256": "72088444479b18d56f178b07cc26654644bf6d5c74409622f89cca85200ff42b",
+    "mode": "0o644"
+  },
+  {
+    "path": "etc/profile.d/netconfig.sh",
+    "sha256": "306221a608b379d1bddc9c652e8bac947bf9f334df24c9380eae2a075ed396f9",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/CREDENTIALS.md",
+    "sha256": "e6cc6b9e5cd7f1898282e3a538c29ee27e354a78c8a594a1cdc5b40d212b68eb",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/INSTALL.md",
+    "sha256": "f7e93c9292e65e312dca4f2519702f98558527c00a4a1f49af315a33babb39c5",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/README.md",
+    "sha256": "0b1c63d0633e930f9c7d7be89af755822cc5d3aa9323ebc288db12b875ff42d4",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/WEBGUI.md",
+    "sha256": "8571bc2aa80a7bec57d997bdbef1a31486dc2895d1c8969d7622a34e9aa642a7",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/__init__.py",
+    "sha256": "1f2221b1c78ac531ca56184f300a970c42ad0685d453a2059ef96f7367ba739c",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/aead.py",
+    "sha256": "c39567346f799fbd87b136c1cd423b8b58295ae09bd04264ed3638a622ce7fa7",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/aes.py",
+    "sha256": "5973eb45e8123d67a323131faec903884b864627c118beb8718ec40c3bb6b3a0",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/analytics/__init__.py",
+    "sha256": "672b3c206cc5b717ef7253392ffe988863b983cccc9d60920283bb0a56f597a2",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/analytics/capacity.py",
+    "sha256": "01cf4fa8cc3e70c3795cf29397f107609e8a3f8a91e7d76db99a41b76bf4d063",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/analytics/failure_risk.py",
+    "sha256": "934e6ebb8d4105d51e60f6785064c3914f1d3c20daff63691224ebdf1fb6b8c9",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/analytics/health.py",
+    "sha256": "499369099e92bf44ce49a02e108b8eafe93572ea81a440ccf6c30b6fe8e29a8c",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/analytics/impact.py",
+    "sha256": "dcc3d87ba393e0cd6939d9a4476fa473bb031c59b0bc206359e734bda60620b9",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/analytics/l3.py",
+    "sha256": "6490f489c17259f0f94752af82701df5070644f768d025891162d0484020a561",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/analytics/service.py",
+    "sha256": "69ba7fc1baf036fdb261c3b7f0ce899474087b94751445e6ead5cff4eaf08438",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/apitokens.py",
+    "sha256": "24bd4ef22aa8dd0df207e92074cd60301a903d957a46b913868a3adc72c9a8c6",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/appmon.py",
+    "sha256": "fee034e57ab41e0cf44ba1b4c45014aa1176f837834fdd3d0df60f1826946eb0",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/automation.py",
+    "sha256": "bbda46cefaaa2368a15cbd3ca9285cdff94a3e4c39bb97b11e05221373543c2e",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/campaigns.py",
+    "sha256": "8de333dd757953c066577d776fb87be4792d093d96c67645a34001a3413480ed",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/caseexport.py",
+    "sha256": "a5f5bc41f30cccaa8343f3dea2ee80701dec114041c47e435760fa8c542e4fd4",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/cli.py",
+    "sha256": "ff2ff5fbf6a18abfaa0a9433a86c3abc88f8cfa6ba23c772601b325e84a826f7",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/compliance.py",
+    "sha256": "0805bd0c36ddec08f460bb0c25bd8c14e98d811a48d9270c4f034fa5a116ceee",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/config.py",
+    "sha256": "a42a57c0e493613b926f124d1d7e5e6c306b7af2be5efd3d15d38d3558f4f081",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/configmodel.py",
+    "sha256": "0f0b1a7ef23d816288ef2ddb3e1c072716d86324dcabdc04e361db6f71859f20",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/credentials.py",
+    "sha256": "662f1332a66f90cfd7f40a059b4f7ecafd1c10161c61799a9612701db59ad08a",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/db.py",
+    "sha256": "88f8808f88a2fd0d90148e96e59959c21155497c363ad26c112f5d5136da4e51",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/debug.py",
+    "sha256": "2bdbb007ae481836f035b60f237e8a08cc59d3091265104962eb1b773d5deb78",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/desired_state.py",
+    "sha256": "23fa038ed624b5278889414f6d7405d651c8f1fa1156faab747f3b8e6f500a70",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/diagnostic_maintenance.py",
+    "sha256": "36411e263b4bccf3784bb06d82e3859e4630dcd40bf1ac3a21df654b6401e4e2",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/digest.py",
+    "sha256": "25f58a00558d054924f185e15fa35a17e2f6609659cb19aaa7d9865a0a585bb0",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/drivers.py",
+    "sha256": "3fe91cf9c9294592d2b21e4c274aaf80fe4f54ed523b738f33b40b4bf7806c81",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/evidence_signing.py",
+    "sha256": "acb54e3700e666eabf55e6c4eac9c1493508a8ccd8dcad47eaf7e218138b3e6b",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/ha.py",
+    "sha256": "52dbb370989ac86bdccee349f144cf938d13bdc44c057ecb0cf8c8d007ee1b8e",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/ifhistory.py",
+    "sha256": "a7d90b10f3a3983a80622393a975a8cd00dd986dfc365a2c7463d32b8de5448f",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/incidents.py",
+    "sha256": "f6d56f6e1575c9198536271a4443147c0580337946081fe5700df6602bb3a1e1",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/inventory.py",
+    "sha256": "47c2d266a934d156afc48bae6207499281f7c37a1651f49185ed57ee1dafa907",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/mailer.py",
+    "sha256": "dfa905d66aea995790fb2c76b0eee2c807ee7e74b8488f55e5b3542a42654418",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/manager.py",
+    "sha256": "699f5c1d819366addbd138a1722218a21d6c17dd7da1d63a7130c4c330369345",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/mib.py",
+    "sha256": "9a75cbb4213e4ddec522a0e365c478e98592aa1360ec962bf17c298553fedcf9",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/monitor.py",
+    "sha256": "43f966c6032aa6e1f3b216ba40e0f1c79bc1bb3e7d8bcabc6fdf2e00ca23b0c1",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/netflow.py",
+    "sha256": "b853bb077bbf2178fa1824ecb69ae0f0d6e58db3274bc51bb03ac44bfe1a8fa2",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/network_intelligence.py",
+    "sha256": "388db20769d426917e798c737bf41c7bfe617c1d8454711c590b2a8d30c2ea3d",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/oauth.py",
+    "sha256": "14df519ee4f31a4dc9057d63194a4d1695327ac9f35bbe61cf2f5097a32b57d2",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/observability.py",
+    "sha256": "62d87e202c16a1b0af9621979acbdee5de5e1f8b68d6ba67fb717446dbf2cd03",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/operational_alerts.py",
+    "sha256": "67bab23caba761635073d9a9487feab5eb9707072837fdae662f44d47fed71d4",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/operational_events.py",
+    "sha256": "d5af733b25397ffea0a8b784f65fa2bce17f4aee1b227c4d836228f328ee695b",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/ph4_recovery.py",
+    "sha256": "d3a74d980f6e0454d5eb8edc7f57a372254b3f67238db37c11ef3616b5c2563a",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/ph5_api.py",
+    "sha256": "4cc60693fcdce78bd54a779ab3f4dedbf3c6355b676f849dd199a69a272d0b10",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/ph5_intent.py",
+    "sha256": "f63a109647a74ab3562aa89e68a88892e68fd9ad150169f945ed78beca1f2887",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/ph6_api.py",
+    "sha256": "b2cd0b2ba4fb6651712c917b97ed2380bbb3745c331a4967b6337a22a5c72655",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/ph6_execution.py",
+    "sha256": "f046738d0643b437f8f233bc38b8563f4182d25ed9e299cac9c9ca8b0dc38e79",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/portmon.py",
+    "sha256": "ae1b45c6d3e737e8e1bb208dbdd6442309d95944729ba98ad9fc5b6a87f276be",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/postgres_backup.py",
+    "sha256": "ff2ef73c15b1bd065a3896bd77fc794d0f7a7f687eee64540b43909b27d02783",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/postgres_core.py",
+    "sha256": "5b5dd60d58a6c8b12245ba44915a7c83dff6464a47912314e2467bfc1a4ba962",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/protocols.py",
+    "sha256": "735036d7d464db2d68989ac598bfcd22e8e3f9d5f47243238aab09c5acf48640",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/protocoltrace.py",
+    "sha256": "cd901482983a6ea4ccd21c5d610489408face15c150c6b3547f5548e0d6b9a9c",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/qualification.py",
+    "sha256": "b82806140a5c0a2c55f13476e39d288ad31f27f33fe3895678efe2d6298a3983",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/scrub.py",
+    "sha256": "6f53f2f2f17accf93a66f2dcfe0e9a978c2615fc3c0bea1ba11e98a246454cec",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/security.py",
+    "sha256": "b6507311035803d32fbc351d749b6bf658f5acdb97565a5ffa09d751fe167ac6",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/sensor.py",
+    "sha256": "50b058052d7549f1610d8a3b87e497dfa53c485f07a68fc809715729f73789f3",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/session.py",
+    "sha256": "17b21e42c261171d8049eecd82b35fb7934083676fe33969d9db2fa2a538dba4",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/snmp.py",
+    "sha256": "cff8eb769e1b35572b5a4b15f8be6efc16aff1fa396c28cfdbc2ab6165b056bf",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/snmp_trap.py",
+    "sha256": "8d1286ba67da5530418eac052dcb6f5424b06183bdb7ec1ceb0536c91ed4f393",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/storage_backend.py",
+    "sha256": "b143b72b0d2e161d1b773499bffcd38c1d551879ea1fa819fe9b7aadadb46cb5",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/store.py",
+    "sha256": "e8fc974e84441f726c8a6fe7b276ced12412e0b28ef408d530664ce952752d32",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/structured_changes.py",
+    "sha256": "8660d031a26c9e49e7411d765e9294da2d00da7774dbed6b4ddfd30cf4e799f4",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/structured_protocols.py",
+    "sha256": "a1afc7c578d17b80810f68447b20149dee0c9ed3216667a616071d126264a22b",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/syslog_receiver.py",
+    "sha256": "7f1b97ea6d9976e1f22b01bc5aa75d6ab688b16e3a349b41c95e4eaa1c2e74a9",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/telemetry.py",
+    "sha256": "6fc8ad46399f6dcfbcc1c66ca9641d1392f3ad5c4c81d25cb271c63c9406ecbc",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/topology.py",
+    "sha256": "534e35ff4ad61337829677bc416fd9c4137e905f3caec3693fab75b841791333",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/transport.py",
+    "sha256": "10949c303bc270bf62ddcea6de9959d2a18be19f03d14b7852c4ee275848b0a0",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/users.py",
+    "sha256": "8d6bbb5f45ab42884f7cf3b015a00f9eaf710ea6173b454adad28019317d78c4",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/vault.py",
+    "sha256": "fe93e5877dffa3651ffa888118c3308bdc7b42abb39016f324d83bf1c1855dc9",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/vendor_models.py",
+    "sha256": "21545c33455632a8132437aeb73efe1746f98bfa2dce38f5b82b11cbef293c5a",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/web.py",
+    "sha256": "40f163d3f6adcb5aebcc65124e27f30aa14349dc4b7d1d5530ae3a1aa17ed562",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/web_api.py",
+    "sha256": "fa5e7112518bde7b5c387631d4928b1fa49178cbcfc157974ec985cdd6ceda67",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/web_ops.py",
+    "sha256": "1ae258b3e29774ed663d521d02dd2f3fbedd3dada362b5e6dd1e2e2c2a592da4",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/web_ui.py",
+    "sha256": "43f87e008e0489649e4985072738ccca983fb16b4a93484b059228fbb36d5aab",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/netconfig/workflow.py",
+    "sha256": "bb197eaad4b672f62934bc91406b5572277d4436be8b972fcc120fceea4609ef",
+    "mode": "0o644"
+  },
+  {
+    "path": "opt/netconfig/selftest.py",
+    "sha256": "e9e0139f03ab7b6fa6bc8fcfe65eb40ceb08b73c22442e66b679f8db18467de6",
+    "mode": "0o644"
+  },
+  {
+    "path": "packaging/README.md",
+    "sha256": "020878084c55a5f107532c8dabf7c9f684951129512cb78b9f6fbfd9ce9b31e1",
+    "mode": "0o644"
+  },
+  {
+    "path": "packaging/build-rpm.sh",
+    "sha256": "d6c22cae4ad2b279bc679fe1f995e601e8b80ce63bbad00aa37375ea8a9fd2c8",
+    "mode": "0o755"
+  },
+  {
+    "path": "packaging/inspect-rpm.sh",
+    "sha256": "624ac0d510150a9abf524644c0b1f25cd9fbfe5585855ec2c112353031e680a5",
+    "mode": "0o755"
+  },
+  {
+    "path": "packaging/install-rpm.sh",
+    "sha256": "6aa3b973916caabec6fc7c5a9dcb788f3f87aa89829326054c8c7ea151a5766f",
+    "mode": "0o755"
+  },
+  {
+    "path": "packaging/netconfig.spec",
+    "sha256": "5b8e82d49537560610b70e2cb3e99c6e5179cdb5788352bf8e5f253f92f1ce89",
+    "mode": "0o644"
+  },
+  {
+    "path": "packaging/prepare-transfer.ps1",
+    "sha256": "bb7460582c3fa77934c056c3cf5d0eb347776865708ce12c0698d6838cfe873c",
+    "mode": "0o644"
+  },
+  {
+    "path": "packaging/q1-qualify-almalinux.sh",
+    "sha256": "95af059c7a469eef57972d45513750dd0ba3abc058568a559256773778eb6235",
+    "mode": "0o755"
+  },
+  {
+    "path": "packaging/q1-qualify-postgres.sh",
+    "sha256": "a7483a8d24636a18ae547e22cc954f6675d63bd7adcbf8cd33f4b711155dafdd",
+    "mode": "0o755"
+  },
+  {
+    "path": "packaging/q1-source-gates.sh",
+    "sha256": "61110d327506ff5d5774dfc04faf8d895cfa46339b0320eaf0401f355520ce7c",
+    "mode": "0o755"
+  },
+  {
+    "path": "packaging/smoke-installed.sh",
+    "sha256": "b4912deaa888a670143c065b55d19bdaa5e3ddfc9ee44979d4a2fe07a124c685",
+    "mode": "0o755"
+  },
+  {
+    "path": "patch.md",
+    "sha256": "4f596f1079d1f98df019ed97c3a8924cc10d083f3794d4db210a6ea22e85e556",
+    "mode": "0o644"
+  },
+  {
+    "path": "pyproject.toml",
+    "sha256": "ae352a75e84ed0891e5034ec06a313b844df71583513fa02965094a1607be3ab",
+    "mode": "0o644"
+  },
+  {
+    "path": "requirements-quality.txt",
+    "sha256": "88da888c0f97beb742fcfdb740f561f2bb6f76f3133d51b97c5b4daf3a714971",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/integration/fake_device_shell.py",
+    "sha256": "6363de8460606f4eee7d055cb341dbd820efb502a7555d9f33bc171299c4f129",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/integration/test_postgres_core_live.py",
+    "sha256": "82b763cfc797c54e04b998fd7685ab4ccb0be8927adc464756ab8d71cf185cb5",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/integration/test_protocol_fakes.py",
+    "sha256": "bf128cd1bc44cc467a51c7ee903cf88d5fc24afc2d149688f122e55261dbcfa2",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_analytics_enterprise_workflow.py",
+    "sha256": "52dd8c3c765fccd5783a3afa65ae64168982768085d9d816abe3db9d269cdeb2",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_api_tokens.py",
+    "sha256": "fbf2ec9509906d190091392e82079bcb69eefbbfbf96f825d37b99aed9976765",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_automation_expansion.py",
+    "sha256": "7490fc447f252fa5cb8cbe06a1ac7097aad73d7824472d364a1bc599dfd8007a",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_campaign_retry_api.py",
+    "sha256": "a522fd5007dada1ce4acdb058349277b32ea023522eec7c33d247682ff9937e5",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_capacity_analyzer.py",
+    "sha256": "b92a8b70ef41010c59c4b70e8d9bb3f6a33f668cff3d708a011be954ea275343",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_configmodel.py",
+    "sha256": "3b170580bada4bd297aa04ebf7425bf20768274c3e324e6a054bcabe9541ad3d",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_credentials.py",
+    "sha256": "a2e730e0176dc67747744133a31a6b93a41fb220cd3625e14b5a3b6569d8d6be",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_css_regression_review.py",
+    "sha256": "f195a689b2d551a61bb4db80f8f768fee040ebb931055e80cf913b18466c5ae2",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_d5_closeout.py",
+    "sha256": "cc06ca60f8bdeb97c2f3766328f78a0bc0218679834cd71c4881497acab2bb24",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_digest.py",
+    "sha256": "abe0b948fdaeeb30a67570b8f48eda5721e4db91a4459026b944ecfa662ca39e",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_evidence_signing.py",
+    "sha256": "022788290f7de2369b638baad68f2163465423943bfc645092f048cdf7333877",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_failure_risk_analyzer.py",
+    "sha256": "2c6746ee3cb4befe3f3c33ae8ade9d2214016b06c4cd751d3e0a19efc491eca8",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_failure_risk_insight.py",
+    "sha256": "8ef47f61f6ca9824ad83b39d137248160cad2aff9754eb4174c7d94e3ffa5dab",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_failure_risk_security_boundary.py",
+    "sha256": "971d02f74d9adba8554023cb6b0e5ffc21581c49a29b375b74fcab01dd33e15c",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_health_dashboard.py",
+    "sha256": "c56f7a3f3690001161639e493f5667b75685341c965e7819ce5897915089dd35",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_impact_simulator.py",
+    "sha256": "bf796809d7835dafd13af39ae86c24e81919d2d7f92358405b61c509fb567b87",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_incident_web.py",
+    "sha256": "a6aa3d362bf412dd74ab39c2159ddc4e87c9ae76a917ac30edf622e0caea9dcb",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_incidents.py",
+    "sha256": "c011b1760127c41e130c780674c8e90843e0dca34589baa1b9cc9f76cf6cd1a3",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_legacy_selftest.py",
+    "sha256": "8b2593a1762f084a7826fdf69f4f451b48a0c42961c49700c5e8c979e6c6731a",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_mc1_sensor_integration.py",
+    "sha256": "a8dfdcee2f7fced7d950b6f75a2b242887e922df3efc258aa8c1fb436329303b",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_mc2_sensor_history.py",
+    "sha256": "d6f026541a168c0255848763d383ba1c4ed10a851f820ebfc457377010a6a134",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_mc3_operational_evidence.py",
+    "sha256": "6c47b8e98150d336d8d6ae55cc669df6575099c80ce842650c01ea1a314a4323",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_network_intelligence.py",
+    "sha256": "9f10210f4d29c89ab87b8803639448a2bccb7fe7a77e1e88260200c6a4e830fc",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_network_intelligence_ni2.py",
+    "sha256": "4302e40746f4aac7e73d647bfc6afd74649a247b03fb42767b025b7a0dce5fa7",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_network_intelligence_ni3.py",
+    "sha256": "a03e8d4745b023de9f559456727053d71f6525fc7f91dec014efa43a40baf238",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_network_intelligence_ni4.py",
+    "sha256": "b00a9f65098dd925ac502de484d896548e6ac88c6660240164925e108a1821ba",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_network_intelligence_ni7.py",
+    "sha256": "1b26b7c1b4f8ea502d61ff2d6d00d8b5bab38ca82d6fe81ae4fe7e5b2578dc48",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_offline_rpm_builder.py",
+    "sha256": "6eca895d4cc11daf1ca9b6f2d2b123946e1f1a505ab0b16e002157503522e539",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_ph4_completion_final.py",
+    "sha256": "2188280c90a7df685e83c5c52f64a98f48eeb54ee9c51f5befb9aba562ac8752",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_ph5_api_surface.py",
+    "sha256": "08c6e95c75131284506a0093bb3dc9857d34a9f2f08177a06ba135a470a7caaa",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_ph5_intent_foundation.py",
+    "sha256": "1b388921e65ab69192f3d029ea789d7010055b7bcd88417ff32a1ab0e4deac2b",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_ph6_api.py",
+    "sha256": "5a178d9bc941a5706e747700c2603ebaf1475079fc23c61f1e8b50bf396b1712",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_ph6_execution_foundation.py",
+    "sha256": "c49fdbc96ee5f144fd17f29435d1fc3140c5cf492596935a5a198d297d863c67",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_platform_hardening_ph1.py",
+    "sha256": "365676acf86bf36b99e5ed4348b5235742f25000b4f5f206b9bad5051731ad06",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_platform_hardening_ph2.py",
+    "sha256": "09a4015cd29bc89dcb93f81153a143a27b8be3fee74acfb716afe27c4d0f7e3b",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_platform_hardening_ph3.py",
+    "sha256": "042cbfc6603983e092a006a0ffc7b540a5a97eca799258ff1b3f22f00de1ac50",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_protocol_trace.py",
+    "sha256": "400a2fd15b15c869b07c20b9ca09aab6381e6e6e9985225eddad63675873f4df",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_protocols_storage.py",
+    "sha256": "a65103d1751058d4201406ac4370eef7af81a6bb413bbe4f6279e83db63b0dd5",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_qualification_q1.py",
+    "sha256": "60980aeb08d24de4d269671482e8f7f27e93a4234154ddafcecce3a76f135e9a",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_r51_pre_mc4_hotfix.py",
+    "sha256": "fa482c0b299d8458718447281df12f35cd8c57ea3c9ec7f057ac3ad1e7ce04ff",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_repo_hygiene.py",
+    "sha256": "533c37ed64b0bfcf0a857a2781bbad74c0d6733823dd056f6c9c714a163d548c",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_security.py",
+    "sha256": "77e0a19f14ad524ab79353d2c47f88db51f8cf36d700b57d96f2b5ef2fa1b86c",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_sensor_api.py",
+    "sha256": "7b280d36f5b5fdb98f36afa7c5f46dce220b8aca14dafe312a3cb23ef4fa0201",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_sensor_model.py",
+    "sha256": "a1ec79626a1b68bc64b622a1a011000176ac74676fabe7c80d213afe460a2e8a",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_snmp_concurrency.py",
+    "sha256": "ac6d04c9cf15e205e16f851ac4cde9b1153ee651009c0e348d22a6cf9d80c974",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_syslog_receiver.py",
+    "sha256": "01c011ef58b060596196f9fd08913adf04b6ea7a9c0a6cb6004b2c8d5020e1c0",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_topology.py",
+    "sha256": "e73c5c7788c0838764b730c7e11841b8cd18c24540b090624f76022d64220602",
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/test_ui1_web_console.py",
+    "sha256": "691b1e97082e2b2511e73d2c7c06c8f1e2699007dc02554830e1f9f7872d70c1",
+    "mode": "0o644"
+  },
+  {
+    "path": "tools/rpm-builder/README.md",
+    "sha256": "9195fd25d3ecee1760c8546fdcede5f060f6d6352b3efe45acb4cabafe2eae42",
+    "mode": "0o644"
+  },
+  {
+    "path": "tools/rpm-builder/build.sh",
+    "sha256": "62e5a107d17f1ea64e29516f891561cc1b4ffb39fd2e85e6b63798812cc83d1e",
+    "mode": "0o755"
+  },
+  {
+    "path": "tools/rpm-builder/rpm_builder.py",
+    "sha256": "4e43908489719cdb575000a00c85f16f2e83a49f8f636d204f3e6c719323b934",
+    "mode": "0o755"
+  },
+  {
+    "path": "tools/rpm-builder/verify.sh",
+    "sha256": "20e6c4b5e690f04c507f177f85c1978a8f0b8fbfb3553641315f38476f1d5ef0",
+    "mode": "0o755"
+  },
+  {
+    "path": "tools/rpm-builder/verify_rpm.py",
+    "sha256": "8ca30a409306b1d2af1c55ef3be2cc5b2b029558c228df8ff286d34511f54d27",
+    "mode": "0o755"
+  },
+  {
+    "path": "usr/bin/netconfig",
+    "sha256": "845ddc774550d19badbea1e33db5ff85ae4890e25e7f58d29ba86c9f7e8a4e8c",
+    "mode": "0o755"
+  },
+  {
+    "path": "usr/lib/systemd/system/netconfig-backup.service",
+    "sha256": "6fbc1b2e686ca9265d6ae3e6eb0393a06ae770d499e723c4d72032ae08bdffc7",
+    "mode": "0o644"
+  },
+  {
+    "path": "usr/lib/systemd/system/netconfig-backup.timer",
+    "sha256": "e9d48c1ae52976b6a373fedecec4643443aaea0310a70bc3bb7f0b578eece86a",
+    "mode": "0o644"
+  },
+  {
+    "path": "usr/lib/systemd/system/netconfig-web.service",
+    "sha256": "9fef6a59c86295cd569d32e53eb609ce710d008eccaa761b236000dc57679c63",
+    "mode": "0o644"
+  }
+]

@@ -54,12 +54,12 @@ def _text(value):
 def _mac(value):
     if isinstance(value, bytes) and len(value) == 6:
         return ":".join(f"{x:02x}" for x in value)
-    text = _text(value).lower().replace("-", ":")
-    if re.fullmatch(r"0x[0-9a-f]{12}", text):
-        raw = text[2:]
-        return ":".join(raw[i:i+2] for i in range(0, 12, 2))
-    if re.fullmatch(r"[0-9a-f]{2}(?::[0-9a-f]{2}){5}", text):
-        return text
+    text = _text(value).lower().strip()
+    if text.startswith("0x"):
+        text = text[2:]
+    compact = re.sub(r"[.:-]", "", text)
+    if re.fullmatch(r"[0-9a-f]{12}", compact):
+        return ":".join(compact[i:i+2] for i in range(0, 12, 2))
     return ""
 
 
@@ -248,6 +248,162 @@ def analyze(neighbors, inventory, identities=None):
         x["resolution_evidence"] = ",".join(evidence)[:512]
         edges.append(x)
     return edges
+
+
+def infer_fdb_edges(fdb_rows, inventory, identities=None, interfaces=None):
+    """Build bounded managed-device path evidence from persisted FDB data.
+
+    An FDB observation proves only that a managed device MAC is reachable via a
+    source port; it does *not* prove direct physical adjacency.  Therefore these
+    rows are explicitly marked ``INFERRED`` and are never consumed by
+    ``downstream_impact()`` as observed LLDP/CDP edges.
+    """
+    identities = identities or []
+    interfaces = interfaces or []
+    managed = {str(d.get("name", "")) for d in inventory if d.get("name")}
+    mac_targets = {}
+
+    def add_target(mac_value, device, port="", source=""):
+        mac = _mac(mac_value)
+        device = str(device or "")
+        if not mac or not device or device not in managed:
+            return
+        mac_targets.setdefault(mac, []).append({
+            "device": device,
+            "port": str(port or ""),
+            "identity_source": source,
+        })
+
+    for row in interfaces:
+        port = row.get("ifname") or row.get("ifdescr") or (
+            "if" + str(row.get("ifindex", "")) if row.get("ifindex") else "")
+        add_target(row.get("phys_address"), row.get("device"), port, "ifPhysAddress")
+    for row in identities:
+        add_target(row.get("chassis_mac"), row.get("device"), "", "chassis_mac")
+        if row.get("chassis_id_subtype") == "macAddress":
+            add_target(row.get("chassis_id"), row.get("device"), "", "chassis_id")
+
+    grouped = {}
+    for row in fdb_rows or []:
+        src = str(row.get("device", "") or "")
+        mac = _mac(row.get("mac"))
+        if not src or src not in managed or not mac:
+            continue
+        candidates = [x for x in mac_targets.get(mac, []) if x["device"] != src]
+        target_devices = sorted({x["device"] for x in candidates})
+        if len(target_devices) != 1:
+            continue
+        dst = target_devices[0]
+        remote_ports = sorted({x.get("port", "") for x in candidates
+                               if x["device"] == dst and x.get("port")})
+        local_port = str(row.get("ifdescr") or row.get("ifindex") or row.get("bridge_port") or "")
+        remote_port = remote_ports[0] if len(remote_ports) == 1 else ""
+        key = (src, dst, local_port, remote_port)
+        edge = grouped.setdefault(key, {
+            "from": src,
+            "to": dst,
+            "local_port": local_port,
+            "remote_port": remote_port,
+            "protocol": "fdb",
+            "evidence_kind": "INFERRED",
+            "direct_adjacency": False,
+            "confidence": "MEDIUM",
+            "resolution_state": "INFERRED",
+            "matched_macs": set(),
+            "vlans": set(),
+            "sources": set(),
+        })
+        edge["matched_macs"].add(mac)
+        if row.get("vlan_id") not in (None, ""):
+            edge["vlans"].add(str(row.get("vlan_id")))
+        if row.get("source"):
+            edge["sources"].add(str(row.get("source")))
+
+    out = []
+    for key in sorted(grouped):
+        edge = grouped[key]
+        macs = sorted(edge.pop("matched_macs"))
+        vlans = sorted(edge.pop("vlans"))
+        sources = sorted(edge.pop("sources"))
+        edge["evidence_count"] = len(macs)
+        edge["evidence"] = "FDB MAC " + ",".join(macs[:4])
+        if len(macs) > 4:
+            edge["evidence"] += f" (+{len(macs)-4})"
+        if vlans:
+            edge["evidence"] += " VLAN " + ",".join(vlans[:4])
+        edge["source_detail"] = ",".join(sources)
+        out.append(edge)
+    return out
+
+
+def build_graph(neighbors, inventory, identities=None, interfaces=None, fdb_rows=None):
+    """Return managed topology nodes plus observed and inferred evidence edges.
+
+    Every managed inventory device becomes a node even when it exposes no
+    LLDP/CDP MIB.  FDB-derived edges are supplementary path evidence only.
+    """
+    identities = identities or []
+    interfaces = interfaces or []
+    id_by = {r.get("device", ""): r for r in identities}
+    nodes = []
+    for dev in sorted(inventory, key=lambda d: str(d.get("name", ""))):
+        name = str(dev.get("name", "") or "")
+        if not name:
+            continue
+        ident = id_by.get(name, {})
+        nodes.append({
+            "device": name,
+            "host": str(dev.get("host", "") or ""),
+            "sys_name": str(ident.get("sys_name") or dev.get("sysname") or ""),
+            "chassis_mac": str(ident.get("chassis_mac") or ""),
+            "state": "UNKNOWN",
+        })
+
+    observed = []
+    observed_pairs = set()
+    for row in neighbors or []:
+        if not row.get("managed_neighbor") or not row.get("neighbor_device"):
+            continue
+        src = str(row.get("device", "") or "")
+        dst = str(row.get("neighbor_device", "") or "")
+        if not src or not dst:
+            continue
+        observed_pairs.add(tuple(sorted((src, dst))))
+        observed.append({
+            "from": src,
+            "to": dst,
+            "local_port": str(row.get("local_port", "") or ""),
+            "remote_port": str(row.get("port_id", "") or ""),
+            "protocol": str(row.get("protocol", "") or "lldp"),
+            "evidence_kind": "OBSERVED",
+            "direct_adjacency": True,
+            "confidence": "HIGH",
+            "resolution_state": str(row.get("resolution_state") or "RESOLVED"),
+            "evidence": str(row.get("resolution_evidence", "") or "LLDP/CDP neighbour"),
+        })
+
+    inferred = [e for e in infer_fdb_edges(fdb_rows or [], inventory, identities, interfaces)
+                if tuple(sorted((e["from"], e["to"]))) not in observed_pairs]
+    edges = observed + inferred
+    kind_by_device = {n["device"]: set() for n in nodes}
+    for edge in edges:
+        for name in (edge.get("from"), edge.get("to")):
+            if name in kind_by_device:
+                kind_by_device[name].add(edge.get("evidence_kind"))
+    for node in nodes:
+        kinds = kind_by_device.get(node["device"], set())
+        node["state"] = "OBSERVED" if "OBSERVED" in kinds else (
+            "INFERRED" if "INFERRED" in kinds else "UNKNOWN")
+    return {
+        "nodes": nodes,
+        "edges": edges,
+        "summary": {
+            "managed_nodes": len(nodes),
+            "observed_edges": len(observed),
+            "inferred_edges": len(inferred),
+            "unknown_nodes": sum(1 for n in nodes if n["state"] == "UNKNOWN"),
+        },
+    }
 
 
 def identity_view(inventory, identities, interfaces):

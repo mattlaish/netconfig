@@ -12,7 +12,7 @@ What's implemented, all in stdlib (socket + hashlib + hmac + the local AES):
   * SNMP v3 (USM): engine discovery, then noAuthNoPriv / authNoPriv (HMAC-MD5 or
     HMAC-SHA) / authPriv (AES-128-CFB, RFC 3826), with RFC 3414 key localization.
 
-Security note for the hospital estate: v2c sends its community string in
+Security note for the network estate: v2c sends its community string in
 cleartext, so prefer v3 authPriv on any network where that matters. v2c remains
 available as a fallback for gear that can't do v3.
 """
@@ -339,7 +339,7 @@ def walk_table(host, columns, *, version="v2c", community="public", v3=None,
             _dbg(1, f"  WARNING: asked {len(active)} varbinds, agent returned {len(vbs)} "
                     f"(agent may not support multi-varbind GETNEXT)")
         still = []
-        for (base, _cur), (oid, val) in zip(active, vbs):
+        for (base, _cur), (oid, val) in zip(active, vbs, strict=False):
             if oid.startswith(base + ".") and val is not None:
                 idx = oid[len(base) + 1:]
                 rows.setdefault(idx, {})[base] = val
@@ -622,14 +622,33 @@ def poll_interfaces(host, *, port=161, version="v2c", community="public",
     return out
 
 
-def _extend_priv_key(kul, engine_id, hash_ctor, keylen):
-    """AES-192/256 need a longer priv key than the hash digest. Extend per the
-    Reeder key-localization draft (as net-snmp does for AES-192/AES-256)."""
+def _extend_priv_key_blumenthal(kul, hash_ctor, keylen):
+    """Extend a localized privacy key for AES-192/AES-256.
+
+    Net-SNMP's ``AES-192``/``AES-256`` names use the Blumenthal draft
+    extension.  Starting with Kul, append H(Kul) (and, if ever needed,
+    H(Kul || H(Kul)) ...) until the requested AES key length is available.
+    This intentionally differs from the Cisco/Reeder localization variant.
+    """
+    key = bytearray(kul)
+    while len(key) < keylen:
+        key += hash_ctor(bytes(key)).digest()
+    return bytes(key[:keylen])
+
+
+def _extend_priv_key_reeder(kul, engine_id, hash_ctor, keylen):
+    """Extend Kul using the Cisco/Reeder algorithm.
+
+    Kept as an explicit compatibility option (``aes192c``/``aes256c``).
+    Historically NetConfig applied this algorithm to the generic AES-192/256
+    names, which is not compatible with Net-SNMP's standard AES-192/AES-256
+    mapping and caused authPriv timeouts against devices such as FortiGate.
+    """
     key = bytearray(kul)
     while len(key) < keylen:
         ku = hash_ctor(bytes(key)).digest()
-        kul = hash_ctor(ku + engine_id + ku).digest()
-        key += kul
+        next_kul = hash_ctor(ku + engine_id + ku).digest()
+        key += next_kul
     return bytes(key[:keylen])
 
 
@@ -644,8 +663,12 @@ def _localized_for(params, engine_id):
     if params.priv_proto:
         keylen = _PRIV_KEYLEN[params.priv_proto]
         base = password_to_key(params.priv_pass, engine_id, ctor)
-        priv_key = base[:keylen] if len(base) >= keylen else \
-            _extend_priv_key(base, engine_id, ctor, keylen)
+        if len(base) >= keylen:
+            priv_key = base[:keylen]
+        elif params.priv_proto in ("aes192c", "aes256c"):
+            priv_key = _extend_priv_key_reeder(base, engine_id, ctor, keylen)
+        else:
+            priv_key = _extend_priv_key_blumenthal(base, ctor, keylen)
     params._localized_keys[engine_id] = (auth_key, priv_key)
     return ctor, tag_len, auth_key, priv_key
 
@@ -768,17 +791,30 @@ def _norm_priv(p):
     k = str(p).lower().replace("-", "").replace("_", "").replace(" ", "")
     aliases = {"aes": "aes128", "aes128": "aes128", "aescfb128": "aes128",
                "aes192": "aes192", "aes256": "aes256",
+               "aes192c": "aes192c", "aes256c": "aes256c",
+               "aes192cisco": "aes192c", "aes256cisco": "aes256c",
                "des": "des"}
     if k not in aliases:
         raise SNMPError(f"unsupported privacy protocol {p!r} "
-                        f"(use aes/aes128, aes192, aes256)")
+                        f"(use aes/aes128, aes192, aes256, aes192c, aes256c)")
     if aliases[k] == "des":
         raise SNMPError("DES privacy is deprecated and not supported; use AES")
     return aliases[k]
 
 
 # priv protocol -> AES key length in bytes
-_PRIV_KEYLEN = {"aes128": 16, "aes192": 24, "aes256": 32}
+_PRIV_KEYLEN = {"aes128": 16, "aes192": 24, "aes256": 32, "aes192c": 24, "aes256c": 32}
+
+
+def net_snmp_priv_name(proto):
+    """Return the Net-SNMP command-line spelling for a normalized protocol."""
+    return {
+        "aes128": "AES",
+        "aes192": "AES-192",
+        "aes256": "AES-256",
+        "aes192c": "AES-192-C",
+        "aes256c": "AES-256-C",
+    }.get(_norm_priv(proto), str(proto or "").upper())
 
 
 class V3Params:
@@ -787,7 +823,7 @@ class V3Params:
         self.username = username
         self.auth_proto = _norm_auth(auth_proto)          # md5|sha1|sha224|sha256|sha384|sha512
         self.auth_pass = auth_pass
-        self.priv_proto = _norm_priv(priv_proto)          # aes128|aes192|aes256
+        self.priv_proto = _norm_priv(priv_proto)          # aes128|aes192|aes256|aes192c|aes256c
         self.priv_pass = priv_pass or auth_pass
         self._localized_keys = {}
         self._engines = {}

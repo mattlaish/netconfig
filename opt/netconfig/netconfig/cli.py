@@ -176,7 +176,7 @@ def _add_inline_cred_args(p):
     p.add_argument("--snmp-auth-pass", action="store_true", help="prompt for SNMPv3 auth password")
     p.add_argument("--snmp-auth-proto", choices=["md5","sha","sha224","sha256","sha384","sha512"])
     p.add_argument("--snmp-priv-pass", action="store_true", help="prompt for SNMPv3 priv password")
-    p.add_argument("--snmp-priv-proto", choices=["aes","aes192","aes256"])
+    p.add_argument("--snmp-priv-proto", choices=["aes","aes192","aes256","aes192c","aes256c"])
     p.add_argument("--snmp-port", type=int)
 
 
@@ -657,7 +657,7 @@ def cmd_snmp(m, args):
             print(f"  v3: user={v3.username!r} level={lvl} auth={(v3.auth_proto or '-')} priv={(v3.priv_proto or '-')}")
             print(f"  compare with: snmpwalk -v3 -l {lvl} -u {v3.username} "
                   f"-a {(v3.auth_proto or '').upper()} -A '<authpass>' "
-                  f"-x {(v3.priv_proto or '').upper()} -X '<privpass>' {dev['host']}:{port} system")
+                  f"-x {_snmp.net_snmp_priv_name(v3.priv_proto)} -X '<privpass>' {dev['host']}:{port} system")
         else:
             print(f"  v2c community: (hidden)")
             print(f"  compare with: snmpwalk -v2c -c '<community>' {dev['host']}:{port} system")
@@ -821,6 +821,9 @@ def cmd_incident(m, args):
 
 def cmd_topology(m, args):
     if args.discover:
+        # Discovery may need SNMP/SSH credentials.  Unlock inside this same CLI
+        # process so a stateless `vault unlock` command is not misleading.
+        _master(m)
         names = [args.device] if args.device else [d["name"] for d in m.inv.all() if d.get("snmp_version")]
         for name in names:
             rows = m.discover_neighbors(name)
@@ -1434,7 +1437,7 @@ def build_parser():
     sset.add_argument("--snmp-auth-proto", choices=["md5","sha","sha224","sha256","sha384","sha512"])
     sset.add_argument("--snmp-priv-pass", action="store_true",
                       help="prompt for SNMPv3 priv password")
-    sset.add_argument("--snmp-priv-proto", choices=["aes","aes192","aes256"])
+    sset.add_argument("--snmp-priv-proto", choices=["aes","aes192","aes256","aes192c","aes256c"])
     sset.add_argument("--snmp-port", type=int, help="non-standard SNMP port (default 161)")
     vs.add_parser("list")
     srm = vs.add_parser("rm"); srm.add_argument("name")

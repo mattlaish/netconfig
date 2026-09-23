@@ -218,7 +218,7 @@ class MibIndex:
                 "collectible": 0,
             }
         self.collection_objects = []
-        for fn, defs in file_defs.items():
+        for fn, _defs in file_defs.items():
             try:
                 with open(os.path.join(self.mib_dir, fn), encoding="utf-8",
                           errors="replace") as f:

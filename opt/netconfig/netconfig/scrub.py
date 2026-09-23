@@ -2,7 +2,7 @@
 scrub.py -- Mask sensitive values in configs before they hit disk.
 
 Network configs are full of secret material: SNMP communities, password hashes,
-pre-shared keys, RADIUS/TACACS keys, VTY passwords. In a hospital estate you may
+pre-shared keys, RADIUS/TACACS keys, VTY passwords. In a network estate you may
 want a scrubbed copy for the SIEM / change-tracking view while keeping the real
 config only in a restricted location (or not at all).
 

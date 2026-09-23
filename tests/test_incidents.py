@@ -16,11 +16,11 @@ def test_incident_create_update_status_and_audit(tmp_path):
     db = Database(str(tmp_path / "incidents.db"))
     store = Incidents(db, tmp_path / "bundles")
     item = store.create("Core switch instability", "Intermittent flap", "high",
-                        created_by="alice", tags=["network", "hospital"])
+                        created_by="alice", tags=["network", "critical"])
     assert item["incident_key"].startswith("INC-")
     assert item["severity"] == "HIGH"
     assert item["status"] == "OPEN"
-    assert item["tags"] == ["network", "hospital"]
+    assert item["tags"] == ["network", "critical"]
 
     item = store.update(item["incident_key"], "alice", severity="CRITICAL",
                         title="Core switch outage")

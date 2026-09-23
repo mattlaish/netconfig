@@ -200,6 +200,17 @@ class PostgresDatabase(Database):
                 (table, col)).fetchone()
             if not row:
                 self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {_portable_type(coldef)}")
+        # MC-3 normalized evidence indexes/backfill mirror the SQLite additive migration.
+        self.conn.execute("UPDATE operational_events SET observed_at=last_ts WHERE observed_at=0")
+        self.conn.execute("UPDATE operational_events SET domain='NETWORK' WHERE source_type IN ('snmp_trap','snmp_poll') AND domain='SYSTEM'")
+        self.conn.execute("UPDATE operational_events SET domain='CONFIGURATION' WHERE event_type IN ('CONFIG_CHANGE','CONFIGURATION_CHANGE')")
+        self.conn.execute("UPDATE operational_events SET domain='SECURITY' WHERE (UPPER(event_type) LIKE '%AUTH%' OR UPPER(event_type) LIKE '%LOGIN%')")
+        self.conn.execute("UPDATE operational_events SET entity_type='interface', entity_id=CASE WHEN interface<>'' THEN interface ELSE ifindex END, resource=CASE WHEN resource='' THEN CASE WHEN interface<>'' THEN interface ELSE ifindex END ELSE resource END WHERE entity_type='unknown' AND (interface<>'' OR ifindex<>'')")
+        self.conn.execute("UPDATE operational_events SET entity_type='device', entity_id=device WHERE entity_type='unknown' AND device<>''")
+        self.conn.execute("UPDATE operational_events SET entity_type='source', entity_id=source WHERE entity_type='unknown' AND source<>''")
+        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_operational_events_domain_time ON operational_events(domain, observed_at DESC)")
+        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_operational_events_entity_time ON operational_events(entity_type, entity_id, observed_at DESC)")
+        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_operational_events_evidence_ref ON operational_events(evidence_ref)")
 
     def claim_distributed_task(self, queue, worker_id, now, lease_seconds=60):
         lease_until = float(now) + max(5, int(lease_seconds))

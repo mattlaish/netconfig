@@ -415,7 +415,7 @@ class WebApiMixin:
                 elif action == "retry":
                     if token.get("role") not in {"operator", "approver", "admin"}:
                         raise PermissionError("operator role required")
-                    wave = body.get("wave")
+                    wave = (form.get("wave") or [None])[0]
                     item = self.manager.campaigns.retry_failed(
                         cid, actor, wave=int(wave) if wave is not None else None
                     )
@@ -746,6 +746,53 @@ class WebApiMixin:
         if not token:
             self._api_json({"error": "invalid_or_missing_bearer_token"}, 401); return True
         scopes = token["scopes"]
+        if path == "/api/v1/sensor-history":
+            if "analytics:read" not in scopes and "inventory:read" not in scopes:
+                self._api_json({"error":"insufficient_scope","required":"analytics:read or inventory:read"},403); return True
+            sensor_key = str((query.get("sensor_key") or [""])[0] or "")
+            if not sensor_key:
+                self._api_json({"error":"sensor_history_query_failed","detail":"sensor_key is required"},400); return True
+            try:
+                since_raw = (query.get("since") or [None])[0]
+                before_raw = (query.get("before") or [None])[0]
+                value = self.manager.sensors.history_for(
+                    sensor_key,
+                    limit=int((query.get("limit") or [200])[0]),
+                    since=(float(since_raw) if since_raw not in (None, "") else None),
+                    before=(float(before_raw) if before_raw not in (None, "") else None))
+            except Exception as exc:
+                self._api_json({"error":"sensor_history_query_failed","detail":str(exc)},400); return True
+            self._api_json(value); return True
+        if path == "/api/v1/sensor-transitions":
+            if "analytics:read" not in scopes and "inventory:read" not in scopes:
+                self._api_json({"error":"insufficient_scope","required":"analytics:read or inventory:read"},403); return True
+            try:
+                since_raw = (query.get("since") or [None])[0]
+                before_raw = (query.get("before") or [None])[0]
+                value = self.manager.sensors.transitions(
+                    device=(query.get("device") or [None])[0],
+                    sensor_type=(query.get("type") or [None])[0],
+                    from_status=(query.get("from_status") or query.get("from") or [None])[0],
+                    to_status=(query.get("to_status") or query.get("to") or [None])[0],
+                    since=(float(since_raw) if since_raw not in (None, "") else None),
+                    before=(float(before_raw) if before_raw not in (None, "") else None),
+                    limit=int((query.get("limit") or [200])[0]))
+            except Exception as exc:
+                self._api_json({"error":"sensor_transition_query_failed","detail":str(exc)},400); return True
+            self._api_json(value); return True
+        if path == "/api/v1/sensors":
+            if "analytics:read" not in scopes and "inventory:read" not in scopes:
+                self._api_json({"error":"insufficient_scope","required":"analytics:read or inventory:read"},403); return True
+            try:
+                # MC-1: Sensor snapshots are refreshed by collection workflows; GET remains read-only.
+                value = self.manager.sensors.list(
+                    device=(query.get("device") or [None])[0],
+                    sensor_type=(query.get("type") or [None])[0],
+                    status=(query.get("status") or [None])[0],
+                    limit=int((query.get("limit") or [200])[0]))
+            except Exception as exc:
+                self._api_json({"error":"sensor_query_failed","detail":str(exc)},400); return True
+            self._api_json(value); return True
         if path == "/api/v1/analytics/l3/routes":
             if "analytics:read" not in scopes:
                 self._api_json({"error":"insufficient_scope","required":"analytics:read"},403); return True
@@ -1070,6 +1117,12 @@ class WebApiMixin:
                 return True
             self._api_json(self.manager.ha.drills())
             return True
+        if path == "/api/v1/topology/graph":
+            if "topology:read" not in scopes:
+                self._api_json({"error": "insufficient_scope", "required": "topology:read"}, 403); return True
+            value = self.manager.topology_graph()
+            self.manager.db.audit("api:" + token["name"], "api_read", path, "topology:read")
+            self._api_json(value); return True
         if path == "/api/v1/topology/identities":
             if "topology:read" not in scopes:
                 self._api_json({"error": "insufficient_scope", "required": "topology:read"}, 403); return True
@@ -1200,6 +1253,38 @@ class WebApiMixin:
             self._send_file(target, "application/gzip",
                             [("Content-Disposition", f"attachment; filename={name}")])
             return True
+        if path == "/api/v1/events":
+            if "events:read" not in scopes:
+                self._api_json({"error":"insufficient_scope","required":"events:read"},403); return True
+            try:
+                include_raw = str((query.get("include_suppressed") or ["true"])[0]).strip().lower()
+                include_suppressed = include_raw not in {"0","false","no"}
+                value = {
+                    "events": self.manager.events.list(
+                        limit=int((query.get("limit") or [500])[0]),
+                        device=(query.get("device") or [None])[0],
+                        include_suppressed=include_suppressed,
+                        domain=(query.get("domain") or [None])[0],
+                        source_type=(query.get("source_type") or query.get("source") or [None])[0],
+                        entity_type=(query.get("entity_type") or [None])[0],
+                        status=(query.get("status") or [None])[0]),
+                    "suppressions": self.manager.events.suppressions(True),
+                }
+            except Exception as exc:
+                self._api_json({"error":"event_query_failed","detail":str(exc)},400); return True
+            self.manager.db.audit("api:"+token["name"],"api_read",path,"events:read")
+            self._api_json(value); return True
+        if path.startswith("/api/v1/events/"):
+            if "events:read" not in scopes:
+                self._api_json({"error":"insufficient_scope","required":"events:read"},403); return True
+            tail = path[len("/api/v1/events/"):].strip("/")
+            if not tail.isdigit():
+                return False
+            event = self.manager.events.get(int(tail))
+            if not event:
+                self._api_json({"error":"event_not_found"},404); return True
+            self.manager.db.audit("api:"+token["name"],"api_read",path,"events:read")
+            self._api_json({"event":event,"related_sensor":self.manager.events.related_sensor(event)}); return True
         if path == "/api/v1/operational-alerts":
             if "alerts:read" not in scopes:
                 self._api_json({"error":"insufficient_scope","required":"alerts:read"},403); return True
@@ -1219,7 +1304,6 @@ class WebApiMixin:
             "/api/v1/inventory": ("inventory:read", lambda: self.manager.inv.all()),
             "/api/v1/topology": ("topology:read", lambda: self.manager.db.get_neighbors()),
             "/api/v1/endpoints": ("endpoint:read", lambda: {"summary": self.manager.endpoint_summary(), "endpoints": self.manager.endpoint_inventory()}),
-            "/api/v1/events": ("events:read", lambda: {"events": self.manager.events.list(500), "suppressions": self.manager.events.suppressions(True)}),
             "/api/v1/drift": ("drift:read", lambda: [dict(device=d["name"], **self.manager.store.drift(d["name"])) for d in self.manager.inv.all()]),
             "/api/v1/compliance/latest": ("compliance:read", lambda: self.manager.db.conn.execute("SELECT * FROM compliance_runs ORDER BY id DESC LIMIT 1").fetchone()),
             "/api/v1/audit": ("audit:read", lambda: self.manager.db.recent_audit(200)),

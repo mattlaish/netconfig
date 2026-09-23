@@ -1,7 +1,7 @@
 """
 workflow.py -- Change-approval workflow and job execution.
 
-The safety story for a hospital network: a junior engineer cannot push config
+The safety story for a production network: a junior engineer cannot push config
 straight to a switch. They submit a *change request* (what commands, against which
 targets). A senior (approver/admin) reviews the exact resolved commands in the
 console and approves or rejects. Only an approved request can be executed, and

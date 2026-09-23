@@ -1,10 +1,44 @@
 # New Chat Handover Prompt
 
-> **Canonical project state — 2026-09-17:** **CURRENT IMPLEMENTATION BASELINE** = **Release 40 / NI-7 L3/VRF Path & Route Dependency Intelligence** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-40`; NI-1 through NI-7 and Enterprise Operations are implemented in source. Q-1 live PostgreSQL/protocol/vendor/device/AlmaLinux gates remain deferred/`NOT_RUN`; Release 40 does not promote them to PASS.
+> **Canonical project state — 2026-09-23:** **CURRENT IMPLEMENTATION BASELINE** = **Release 51 / MC-3 Normalized Operational Evidence** (`2.0.0-51`, `IMPLEMENTED_TESTING_DEFERRED`). MC-1 Sensor Integration Unification and MC-2 Sensor History & State Transitions remain implemented. Release 51 adds a normalized cross-domain operational-evidence envelope, durable Sensor-transition → Event bridging, recovery/`UNKNOWN` semantics, additive event-schema migration/backfill/indexes, filtered/detail Event API reads, and an Event detail UI with current related Sensor state. NI-1 through **NI-7 L3/VRF Path & Route Dependency Intelligence** remain implemented. Formal RPM qualification remains deferred until the monitoring/correlation roadmap is complete; any ad-hoc RPM remains development evidence only.
 
-## Release 40 continuation prompt
+## Release 46 — Operator Health Cards & UX Follow-through
 
-Start from the Release 40 FULL source baseline, not Release 39 and not a patch. NI-7 is implemented in source and remains `IMPLEMENTED_TESTING_DEFERRED`. Preserve same-VRF-only route traversal, explicit managed next-device identity, bounded loop-safe simulation, multipath fail-closed behavior, candidate-only dependency semantics, and the existing approval-gated configuration plane. Do not restart NI-1 through NI-7. Q-1 live qualification remains deferred and may be resumed independently.
+Release 46 implements the operator feedback gathered after Release 45 without changing the NI-7 feature baseline. The user-facing **Desired State** label is now **Configuration Baselines / Templates & Drift**; the underlying desired-state API/data model is unchanged. Operations keeps Structured Changes, Campaigns, Automation Requests, Network Intelligence, telemetry, model packs, and HA/DR, but the default workspace is outcome-oriented and the more technical surfaces are grouped under Advanced operations.
+
+Structured collection profiles are no longer an everyday top-level navigation item. They remain available as **Collection settings** from a device and are explicitly described as network-device read/collection settings for switches, routers, and firewalls. Existing approval behavior is retained as-is; Release 46 does not expand approval orchestration.
+
+The SNMP device page now derives operator-facing health cards from **already-collected DB/cache evidence only**: reachability, polling, interface health, FDB/MAC evidence, ARP/IP-neighbor evidence, topology-neighbor evidence, Loop Protection when mapped MIB values exist, and vendor telemetry status. Opening the page does not trigger an extra poll or vendor walk. Raw SNMP/OID and vendor MIB rows remain available under Advanced/troubleshooting views. The MIB library itself is presented as supporting metadata, not as an operator feature.
+
+The previously documented Central Controller + read-only Site Edge/Collector concept remains a **future architecture item only**. No distributed collector, local site-alert engine, store-and-forward transport, secondary WAN/LTE/SMS path, or distributed execution node is implemented in Release 46.
+
+**Release 46 source qualification:** repository regression executed in bounded groups totals **222 passed / 8 skipped / 0 failed**; the eight skips are seven explicit live/service prerequisites plus the expected Git-index mode skip because `.git` is absent. Focused Web Console/structural coverage is **13 passed**. Legacy selftest is **ALL PASS**; compileall, launcher `py_compile`, and packaging/tool shell syntax are **PASS**. Ruff `0.16.7` and mypy `2.3.1` remain **NOT_RUN** because the executables are unavailable. The dependency-free offline builder emitted `netconfig-2.0.0-46.el10.noarch.rpm` twice byte-identically; independent verification passed and SHA-256 is `5b26c9ae73ac4248171196ee3637f51bd238fed090c4ce3fa820419842f510cd`. Canonical AlmaLinux 10 `rpmbuild`/DNF install-upgrade/systemd/SELinux and other Q-1 live/device gates remain **NOT_RUN / DEFERRED**.
+
+
+> **Roadmap disposition — 2026-09-23:** The monitoring/correlation roadmap is active. MC-1 through MC-3 are implemented in source as `IMPLEMENTED_TESTING_DEFERRED`; the next planned slice is **MC-4 / Release 52 — Unified Alert Plane**. NI-7 remains implemented and Q-1 remains an open production/service qualification track. Do not invent NI-8/Q-2 or skip the defined MC sequence without an explicit roadmap decision.
+## Recorded continuation decisions — 2026-09-18
+
+- No new development phase is assigned. Treat the following as future-design constraints, not implemented features.
+- Distributed collection is primarily about **site survivability/alert-path resilience**, not merely scale. Central Controller owns global correlation/change control; Site Edge/Collector owns read-only local polling, local cache/spool, local health/alerts/UI, store-and-forward, and heartbeat.
+- Collectors are read-only by default: SNMP GET/WALK, NETCONF/RESTCONF read, gNMI subscribe/read. No config push or arbitrary SSH by default. Future writes require a separate Execution Node or explicitly authorized execution role.
+- Local alerts must survive central/WAN isolation and synchronize after reconnect; fallback notification channels are future work.
+- Use **Configuration Baselines / Templates & Drift** as the preferred user-facing terminology.
+- Keep existing approval functionality but do not expand approval orchestration now.
+- MIB UX should favor operator-readable sensor summaries from existing collected evidence; raw OIDs remain Advanced, and visualization alone must not add polling load.
+
+
+## Release 44 — Intent Automation Operations Repair
+
+Release 44 fixes a real Web Console defect in `Operations -> Intent Automation`: `_TABS` accepted `tab=intents`, but `_operations_page()` had no `intents` renderer entry, so `GET /operations?tab=intents` raised `KeyError: 'intents'` and returned a server-error page. The renderer map now routes to `_ops_intents()`, which provides a read-only durable automation-request ledger plus links into the typed Structured Change / Desired State / Campaign creation paths. It does not create a direct network-write path; execution remains behind frozen snapshots, separate approval, current-snapshot revalidation, verification, and audit.
+
+HTTP-level regression coverage now requests `/operations?tab=intents` and requires a `200` response with the Intent Automation content instead of a server error. Release 43's left sidebar, supplied green theme, and neutral NetConfig branding are preserved. There is no schema or public REST contract change. Package release advances to `2.0.0-44` because shipped runtime source changed.
+
+
+> **Latest complete-source target:** `netconfig-2.0.0-46-operator-health-cards-v18.zip` (Release 46 / `2.0.0-46`, `IMPLEMENTED_TESTING_DEFERRED`).
+
+## Current Release 45 continuation prompt
+
+Start from the Release 45 / `2.0.0-45` complete source baseline. Release 41 is historical corrective evidence; do not roll back to Release 40/41 or restart NI-7. NI-7 is implemented in source and remains `IMPLEMENTED_TESTING_DEFERRED`. Preserve same-VRF-only route traversal, explicit managed next-device identity, bounded loop-safe simulation, multipath fail-closed behavior, candidate-only dependency semantics, and the existing approval-gated configuration plane. Do not restart NI-1 through NI-7. Q-1 live qualification remains deferred and may be resumed independently.
 
 ## Historical Release 34 continuation prompt
 
@@ -19,17 +53,17 @@ The latest implementation baseline is Release `2.0.0-33`, schema revision `ha1-2
 
 Preserve these Release 33 invariants: all network mutations use the durable request/approve/execute workflow; automation snapshots/model-pack hashes are frozen and revalidated; `RECOVERY_REQUIRED` blocks blind replay; desired-state rollback is compensating/reverse-order; campaign plans are frozen with stable retry identity; DRAINING/DRAINED HA nodes reject new automation work. Session idle/absolute expiry is still explicitly deferred.
 
-> **Current continuation pointer:** use the Release 40 FULL source baseline as the active implementation source. NI-7 remains `IMPLEMENTED_TESTING_DEFERRED`; Q-1 live gates remain deferred.
+> **Current continuation pointer:** use **Release 51 / MC-3 Normalized Operational Evidence** (`2.0.0-51`) as the active full-source baseline. Preserve `IMPLEMENTED_TESTING_DEFERRED`. MC-1 through MC-3 are implemented in source; the next roadmap slice is **MC-4 / Release 52 — Unified Alert Plane**. Sensor generation/history and Sensor→Event normalization must not add device I/O; unchanged Sensor refreshes create no event, and missing evidence remains `UNKNOWN` rather than an automatic critical verdict. Formal RPM qualification remains deferred until the roadmap is complete.
 
 ## Historical Q-1 takeover truth
 
-This section records the historical Q-1 handover checkpoint. Q-1 remains `IMPLEMENTED_TESTING_DEFERRED`, but Release 33 supersedes it as the active implementation baseline. Do not restart PH-3/Q-1 or discard their qualification boundaries.
+This section records the historical Q-1 handover checkpoint. Q-1 remains `IMPLEMENTED_TESTING_DEFERRED`; at that historical checkpoint, Release 33 superseded the earlier Q-1 baseline as the active implementation baseline. Do not restart PH-3/Q-1 or discard their qualification boundaries.
 
 Q-1 source implementation includes `netconfig qualify`; controlled `pg_dump` backup; checksummed, confirmation-gated restore into a separate database; recovery-safe restore without active-core initialization; live PostgreSQL multi-process/leadership/migration/recovery tests; CI PostgreSQL client provisioning; AlmaLinux 10 build/install qualification scripts; Ruff/mypy fail-closed source gate; and systemd backup-unit hardening.
 
 The Q-1 live qualification debt remains: execute the real PostgreSQL gates, Ruff/mypy, and AlmaLinux 10 RPM/systemd installed-runtime gates when suitable infrastructure is available. Do not count `NOT_RUN` as pass. Release 34 UI-1 offline/artifact evidence does not substitute for those live gates.
 
-Historical handover text below describes Release 34. The current handover baseline is **Release 40 / NI-7**; Q-1 remains an open deferred qualification track.
+Historical handover text below describes earlier releases. The current handover baseline is **Release 46 / Operator Health Cards & UX Follow-through**; NI-7 remains the feature baseline and Q-1 remains the open deferred qualification track.
 
 Read these first: `DEV_BASELINE.md`, `TESTING.md`, `ROADMAP.md`, `SECURITY.md`, `API.md`, `DEVELOPMENT.md`, `AI_HANDOFF.md`, then the relevant source under `opt/netconfig/netconfig/` and `tests/`.
 
@@ -43,7 +77,7 @@ Important constraints:
 - Do not claim Ruff, mypy, RPM, Linux service, protocol-service, or live-device results unless actually run.
 - Keep `DEVELOPMENT.md`, `AI_HANDOFF.md`, `ROADMAP.md`, `SECURITY.md`, `API.md`, `TESTING.md`, `patch.md`, and relevant user docs synchronized.
 
-Roadmap structure: the historical 2026-09-07 Slice A-G labels are provenance only. Use `ROADMAP.md` as canonical. **CURRENT IMPLEMENTATION BASELINE is UI-1 / Release 34. NEXT ACTION is applicable Q-1/live qualification followed by roadmap review; no new development phase is auto-assigned.** D.5 is the completed-in-source Diagnostics Track, not Slice E. Historical Slice E remains Platform Hardening -> Web-console structural hardening.
+Roadmap structure: the historical 2026-09-07 Slice A-G labels are provenance only. Use `ROADMAP.md` as canonical. **CURRENT IMPLEMENTATION BASELINE is Release 46 / Operator Health Cards & UX Follow-through (`2.0.0-46`). Ruff/mypy actual execution and Q-1 live qualification remain open; the offline helper RPM is not a substitute for canonical AlmaLinux `rpmbuild`/DNF/systemd/SELinux qualification. No NI-8 or Q-2 phase is auto-assigned.** D.5 is the completed-in-source Diagnostics Track, not Slice E. Historical Slice E remains Platform Hardening -> Web-console structural hardening.
 
 Current D.5 implementation invariants:
 
@@ -58,7 +92,7 @@ Current D.5 implementation invariants:
 
 Historical D.5 closeout result: pytest **67 passed / 3 skipped**; focused closeout tests **3 passed**; legacy selftest **ALL PASS**. Current NI-1 regression is **75 passed / 3 skipped**, with focused NI-1 **8 passed** before this Markdown synchronization. Ruff/mypy and live/service-backed qualification remain unavailable/deferred. Re-run applicable tests after any change.
 
-If I say “next phase”, first determine whether the deferred Q-1 live gates have actually been completed. If Q-1 is still `IMPLEMENTED_TESTING_DEFERRED`, continue qualification rather than inventing Q-2. Once Q-1 is genuinely qualified, perform a fresh roadmap review before selecting any next phase. Preserve PH-3 bounded structured-adapter semantics, PH-2 database/distributed-operation truth boundaries, PH-1 CSP/structural hardening, and all completed Network Intelligence/D.5 security invariants.
+If I say “next phase”, use the current roadmap disposition first: **no development phase is assigned**. Continue explicitly selected Q-1 qualification work when requested, but do not invent Q-2/NI-8 or select a feature phase merely because qualification remains open. A new development phase requires an explicit roadmap decision. Preserve PH-3 bounded structured-adapter semantics, PH-2 database/distributed-operation truth boundaries, PH-1 CSP/structural hardening, and all completed Network Intelligence/D.5 security invariants.
 
 
 Phase 4D signing invariants:
@@ -146,7 +180,9 @@ Offline source evidence before final packaging: **136 passed / 3 skipped**; focu
 Use the final PH-3 full source baseline from 2026-09-12 after its clean-extraction artifact gate. Clean candidate `netconfig_platform_hardening_ph3_candidate_completed_2026-09-12.zip` (SHA-256 `ea4c2f56f277e76ab85f49b0647269799002d00d5ee79fedd5f6f0fa84450136`) passed system-unzip validation: **118/118** source byte identity; **114/114** entries in `RELEASE_MANIFEST.json` and each of the three SHA manifests; ZIP CRC **PASS**; traversal **0**; symlinks **0**; caches **0**; CR offenders **0**; hidden control paths **3/3 exact**; required executable modes **4/4 = 0755**; extracted focused PH-3 **22 passed**; extracted full regression **136 passed / 3 skipped**; legacy selftest **ALL PASS**; compileall/launcher py_compile/packaging shell syntax **PASS**. The direct RPM helper exits `2` only because `rpmbuild` is unavailable. The next action is the required roadmap / qualification review; do not assign another implementation phase automatically.
 
 
-# Canonical Architecture Split — PH vs NI
+# Historical Architecture Planning Snapshot — PH vs NI
+
+> The status values in this retained planning snapshot describe an earlier roadmap point. They are **not current work assignments**. PH-5/PH-6 and NI phases were subsequently implemented as recorded in later release sections; current status and sequencing are controlled by `ROADMAP.md`, where no new development phase is presently assigned.
 
 ## PH — Platform Hardening / Safe Device Change
 
@@ -371,3 +407,7 @@ NI-6.4 Failure Risk Foundation is implemented in the current delivery artifact a
 ## 2026-09-16 NI-6 enterprise-hardening handover
 
 NI-6.1–NI-6.6 are implemented and productized through Manager/API/UI. Durable insights support NEW/ACKNOWLEDGED/RESOLVED/EXPIRED, filters/search, evidence/affected-object drill-down and managed impact simulation. Do not reimplement NI-6 foundation. Preserve non-remediation analytics and route all change action into the existing approval plane. Current source evidence: 202 passed / 7 skipped / 0 failed; Q-1/Ruff and live/service/vendor/scale gates remain deferred.
+
+## 2026-09-23 continuation — R51-HF1 pre-MC4 compatibility hotfix
+
+Continue from Release 51 / MC-3 (`2.0.0-51`, `IMPLEMENTED_TESTING_DEFERRED`) with the R51-HF1 pre-MC4 hotfix applied. Standard SNMPv3 `aes192`/`aes256` use Blumenthal key extension; Cisco/Reeder is explicit `aes192c`/`aes256c`. Topology discovery unlocks Vault credentials in-process. Every managed inventory device appears in the graph even without LLDP/CDP; unique persisted FDB/MAC correlation is `INFERRED`, non-direct, and excluded from downstream-impact traversal. `/topology` is now a drag/pan/zoom SVG canvas with browser-local layout only. `GET /api/v1/topology/graph` is read-only and adds no device I/O. MC-4 / Release 52 remains `PLANNED`. Live FortiGate SHA1+AES256 and vendor topology validation remain deferred.

@@ -1,4 +1,5 @@
 from pathlib import Path
+import subprocess
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -38,6 +39,10 @@ REQUIRED_EXECUTABLES = (
     "packaging/q1-qualify-postgres.sh",
     "packaging/q1-source-gates.sh",
     "packaging/smoke-installed.sh",
+    "tools/rpm-builder/build.sh",
+    "tools/rpm-builder/verify.sh",
+    "tools/rpm-builder/rpm_builder.py",
+    "tools/rpm-builder/verify_rpm.py",
 )
 
 
@@ -48,14 +53,37 @@ def test_required_raw_source_executables_are_0755():
         assert path.stat().st_mode & 0o777 == 0o755, relative
 
 
-def test_release_40_ni7_canonical_truth_is_consistent():
+def test_required_git_index_executables_are_100755():
+    probe = subprocess.run(
+        ["git", "rev-parse", "--is-inside-work-tree"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if probe.returncode != 0 or probe.stdout.strip() != "true":
+        import pytest
+        pytest.skip("Git metadata unavailable in source archive")
+    for relative in REQUIRED_EXECUTABLES:
+        result = subprocess.run(
+            ["git", "ls-files", "--stage", "--", relative],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        fields = result.stdout.strip().split()
+        assert fields and fields[0] == "100755", f"{relative}: {result.stdout.strip()}"
+
+
+def test_release_51_mc3_canonical_truth_is_consistent():
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     package = (ROOT / "opt/netconfig/netconfig/__init__.py").read_text(encoding="utf-8")
     spec = (ROOT / "packaging/netconfig.spec").read_text(encoding="utf-8")
     assert 'version = "2.0.0"' in pyproject
     assert '__version__ = "2.0.0"' in package
     assert "Version:        2.0.0" in spec
-    assert "Release:        40%{?dist}" in spec
+    assert "Release:        51%{?dist}" in spec
     for relative in (
         "README.md", "DEVELOPMENT.md", "AI_HANDOFF.md", "ROADMAP.md",
         "SECURITY.md", "API.md", "TESTING.md", "DEV_BASELINE.md",
@@ -65,8 +93,9 @@ def test_release_40_ni7_canonical_truth_is_consistent():
     ):
         text = (ROOT / relative).read_text(encoding="utf-8")
         canonical = next(line for line in text.splitlines() if line.startswith("> **Canonical project state"))
-        assert "2.0.0-40" in canonical, relative
-        assert "Release 40" in canonical, relative
+        assert "2.0.0-51" in canonical, relative
+        assert "Release 51" in canonical, relative
+        assert "MC-3 Normalized Operational Evidence" in canonical, relative
         assert "NI-7 L3/VRF Path & Route Dependency Intelligence" in canonical, relative
         assert "Release 33 full source baseline as the active implementation source" not in text, relative
 
@@ -95,7 +124,7 @@ def test_no_compound_statement_suite_on_same_line():
     assert offenders == []
 
 
-def test_release_40_ci_enforces_git_modes_quality_pins_and_almalinux_build():
+def test_release_48_ci_enforces_git_modes_quality_pins_and_almalinux_build():
     workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
     quality = (ROOT / "requirements-quality.txt").read_text(encoding="utf-8")
     q1 = (ROOT / "packaging/q1-source-gates.sh").read_text(encoding="utf-8")
@@ -111,16 +140,16 @@ def test_release_40_ci_enforces_git_modes_quality_pins_and_almalinux_build():
     assert "5fda3b95a4ea91299a34e894583c3862153e4b97" in workflow
 
 
-def test_release_40_required_executable_list_matches_ci_contract():
+def test_release_48_required_executable_list_matches_ci_contract():
     workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
     for relative in REQUIRED_EXECUTABLES:
         assert relative in workflow, relative
 
 
-def test_release_40_installer_accepts_release_40_identity():
+def test_release_48_installer_accepts_release_48_identity():
     installer = (ROOT / "packaging/install-rpm.sh").read_text(encoding="utf-8")
     alma = (ROOT / "packaging/q1-qualify-almalinux.sh").read_text(encoding="utf-8")
-    assert '${RELEASE%%.*} != "40"' in installer
-    assert 'expected NetConfig RPM release 40' in installer
-    assert '2.0.0-40.*.noarch' in alma
+    assert '${RELEASE%%.*} != "48"' in installer
+    assert 'expected NetConfig RPM release 48' in installer
+    assert '2.0.0-48.*.noarch' in alma
     assert '${RELEASE%%.*} != "37"' not in installer

@@ -64,7 +64,7 @@ def _paths(root):
 
 def _emit_transition(context, target, exit_command="exit"):
     common = 0
-    for a, b in zip(context, target):
+    for a, b in zip(context, target, strict=False):
         if a != b:
             break
         common += 1

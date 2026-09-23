@@ -1,9 +1,3 @@
-"""Self-hosted, air-gapped NetConfig web console.
-
-Authentication, RBAC, CSRF, vault separation and strict CSP are enforced by the
-existing security/workflow layers; UI-1 adds only operator presentation/routes.
-"""
-
 import html
 import http.server
 import json
@@ -37,10 +31,11 @@ _SESSIONS = {}   # token -> {username, role, csrf, created}; expiry intentionall
 _LOGIN_THROTTLE = LoginThrottle()
 
 from .web_ui import (
-    _CSS, _THEME_JS, _DASH_JS, _GRAPH_JS, _STATUS_BADGE,
+    _CSS, _THEME_JS, _DASH_JS, _GRAPH_JS, _TOPOLOGY_JS, _STATUS_BADGE,
     _fmt_ts, _colorize_diff, _q, _render_markdown, _load_doc, APP_VERSION,
     _DEVICE_TYPES, _dtypes, _is_managed_device, _ok_badge, _fmt_bps,
-    _fmt_speed, _oper_badge, apply_csp_nonce,
+    _fmt_speed, _oper_badge, apply_csp_nonce, render_sidebar_nav,
+    render_snmp_health_summary, render_topology_page, render_events_page,
 )
 
 
@@ -60,7 +55,7 @@ class Console(WebOpsMixin, WebApiMixin, http.server.BaseHTTPRequestHandler):
 
     @property
     def scripts(self):
-        self.wf  # ensure init
+        _ = self.wf  # ensure lazy init
         return self.manager._scripts
 
     # ---- session helpers -------------------------------------------------
@@ -132,49 +127,41 @@ class Console(WebOpsMixin, WebApiMixin, http.server.BaseHTTPRequestHandler):
         tok = sess["csrf"] if sess else ""
         return f'<input type=hidden name=csrf value="{html.escape(tok)}">'
 
-    def _nav(self, sess):
-        role = sess["role"]
-        links = [("/", "Devices"), ("/groups", "Groups"), ("/automation", "Automation"),
-                 ("/operations", "Operations"), ("/operations?tab=intelligence", "Network Intelligence"), ("/requests", "Change Requests"), ("/compliance", "Compliance"),
-                 ("/alerts", "Alerts"), ("/snmp", "SNMP"), ("/protocols", "Protocols"), ("/topology", "Topology"),
-                 ("/endpoints", "Endpoints"), ("/events", "Events"), ("/op-alerts", "Ops Alerts"), ("/incidents", "Incidents"), ("/diagnostics", "Diagnostics")]
-        if _can(role, "manage_devices"):
-            links.append(("/vault", "Vault"))
-        links += [("/runs", "Run Log"), ("/audit", "Audit")]
-        if _can(role, "manage_users"):
-            links.append(("/users", "Users"))
-        if _can(role, "settings"):
-            links.append(("/settings", "Settings"))
-        links.append(("/mib", "MIB"))
-        links.append(("/help", "Help"))
-        return "".join(f'<a href="{u}">{html.escape(t)}</a>' for u, t in links)
+    def _nav(self,sess,current_path=""):
+        role=sess["role"]
+        links=[("/","Devices"), ("/groups","Groups"), ("/automation","Automation"),
+               ("/operations","Operations"),
+               ("/requests","Change Requests"), ("/compliance","Compliance"), ("/alerts","Alerts"),
+               ("/snmp","SNMP"), ("/topology","Topology"),
+               ("/endpoints","Endpoints"), ("/events","Events"), ("/op-alerts","Ops Alerts"),
+               ("/incidents","Incidents"), ("/diagnostics","Diagnostics")]
+        if _can(role,"manage_devices"):
+            links.append(("/vault","Vault"))
+        links += [("/runs","Run Log"), ("/audit","Audit")]
+        if _can(role,"manage_users"):
+            links.append(("/users","Users"))
+        if _can(role,"settings"):
+            links.append(("/settings","Settings"))
+        links += [("/mib","MIB Library"), ("/help","Help")]
+        return render_sidebar_nav(links,current_path)
 
-    def _topright(self, sess):
-        vault = ('<span class="vault-open">\u25cf vault unlocked</span>'
-                 if self.manager.vault_ready() else
-                 '<span class="vault-lock">\u25cf vault locked</span>')
+    def _topright(self,sess):
+        vault=('<span class="vault-open">● vault unlocked</span>' if self.manager.vault_ready()
+               else '<span class="vault-lock">● vault locked</span>')
         return (f'<div class="top-right">{vault}'
-                f'<span class="who"><b>{html.escape(sess["username"])}</b>'
-                f'<span class="role">{html.escape(sess["role"])}</span></span>'
-                f'<button type=button id="theme-toggle" class="ghost theme-toggle" '
-                f'aria-label="Toggle color theme" aria-pressed="false">Dark theme</button>'
-                f'<form method=post action="/logout" style="display:inline;margin:0">'
-                f'{self._csrf_field()}<button class=ghost style="padding:5px 12px">Sign out</button>'
-                f'</form></div>')
+                f'<span class="who"><b>{html.escape(sess["username"])}</b><span class="role">{html.escape(sess["role"])}</span></span>'
+                f'<button type=button id="theme-toggle" class="ghost theme-toggle" aria-label="Toggle color theme" aria-pressed="false">Dark theme</button>'
+                f'<form method=post action="/logout" class="inline-form">{self._csrf_field()}<button class=ghost>Sign out</button></form></div>')
 
-    def _page(self, title, inner, sess, flash=None):
-        f = f'<div class="flash">{html.escape(flash)}</div>' if flash else ""
-        nav = f'<nav>{self._nav(sess)}</nav>' if sess else ""
-        right = self._topright(sess) if sess else ""
+    def _page(self,title,inner,sess,flash=None):
+        f=f'<div class="flash">{html.escape(flash)}</div>' if flash else ""
+        right=self._topright(sess) if sess else ""
+        shell=f'<aside class="sidebar">{self._nav(sess,self.path)}</aside>' if sess else ""
         return f"""<!doctype html><html><head><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1">
-<title>{html.escape(title)} \u00b7 NetConfig</title><style>{_CSS}</style>{_THEME_JS}</head><body>
-<header><div class="brand"><span class="logo">EH</span>
-<span class="appname">Net<span>Config</span> \u00b7 Network Configuration</span></div>{right}</header>
-{nav}
-<main><h1>{html.escape(title)}</h1>{f}{inner}</main>
-<footer class="footer"><span>Evangel Hospital \u64ad\u9053\u91ab\u9662 \u00b7 NetConfig v{APP_VERSION}</span>
-<span>Internal \u2014 Restricted</span></footer></body></html>"""
+<title>{html.escape(title)} · NetConfig</title><style>{_CSS}</style>{_THEME_JS}</head><body>
+<header><div class="brand"><span class="logo">NC</span><span class="appname">Net<span>Config</span> · Network Configuration</span></div>{right}</header>
+<div class="app-shell">{shell}<div class="content-shell"><main><h1>{html.escape(title)}</h1>{f}{inner}</main><footer class="footer"><span>NetConfig v{APP_VERSION}</span><span>Internal — Restricted</span></footer></div></div></body></html>"""
 
     def _read_post(self):
         length = int(self.headers.get("Content-Length", 0))
@@ -272,7 +259,7 @@ class Console(WebOpsMixin, WebApiMixin, http.server.BaseHTTPRequestHandler):
                     "then <code>sudo systemctl restart netconfig-web</code>.</p>")
         body = (f'<!doctype html><html><head><meta charset=utf-8><title>Error</title>'
                 f'<style>{_CSS}</style>{_THEME_JS}</head><body><div class="login-wrap"><div class="panel" '
-                f'style="max-width:640px"><h2 style="color:var(--bad)">Server error</h2>'
+                f'style="max-width:640px"><h2 style="color:var(--red)">Server error</h2>'
                 f'<p class="muted">The request failed. Details:</p>'
                 f'<pre>{html.escape(msg)}</pre>{hint}</div></div></body></html>')
         try:
@@ -333,26 +320,7 @@ class Console(WebOpsMixin, WebApiMixin, http.server.BaseHTTPRequestHandler):
         return f"{size:.1f} GiB"
 
     def _events_page(self, q, sess):
-        device = (q.get("device") or [""])[0]
-        rows = self.manager.events.list(limit=500, device=device or None)
-        options = '<option value="">All devices</option>' + ''.join(
-            f'<option value="{html.escape(d["name"])}"{" selected" if device==d["name"] else ""}>{html.escape(d["name"])}</option>'
-            for d in self.manager.inv.all())
-        body_rows = ""
-        for r in rows:
-            sup = '<span class="badge b-dim">suppressed</span>' if r.get("suppressed") else ''
-            body_rows += (f'<tr><td class=muted>{_fmt_ts(r.get("last_ts"))}</td>'
-                f'<td>{html.escape(r.get("severity", ""))}</td><td><b>{html.escape(r.get("event_type", ""))}</b></td>'
-                f'<td>{html.escape(r.get("device") or r.get("source") or "-")}</td>'
-                f'<td>{html.escape(r.get("interface") or "-")}</td><td>{r.get("event_count",1)}</td>'
-                f'<td>{sup}</td><td>{html.escape(r.get("message", ""))}</td></tr>')
-        suppressions = self.manager.events.suppressions(True)
-        sup_rows = ''.join(f'<tr><td>{html.escape(x.get("root_device", ""))}:{html.escape(x.get("root_port", ""))}</td><td>{html.escape(x.get("target_device", ""))}</td><td>{_fmt_ts(x.get("expires_ts"))}</td><td>{html.escape(x.get("reason", ""))}</td></tr>' for x in suppressions)
-        inner = (f'<div class="panel"><h2>Operational Events</h2><p class="muted">NI-3 unified SNMP trap, syslog and SNMP reachability events. Suppression follows only resolved NI-2 managed-L2 adjacency.</p>'
-                 f'<form method=get action="/events"><select name=device>{options}</select><button class=ghost>Filter</button></form>'
-                 f'<table><tr><th>Last</th><th>Severity</th><th>Event</th><th>Device/source</th><th>Interface</th><th>Count</th><th>State</th><th>Message</th></tr>{body_rows or "<tr><td colspan=8 class=muted>No operational events.</td></tr>"}</table></div>'
-                 f'<div class="panel"><h3>Active dependency suppressions</h3><table><tr><th>Upstream</th><th>Suppressed device</th><th>Expires</th><th>Reason</th></tr>{sup_rows or "<tr><td colspan=4 class=muted>None.</td></tr>"}</table></div>')
-        return self._send(self._page("Events", inner, sess))
+        return render_events_page(self, q, sess)
 
     def _op_alerts_page(self, q, sess, flash=None):
         life=self.manager.alert_lifecycle; can_write=sess.get("role") in {"operator","approver","admin"}
@@ -1079,8 +1047,8 @@ Local console \u00b7 bind 127.0.0.1 \u00b7 front with WAF for TLS</div>
                 'placeholder="Search devices by name, IP address, or tag\u2026" '
                 'style="width:100%;box-sizing:border-box;padding:9px 12px;font-size:15px">'
                 '</div>')
-            no_results = ('<p id="devnoresults" class="muted" '
-                          'style="display:none">No devices match your search.</p>')
+            no_results = ('<p id="devnoresults" class="muted" hidden>'
+                          'No devices match your search.</p>')
             listing = groups_html + no_results
         else:
             search_box = ""
@@ -1228,7 +1196,9 @@ Local console \u00b7 bind 127.0.0.1 \u00b7 front with WAF for TLS</div>
         edit_link = ""
         if _can(sess["role"], "manage_devices"):
             edit_link = (f'<a class="btn ghost" href="/device-new?name={_q(name)}" '
-                         f'style="float:right;padding:4px 12px">Edit</a>')
+                         f'style="float:right;padding:4px 12px">Edit</a>'
+                         f'<a class="btn ghost" href="/protocols?device={_q(name)}" '
+                         f'style="float:right;padding:4px 12px;margin-right:6px">Collection settings</a>')
         address = html.escape(dev["host"])
         address_row = (f'<tr><th>Primary hostname</th><td>{address}</td></tr>'
                        if application_only else
@@ -1371,9 +1341,9 @@ Local console \u00b7 bind 127.0.0.1 \u00b7 front with WAF for TLS</div>
         auth_opts = _proto_opts([("sha", "SHA-1"), ("sha224", "SHA-224"), ("sha256", "SHA-256"),
                                  ("sha384", "SHA-384"), ("sha512", "SHA-512"), ("md5", "MD5")],
                                 snmp_sec.get("snmp_auth_proto"))
-        priv_opts = _proto_opts([("aes", "AES-128"), ("aes192", "AES-192"), ("aes256", "AES-256")],
+        priv_opts = _proto_opts([("aes", "AES-128"), ("aes192", "AES-192"), ("aes256", "AES-256"), ("aes192c", "AES-192-C (Cisco/Reeder)"), ("aes256c", "AES-256-C (Cisco/Reeder)")],
                                 snmp_sec.get("snmp_priv_proto"))
-        # prefill SSH login fields from the device's SSH secret (when unlocked)
+        # Prefill SSH fields.
         ssh_sec = {}
         if d and d.get("secret_ref") and self.manager.vault_ready():
             try:
@@ -1444,14 +1414,14 @@ stored settings appear below — the vault keeps the passwords.{vault_hint}</p>
   <div><label>v3 priv pass<span id=set_snmp_priv_pass>{sset('snmp_priv_pass')}</span></label><input type=password name=snmp_priv_pass></div>
 </div></details>
 </div>
-<div id=netflow_section style="display:none">
+<div id=netflow_section{" hidden" if "network" not in cur_types else ""}>
 <h2 style="margin-top:14px">NetFlow</h2>
 <p class="muted">Receive NetFlow exports from this device. The collector listens on
 <code>udp/{self.manager.settings.get("netflow_port", 2055)}</code> (toggle it in Settings \u2192 NetFlow).
 Point this device's flow export at this server's IP on that port.</p>
 <label style="font-weight:400"><input type=checkbox name=netflow value=1 style="width:auto" {chk('netflow')}> collect NetFlow from this device</label>
 </div>
-<div id=portmon_section style="display:none">
+<div id=portmon_section{" hidden" if "system" not in cur_types else ""}>
 <h2 style="margin-top:14px">TCP / UDP ports</h2>
 <p class="muted">Monitor port status on this system. List ports to check as
 <code>tcp/22, tcp/443, udp/53</code> (bare numbers default to TCP). Status is checked
@@ -1459,7 +1429,7 @@ live when you open the device.</p>
 <label>Ports to monitor</label>
 <input name=monitor_ports value="{html.escape(str((d.get('monitor_ports') if d else '') or ''))}" placeholder="tcp/22, tcp/80, tcp/443, udp/161">
 </div>
-<div id=appmon_section style="display:none">
+<div id=appmon_section{" hidden" if "application" not in cur_types else ""}>
 <h2 style="margin-top:14px">REST API / HTTPS</h2>
 <p class="muted">Monitor HTTP(S) endpoints for this application \u2014 one URL per line, with
 an optional expected status code. HTTPS URLs also get a TLS certificate check
@@ -1536,10 +1506,10 @@ an optional expected status code. HTTPS URLs also get a TLS certificate check
 <label>Notes</label><textarea name=notes style="min-height:60px">{v('notes')}</textarea>
 <div style="display:flex;gap:20px;flex-wrap:wrap;margin:6px 0 16px">
   <div id=management_options style="display:flex;gap:20px;flex-wrap:wrap">
-    <label style="color:var(--txt)"><input type=checkbox name=legacy value=1 style="width:auto" {chk('legacy')}> legacy algorithms</label>
-    <label style="color:var(--txt)"><input type=checkbox name=scrub value=1 style="width:auto" {chk('scrub')}> scrub secrets in archive</label>
+    <label style="color:var(--text)"><input type=checkbox name=legacy value=1 style="width:auto" {chk('legacy')}> legacy algorithms</label>
+    <label style="color:var(--text)"><input type=checkbox name=scrub value=1 style="width:auto" {chk('scrub')}> scrub secrets in archive</label>
   </div>
-  <label style="color:var(--txt)"><input type=checkbox name=enabled value=1 style="width:auto" {"checked" if (not editing or d.get('enabled')) else ""}> enabled</label>
+  <label style="color:var(--text)"><input type=checkbox name=enabled value=1 style="width:auto" {"checked" if (not editing or d.get('enabled')) else ""}> enabled</label>
 </div>
 <button>{"Save changes" if editing else "Add device"}</button>
 <a class="btn ghost" href="{('/device?name='+_q(name)) if editing else '/'}" style="margin-left:8px">Cancel</a>
@@ -1747,7 +1717,8 @@ an optional expected status code. HTTPS URLs also get a TLS certificate check
   <div><label>v3 auth pass{has('snmp_auth_pass')}</label><input type=password name=snmp_auth_pass></div>
   <div><label>v3 priv proto</label><select name=snmp_priv_proto>
     <option value="">\u2014</option><option value=aes>AES-128</option>
-    <option value=aes192>AES-192</option><option value=aes256>AES-256</option></select></div>
+    <option value=aes192>AES-192</option><option value=aes256>AES-256</option>
+    <option value=aes192c>AES-192-C (Cisco/Reeder)</option><option value=aes256c>AES-256-C (Cisco/Reeder)</option></select></div>
   <div><label>v3 priv pass{has('snmp_priv_pass')}</label><input type=password name=snmp_priv_pass></div>
 </div>
 <button>{"Save changes" if edit else "Create secret"}</button>
@@ -1843,8 +1814,8 @@ an optional expected status code. HTTPS URLs also get a TLS certificate check
 <div class="row"><div><label>Host key policy</label><select name=host_key_policy>{hostkey}</select>
 <div class=muted>accept-new trusts new hosts once, then pins</div></div>
 <div><label>Session recording</label>
-<label style="color:var(--txt);font-weight:400"><input type=checkbox name=record_sessions value=1 style="width:auto" {"checked" if s.get("record_sessions") else ""}> record transcripts</label>
-<label style="color:var(--txt);font-weight:400"><input type=checkbox name=scrub_sessions value=1 style="width:auto" {"checked" if s.get("scrub_sessions") else ""}> scrub secrets in transcripts</label></div></div>
+<label style="color:var(--text);font-weight:400"><input type=checkbox name=record_sessions value=1 style="width:auto" {"checked" if s.get("record_sessions") else ""}> record transcripts</label>
+<label style="color:var(--text);font-weight:400"><input type=checkbox name=scrub_sessions value=1 style="width:auto" {"checked" if s.get("scrub_sessions") else ""}> scrub secrets in transcripts</label></div></div>
 <button>Save general settings</button></form></div>"""
         elif section == "snmp":
             content = f"""<div class="panel"><h2>SNMP polling</h2>
@@ -1858,7 +1829,7 @@ an optional expected status code. HTTPS URLs also get a TLS certificate check
             content = f"""<div class="panel"><h2>NetFlow</h2>
 <p class="muted">UDP flow collector settings. Changes apply after console restart.</p>
 {form}<div class="row"><div><label>NetFlow collector</label>
-<label style="color:var(--txt);font-weight:400"><input type=checkbox name=netflow_enabled value=1 style="width:auto" {"checked" if s.get("netflow_enabled") else ""}> receive NetFlow</label>
+<label style="color:var(--text);font-weight:400"><input type=checkbox name=netflow_enabled value=1 style="width:auto" {"checked" if s.get("netflow_enabled") else ""}> receive NetFlow</label>
 <div class=muted>UDP listener for flow exports from network devices</div></div>
 {field("netflow_port","NetFlow UDP port","default 2055")}{field("netflow_max_flows","Recent flows kept per device")}</div>
 <button>Save NetFlow settings</button></form></div>"""
@@ -1868,19 +1839,19 @@ an optional expected status code. HTTPS URLs also get a TLS certificate check
 {form}<div class="row">{field("monitor_poll_interval","Monitor poll interval (s)","0 = off; e.g. 60 enables background polling")}
 {field("monitor_history_days","Monitor history retention (days)")}</div>
 <h3>Event-driven collection &amp; digest</h3>
-<div class="row"><div><label>Syslog change receiver</label><label style="color:var(--txt);font-weight:400"><input type=checkbox name=syslog_enabled value=1 style="width:auto" {"checked" if s.get("syslog_enabled") else ""}> enabled (restart required)</label></div>
+<div class="row"><div><label>Syslog change receiver</label><label style="color:var(--text);font-weight:400"><input type=checkbox name=syslog_enabled value=1 style="width:auto" {"checked" if s.get("syslog_enabled") else ""}> enabled (restart required)</label></div>
 {field("syslog_port","Syslog UDP port","default 5514; forward udp/514 if required")}{field("syslog_queue_size","Syslog queue size")}{field("syslog_debounce_seconds","Change debounce (s)")}</div>
 <h3>SNMP traps &amp; operational events</h3>
-<div class="row"><div><label>SNMP trap receiver</label><label style="color:var(--txt);font-weight:400"><input type=checkbox name=snmp_trap_enabled value=1 style="width:auto" {"checked" if s.get("snmp_trap_enabled") else ""}> enabled (restart required)</label></div>
+<div class="row"><div><label>SNMP trap receiver</label><label style="color:var(--text);font-weight:400"><input type=checkbox name=snmp_trap_enabled value=1 style="width:auto" {"checked" if s.get("snmp_trap_enabled") else ""}> enabled (restart required)</label></div>
 {field("snmp_trap_port","Trap UDP port","default 5162; forward udp/162 if required")}{field("snmp_trap_queue_size","Trap queue size")}{field("operational_event_dedup_seconds","Event dedup window (s)")}</div>
-<div class="row">{field("operational_suppression_ttl_seconds","Dependency suppression TTL (s)")}{field("snmp_trap_repoll_debounce_seconds","Targeted re-poll debounce (s)")}<div><label>Targeted re-poll</label><label style="color:var(--txt);font-weight:400"><input type=checkbox name=snmp_trap_targeted_repoll value=1 style="width:auto" {"checked" if s.get("snmp_trap_targeted_repoll", True) else ""}> poll matched managed device after accepted trap</label></div></div>
+<div class="row">{field("operational_suppression_ttl_seconds","Dependency suppression TTL (s)")}{field("snmp_trap_repoll_debounce_seconds","Targeted re-poll debounce (s)")}<div><label>Targeted re-poll</label><label style="color:var(--text);font-weight:400"><input type=checkbox name=snmp_trap_targeted_repoll value=1 style="width:auto" {"checked" if s.get("snmp_trap_targeted_repoll", True) else ""}> poll matched managed device after accepted trap</label></div></div>
 <div class="row">{field("digest_interval","Compliance/drift digest interval (s)","0 = off; 86400 = daily; uses configured email")}</div>
 <h3>NI-4 alert/report lifecycle</h3>
 <div class="row">{field("operational_alert_min_severity","Alert minimum severity","INFO / NOTICE / WARNING / MINOR / MAJOR / CRITICAL")}{field("operational_lifecycle_interval","Lifecycle scheduler interval (s)","0 = off; processes report schedules and notification retries")}</div>
 <h3>NI-5 telemetry lifecycle</h3>
 <div class="row">{field("telemetry_scheduler_interval","Telemetry scheduler interval (s)","0 = off; runs due bounded gNMI streaming windows")}</div>
 <div class="row">{field("operational_notification_max_attempts","Notification max attempts")}{field("operational_notification_backoff_base_seconds","Retry base seconds")}{field("operational_notification_backoff_max_seconds","Retry max seconds")}</div>
-<label style="color:var(--txt);font-weight:400"><input type=checkbox name=operational_notifications_enabled value=1 style="width:auto" {"checked" if s.get("operational_notifications_enabled") else ""}> enable NI-4 alert/report SMTP notifications</label>
+<label style="color:var(--text);font-weight:400"><input type=checkbox name=operational_notifications_enabled value=1 style="width:auto" {"checked" if s.get("operational_notifications_enabled") else ""}> enable NI-4 alert/report SMTP notifications</label>
 <h3>Diagnostic retention</h3>
 <p class="muted">Maintenance is opt-in. Case-export metadata is preserved when archives expire; incident-linked traces are never auto-pruned.</p>
 <div class="row">{field("diagnostic_maintenance_interval","Maintenance interval (s)","0 = off; minimum 60 when enabled")}{field("debug_bundle_keep","Support bundles to keep","newest N; minimum 1")}</div>
@@ -1904,14 +1875,14 @@ an optional expected status code. HTTPS URLs also get a TLS certificate check
             content = f"""<div class="panel"><h2>Email &amp; OAuth</h2>
 <p class="muted">SMTP delivery and Microsoft 365 OAuth authentication for alert email.</p>
 {form}<h3>SMTP</h3><div class="row"><div><label>Send alert email</label>
-<label style="color:var(--txt);font-weight:400"><input type=checkbox name=smtp_enabled value=1 style="width:auto" {"checked" if s.get("smtp_enabled") else ""}> enabled</label></div>
+<label style="color:var(--text);font-weight:400"><input type=checkbox name=smtp_enabled value=1 style="width:auto" {"checked" if s.get("smtp_enabled") else ""}> enabled</label></div>
 {field("smtp_host","SMTP host")}{field("smtp_port","SMTP port","587 STARTTLS / 25 relay")}
-<div><label>STARTTLS</label><label style="color:var(--txt);font-weight:400"><input type=checkbox name=smtp_starttls value=1 style="width:auto" {"checked" if s.get("smtp_starttls") else ""}> use STARTTLS</label></div></div>
+<div><label>STARTTLS</label><label style="color:var(--text);font-weight:400"><input type=checkbox name=smtp_starttls value=1 style="width:auto" {"checked" if s.get("smtp_starttls") else ""}> use STARTTLS</label></div></div>
 <div class="row">{field("smtp_from","From address")}{field("smtp_to","To (comma-separated)")}
 {field("smtp_user","SMTP username (optional)")}<div><label>SMTP password{" ✓ set" if smtp_pw_set else ""}</label>
 <input type=password name=smtp_password placeholder="kept in vault; blank keeps current"></div></div>
 <h3>Microsoft 365 OAuth (Entra ID)</h3><div class="row"><div><label>Use O365 OAuth for email</label>
-<label style="color:var(--txt);font-weight:400"><input type=checkbox name=o365_enabled value=1 style="width:auto" {"checked" if s.get("o365_enabled") else ""}> enabled</label></div>
+<label style="color:var(--text);font-weight:400"><input type=checkbox name=o365_enabled value=1 style="width:auto" {"checked" if s.get("o365_enabled") else ""}> enabled</label></div>
 {field("o365_tenant","Tenant ID","GUID or domain")}{field("o365_client_id","Client (application) ID")}
 <div><label>Client secret{" ✓ set" if o365_secret_set else ""}</label><input type=password name=o365_client_secret placeholder="kept in vault; blank keeps current"></div></div>
 <div class="row">{field("o365_authority","Authority")}{field("o365_scope","Scope","e.g. https://outlook.office365.com/.default")}</div>
@@ -1942,7 +1913,7 @@ also be used by the optional long-term interface-history store.</p>
 <select name=core_db_backend><option value="sqlite"{" selected" if s.get("core_db_backend","sqlite")=="sqlite" else ""}>SQLite — single node</option><option value="postgres"{" selected" if s.get("core_db_backend")=="postgres" else ""}>PostgreSQL — distributed capable</option></select>
 <div class=muted>Backend changes require a process restart.</div></div>
 <div><label>Interface history store</label>
-<label style="color:var(--txt);font-weight:400"><input type=checkbox name=if_history_enabled value=1 style="width:auto" {"checked" if s.get("if_history_enabled") else ""}> enabled</label></div></div>
+<label style="color:var(--text);font-weight:400"><input type=checkbox name=if_history_enabled value=1 style="width:auto" {"checked" if s.get("if_history_enabled") else ""}> enabled</label></div></div>
 <div class="row">{field("core_db_application_name","PostgreSQL application name","netconfig")}
 {field("cluster_node_id","Cluster node ID","blank = hostname:pid")}</div>
 <div class="row">{field("pg_host","Host","hostname or IP of the PostgreSQL server")}
@@ -2004,7 +1975,7 @@ bind/port changes take effect on next console restart.</p>
 <div class="row">{field("snmp_poll_interval","SNMP background poll interval (s)","0 = off; e.g. 15 enables live graphs")}
 {field("snmp_history_seconds","Live-graph history window (s)")}</div>
 <div class="row"><div><label>NetFlow collector</label>
-<label style="color:var(--txt);font-weight:400"><input type=checkbox name=netflow_enabled value=1 style="width:auto" {"checked" if s.get("netflow_enabled") else ""}> receive NetFlow (restart to apply)</label>
+<label style="color:var(--text);font-weight:400"><input type=checkbox name=netflow_enabled value=1 style="width:auto" {"checked" if s.get("netflow_enabled") else ""}> receive NetFlow (restart to apply)</label>
 <div class=muted>UDP listener for flow exports from network devices</div></div>
 {field("netflow_port","NetFlow UDP port","default 2055; change requires restart")}
 {field("netflow_max_flows","Recent flows kept per device")}</div>
@@ -2013,11 +1984,11 @@ bind/port changes take effect on next console restart.</p>
 {field("monitor_history_days","Monitor history retention (days)")}</div>
 <h2 style="margin-top:18px">SMTP (alert email)</h2>
 <div class="row"><div><label>Send alert email</label>
-<label style="color:var(--txt);font-weight:400"><input type=checkbox name=smtp_enabled value=1 style="width:auto" {"checked" if s.get("smtp_enabled") else ""}> enabled</label></div>
+<label style="color:var(--text);font-weight:400"><input type=checkbox name=smtp_enabled value=1 style="width:auto" {"checked" if s.get("smtp_enabled") else ""}> enabled</label></div>
 {field("smtp_host","SMTP host")}
 {field("smtp_port","SMTP port","587 STARTTLS / 25 relay")}
 <div><label>STARTTLS</label>
-<label style="color:var(--txt);font-weight:400"><input type=checkbox name=smtp_starttls value=1 style="width:auto" {"checked" if s.get("smtp_starttls") else ""}> use STARTTLS</label></div></div>
+<label style="color:var(--text);font-weight:400"><input type=checkbox name=smtp_starttls value=1 style="width:auto" {"checked" if s.get("smtp_starttls") else ""}> use STARTTLS</label></div></div>
 <div class="row">{field("smtp_from","From address")}
 {field("smtp_to","To (comma-separated)")}
 {field("smtp_user","SMTP username (optional)")}
@@ -2028,7 +1999,7 @@ app in Entra ID, grant it the mail permission, and enter its details below. When
 alert email authenticates to <code>smtp.office365.com</code> with an OAuth token (XOAUTH2).
 The client secret is stored in the vault.</p>
 <div class="row"><div><label>Use O365 OAuth for email</label>
-<label style="color:var(--txt);font-weight:400"><input type=checkbox name=o365_enabled value=1 style="width:auto" {"checked" if s.get("o365_enabled") else ""}> enabled</label></div>
+<label style="color:var(--text);font-weight:400"><input type=checkbox name=o365_enabled value=1 style="width:auto" {"checked" if s.get("o365_enabled") else ""}> enabled</label></div>
 {field("o365_tenant","Tenant ID","GUID or domain")}
 {field("o365_client_id","Client (application) ID")}
 <div><label>Client secret{" \u2713 set" if _o365_secret_set else ""}</label><input type=password name=o365_client_secret placeholder="kept in vault; blank keeps current"></div></div>
@@ -2039,8 +2010,8 @@ The client secret is stored in the vault.</p>
 <select name=host_key_policy>{hostkey}</select>
 <div class=muted>accept-new trusts new hosts once, then pins</div></div>
 <div><label>Session recording</label>
-<label style="color:var(--txt);font-weight:400"><input type=checkbox name=record_sessions value=1 style="width:auto" {"checked" if s.get("record_sessions") else ""}> record transcripts</label>
-<label style="color:var(--txt);font-weight:400"><input type=checkbox name=scrub_sessions value=1 style="width:auto" {"checked" if s.get("scrub_sessions") else ""}> scrub secrets in transcripts</label>
+<label style="color:var(--text);font-weight:400"><input type=checkbox name=record_sessions value=1 style="width:auto" {"checked" if s.get("record_sessions") else ""}> record transcripts</label>
+<label style="color:var(--text);font-weight:400"><input type=checkbox name=scrub_sessions value=1 style="width:auto" {"checked" if s.get("scrub_sessions") else ""}> scrub secrets in transcripts</label>
 </div></div>
 <button>Save settings</button>
 <button formaction="/smtp-test" formmethod="post" class=ghost style="margin-left:8px">Send test email</button></form></div>"""
@@ -2238,51 +2209,51 @@ The client secret is stored in the vault.</p>
                 f'numbers; the live graph above updates on its own. Counters are 32-bit ifTable values.</p>')
 
     def _snmp_walk_panel(self, device, q):
-        root = (q.get("walk") or ["1.3.6.1.2.1.1"])[0].strip() or "1.3.6.1.2.1.1"
-        # named shortcuts
+        requested = bool((q.get("walk") or [""])[0].strip())
+        root = (q.get("walk") or [""])[0].strip() or "1.3.6.1.2.1.1"
         shortcuts = [("System", "1.3.6.1.2.1.1"), ("Interfaces", "1.3.6.1.2.1.2"),
-                     ("IF-MIB ext", "1.3.6.1.2.1.31"), ("IP", "1.3.6.1.2.1.4"),
+                     ("IF-MIB ext", "1.3.6.1.2.1.31"), ("IP / ARP", "1.3.6.1.2.1.4"),
                      ("Full mib-2", "1.3.6.1.2.1"), ("Enterprises", "1.3.6.1.4.1")]
         chips = " ".join(
             f'<a class="btn ghost" style="padding:2px 10px" '
             f'href="/snmp?device={_q(device)}&walk={_q(o)}">{html.escape(n)}</a>'
             for n, o in shortcuts)
         rows = ""
-        note = ""
-        try:
-            data = self.manager.snmp_walk(device, root=root, max_vars=400)
-            named = sum(1 for r in data if not re.match(r"^[\d.]+$", r["name"]))
-            for r in data:
-                is_named = not re.match(r"^[\d.]+$", r["name"])
-                nm = (f'<b>{html.escape(r["name"])}</b>' if is_named
-                      else f'<span class="muted">{html.escape(r["name"])}</span>')
-                rows += (f'<tr><td>{nm}</td><td class="muted"><code>{html.escape(r["oid"])}</code></td>'
-                         f'<td>{html.escape(r.get("mib_source", "") or "Unmapped")}</td>'
-                         f'<td>{html.escape(r["value"][:200])}</td></tr>')
-            note = (f'{len(data)} object(s) walked \u00b7 <b>{named}</b> resolved to names by the '
-                    f'uploaded MIBs (raw numeric = no MIB defines that OID yet).')
-            if not data:
-                note = ('No objects returned. The agent may not expose this subtree, or SNMP '
-                        'credentials/reachability need checking.')
-        except Exception as e:
-            note = f'<span class="err">Walk failed: {html.escape(str(e))}</span>'
+        note = ('Choose a subtree only when you need raw SNMP/OID troubleshooting. '
+                'Normal NetConfig features use their own bounded collectors.')
+        if requested:
+            try:
+                data = self.manager.snmp_walk(device, root=root, max_vars=400)
+                named = sum(1 for r in data if not re.match(r"^[\d.]+$", r["name"]))
+                for r in data:
+                    is_named = not re.match(r"^[\d.]+$", r["name"])
+                    nm = (f'<b>{html.escape(r["name"])}</b>' if is_named
+                          else f'<span class="muted">{html.escape(r["name"])}</span>')
+                    rows += (f'<tr><td>{nm}</td><td class="muted"><code>{html.escape(r["oid"])}</code></td>'
+                             f'<td>{html.escape(r.get("mib_source", "") or "Unmapped")}</td>'
+                             f'<td>{html.escape(r["value"][:200])}</td></tr>')
+                note = (f'{len(data)} object(s) walked · <b>{named}</b> resolved to names by uploaded MIBs.')
+                if not data:
+                    note = ('No objects returned. The agent may not expose this subtree, or SNMP '
+                            'credentials/reachability need checking.')
+            except Exception as e:
+                note = f'<span class="err">Walk failed: {html.escape(str(e))}</span>'
         table = (f'<table><tr><th>Resolved name</th><th>Raw OID</th><th>Source MIB</th><th>Value</th></tr>'
                  f'{rows}</table>' if rows else "")
-        return (f'<div class="panel"><h2>SNMP data \u2014 walked &amp; named</h2>'
-                f'<p class="muted">Everything the agent returns under a subtree, with each OID '
-                f'resolved to a name by your uploaded MIBs. This is where MIBs help: raw numbers '
-                f'become readable names.</p>'
+        open_attr = " open" if requested else ""
+        return (f'<div class="panel"><details{open_attr}><summary><b>Advanced SNMP / OID explorer</b></summary>'
+                f'<p class="muted" style="margin-top:10px">MIBs make OIDs readable; this explorer is for troubleshooting, not the primary operations view.</p>'
                 f'<div style="margin:6px 0">{chips}</div>'
                 f'<form method=get action="/snmp" style="display:flex;gap:8px;max-width:640px;margin:8px 0">'
                 f'<input type=hidden name=device value="{html.escape(device)}">'
-                f'<input name=walk value="{html.escape(root)}" placeholder="root OID or name, e.g. 1.3.6.1.2.1.1">'
+                f'<input name=walk value="{html.escape(root)}" placeholder="root OID or name">'
                 f'<button class=ghost>Walk</button></form>'
-                f'<p class="muted">{note}</p>{table}</div>')
+                f'<p class="muted">{note}</p>{table}</details></div>')
 
     def _protocols_page(self, q, sess):
         from .web_ui import render_protocols_page
         flash = "Protocol operation completed." if (q.get("notice") or [""])[0] else None
-        return self._send(self._page("Structured Protocols", render_protocols_page(self, sess), sess, flash))
+        return self._send(self._page("Device Collection", render_protocols_page(self, sess, q), sess, flash))
 
     def _do_protocol_save(self, form, sess):
         if not _can(sess["role"], "manage_devices"):
@@ -2346,15 +2317,16 @@ The client secret is stored in the vault.</p>
             graph = self._live_graph(device) if dev.get("snmp_version") else ""
             walk_panel = self._snmp_walk_panel(device, q) if dev.get("snmp_version") else ""
             vendor_panel = self._vendor_mib_section(device) if dev.get("snmp_version") else ""
+            health = render_snmp_health_summary(self, device, dev, fx)
             inner = (f'<div class="panel"><h2>{html.escape(device)} \u00b7 SNMP '
                      f'<a class="btn ghost" href="/snmp" style="float:right;padding:4px 12px">All devices</a></h2>'
                      f'{poll_btn}{facts_tbl}</div>'
+                     f'{health}'
                      f'{graph}'
-                     f'{walk_panel}'
-                     f'{vendor_panel}'
                      f'<div class="panel"><h2>Interfaces</h2>{iftbl}</div>')
             if "network" in _dtypes(dev):
                 inner += self._arp_section(dev) + self._mac_port_section(dev)
+            inner += walk_panel + vendor_panel
             return self._send(self._page(f"SNMP \u00b7 {device}", inner, sess))
 
         # fleet view
@@ -2516,9 +2488,9 @@ The client secret is stored in the vault.</p>
             return self._send(self._page("Help", body, sess))
         rendered = _render_markdown(md)
         body = (f'<div class="panel help">{rendered}</div>'
-                f'<style>.help h1{{color:var(--brass2);border:none}}'
-                f'.help h2{{color:var(--brass);border-bottom:1px solid var(--line);padding-bottom:4px}}'
-                f'.help h3{{color:var(--txt)}}.help ul{{margin:6px 0 6px 20px}}'
+                f'<style>.help h1{{color:var(--navy);border:none}}'
+                f'.help h2{{color:var(--warn);border-bottom:1px solid var(--line);padding-bottom:4px}}'
+                f'.help h3{{color:var(--text)}}.help ul{{margin:6px 0 6px 20px}}'
                 f'.help li{{margin:3px 0}}.help p{{margin:8px 0}}'
                 f'.help table{{margin:10px 0}}.help code{{white-space:nowrap}}</style>')
         self._send(self._page("Help", body, sess))
@@ -2617,77 +2589,64 @@ The client secret is stored in the vault.</p>
                 continue
             stats = idx.file_stats.get(fn, {})
             unresolved = stats.get("unresolved_names", [])
-            mapping = (f'<span class="badge b-ok">{stats.get("resolved", 0)} resolved</span> '
-                       f'<span class="badge b-ok">{stats.get("collectible", 0)} collectible</span> '
+            mapping = (f'<span class="badge b-ok">{stats.get("resolved", 0)} named</span> '
+                       f'<span class="badge b-ok">{stats.get("collectible", 0)} pollable</span> '
                        f'<span class="badge {"b-chg" if stats.get("unresolved", 0) else "b-dim"}">'
-                       f'{stats.get("unresolved", 0)} unresolved</span> '
-                       f'<span class="badge {"b-chg" if stats.get("conflicts", 0) else "b-dim"}">'
-                       f'{stats.get("conflicts", 0)} conflicts</span>')
+                       f'{stats.get("unresolved", 0)} unresolved</span>')
             if unresolved:
                 mapping += (f'<div class="muted" style="margin-top:4px">Missing parents: '
                             f'{html.escape(", ".join(unresolved[:8]))}'
                             f'{" …" if len(unresolved) > 8 else ""}</div>')
             dele = ""
             if _can(sess["role"], "manage_devices"):
-                dele = (f'<form method=post action="/mib-delete" style="display:inline" '
-                        f'data-confirm="Delete this MIB file?">'
+                dele = (f'<form method=post action="/mib-delete" style="display:inline" data-confirm="Delete this MIB file?">'
                         f'{self._csrf_field()}<input type=hidden name=name value="{html.escape(fn)}">'
                         f'<button class=ghost style="padding:2px 8px">delete</button></form>')
-            rows += (f'<tr><td><b>{html.escape(fn)}</b></td>'
-                     f'<td>{html.escape(info["module"] or "\u2014")}</td>'
-                     f'<td>{info["objects"]} objects, {info["nodes"]} nodes</td>'
-                     f'<td>{mapping}</td>'
-                     f'<td class=muted>{max(size // 1024, 1)} KB</td>'
-                     f'<td class=right>{dele}</td></tr>')
-        up = ""
-        if _can(sess["role"], "manage_devices"):
-            up = (f'<div class="panel"><h2>Upload MIB</h2>'
-                  f'<p class="muted">Upload vendor MIB files (.mib / .txt / .my). They are stored '
-                  f'under the data directory for reference and OID lookups.</p>'
-                  f'<form method=post action="/mib-upload" enctype="multipart/form-data">'
-                  f'{self._csrf_field()}'
-                  f'<input type=file name=mibfile multiple accept=".mib,.txt,.my,.mib.txt">'
-                  f'<button>Upload</button></form></div>')
+            rows += (f'<tr><td><b>{html.escape(fn)}</b></td><td>{html.escape(info["module"] or "—")}</td>'
+                     f'<td>{info["objects"]} objects, {info["nodes"]} nodes</td><td>{mapping}</td>'
+                     f'<td class=muted>{max(size // 1024, 1)} KB</td><td class=right>{dele}</td></tr>')
         n_names = len(idx.name_source)
         n_collectible = len(idx.collection_objects)
         unresolved_total = sum(v.get("unresolved", 0) for v in idx.file_stats.values())
+        devices_with_values = sum(1 for dev in self.manager.inv.all()
+                                  if self.manager.db.get_mib_values(dev["name"], limit=1))
         lookup_q = (q.get("q") or [""])[0].strip()
         lookup_html = ""
         if lookup_q:
             if re.match(r"^[\d.]+$", lookup_q):
                 detail = idx.resolve_detail(lookup_q)
-                lookup_html = (f'<p style="margin-top:8px"><code>{html.escape(lookup_q)}</code> '
-                               f'\u2192 <b>{html.escape(detail["name"])}</b> '
-                               f'<span class="muted">Source: '
+                lookup_html = (f'<p style="margin-top:8px"><code>{html.escape(lookup_q)}</code> → '
+                               f'<b>{html.escape(detail["name"])}</b> <span class="muted">Source: '
                                f'{html.escape(detail["source"] or "Unmapped")}</span></p>')
             else:
                 detail = idx.lookup_detail(lookup_q)
                 oid = detail["oid"]
-                lookup_html = (f'<p style="margin-top:8px"><b>{html.escape(lookup_q)}</b> \u2192 '
-                               + (f'<code>{html.escape(oid)}</code> <span class="muted">Source: '
-                                  f'{html.escape(detail["source"])}</span>' if oid else
-                                  '<span class="muted">not found</span>')
-                               + '</p>')
-        automap = (f'<div class="panel"><h2>Automap index</h2>'
-                   f'<p class="muted">Uploaded MIBs are compiled into a global OID\u2194name index '
-                   f'(<b>{n_names}</b> uploaded definitions resolved, {unresolved_total} unresolved, '
-                   f'{len(idx.conflicts)} conflicts, <b>{n_collectible}</b> vendor OBJECT-TYPE '
-                   f'definitions collectible) that resolves names and drives bounded vendor polling '
-                   f'automatically \u2014 no per-device selection.</p>'
-                   f'<form method=get action="/mib" style="display:flex;gap:8px;max-width:560px">'
-                   f'<input name=q placeholder="resolve an OID or name, e.g. 1.3.6.1.2.1.1.1.0 or ifDescr" '
-                   f'value="{html.escape(lookup_q)}"><button class=ghost>Look up</button></form>'
-                   f'{lookup_html}</div>')
-        body = (up + automap
-                + f'<div class="panel"><h2>MIB library \u00b7 {len(files)} file(s)</h2>'
-                f'<table><tr><th>File</th><th>Module</th><th>Contents</th><th>Mapping</th>'
-                f'<th>Size</th><th></th></tr>'
-                f'{rows or "<tr><td colspan=6 class=muted>No MIBs uploaded yet.</td></tr>"}</table>'
-                f'<p class="muted" style="margin-top:8px">Resolved definitions are used immediately '
-                f'in SNMP walk results and sysObjectID model mapping. Unresolved definitions usually '
-                f'mean a parent or imported MIB is missing; upload that dependency and the index '
-                f'rebuilds automatically.</p></div>')
-        self._send(self._page("MIB", body, sess))
+                lookup_html = (f'<p style="margin-top:8px"><b>{html.escape(lookup_q)}</b> → ' +
+                               (f'<code>{html.escape(oid)}</code> <span class="muted">Source: {html.escape(detail["source"])}</span>'
+                                if oid else '<span class="muted">not found</span>') + '</p>')
+        purpose = (f'<div class="panel"><h2>MIB support</h2>'
+                   f'<p><b>MIB files are dictionaries, not features.</b> NetConfig promotes useful collected values into operator-facing health cards on each device SNMP page; raw OIDs stay here for lookup and troubleshooting.</p>'
+                   f'<div class="sensor-grid">'
+                   f'<div class="sensor-card dim"><div class="sensor-head"><span class="sensor-dot"></span>MIB definitions</div><div class="sensor-value">{len(files)}</div><div class="sensor-detail">reference files installed</div></div>'
+                   f'<div class="sensor-card ok"><div class="sensor-head"><span class="sensor-dot"></span>Named OIDs</div><div class="sensor-value">{n_names}</div><div class="sensor-detail">OID/name mappings available</div></div>'
+                   f'<div class="sensor-card ok"><div class="sensor-head"><span class="sensor-dot"></span>Pollable objects</div><div class="sensor-value">{n_collectible}</div><div class="sensor-detail">bounded vendor OBJECT-TYPE definitions</div></div>'
+                   f'<div class="sensor-card {"ok" if devices_with_values else "dim"}"><div class="sensor-head"><span class="sensor-dot"></span>Devices with telemetry</div><div class="sensor-value">{devices_with_values}</div><div class="sensor-detail">have stored extended MIB values</div></div>'
+                   f'</div><p class="muted" style="margin-top:10px">Unresolved definitions: {unresolved_total} · conflicts: {len(idx.conflicts)}. '
+                   f'For useful status such as Loop Protection, interface health, FDB and ARP evidence, open the device SNMP page.</p></div>')
+        lookup = (f'<div class="panel"><h2>OID / name lookup</h2>'
+                  f'<form method=get action="/mib" style="display:flex;gap:8px;max-width:640px">'
+                  f'<input name=q placeholder="OID or name, e.g. ifDescr" value="{html.escape(lookup_q)}">'
+                  f'<button class=ghost>Look up</button></form>{lookup_html}</div>')
+        upload = ""
+        if _can(sess["role"], "manage_devices"):
+            upload = (f'<div style="margin:10px 0"><form method=post action="/mib-upload" enctype="multipart/form-data">'
+                      f'{self._csrf_field()}<input type=file name=mibfile multiple accept=".mib,.txt,.my,.mib.txt">'
+                      f'<button>Upload MIB</button></form></div>')
+        library = (f'<div class="panel"><details><summary><b>Advanced: MIB library · {len(files)} file(s)</b></summary>'
+                   f'<p class="muted" style="margin-top:10px">Manage raw vendor definitions only when a device/model or OID lookup requires them.</p>{upload}'
+                   f'<table><tr><th>File</th><th>Module</th><th>Contents</th><th>Mapping</th><th>Size</th><th></th></tr>'
+                   f'{rows or "<tr><td colspan=6 class=muted>No MIBs uploaded yet.</td></tr>"}</table></details></div>')
+        self._send(self._page("MIB Library", purpose + lookup + library, sess))
 
     def _netflow_section(self, dev):
         m = self.manager
@@ -2809,28 +2768,22 @@ The client secret is stored in the vault.</p>
             f'<td>{html.escape(str(v.get("value", ""))[:300])}</td>'
             f'<td class="muted">{_fmt_ts(v.get("ts"))}</td></tr>'
             for v in values)
-        if rows:
-            content = (f'<table><tr><th>Source MIB</th><th>Resolved name</th><th>Raw OID</th>'
-                       f'<th>Value</th><th>Collected</th></tr>{rows}</table>')
-        else:
-            if status.get("roots", 0):
-                content = ('<p class="muted">Matching MIB collection trees were found, but the '
-                           'SNMP agent returned no values below them. This usually means those '
-                           'modules are not exposed by the device or the SNMP view denies them; '
-                           'an uploaded MIB defines names but does not enable data on the agent.'
-                           '</p>')
-            else:
-                content = ('<p class="muted">No collection tree matches this device yet. Upload '
-                           'MIB files containing resolved OBJECT-TYPE definitions, then use '
-                           '<b>Poll now</b>.</p>')
         error = status.get("error", "")
-        error_html = (f'<p class="err">Some roots failed: {html.escape(error)}</p>' if error else "")
-        summary = (f'{len(values)} value(s) from {status.get("roots", 0)} bounded root(s)'
+        error_html = (f'<p class="err">Some vendor roots failed: {html.escape(error)}</p>' if error else "")
+        summary = (f'{len(values)} raw value(s) from {status.get("roots", 0)} bounded vendor root(s)'
                    + (f' · last collection {_fmt_ts(status.get("ts"))}' if status else ''))
-        return (f'<div class="panel"><h2>Extended MIB data</h2>'
-                f'<p class="muted">Automatically collected from uploaded MIB definitions. '
-                f'{summary}. Background vendor walks run no more than once every five minutes '
-                f'and keep at most 400 values per device.</p>{error_html}{content}</div>')
+        if rows:
+            detail = (f'<details><summary>Show {len(values)} raw vendor MIB values</summary>'
+                      f'<table style="margin-top:10px"><tr><th>Source MIB</th><th>Name</th><th>Raw OID</th><th>Value</th><th>Collected</th></tr>'
+                      f'{rows}</table></details>')
+        elif status.get("roots", 0):
+            detail = ('<p class="muted">Matching MIB trees exist, but the device returned no values. '
+                      'The agent may not expose them or the SNMP view may deny them.</p>')
+        else:
+            detail = '<p class="muted">No vendor-specific collection tree matches this device.</p>'
+        return (f'<div class="panel"><h2>Vendor MIB telemetry <span class="badge b-dim">advanced</span></h2>'
+                f'<p class="muted">{summary}. These are raw vendor values; NetConfig only promotes data into normal operational views when a feature explicitly consumes it.</p>'
+                f'{error_html}{detail}</div>')
 
     def _mac_port_section(self, dev):
         macs = self.manager.db.get_mac_table(dev["name"])
@@ -2901,7 +2854,7 @@ The client secret is stored in the vault.</p>
         create = ""
         if _can(sess["role"], "manage_devices"):
             checks = "".join(
-                f'<label style="display:inline-flex;gap:6px;align-items:center;margin:0 12px 8px 0;font-size:13px;color:var(--txt)">'
+                f'<label style="display:inline-flex;gap:6px;align-items:center;margin:0 12px 8px 0;font-size:13px;color:var(--text)">'
                 f'<input type=checkbox name=members value="{html.escape(d)}" style="width:auto;margin:0"> {html.escape(d)}</label>'
                 for d in all_devs)
             create = (f'<div class="panel"><h2>New / update group</h2>'
@@ -2978,7 +2931,7 @@ The client secret is stored in the vault.</p>
                 f'<select name=mode><option value=command>command (read)</option>'
                 f'<option value=config>config (push)</option></select></div>'
                 f'<div style="max-width:200px"><label>&nbsp;</label>'
-                f'<label style="color:var(--txt);font-weight:400"><input type=checkbox name=save value=1 style="width:auto"> save to startup</label></div></div>'
+                f'<label style="color:var(--text);font-weight:400"><input type=checkbox name=save value=1 style="width:auto"> save to startup</label></div></div>'
                 f'<label>Commands</label><textarea name=body placeholder="show version"></textarea>'
                 f'<button {"disabled" if not m.vault_ready() else ""}>Run now</button></form></div>')
 
@@ -3124,7 +3077,7 @@ The client secret is stored in the vault.</p>
             vault_note = "" if not locked else ' <span class="vault-lock">vault locked \u2014 unlock first</span>'
             actions = (f'<form method=post action="/request-execute" style="display:inline">'
                        f'{self._csrf_field()}<input type=hidden name=id value="{cr["id"]}">'
-                       f'<label style="display:inline;color:var(--txt)"><input type=checkbox name=save value=1 style="width:auto"> save to startup-config</label> '
+                       f'<label style="display:inline;color:var(--text)"><input type=checkbox name=save value=1 style="width:auto"> save to startup-config</label> '
                        f'<button {"disabled" if locked else ""}>Execute now</button></form>{vault_note}')
         detail += (f'<div style="margin-top:14px">{actions}</div></div>')
         targets = (f'<div class="panel"><h2>Resolved plan \u00b7 {len(prev["targets"])} device(s)</h2>'
@@ -3544,74 +3497,7 @@ The client secret is stored in the vault.</p>
         return self._redirect(f"/device?name={_q(name)}")
 
     def _topology_page(self, q, sess):
-        rows = self.manager.db.get_neighbors()
-        identities = self.manager.topology_identities()
-        devices = sorted({r["device"] for r in rows} | {r.get("neighbor_device", "") for r in rows if r.get("neighbor_device")})
-        unmanaged = [r for r in rows if r.get("resolution_state") == "UNMANAGED" or (not r.get("managed_neighbor") and not r.get("resolution_state"))]
-        ambiguous = [r for r in rows if r.get("resolution_state") == "AMBIGUOUS"]
-        # deterministic circular layout; no client-side dependency.
-        import math
-        nodes = {}
-        count = max(1, len(devices))
-        for i, name in enumerate(devices):
-            angle = (2 * math.pi * i / count) - math.pi / 2
-            nodes[name] = (400 + 270 * math.cos(angle), 300 + 220 * math.sin(angle))
-        svg = ['<svg viewBox="0 0 800 600" role="img" aria-label="Network topology" style="width:100%;min-height:480px">']
-        for r in rows:
-            if not r.get("managed_neighbor") or not r.get("neighbor_device") or r["device"] not in nodes or r["neighbor_device"] not in nodes:
-                continue
-            x1,y1=nodes[r["device"]]; x2,y2=nodes[r["neighbor_device"]]
-            svg.append(f'<line x1="{x1:.0f}" y1="{y1:.0f}" x2="{x2:.0f}" y2="{y2:.0f}" stroke="currentColor" opacity=".35"/>')
-        for name,(x,y) in nodes.items():
-            svg.append(f'<circle cx="{x:.0f}" cy="{y:.0f}" r="34" fill="none" stroke="currentColor"/><text x="{x:.0f}" y="{y+4:.0f}" text-anchor="middle" font-size="12">{html.escape(name)}</text>')
-        svg.append('</svg>')
-        table = ''
-        for r in rows:
-            if r.get("managed_neighbor"):
-                state = '<span class="badge b-ok">resolved</span>'
-            elif r.get("resolution_state") == "AMBIGUOUS":
-                state = '<span class="badge b-bad">AMBIGUOUS</span>'
-            else:
-                state = '<span class="badge b-bad">UNMANAGED</span>'
-            table += (f'<tr><td>{html.escape(r["device"])}</td><td>{html.escape(r.get("local_port", ""))}</td>'
-                      f'<td>{html.escape(r.get("sys_name") or r.get("chassis_id") or "?")}</td>'
-                      f'<td>{html.escape(r.get("port_id", ""))}</td><td>{html.escape(r.get("protocol", ""))}</td><td>{state}</td>'
-                      f'<td class="muted">{html.escape(r.get("resolution_evidence", ""))}</td></tr>')
-        identity_rows = ''
-        for r in identities:
-            chassis = r.get("chassis_serial") or r.get("chassis_mac") or r.get("chassis_id") or ""
-            identity_rows += (f'<tr><td>{html.escape(r.get("device", ""))}</td><td>{html.escape(r.get("sys_name", ""))}</td>'
-                              f'<td>{html.escape(chassis)}</td><td>{html.escape(r.get("chassis_model", ""))}</td>'
-                              f'<td>{html.escape(r.get("sys_cap_enabled", ""))}</td><td>{len(r.get("interfaces") or [])}</td></tr>')
-        root = (q.get("impact_device") or [""])[0].strip()
-        root_port = (q.get("impact_port") or [""])[0].strip()
-        impact_html = '<p class="muted">Choose a managed root device to inspect observed downstream L2 impact.</p>'
-        if root:
-            try:
-                impact = self.manager.downstream_impact(root, root_port or None)
-                items = ''.join(f'<li>depth {int(x["depth"])} — {html.escape(x["device"])} via {html.escape(x["via"])}</li>' for x in impact["devices"])
-                impact_html = (f'<p><b>{impact["device_count"]}</b> downstream managed device(s), '
-                               f'<b>{impact["edge_count"]}</b> observed edge(s).</p><ul>{items or "<li>None</li>"}</ul>'
-                               f'<p class="muted">Scope: observed managed L2 adjacency only; this is not a routing-dependency claim.</p>')
-            except ValueError as exc:
-                impact_html = f'<div class="err">{html.escape(str(exc))}</div>'
-        impact_opts = ['<option value="">Select root…</option>']
-        for d in self.manager.inv.all():
-            name = d.get("name", "")
-            sel = " selected" if name == root else ""
-            impact_opts.append(f'<option value="{html.escape(name)}"{sel}>{html.escape(name)}</option>')
-        action = ''
-        if _can(sess["role"], "collect"):
-            action = f'<form method=post action="/topology-discover">{self._csrf_field()}<button>Discover now</button></form>'
-        inner = (f'<div class="panel"><div class="row"><div><b>{len(rows)}</b> neighbour observations · '
-                 f'<b>{len(unmanaged)}</b> unmanaged · <b>{len(ambiguous)}</b> ambiguous</div><div>{action}</div></div>{"".join(svg)}</div>'
-                 f'<div class="panel"><h3>Managed identity</h3><table><tr><th>Device</th><th>sysName</th><th>Chassis identity</th><th>Model</th><th>Capabilities</th><th>Interfaces</th></tr>'
-                 f'{identity_rows or "<tr><td colspan=6 class=muted>No normalized identity collected yet.</td></tr>"}</table></div>'
-                 f'<div class="panel"><h3>Downstream impact</h3><form method=get action="/topology"><select name=impact_device>{"".join(impact_opts)}</select> '
-                 f'<input name=impact_port value="{html.escape(root_port)}" placeholder="optional root port"> <button class="ghost">Analyze</button></form>{impact_html}</div>'
-                 f'<div class="panel"><table><tr><th>Device</th><th>Local port</th><th>Neighbour</th><th>Remote port</th><th>Protocol</th><th>State</th><th>Resolution evidence</th></tr>'
-                 f'{table or "<tr><td colspan=7 class=muted>No LLDP/CDP neighbours collected yet.</td></tr>"}</table></div>')
-        self._send(self._page("Topology", inner, sess))
+        self._send(self._page("Topology", render_topology_page(self, q, sess), sess))
 
     def _endpoints_page(self, q, sess):
         device = (q.get("device") or [""])[0].strip() or None
@@ -3658,6 +3544,9 @@ The client secret is stored in the vault.</p>
     def _do_topology_discover(self, form, sess):
         if not _can(sess["role"], "collect"):
             return self._send(self._page("Topology", '<div class="err">Not permitted.</div>', sess), 403)
+        if not self.manager.vault_ready():
+            return self._send(self._page(
+                "Topology", '<div class="err">Vault locked — unlock it before topology discovery so SNMP/SSH credentials are available.</div>', sess), 409)
         total = unmanaged = 0
         for d in self.manager.inv.all():
             if not d.get("snmp_version") and not d.get("secret_ref"):

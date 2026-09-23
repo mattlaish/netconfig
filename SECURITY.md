@@ -1,6 +1,38 @@
 # Security
 
-> **Canonical project state — 2026-09-17:** **CURRENT IMPLEMENTATION BASELINE** = **Release 40 / NI-7 L3/VRF Path & Route Dependency Intelligence** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-40`; NI-1 through NI-7 and Enterprise Operations are implemented in source. Q-1 live PostgreSQL/protocol/vendor/device/AlmaLinux gates remain deferred/`NOT_RUN`; Release 40 does not promote them to PASS.
+> **Canonical project state — 2026-09-23:** **CURRENT IMPLEMENTATION BASELINE** = **Release 51 / MC-3 Normalized Operational Evidence** (`2.0.0-51`, `IMPLEMENTED_TESTING_DEFERRED`). MC-1 Sensor Integration Unification and MC-2 Sensor History & State Transitions remain implemented. Release 51 adds a normalized cross-domain operational-evidence envelope, durable Sensor-transition → Event bridging, recovery/`UNKNOWN` semantics, additive event-schema migration/backfill/indexes, filtered/detail Event API reads, and an Event detail UI with current related Sensor state. NI-1 through **NI-7 L3/VRF Path & Route Dependency Intelligence** remain implemented. Formal RPM qualification remains deferred until the monitoring/correlation roadmap is complete; any ad-hoc RPM remains development evidence only.
+
+## Release 46 — Operator Health Cards & UX Follow-through
+
+Release 46 implements the operator feedback gathered after Release 45 without changing the NI-7 feature baseline. The user-facing **Desired State** label is now **Configuration Baselines / Templates & Drift**; the underlying desired-state API/data model is unchanged. Operations keeps Structured Changes, Campaigns, Automation Requests, Network Intelligence, telemetry, model packs, and HA/DR, but the default workspace is outcome-oriented and the more technical surfaces are grouped under Advanced operations.
+
+Structured collection profiles are no longer an everyday top-level navigation item. They remain available as **Collection settings** from a device and are explicitly described as network-device read/collection settings for switches, routers, and firewalls. Existing approval behavior is retained as-is; Release 46 does not expand approval orchestration.
+
+The SNMP device page now derives operator-facing health cards from **already-collected DB/cache evidence only**: reachability, polling, interface health, FDB/MAC evidence, ARP/IP-neighbor evidence, topology-neighbor evidence, Loop Protection when mapped MIB values exist, and vendor telemetry status. Opening the page does not trigger an extra poll or vendor walk. Raw SNMP/OID and vendor MIB rows remain available under Advanced/troubleshooting views. The MIB library itself is presented as supporting metadata, not as an operator feature.
+
+The previously documented Central Controller + read-only Site Edge/Collector concept remains a **future architecture item only**. No distributed collector, local site-alert engine, store-and-forward transport, secondary WAN/LTE/SMS path, or distributed execution node is implemented in Release 46.
+
+
+> **Roadmap disposition — 2026-09-23:** The monitoring/correlation roadmap is active. MC-1 through MC-3 are implemented in source as `IMPLEMENTED_TESTING_DEFERRED`; the next planned slice is **MC-4 / Release 52 — Unified Alert Plane**. NI-7 remains implemented and Q-1 remains an open production/service qualification track. Do not invent NI-8/Q-2 or skip the defined MC sequence without an explicit roadmap decision.
+## Future Site Edge / Collector security boundary
+
+The recorded distributed design keeps collection and execution separated. Site Edge/Collector nodes are **read-only by default** and may use only bounded collection operations such as SNMP GET/WALK, NETCONF GET/read, RESTCONF GET/read, and gNMI subscribe/read. Possession of collection credentials must never imply permission to mutate device state.
+
+Collectors must not expose arbitrary SSH, shell, generic RPC, arbitrary REST body forwarding, or configuration push by default. Future distributed writes require a separate **Execution Node** or an explicitly enabled execution role, with independent authorization and the existing frozen-plan, approval/authority, execute-time revalidation, verification, recovery, and audit controls.
+
+Site isolation is expected: local evidence and alerts must remain available locally and be synchronized after reconnect. Fallback notification paths, if implemented later, must use separately protected credentials and bounded destinations.
+
+
+## Release 44 — Intent Automation Operations Repair
+
+Release 44 fixes a real Web Console defect in `Operations -> Intent Automation`: `_TABS` accepted `tab=intents`, but `_operations_page()` had no `intents` renderer entry, so `GET /operations?tab=intents` raised `KeyError: 'intents'` and returned a server-error page. The renderer map now routes to `_ops_intents()`, which provides a read-only durable automation-request ledger plus links into the typed Structured Change / Desired State / Campaign creation paths. It does not create a direct network-write path; execution remains behind frozen snapshots, separate approval, current-snapshot revalidation, verification, and audit.
+
+HTTP-level regression coverage now requests `/operations?tab=intents` and requires a `200` response with the Intent Automation content instead of a server error. Release 43's left sidebar, supplied green theme, and neutral NetConfig branding are preserved. There is no schema or public REST contract change. Package release advances to `2.0.0-44` because shipped runtime source changed.
+
+
+## Current security/roadmap disposition
+
+No new feature phase is assigned. Existing security debt such as console session idle/absolute expiry remains deferred until explicitly selected; it must not be silently treated as the next phase. Q-1 security-relevant live qualification remains open and evidence-driven.
 
 ## Release 34 / UI-1 security boundaries
 
@@ -27,7 +59,7 @@ Release 33 preserves the existing fail-closed boundaries and adds the following 
 
 Session idle/absolute expiry remains deliberately deferred security debt and is unchanged.
 
-> **Current continuation pointer:** use the Release 34 FULL source baseline as the active implementation source. UI-1 remains `IMPLEMENTED_TESTING_DEFERRED`; execute the applicable Q-1/live qualification gates before any promotion to `TESTED`/`RELEASED`. No next development phase is auto-assigned; perform a fresh roadmap review after qualification.
+> **Current continuation pointer:** use **Release 51 / MC-3 Normalized Operational Evidence** (`2.0.0-51`) as the active full-source baseline. Preserve `IMPLEMENTED_TESTING_DEFERRED`. MC-1 through MC-3 are implemented in source; the next roadmap slice is **MC-4 / Release 52 — Unified Alert Plane**. Sensor generation/history and Sensor→Event normalization must not add device I/O; unchanged Sensor refreshes create no event, and missing evidence remains `UNKNOWN` rather than an automatic critical verdict. Formal RPM qualification remains deferred until the roadmap is complete.
 
 ## Q-1 production qualification security boundaries
 
@@ -235,7 +267,9 @@ Every HTML response generates a fresh CSP nonce. Enforced CSP authorizes first-p
 PH-3 remains `IMPLEMENTED_TESTING_DEFERRED`: offline/fake-driver evidence does not qualify real NETCONF/RESTCONF/gNMI devices, TLS/mTLS interoperability, packaged `gnmic`, vendor-specific behavior, live PostgreSQL/OpenSSH/Net-SNMP services, or AlmaLinux RPM/systemd deployment.
 
 
-# Canonical Architecture Split — PH vs NI
+# Historical Architecture Planning Snapshot — PH vs NI
+
+> The status values in this retained planning snapshot describe an earlier roadmap point. They are **not current work assignments**. PH-5/PH-6 and NI phases were subsequently implemented as recorded in later release sections; current status and sequencing are controlled by `ROADMAP.md`, where no new development phase is presently assigned.
 
 ## PH — Platform Hardening / Safe Device Change
 
@@ -471,3 +505,16 @@ NI-6.6 Health Dashboard: IMPLEMENTED_TESTING_DEFERRED
 - Path simulation is strictly scoped to one explicit VRF and destination prefix, with bounded hop count and loop detection. Missing, unmanaged, mixed terminal/non-terminal, or distinct multipath next-device evidence stops traversal.
 - Route-dependency analysis reports **dependency candidates** and observed alternates; it does not claim outage or select an ECMP/FIB winner without authoritative forwarding evidence.
 - NI-7 analytics cannot execute network changes. Any operator remediation must enter the existing approval-gated Structured Changes, Desired State, or Campaign plane.
+
+## MC-3 operational-evidence boundary
+
+MC-3 keeps operational-event metadata fail-closed through an explicit bounded allow-list. Sensor-transition provenance permits only transition identifiers/keys/types, bounded previous/new status/value fields, and transition reason in addition to the pre-existing safe trap/syslog metadata. Raw SNMP packets, community strings, arbitrary collector dictionaries, credentials, and secret material are not accepted into the normalized event store. Event API/UI additions are read-only and retain the existing `events:read` scope/session authorization boundary.
+
+## R51-HF1 security notes
+
+- Standard SNMPv3 AES-192/AES-256 and explicit Cisco/Reeder compatibility modes are separated so protocol selection cannot silently use the wrong privacy-key derivation variant.
+- Topology CLI discovery unlocks the Vault only in the current process; secrets remain subject to existing Vault handling and are not printed by the topology command.
+- FDB-derived topology is non-authoritative and labelled `INFERRED`; it cannot become direct adjacency or downstream-impact truth merely through MAC correlation.
+- Drag/drop topology layout is local browser presentation state only. It creates no server-side topology assertion, configuration change, device action, or approval bypass.
+- `GET /api/v1/topology/graph` is read-only and retains `topology:read` authorization/audit boundaries.
+

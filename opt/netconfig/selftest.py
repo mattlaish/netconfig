@@ -344,8 +344,13 @@ check("net-snmp names normalize", _sx._norm_auth("SHA-256")=="sha256" and _sx._n
       and _sx._norm_priv("AES-256")=="aes256")
 _eid=bytes.fromhex("80001f8880e9630000d61f9d00")
 _k=_sx.password_to_key("privpassword1", _eid, __import__("hashlib").sha1)
-check("AES-192 key extended to 24 bytes", len(_sx._extend_priv_key(_k,_eid,__import__("hashlib").sha1,24))==24)
-check("AES-256 key extended to 32 bytes", len(_sx._extend_priv_key(_k,_eid,__import__("hashlib").sha1,32))==32)
+_sha1=__import__("hashlib").sha1
+_b192=_sx._extend_priv_key_blumenthal(_k,_sha1,24)
+_b256=_sx._extend_priv_key_blumenthal(_k,_sha1,32)
+check("AES-192 Blumenthal key extended to 24 bytes", len(_b192)==24)
+check("AES-256 Blumenthal key extended to 32 bytes", len(_b256)==32)
+check("AES-256 Blumenthal extension matches Net-SNMP semantics", _b256 == (_k + _sha1(_k).digest())[:32])
+check("Cisco/Reeder AES-256 remains explicit", _sx._norm_priv("AES256C")=="aes256c" and _sx._extend_priv_key_reeder(_k,_eid,_sha1,32) != _b256)
 _orig_ptk = _sx.password_to_key
 _ptk_calls = []
 _sx.password_to_key = lambda password, engine, ctor: (_ptk_calls.append((password, engine)) or b"k" * 32)

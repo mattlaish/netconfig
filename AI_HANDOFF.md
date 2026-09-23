@@ -1,10 +1,81 @@
 # AI Development Handoff
 
-> **Canonical project state — 2026-09-17:** **CURRENT IMPLEMENTATION BASELINE** = **Release 40 / NI-7 L3/VRF Path & Route Dependency Intelligence** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-40`; NI-1 through NI-7 and Enterprise Operations are implemented in source. Q-1 live PostgreSQL/protocol/vendor/device/AlmaLinux gates remain deferred/`NOT_RUN`; Release 40 does not promote them to PASS.
+> **Canonical project state — 2026-09-23:** **CURRENT IMPLEMENTATION BASELINE** = **Release 51 / MC-3 Normalized Operational Evidence** (`2.0.0-51`, `IMPLEMENTED_TESTING_DEFERRED`). MC-1 Sensor Integration Unification and MC-2 Sensor History & State Transitions remain implemented. Release 51 adds a normalized cross-domain operational-evidence envelope, durable Sensor-transition → Event bridging, recovery/`UNKNOWN` semantics, additive event-schema migration/backfill/indexes, filtered/detail Event API reads, and an Event detail UI with current related Sensor state. NI-1 through **NI-7 L3/VRF Path & Route Dependency Intelligence** remain implemented. Formal RPM qualification remains deferred until the monitoring/correlation roadmap is complete; any ad-hoc RPM remains development evidence only.
+## Release 48 — Sensor Model & Evidence Normalization
 
-## Release 40 handoff — NI-7 L3/VRF Path & Route Dependency Intelligence
+Release 48 promotes the sensor work from UI-only health cards into a reusable persisted normalization layer. `SensorEngine` stores `sensor_type`, `device`, `resource`, `value`, `unit`, `status`, `message`, `threshold`, `source`, and `updated_at`, with the status contract limited to `OK`, `WARNING`, `CRITICAL`, and `UNKNOWN`. It reads existing NetConfig persistence only and does **not** initiate SNMP/NETCONF/RESTCONF/gNMI/SSH device I/O or change polling frequency.
 
-Use Release 40 / `2.0.0-40` as the active full-source baseline. NI-7 is implemented with durable `l3_route_observations`, `analytics/l3.py`, `AnalyticsService` L3 route/path/dependency methods, scoped REST endpoints, and Network Intelligence UI workflows. Preserve fail-closed rules: same-VRF only; never infer managed next-device identity from next-hop IP; stop on missing, unmanaged, mixed terminal/non-terminal, loop, or multipath-ambiguous evidence; route dependency is a candidate rather than an outage verdict; analytics cannot execute configuration. Source regression before final packaging is **211 passed / 7 skipped / 0 failed**. Q-1 live PostgreSQL/protocol/vendor/AlmaLinux gates remain deferred.
+The generator now derives: device reachability/polling; endpoint FDB/MAC and ARP/IP-neighbor evidence; per-interface status, utilization, error and discard-evidence state; LLDP/CDP topology neighbor/managed/unmanaged counts; and a known semantic Loop Protection summary from mapped MIB values. Unknown raw MIB/OID values remain Advanced/troubleshooting data and do not become invented sensors. Missing ARP, topology, utilization, or discard evidence is represented as `UNKNOWN` with an empty value rather than as zero, `CRITICAL`, or fabricated data.
+
+`GET /api/v1/sensors` is read-only and accepts `device`, `type`, `status`, and bounded `limit` filters. Access requires `analytics:read` or `inventory:read`. Release 48 does not add an Alert Engine, remediation, configuration mutation path, new approval orchestration, or distributed collector runtime.
+
+**Release 48 source qualification (2026-09-20):** focused Sensor Model/API coverage is **14 passed / 0 failed**. The full repository regression was executed in four bounded mutually exclusive groups and totals **236 passed / 8 skipped / 0 failed**; the eight skips are seven explicit live/service prerequisites plus the expected Git-index mode skip because `.git` is absent from this archive-derived workspace. Legacy selftest is **ALL PASS**; compileall, launcher `py_compile`, and packaging/tool shell syntax are **PASS**. Ruff `0.16.7` and mypy `2.3.1` remain **NOT_RUN** because their executables are unavailable. Canonical AlmaLinux 10 `rpmbuild`/DNF install-upgrade/systemd/SELinux, PostgreSQL live/backup-restore, protocol-service and vendor/device live gates remain **NOT_RUN / DEFERRED**. Final source-artifact integrity qualification and offline RPM build occur after this source/documentation sync and do not promote the project beyond `IMPLEMENTED_TESTING_DEFERRED`.
+
+## Release 46 — Operator Health Cards & UX Follow-through
+
+Release 46 implements the operator feedback gathered after Release 45 without changing the NI-7 feature baseline. The user-facing **Desired State** label is now **Configuration Baselines / Templates & Drift**; the underlying desired-state API/data model is unchanged. Operations keeps Structured Changes, Campaigns, Automation Requests, Network Intelligence, telemetry, model packs, and HA/DR, but the default workspace is outcome-oriented and the more technical surfaces are grouped under Advanced operations.
+
+Structured collection profiles are no longer an everyday top-level navigation item. They remain available as **Collection settings** from a device and are explicitly described as network-device read/collection settings for switches, routers, and firewalls. Existing approval behavior is retained as-is; Release 46 does not expand approval orchestration.
+
+The SNMP device page now derives operator-facing health cards from **already-collected DB/cache evidence only**: reachability, polling, interface health, FDB/MAC evidence, ARP/IP-neighbor evidence, topology-neighbor evidence, Loop Protection when mapped MIB values exist, and vendor telemetry status. Opening the page does not trigger an extra poll or vendor walk. Raw SNMP/OID and vendor MIB rows remain available under Advanced/troubleshooting views. The MIB library itself is presented as supporting metadata, not as an operator feature.
+
+The previously documented Central Controller + read-only Site Edge/Collector concept remains a **future architecture item only**. No distributed collector, local site-alert engine, store-and-forward transport, secondary WAN/LTE/SMS path, or distributed execution node is implemented in Release 46.
+
+**Release 46 source qualification:** repository regression executed in bounded groups totals **222 passed / 8 skipped / 0 failed**; the eight skips are seven explicit live/service prerequisites plus the expected Git-index mode skip because `.git` is absent. Focused Web Console/structural coverage is **13 passed**. Legacy selftest is **ALL PASS**; compileall, launcher `py_compile`, and packaging/tool shell syntax are **PASS**. Ruff `0.16.7` and mypy `2.3.1` remain **NOT_RUN** because the executables are unavailable. The dependency-free offline builder emitted `netconfig-2.0.0-46.el10.noarch.rpm` twice byte-identically; independent verification passed and SHA-256 is `5b26c9ae73ac4248171196ee3637f51bd238fed090c4ce3fa820419842f510cd`. Canonical AlmaLinux 10 `rpmbuild`/DNF install-upgrade/systemd/SELinux and other Q-1 live/device gates remain **NOT_RUN / DEFERRED**.
+
+
+> **Roadmap disposition — 2026-09-23:** The monitoring/correlation roadmap is active. MC-1 through MC-3 are implemented in source as `IMPLEMENTED_TESTING_DEFERRED`; the next planned slice is **MC-4 / Release 52 — Unified Alert Plane**. NI-7 remains implemented and Q-1 remains an open production/service qualification track. Do not invent NI-8/Q-2 or skip the defined MC sequence without an explicit roadmap decision.
+
+## Release 45 — Operator UX Simplification
+
+Release 45 addresses operator usability rather than adding a new Network Intelligence phase. The main navigation no longer exposes a duplicate **Network Intelligence** entry because that function already exists inside **Operations**. `/operations` now opens a task-oriented **Overview** explaining which workflow to use for one-off structured changes, desired state, campaigns, telemetry, intelligence, automation requests, model packs, and HA/DR. The repaired automation ledger is renamed **Automation Requests** to make its purpose explicit.
+
+`/protocols` remains route-compatible but is presented as **Device Collection**: current read protocols are shown first, **Collect now** is the normal action, and NETCONF/RESTCONF/gNMI profile editing is placed under an Advanced disclosure. The MIB library now explains that MIBs are dictionaries rather than product features, surfaces only useful counts and lookup by default, and hides the raw file inventory under Advanced. Per-device SNMP pages likewise hide raw OID walks and vendor MIB values under Advanced sections; normal operational interface, ARP, and MAC/FDB views remain first-class.
+
+There is no schema or public REST contract change. Package release advances to `2.0.0-45` because shipped web/runtime source changed. Status remains `IMPLEMENTED_TESTING_DEFERRED`; NI-7 remains the feature baseline and Q-1 remains open.
+
+**Release 45 qualification on the archive-derived workspace:** repository tests executed in four bounded groups total **221 passed / 8 skipped / 0 failed**; the eight skips are seven live/service prerequisites plus the expected Git-index mode skip because `.git` is absent. Focused Web Console regressions cover the Operations overview, single-surface Network Intelligence navigation, Automation Requests HTTP rendering, Device Collection guidance, and MIB purpose/advanced-library presentation. Legacy selftest is **ALL PASS**; compileall and packaging/tool shell syntax are **PASS**. Ruff `0.16.7` actual execution remains **NOT_RUN** because the executable is unavailable. The offline RPM builder emitted `netconfig-2.0.0-45.el10.noarch.rpm` twice byte-identically; independent verification passed and SHA-256 is `91cfea8b74a4c9b65472bafd59852513bf30a1adb9d87f5c6be3023e4a246efd`. Canonical AlmaLinux `rpmbuild`/DNF/systemd/SELinux remains `NOT_RUN`.
+## 2026-09-18 design decisions — site resilience, operator UX, and MIB summaries
+
+These are recorded design decisions for future work. They do **not** create a new implementation phase, do not change the Release 45 runtime, and do not promote the project beyond `IMPLEMENTED_TESTING_DEFERRED`.
+
+- **Distributed collection is justified by site survivability, not only scale.** A site must continue observing local network state even when its WAN/uplink path to the central NetConfig controller is lost. This addresses the failure mode where a central monitor can detect a fault but cannot deliver the alert because the same path needed for notification has failed.
+- **Central Controller responsibilities:** global inventory, global topology/correlation, aggregated analytics, cross-site visibility, central audit, and configuration/change-control workflows.
+- **Site Edge / Collector responsibilities:** read-only device polling, local cache/spool, local health evaluation, local alert generation/history, local UI, store-and-forward telemetry, and an independent heartbeat to the controller. Site isolation must be represented explicitly rather than treated as generic collector failure.
+- **Collectors are read-only by default.** Allowed collection operations include SNMP GET/WALK, NETCONF GET/read, RESTCONF GET/read, and gNMI subscribe/read. Configuration push and arbitrary SSH are prohibited by default. Future distributed write execution must use a separate **Execution Node** or an explicitly authorized execution role with the existing change-control safety boundaries.
+- **Alert-path resilience:** local alerts must be persisted when the controller/primary notification path is unreachable and replayed/synchronized after connectivity returns. Future optional fallback notification channels may include a local relay, secondary WAN, LTE/5G, SMS, or other out-of-band paths; none are claimed implemented by this documentation decision.
+- **Configuration terminology:** user-facing `Configuration Baselines` should be described as **Configuration Baselines / Templates & Drift** so the baseline/template/drift use case is immediately understandable.
+- **Approval scope:** retain the existing approval/request functionality for compatibility and safety, but do not expand the approval model now. Future integration may delegate/bridge approval authority to systems such as ServiceNow/SOAR while preserving NetConfig execution-time validation and fail-closed safety checks.
+- **MIB UX direction:** raw MIB/OID data remains available for advanced troubleshooting, but normal operator views should summarize collected evidence into feature-oriented sensor cards/health indicators such as **Loop Protection — enabled ports / loop detected / last event**, PoE, STP, LACP, port errors, thermal/fan/PSU state, FDB/ARP coverage, and similar operational meaning.
+- **I/O rule for visualization:** sensor cards should reuse already-collected DB/cache evidence by default. Visualization alone must not shorten poll intervals or add new device walks. New OIDs, higher-frequency polling, or additional collection breadth require a separate explicit design/qualification decision.
+
+
+## Release 44 — Intent Automation Operations Repair
+
+Release 44 fixes a real Web Console defect in `Operations -> Intent Automation`: `_TABS` accepted `tab=intents`, but `_operations_page()` had no `intents` renderer entry, so `GET /operations?tab=intents` raised `KeyError: 'intents'` and returned a server-error page. The renderer map now routes to `_ops_intents()`, which provides a read-only durable automation-request ledger plus links into the typed Structured Change / Desired State / Campaign creation paths. It does not create a direct network-write path; execution remains behind frozen snapshots, separate approval, current-snapshot revalidation, verification, and audit.
+
+HTTP-level regression coverage now requests `/operations?tab=intents` and requires a `200` response with the Intent Automation content instead of a server error. Release 43's left sidebar, supplied green theme, and neutral NetConfig branding are preserved. There is no schema or public REST contract change. Package release advances to `2.0.0-44` because shipped runtime source changed.
+
+Release 44 source-tree qualification on the archive-derived workspace is **219 passed / 8 skipped / 0 failed** with `PYTHONPATH=.`. The eight skips are the seven live/service prerequisites plus the expected Git-index executable-mode skip because `.git` is absent. Focused HTTP regression for `/operations?tab=intents` passes. Legacy selftest is **ALL PASS**; compileall and packaging/tool shell syntax are **PASS**. Ruff `0.16.7` actual execution remains **NOT_RUN** because no Ruff executable is available. The Release 44 offline helper RPM was built twice byte-identically and independently verified; SHA-256 is `446b0cb5ce6d8912bc7813af46b6a05761704a7a84970ca135ff4007237ced91`. Canonical AlmaLinux `rpmbuild`/DNF/systemd/SELinux qualification remains `NOT_RUN`.
+
+
+> **Latest complete-source target:** `netconfig-2.0.0-48-sensor-model-evidence-normalization-v25.zip` (Release 48 / `2.0.0-48`, `IMPLEMENTED_TESTING_DEFERRED`).
+
+## Historical Release 43 — Offline RPM Builder Integration
+
+Release 43 adds `tools/rpm-builder/`, a deterministic dependency-free RPM emitter plus an independent offline verifier. The helper reads `packaging/netconfig.spec`, packages only the canonical NetConfig runtime payload, preserves executable/config ownership semantics, encodes lifecycle scriptlets and dependencies, and verifies RPM header digests, gzip/newc payload integrity, source-byte identity, modes, `CONFIG|NOREPLACE`, requirements, and scriptlets. `SOURCE_DATE_EPOCH=1789689600` is the deterministic default for this release. The same source and epoch must produce byte-identical RPMs. This helper is **not** the production qualification authority: canonical AlmaLinux 10 `rpmbuild`, `rpm -qp`, DNF install/upgrade, systemd restart/reboot, SELinux behavior, and remaining Q-1 live gates stay deferred until actually executed.
+Release 43 candidate qualification from a real Git fresh clone is **218 passed / 7 skipped / 0 failed**; the seven skips are the existing PostgreSQL/backup and OpenSSH/Net-SNMP live-service gates. The same clone verifies **12/12 required executable paths at Git mode `100755`**, source-manifest integrity, legacy selftest **ALL PASS**, compile/launcher/package-shell checks, and a clean post-test worktree. An archive-derived source tree without `.git` is **217 passed / 8 skipped / 0 failed** because the Git-index mode test correctly skips. The offline builder produced `netconfig-2.0.0-43.el10.noarch.rpm` twice with identical SHA-256 `095b32b594b771e37e83c2cc89a27e9f87d8c5ae925d81ad94510083f0e612a1`; the independent verifier passed RPM header digest, compressed payload digest, gzip/newc parsing, payload/source byte identity, modes, `CONFIG|NOREPLACE`, dependencies, and lifecycle scriptlets. This remains offline evidence only; canonical AlmaLinux `rpmbuild`/DNF/systemd/SELinux is `NOT_RUN`.
+
+
+
+## Historical Release 41 handoff — corrective REST + Git/Ruff hardening
+
+At the Release 41 checkpoint, `2.0.0-41` was the active full-source baseline. The Release 40 NI-7 feature set remains intact. Campaign retry REST parsing is fixed and covered at the HTTP route layer; clean-clone executable modes are a Git-index gate; identified Ruff correctness/style debt has been reduced without widening ignores. Final fresh-clone repository regression is **213 passed / 7 skipped / 0 failed** with 8/8 Git index modes `100755`, selftest/compile/package-shell PASS, manifest verification PASS, and a clean post-test worktree. Ruff/mypy actual execution and Q-1 live PostgreSQL/protocol/vendor/AlmaLinux gates remain `NOT_RUN`/deferred where prerequisites are unavailable.
+
+
+## Historical Release 40 handoff — NI-7 L3/VRF Path & Route Dependency Intelligence
+
+At the historical Release 40 checkpoint, `2.0.0-40` was the active full-source baseline. NI-7 is implemented with durable `l3_route_observations`, `analytics/l3.py`, `AnalyticsService` L3 route/path/dependency methods, scoped REST endpoints, and Network Intelligence UI workflows. Preserve fail-closed rules: same-VRF only; never infer managed next-device identity from next-hop IP; stop on missing, unmanaged, mixed terminal/non-terminal, loop, or multipath-ambiguous evidence; route dependency is a candidate rather than an outage verdict; analytics cannot execute configuration. Source regression before final packaging is **211 passed / 7 skipped / 0 failed**. Q-1 live PostgreSQL/protocol/vendor/AlmaLinux gates remain deferred.
 
 ### Release 40 final delivery qualification
 
@@ -17,11 +88,11 @@ Historical Release 39 used `2.0.0-39` as the active baseline at that checkpoint.
 
 ## Release 38 handoff — Git reproducibility
 
-Use Release 38 / `2.0.0-38` as the active baseline. Eight required launcher/packaging files are committed with Git mode `100755`; CI checks the Git index directly. A fresh clone reproduced those modes and passed **204 pytest / 7 skipped / 0 failed**, legacy selftest, compileall, launcher compile, and shell syntax with a clean post-test worktree. Ruff/mypy remain NOT_RUN in the isolated artifact runner; do not report them as PASS until an environment with the real tools executes the configured gates.
+At the historical Release 38 checkpoint, `2.0.0-38` was the active baseline. Eight required launcher/packaging files are committed with Git mode `100755`; CI checks the Git index directly. A fresh clone reproduced those modes and passed **204 pytest / 7 skipped / 0 failed**, legacy selftest, compileall, launcher compile, and shell syntax with a clean post-test worktree. Ruff/mypy remain NOT_RUN in the isolated artifact runner; do not report them as PASS until an environment with the real tools executes the configured gates.
 
 ## Release 34 handoff truth
 
-The current implementation baseline is UI-1 / Release `2.0.0-34`, built directly from the verified Release 33 FULL source artifact (`ca0a8b9d...0dccb`). UI-1 is a Web Console layer over the already-implemented PH-4/NI-5/VM-1/NA-1/NA-2/HA-1 services; it does not replace or bypass those services.
+At the historical Release 34 checkpoint, the implementation baseline was UI-1 / Release `2.0.0-34`, built directly from the verified Release 33 FULL source artifact (`ca0a8b9d...0dccb`). UI-1 is a Web Console layer over the already-implemented PH-4/NI-5/VM-1/NA-1/NA-2/HA-1 services; it does not replace or bypass those services.
 
 Continue from the Release 34 FULL source baseline. Preserve: durable CR approval and frozen snapshot/hash revalidation for all network writes; admin-only structured recovery/model lifecycle/cluster-node state changes; viewer read-only access; CSRF and CSP nonce enforcement; `web.py` <4000 lines and <240 KB; metadata-only protocol trace; Q-1/live qualification truth; session idle/absolute expiry remains deferred. Do not claim live device/PostgreSQL/RPM qualification from the offline UI-1 evidence.
 
@@ -32,7 +103,7 @@ The latest implementation baseline is Release `2.0.0-33`, schema revision `ha1-2
 
 Preserve these Release 33 invariants: all network mutations use the durable request/approve/execute workflow; automation snapshots/model-pack hashes are frozen and revalidated; `RECOVERY_REQUIRED` blocks blind replay; desired-state rollback is compensating/reverse-order; campaign plans are frozen with stable retry identity; DRAINING/DRAINED HA nodes reject new automation work. Session idle/absolute expiry is still explicitly deferred.
 
-> **Current continuation pointer:** use **Release 40 / NI-7 L3/VRF Path & Route Dependency Intelligence** as the active full-source baseline. Preserve `IMPLEMENTED_TESTING_DEFERRED`; Q-1 live qualification remains deferred and independent of further roadmap review.
+> **Current continuation pointer:** use **Release 51 / MC-3 Normalized Operational Evidence** (`2.0.0-51`) as the active full-source baseline. Preserve `IMPLEMENTED_TESTING_DEFERRED`. MC-1 through MC-3 are implemented in source; the next roadmap slice is **MC-4 / Release 52 — Unified Alert Plane**. Sensor generation/history and Sensor→Event normalization must not add device I/O; unchanged Sensor refreshes create no event, and missing evidence remains `UNKNOWN` rather than an automatic critical verdict. Formal RPM qualification remains deferred until the roadmap is complete.
 
 ## Historical checkpoint — Qualification Q-1
 
@@ -46,7 +117,7 @@ Clean Q-1 candidate `netconfig_qualification_q1_candidate_2026-09-12.zip` (SHA-2
 
 ## Project
 NetConfig (reconstructed from `netconfig-2.0.0-14`; current packaging target
-`netconfig-2.0.0-34.el10` per the current source spec; RPM build/install qualification remains deferred until the Q-1 AlmaLinux gate is run)
+`netconfig-2.0.0-34.el10` per the then-current Release 34 source spec; RPM build/install qualification remains deferred until the Q-1 AlmaLinux gate is run)
 
 ## Objective
 Continue development and improvement of the NetConfig platform from the
@@ -56,7 +127,7 @@ layout.
 `patch.md` is now the required chronological patch/version ledger. Future AI
 work must read and update it together with this overall handoff.
 
-For the current concise state, verification evidence, and next development order, read
+For the current concise state, verification evidence, and roadmap/qualification disposition, read
 `DEV_BASELINE.md`, `TESTING_RESULT_2026-09-11.md`, and `ROADMAP.md` first. The dated
 2026-09-07 handover/testing files are retained as historical context only.
 After a completed development stage or README/handover/version-document update,
@@ -392,7 +463,9 @@ No implementation is currently in progress. The compatibility and SNMP/MIB
 visibility work is complete. Config archive full-text search is specified
 above but has not been implemented.
 
-## Recommended Next Step
+## Historical Recommended Next Step (superseded)
+
+This recommendation predates the implemented NI/PH roadmap and is retained only as chronology. It is **not** the current next development task. At that historical point the proposed work was:
 
 Implement the config archive full-text search feature specified above:
 
@@ -704,7 +777,9 @@ Real vendor protocol interoperability, TLS/mTLS interoperability, production cre
 No next implementation phase is assigned. When the user asks for the next phase, perform the roadmap / qualification review first and choose a phase explicitly; do not infer a numbered implementation phase from historical labels.
 
 
-# Canonical Architecture Split — PH vs NI
+# Historical Architecture Planning Snapshot — PH vs NI
+
+> The status values in this retained planning snapshot describe an earlier roadmap point. They are **not current work assignments**. PH-5/PH-6 and NI phases were subsequently implemented as recorded in later release sections; current status and sequencing are controlled by `ROADMAP.md`, where no new development phase is presently assigned.
 
 ## PH — Platform Hardening / Safe Device Change
 
@@ -940,7 +1015,7 @@ NI-6.1 through NI-6.6 plus Enterprise Operations & Qualification Hardening are i
 
 ## Current NI-6 enterprise handoff
 
-Active source is Release 37 NI-6 Enterprise Operations & Qualification Hardening. Offline source and clean-extraction qualification are green (202 passed / 7 skipped, selftest ALL PASS); Q-1/live PostgreSQL/protocol/vendor/device/scale gates remain deferred. Continue from the final full-source artifact, not an older NI-6.6 library-only package.
+Historical source at that checkpoint was Release 37 NI-6 Enterprise Operations & Qualification Hardening. Offline source and clean-extraction qualification are green (202 passed / 7 skipped, selftest ALL PASS); Q-1/live PostgreSQL/protocol/vendor/device/scale gates remain deferred. Continue from the final full-source artifact, not an older NI-6.6 library-only package.
 
 ## Release 37 RPM install handoff — 2026-09-16
 
@@ -953,3 +1028,55 @@ RPM-install v3 candidate artifact qualification is clean: 175/175 file byte iden
 Active baseline is Release 40 / `2.0.0-40`. NI-7 is implemented through `analytics/l3.py`, `analytics/service.py`, `l3_route_observations`, scoped analytics API routes, and the Network Intelligence Operations tab. Safety invariants: VRF never crosses; next-device identity is never inferred from next-hop IP; missing/unmanaged/multipath/loop evidence fails closed; route dependency is a candidate, not an outage claim; analytics never execute configuration. Q-1 live service/vendor/AlmaLinux gates remain deferred independently. Source regression before packaging is **211 passed / 7 skipped / 0 failed**.
 
 Release 40 fresh-clone evidence: **211 passed / 7 skipped / 0 failed**, selftest/compile/shell/YAML/manifests PASS, 8/8 required Git executable modes, and clean post-test worktree after cache removal. Q-1 live gates remain deferred.
+
+## Documentation truth-sync continuation note
+
+Use `DOCUMENTATION_STATUS.md` before relying on a release-specific Markdown section. All maintained Markdown now identifies current Release 43 truth or historical evidence. Do not reinterpret historical test counts as current. The documentation-only sync does not change runtime source semantics; Ruff/mypy actual execution and Q-1 live gates remain open.
+
+## 2026-09-22 — Release 50 working baseline: NetFlow device-form visibility fix
+
+- Fixed the Device edit form so the NetFlow section is visible server-side for `network` devices.
+- Root cause: `netflow_section`, `portmon_section`, and `appmon_section` were rendered with inline `style="display:none"`; the JavaScript toggler only changed the `hidden` property, so the inline CSS kept the sections invisible.
+- Replaced unconditional inline hiding with server-side `hidden` attributes based on the selected device type; the existing JavaScript toggler continues to update visibility when device-type checkboxes change.
+- Added WebUI regressions proving a network-device edit page contains a visible NetFlow section and a non-network application device keeps it hidden.
+- No NetFlow collector/parser behavior or device I/O was changed.
+- RPM remains deferred until the roadmap implementation is complete.
+
+
+## 2026-09-22 — UI/CSS regression review
+
+A fresh console review found and corrected cross-cutting presentation regressions introduced by the CSS/theme consolidation: a second `hidden`/`display:none` conflict on the dashboard no-results message; stale custom properties (`--txt`, `--bad`, `--brass`, `--brass2`, `--muted`); checkbox/radio controls inheriting the global 100% input width; dynamic graph markup bypassing theme classes; narrow-screen header wrapping; narrow-screen table overflow; and long Help inline-code overflow. The strict-CSP renderer still converts server-side `style=` attributes into nonce-authorized generated classes, and representative rendered pages were checked to contain zero residual inline-style attributes after transformation. Browser rendering smoke checks at 1440px and 390px showed no document-level horizontal overflow on Dashboard, Protocols, Settings, Help, or network/application Device Edit pages after the fixes; Network-device NetFlow remains visible while non-network NetFlow remains hidden.
+
+Focused regression: `tests/test_css_regression_review.py`, `tests/test_ui1_web_console.py`, and `tests/test_platform_hardening_ph1.py` pass together. Full repository evidence must still preserve explicit live/integration skips and must not be promoted to `TESTED` or `RELEASED`.
+
+Final review evidence: focused CSS/WebUI/CSP regression is **27 passed / 0 failed**. Bounded full repository regression totals **248 passed / 8 skipped / 0 failed**. The eight skips are the expected source-archive Git metadata check plus seven explicit live PostgreSQL/backup/protocol-service prerequisites. Representative rendered-page Chromium smoke at 1440px and 390px found no document-level horizontal overflow on Dashboard, Protocols, Settings, Help, or network/application Device Edit pages after the fixes. See `CSS_UI_REVIEW_2026-09-22.md`.
+
+## Release 50 MC-2 continuation state — 2026-09-23
+
+MC-2 is implemented in source. The authoritative history path is `SensorEngine.upsert()` → `SensorHistoryRecorder.record()` → `sensor_observations` / `sensor_transitions`. Do not reintroduce pre-upsert deletion of active Sensor rows; that destroys transition continuity. Interface rows are reconciled after upsert. History reads are read-only and must never trigger collection. Observation retention is 30 days; transition retention is 180 days. Next planned roadmap slice is MC-3 Normalized Operational Evidence.
+## 2026-09-23 — Release 50 MC-2 regression evidence
+
+Final source-tree regression was executed in bounded groups after the MC-2 runtime/API/WebUI/retention changes: **260 passed / 8 skipped / 0 failed**. The eight skips are the expected source-archive/live-service gates: one Git-index executable-mode check (no `.git` in source ZIP), three live PostgreSQL tests, one PostgreSQL backup/restore drill, and three protocol-service integration tests. `python3 opt/netconfig/selftest.py` reports **RESULT: ALL PASS**; `compileall` passes; packaging/rpm-builder shell syntax passes. Ruff and mypy remain `NOT_RUN`.
+
+## Release 51 MC-3 handoff state — 2026-09-23
+
+MC-3 Normalized Operational Evidence is implemented in source and remains `IMPLEMENTED_TESTING_DEFERRED`. Canonical schema revision: `mc3-operational-evidence-1`. Event rows now contain the cross-domain semantic envelope (`event_type`, `domain`, `source`, `entity_type`, `entity_id`, `device`, `resource`, `severity`, `status`, `observed_at`, `evidence_ref`, `message`, `metadata`) while retaining legacy NI-3 compatibility fields.
+
+Sensor→Event behavior is transition-only: manager capture high-water mark → DB-only Sensor refresh → newly persisted transition rows → `OperationalEventStore.record_sensor_transition()`. Do not reintroduce request-time polling or direct duplicate reachability events. `UNKNOWN` is evidence absence/loss and must not be promoted to CRITICAL merely because evidence is missing. The same `sensor-transition:<id>` evidence reference must remain idempotent.
+
+Next roadmap slice: **MC-4 / Release 52 — Unified Alert Plane**. Formal RPM qualification remains deferred until the monitoring/correlation roadmap is complete.
+
+Release 51 local verification evidence: MC-3 focused **10 passed**; bounded repository **270 passed / 8 skipped / 0 failed**; legacy selftest **ALL PASS**; compileall/Python syntax/shell syntax **PASS**; Release 50 SQLite → Release 51 MC-3 additive migration/backfill **PASS**. The eight skips remain the source-archive Git-index check plus seven explicit live PostgreSQL/backup/protocol-service gates. Ruff/mypy remain `NOT_RUN` because the binaries are unavailable.
+
+## 2026-09-23 — R51-HF1 pre-MC4 SNMPv3 + Topology compatibility hotfix
+
+Status remains `IMPLEMENTED_TESTING_DEFERRED`; the package/release line remains `2.0.0-51` and MC-4 / Release 52 remains `PLANNED`.
+
+This hotfix repairs the Release 51 operational baseline before MC-4. Standard SNMPv3 `aes192` / `aes256` privacy now use the Blumenthal key-extension semantics used by Net-SNMP `AES-192` / `AES-256`; Cisco/Reeder key extension remains available only through explicit `aes192c` / `aes256c` compatibility modes. Engine discovery behavior is unchanged. The live FortiGate SHA1+AES256 case that exposed the mismatch must still be revalidated on the target device after deploying this source; no live-device PASS is claimed here.
+
+`netconfig topology --discover` now prompts/unlocks the Vault in the same CLI process before it requests SNMP/SSH credentials. The read-only topology model now guarantees one node for every managed inventory device even when LLDP/CDP is absent. Persisted FDB/MAC evidence can add an `INFERRED` path between uniquely matched managed device MAC identities, but that path is explicitly non-authoritative (`direct_adjacency=false`) and is excluded from downstream-impact traversal. LLDP/CDP resolved edges remain `OBSERVED` direct adjacency. The graph/API/UI use persisted evidence only and add no collection/device I/O.
+
+The Topology Web console now renders an interactive dependency-free SVG canvas with draggable nodes, pan/zoom, reset view and reset layout. Layout is stored only in browser `localStorage` (`netconfig-topology-layout-v1`) and never changes topology/evidence truth. `GET /api/v1/topology/graph` exposes the same normalized read-only graph.
+
+Offline verification: hotfix focused **8 passed**; topology/Web/PH-1/legacy combined **40 passed**; bounded repository **278 passed / 8 skipped / 0 failed** (278 ordinary tests plus 1 source-archive Git-metadata skip; seven live PostgreSQL/backup/protocol-service integration skips); legacy selftest **ALL PASS**; compileall, launcher `py_compile`, packaging/rpm-builder shell syntax **PASS**. Ruff/mypy are `NOT_RUN` because the binaries are unavailable. Formal RPM qualification remains deferred.
+

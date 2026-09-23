@@ -1,6 +1,27 @@
 # NetConfig Patch Ledger
 
-> **Canonical project state — 2026-09-17:** **CURRENT IMPLEMENTATION BASELINE** = **Release 40 / NI-7 L3/VRF Path & Route Dependency Intelligence** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-40`; NI-1 through NI-7 and Enterprise Operations are implemented in source. Q-1 live PostgreSQL/protocol/vendor/device/AlmaLinux gates remain deferred/`NOT_RUN`; Release 40 does not promote them to PASS.
+> **Canonical project state — 2026-09-23:** **CURRENT IMPLEMENTATION BASELINE** = **Release 51 / MC-3 Normalized Operational Evidence + R51-HF1 pre-MC4 compatibility hotfix** (`2.0.0-51`, `IMPLEMENTED_TESTING_DEFERRED`). MC-1 Sensor Integration Unification and MC-2 Sensor History & State Transitions remain implemented. Release 51 adds a normalized cross-domain operational-evidence envelope, durable Sensor-transition → Event bridging, recovery/`UNKNOWN` semantics, additive event-schema migration/backfill/indexes, filtered/detail Event API reads, and an Event detail UI with current related Sensor state. NI-1 through **NI-7 L3/VRF Path & Route Dependency Intelligence** remain implemented. Formal RPM qualification remains deferred until the monitoring/correlation roadmap is complete; any ad-hoc RPM remains development evidence only.
+
+> **Roadmap disposition — 2026-09-23:** The monitoring/correlation roadmap is active. MC-1 through MC-3 are implemented in source as `IMPLEMENTED_TESTING_DEFERRED`; the next planned slice is **MC-4 / Release 52 — Unified Alert Plane**. NI-7 remains implemented and Q-1 remains an open production/service qualification track. Do not invent NI-8/Q-2 or skip the defined MC sequence without an explicit roadmap decision.
+
+
+## PATCH-20260918-02 — Release 43 — All-Markdown Roadmap / Truth Sync
+
+- **Scope:** documentation only; all 40 Markdown files updated. No runtime/schema/API behavior change and no RPM Release bump.
+- **Roadmap:** post-NI-7 review closed with no new development phase assigned; NI-7 remains the feature baseline; Q-1 remains an open qualification track.
+- **Ownership:** `Q1_PRODUCTION_QUALIFICATION.md` is current/maintained rather than historical-only.
+- **Stale-pointer cleanup:** current handoff/baseline/progress/packaging language updated to Release 43; retained historical `NEXT`/`PLANNED` material explicitly marked as chronology.
+- **Qualification boundary:** Ruff `0.16.7`, mypy and Q-1 live gates remain `NOT_RUN`/deferred unless actually executed.
+
+## PATCH-20260917-01 — Release 41 — Corrective REST + Git/Ruff Hardening
+
+- **Parent:** Release 40 NI-7 L3/VRF Path & Route Dependency Intelligence.
+- **Target:** `2.0.0-41`; no schema revision.
+- **Correctness:** fixed `POST /api/v1/campaigns/{id}/retry` to read `wave` from list-valued `form`; added HTTP route tests for explicit and omitted wave.
+- **Reproducibility:** Git-index regression requires all eight launcher/packaging executables at `100755`; archive modes are independently checked at `0755`.
+- **Lint hardening:** corrected identified F821/B018/B905/B007/F401/F841-style findings without widening ignores; actual Ruff `0.16.7` execution remains `NOT_RUN`.
+- **Verification:** final Git fresh clone / bundle **213 passed / 7 skipped / 0 failed**; full-source and RPM-build-source archives **212 passed / 8 skipped / 0 failed** because archives omit `.git`.
+- **Deferred:** upstream external-repository mode patch application, Release 41 binary RPM build/install, Ruff/mypy actual execution, and Q-1 live service/vendor/AlmaLinux gates.
 
 ## PATCH-20260913-01 — Release 34 — UI-1 Unified Automation & Operations Console
 
@@ -27,7 +48,7 @@
 - **Artifact candidate:** Clean Release 33 candidate `netconfig_release33_candidate_2026-09-12.zip` (SHA-256 `d03720a411b796458747f7d8976a8fa01f4f40859b5e51341ef031aaa343f538`) passed the artifact gate: ZIP CRC **PASS**; path traversal **0**; symlinks **0**; caches **0**; text CR offenders **0**; source/extracted byte identity **132/132 PASS**; payload plus each SHA/release manifest **128/128 PASS**; required executable modes **7/7 = 0755**. From the clean extraction: Release 33 focused **23 passed**, PH-2 **9 passed**, PH-3 **22 passed**, Q-1 **11 passed**, full repository **168 passed / 7 skipped** in the isolated full-suite rerun, legacy selftest **ALL PASS**, and compileall/launcher py_compile/packaging shell syntax **PASS**. A first command that chained all suites hit the execution-tool timeout after full pytest reached ~82%; that interrupted run is not counted as PASS. The same candidate full suite was then rerun alone and completed cleanly (**168 passed / 7 skipped in 22.90s**).
 - **Deferred:** session idle/absolute expiry remains explicit security debt; Q-1 live service/RPM/vendor qualification remains outstanding.
 
-> **Current continuation pointer:** use the Release 34 FULL source baseline as the active implementation source. UI-1 remains `IMPLEMENTED_TESTING_DEFERRED`; execute the applicable Q-1/live qualification gates before any promotion to `TESTED`/`RELEASED`. No next development phase is auto-assigned; perform a fresh roadmap review after qualification.
+> **Current continuation pointer:** use **Release 51 / MC-3 Normalized Operational Evidence** (`2.0.0-51`) as the active full-source baseline. Preserve `IMPLEMENTED_TESTING_DEFERRED`. MC-1 through MC-3 are implemented in source; the next roadmap slice is **MC-4 / Release 52 — Unified Alert Plane**. Sensor generation/history and Sensor→Event normalization must not add device I/O; unchanged Sensor refreshes create no event, and missing evidence remains `UNKNOWN` rather than an automatic critical verdict. Formal RPM qualification remains deferred until the roadmap is complete.
 
 ## PATCH-20260912-01 — Release 32 — Qualification Q-1
 
@@ -478,3 +499,26 @@ PH-2 candidate packaging integrity: `6dfd6e554b08883c51a6f268bbe604bf95cc7819dad
 - **Scope:** durable route observations; same-VRF bounded path simulation; route dependency candidates; `L3_PATH`/`ROUTE_DEPENDENCY` insights; API/UI integration.
 - **Safety:** no next-hop identity inference, no VRF crossing, no arbitrary ECMP selection, no direct remediation/configuration execution.
 - **Verification before packaging:** NI-7 focused **5 passed**; full repository **211 passed / 7 skipped / 0 failed**. Q-1 live gates remain deferred.
+
+## 2026-09-23 — Release 50 MC-2 completion patch
+
+- fixed missing `SensorEngine.history` initialization in the MC-2.2 working source;
+- completed durable observation/transition recording and threshold-aware severity normalization;
+- preserved previous active Sensor rows through generator refresh so transitions are detectable;
+- added restart-safe unchanged-state suppression and UNKNOWN evidence semantics;
+- added bounded 30d/180d history retention and supporting indexes;
+- added read-only history/transition APIs and device transition timeline;
+- added MC-2 focused/API/WebUI/retention/index tests.
+
+## PATCH-20260923-R51-HF1 — Pre-MC4 SNMPv3 + Topology compatibility hotfix
+
+- **Parent:** Release 51 / MC-3 Normalized Operational Evidence (`2.0.0-51`).
+- **Status:** `IMPLEMENTED_TESTING_DEFERRED`; MC-4 / Release 52 remains `PLANNED`.
+- **SNMPv3:** generic AES-192/AES-256 uses Blumenthal key extension compatible with Net-SNMP; Cisco/Reeder is explicit `aes192c` / `aes256c`.
+- **Topology CLI:** `--discover` unlocks the Vault in-process before credentialed discovery.
+- **Topology truth:** every managed inventory device appears as a node; LLDP/CDP is `OBSERVED`; unique persisted FDB/MAC correlation may add non-direct `INFERRED` paths; inferred paths are excluded from downstream-impact traversal.
+- **Web/API:** interactive dependency-free drag/pan/zoom topology canvas with browser-local layout only; added read-only `GET /api/v1/topology/graph`.
+- **Device I/O:** none added; graph/UI/API consume already-persisted evidence.
+- **Verification:** hotfix focused 8 passed; combined topology/Web/PH-1/legacy 40 passed; bounded repository aggregate 278 passed / 8 skipped / 0 failed; legacy selftest ALL PASS; compileall/launcher/shell syntax PASS; Ruff/mypy NOT_RUN.
+- **Deferred:** live FortiGate SHA1+AES256 confirmation, real vendor topology/FDB behavior, live PostgreSQL/backup/protocol services, formal RPM qualification.
+

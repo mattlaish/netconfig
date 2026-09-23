@@ -84,7 +84,7 @@ def test_phase4f_operator_web_incident_lifecycle_and_timeline(tmp_path):
                 "csrf": csrf,
                 "title": "Web incident",
                 "severity": "HIGH",
-                "tags": "hospital,network",
+                "tags": "critical,network",
                 "description": "Created from the Phase 4F console",
             },
         )

@@ -7,7 +7,7 @@ ambiguous multipath observations, and never performs a device mutation.
 from __future__ import annotations
 
 from dataclasses import dataclass, asdict
-from typing import Iterable
+from collections.abc import Iterable
 
 
 @dataclass(frozen=True)

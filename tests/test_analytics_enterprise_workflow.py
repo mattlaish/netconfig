@@ -157,7 +157,7 @@ def _api_request(server, token, method, path, payload=None):
 
 def test_analytics_api_requires_scopes_and_persists_operator_actions(tmp_path):
     manager = _manager(tmp_path)
-    token_id, raw = __import__("netconfig.apitokens", fromlist=["ApiTokens"]).ApiTokens(manager.db.conn).create(
+    _token_id, raw = __import__("netconfig.apitokens", fromlist=["ApiTokens"]).ApiTokens(manager.db.conn).create(
         "analytics-operator", {"analytics:read", "analytics:write"}, created_by="test", role="operator"
     )
     Console.manager = manager; Console.tls_enabled = False

@@ -52,6 +52,10 @@ jobs:
             packaging/q1-qualify-postgres.sh
             packaging/q1-source-gates.sh
             packaging/smoke-installed.sh
+            tools/rpm-builder/build.sh
+            tools/rpm-builder/verify.sh
+            tools/rpm-builder/rpm_builder.py
+            tools/rpm-builder/verify_rpm.py
           )
           for f in "${required[@]}"; do
             mode="$(git ls-files --stage -- "$f" | awk '{print $1}')"
@@ -81,6 +85,16 @@ jobs:
           opt/netconfig/netconfig/workflow.py
       - name: Compile all modules
         run: python -m compileall -q opt/netconfig/netconfig
+      - name: Offline RPM builder reproducibility
+        run: |
+          rm -rf dist
+          ./tools/rpm-builder/build.sh
+          ./tools/rpm-builder/verify.sh ./dist/netconfig-2.0.0-42.el10.noarch.rpm
+          first="$(sha256sum ./dist/netconfig-2.0.0-42.el10.noarch.rpm | awk '{print $1}')"
+          rm ./dist/netconfig-2.0.0-42.el10.noarch.rpm
+          ./tools/rpm-builder/build.sh
+          second="$(sha256sum ./dist/netconfig-2.0.0-42.el10.noarch.rpm | awk '{print $1}')"
+          test "$first" = "$second"
       - name: Pytest
         run: pytest
       - name: Legacy self-test compatibility

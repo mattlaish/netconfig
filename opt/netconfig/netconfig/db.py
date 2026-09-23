@@ -47,6 +47,58 @@ CREATE TABLE IF NOT EXISTS runs (
 );
 CREATE INDEX IF NOT EXISTS idx_runs_device ON runs(device, ts);
 
+
+-- ---- sensor history (MC-2) -----------------------------------------------
+CREATE TABLE IF NOT EXISTS sensor_observations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sensor_key TEXT NOT NULL DEFAULT '',
+    sensor_type TEXT NOT NULL DEFAULT '',
+    device TEXT NOT NULL DEFAULT '',
+    resource TEXT NOT NULL DEFAULT '',
+    value TEXT NOT NULL DEFAULT '',
+    unit TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'UNKNOWN',
+    message TEXT NOT NULL DEFAULT '',
+    source TEXT NOT NULL DEFAULT '',
+    observed_at REAL NOT NULL,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at REAL
+);
+CREATE INDEX IF NOT EXISTS idx_sensor_observations_device_time
+    ON sensor_observations(device, observed_at);
+CREATE INDEX IF NOT EXISTS idx_sensor_observations_key_time
+    ON sensor_observations(sensor_key, observed_at);
+CREATE INDEX IF NOT EXISTS idx_sensor_observations_type_time
+    ON sensor_observations(sensor_type, observed_at);
+CREATE INDEX IF NOT EXISTS idx_sensor_observations_resource_time
+    ON sensor_observations(resource, observed_at);
+
+CREATE TABLE IF NOT EXISTS sensor_transitions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sensor_key TEXT NOT NULL DEFAULT '',
+    sensor_type TEXT NOT NULL DEFAULT '',
+    device TEXT NOT NULL DEFAULT '',
+    resource TEXT NOT NULL DEFAULT '',
+    previous_status TEXT NOT NULL DEFAULT 'UNKNOWN',
+    new_status TEXT NOT NULL DEFAULT 'UNKNOWN',
+    previous_value TEXT NOT NULL DEFAULT '',
+    new_value TEXT NOT NULL DEFAULT '',
+    source TEXT NOT NULL DEFAULT '',
+    observed_at REAL NOT NULL,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at REAL
+);
+CREATE INDEX IF NOT EXISTS idx_sensor_transitions_device_time
+    ON sensor_transitions(device, observed_at);
+CREATE INDEX IF NOT EXISTS idx_sensor_transitions_key_time
+    ON sensor_transitions(sensor_key, observed_at);
+CREATE INDEX IF NOT EXISTS idx_sensor_transitions_status_time
+    ON sensor_transitions(new_status, observed_at);
+CREATE INDEX IF NOT EXISTS idx_sensor_transitions_type_time
+    ON sensor_transitions(sensor_type, observed_at);
+CREATE INDEX IF NOT EXISTS idx_sensor_transitions_resource_time
+    ON sensor_transitions(resource, observed_at);
+
 -- ---- groups ----------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS groups (
     name        TEXT PRIMARY KEY,
@@ -325,7 +377,11 @@ CREATE TABLE IF NOT EXISTS operational_events (
     event_type TEXT NOT NULL, severity TEXT NOT NULL DEFAULT 'INFO',
     interface TEXT NOT NULL DEFAULT '', ifindex TEXT NOT NULL DEFAULT '', trap_oid TEXT NOT NULL DEFAULT '',
     message TEXT NOT NULL DEFAULT '', dedup_key TEXT NOT NULL,
-    suppressed INTEGER NOT NULL DEFAULT 0, suppression_id INTEGER, metadata TEXT NOT NULL DEFAULT '{}'
+    suppressed INTEGER NOT NULL DEFAULT 0, suppression_id INTEGER, metadata TEXT NOT NULL DEFAULT '{}',
+    domain TEXT NOT NULL DEFAULT 'SYSTEM', entity_type TEXT NOT NULL DEFAULT 'unknown',
+    entity_id TEXT NOT NULL DEFAULT '', resource TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'OBSERVED', observed_at REAL NOT NULL DEFAULT 0,
+    evidence_ref TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_operational_events_time ON operational_events(last_ts DESC);
 CREATE INDEX IF NOT EXISTS idx_operational_events_device ON operational_events(device, last_ts DESC);
@@ -697,6 +753,13 @@ _MIGRATIONS = [
     ("l2_neighbors", "resolution_evidence", "TEXT NOT NULL DEFAULT ''"),
     ("operational_events", "alert_id", "INTEGER"),
     ("operational_events", "maintenance_window_id", "INTEGER"),
+    ("operational_events", "domain", "TEXT NOT NULL DEFAULT 'SYSTEM'"),
+    ("operational_events", "entity_type", "TEXT NOT NULL DEFAULT 'unknown'"),
+    ("operational_events", "entity_id", "TEXT NOT NULL DEFAULT ''"),
+    ("operational_events", "resource", "TEXT NOT NULL DEFAULT ''"),
+    ("operational_events", "status", "TEXT NOT NULL DEFAULT 'OBSERVED'"),
+    ("operational_events", "observed_at", "REAL NOT NULL DEFAULT 0"),
+    ("operational_events", "evidence_ref", "TEXT NOT NULL DEFAULT ''"),
     ("structured_change_transactions", "approval_ref", "TEXT NOT NULL DEFAULT ''"),
     ("structured_change_transactions", "idempotency_key", "TEXT NOT NULL DEFAULT ''"),
     ("structured_change_transactions", "changed", "INTEGER NOT NULL DEFAULT 0"),
@@ -795,7 +858,7 @@ class _LockedConn:
 class Database:
     dialect = "sqlite"
     distributed_capable = False
-    schema_revision = "ni7-l3-route-1"
+    schema_revision = "mc3-operational-evidence-1"
 
     def __init__(self, path):
         self.path = path
@@ -817,6 +880,17 @@ class Database:
                     self.conn.execute(f"PRAGMA table_info({table})").fetchall()}
             if col not in cols:
                 self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {coldef}")
+        # MC-3 additive normalization for existing operational-event rows.
+        self.conn.execute("UPDATE operational_events SET observed_at=last_ts WHERE observed_at=0")
+        self.conn.execute("UPDATE operational_events SET domain='NETWORK' WHERE source_type IN ('snmp_trap','snmp_poll') AND domain='SYSTEM'")
+        self.conn.execute("UPDATE operational_events SET domain='CONFIGURATION' WHERE event_type IN ('CONFIG_CHANGE','CONFIGURATION_CHANGE')")
+        self.conn.execute("UPDATE operational_events SET domain='SECURITY' WHERE (UPPER(event_type) LIKE '%AUTH%' OR UPPER(event_type) LIKE '%LOGIN%')")
+        self.conn.execute("UPDATE operational_events SET entity_type='interface', entity_id=CASE WHEN interface<>'' THEN interface ELSE ifindex END, resource=CASE WHEN resource='' THEN CASE WHEN interface<>'' THEN interface ELSE ifindex END ELSE resource END WHERE entity_type='unknown' AND (interface<>'' OR ifindex<>'')")
+        self.conn.execute("UPDATE operational_events SET entity_type='device', entity_id=device WHERE entity_type='unknown' AND device<>''")
+        self.conn.execute("UPDATE operational_events SET entity_type='source', entity_id=source WHERE entity_type='unknown' AND source<>''")
+        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_operational_events_domain_time ON operational_events(domain, observed_at DESC)")
+        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_operational_events_entity_time ON operational_events(entity_type, entity_id, observed_at DESC)")
+        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_operational_events_evidence_ref ON operational_events(evidence_ref)")
 
     def audit(self, actor, action, target="", detail=""):
         import time
@@ -1116,34 +1190,61 @@ class Database:
             (dedup_key, float(since_ts))).fetchone()
         return dict(row) if row else None
 
+    def operational_event_by_evidence_ref(self, evidence_ref):
+        if not evidence_ref:
+            return None
+        row = self.conn.execute(
+            "SELECT * FROM operational_events WHERE evidence_ref=? ORDER BY id DESC LIMIT 1",
+            (str(evidence_ref),)).fetchone()
+        return dict(row) if row else None
+
     def insert_operational_event(self, ts, source_type, source, device, event_type, severity,
                                  interface, ifindex, trap_oid, message, dedup_key, suppressed,
-                                 suppression_id, metadata):
+                                 suppression_id, metadata, *, domain="SYSTEM", entity_type="unknown",
+                                 entity_id="", resource="", status="OBSERVED", observed_at=None,
+                                 evidence_ref=""):
+        observed_at = float(ts) if observed_at is None else float(observed_at)
         cur = self.conn.execute(
             "INSERT INTO operational_events "
-            "(first_ts,last_ts,event_count,source_type,source,device,event_type,severity,interface,ifindex,trap_oid,message,dedup_key,suppressed,suppression_id,metadata) "
-            "VALUES (?,?,1,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "(first_ts,last_ts,event_count,source_type,source,device,event_type,severity,interface,ifindex,trap_oid,message,dedup_key,suppressed,suppression_id,metadata,domain,entity_type,entity_id,resource,status,observed_at,evidence_ref) "
+            "VALUES (?,?,1,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (float(ts), float(ts), source_type, source, device, event_type, severity, interface, ifindex, trap_oid,
-             message, dedup_key, int(bool(suppressed)), suppression_id, metadata))
+             message, dedup_key, int(bool(suppressed)), suppression_id, metadata, domain, entity_type,
+             entity_id, resource, status, observed_at, evidence_ref))
         self.conn.commit()
         row = self.conn.execute("SELECT * FROM operational_events WHERE id=?", (cur.lastrowid,)).fetchone()
         return dict(row)
 
     def touch_operational_event(self, event_id, ts):
-        self.conn.execute("UPDATE operational_events SET last_ts=?, event_count=event_count+1 WHERE id=?",
-                          (float(ts), int(event_id)))
+        self.conn.execute(
+            "UPDATE operational_events SET last_ts=?, observed_at=?, event_count=event_count+1 WHERE id=?",
+            (float(ts), float(ts), int(event_id)))
         self.conn.commit()
         return dict(self.conn.execute("SELECT * FROM operational_events WHERE id=?", (int(event_id),)).fetchone())
 
-    def operational_events(self, limit=200, device=None, include_suppressed=True):
+    def operational_event(self, event_id):
+        row = self.conn.execute(
+            "SELECT * FROM operational_events WHERE id=?", (int(event_id),)).fetchone()
+        return dict(row) if row else None
+
+    def operational_events(self, limit=200, device=None, include_suppressed=True,
+                           domain=None, source_type=None, entity_type=None, status=None):
         q = "SELECT * FROM operational_events"; args=[]; where=[]
         if device:
             where.append("device=?"); args.append(device)
+        if domain:
+            where.append("domain=?"); args.append(str(domain).upper())
+        if source_type:
+            where.append("source_type=?"); args.append(str(source_type).lower())
+        if entity_type:
+            where.append("entity_type=?"); args.append(str(entity_type).lower())
+        if status:
+            where.append("status=?"); args.append(str(status).upper())
         if not include_suppressed:
             where.append("suppressed=0")
         if where:
             q += " WHERE " + " AND ".join(where)
-        q += " ORDER BY last_ts DESC LIMIT ?"; args.append(max(1,min(int(limit),2000)))
+        q += " ORDER BY observed_at DESC,id DESC LIMIT ?"; args.append(max(1,min(int(limit),2000)))
         return [dict(r) for r in self.conn.execute(q,args).fetchall()]
 
     def add_operational_suppression(self, created_ts, expires_ts, root_device, root_port, target_device, parent_event_id, reason):

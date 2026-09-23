@@ -14,11 +14,12 @@ import urllib.parse
 
 
 _TABS = (
+    ("overview", "Overview"),
     ("structured", "Structured Changes"),
     ("telemetry", "Telemetry"),
     ("models", "Model Packs"),
-    ("desired", "Desired State"),
-    ("intents", "Intent Automation"),
+    ("desired", "Configuration Baselines / Templates & Drift"),
+    ("intents", "Automation Requests"),
     ("campaigns", "Campaigns"),
     ("intelligence", "Network Intelligence"),
     ("ha", "HA / DR"),
@@ -132,29 +133,59 @@ class WebOpsMixin:
         return True
 
     def _ops_tabs(self, active):
+        primary = {"overview", "structured", "desired", "campaigns", "intelligence", "intents"}
         out = ['<div class="panel"><div class="row">']
         for key, label in _TABS:
+            if key not in primary:
+                continue
             cls = "btn" if key == active else "btn ghost"
             out.append(f'<a class="{cls}" href="/operations?tab={key}">{_e(label)}</a>')
-        out.append("</div></div>")
+        out.append('</div><details class="ops-advanced"><summary><b>Advanced operations</b> · telemetry, model packs, HA/DR</summary><div class="row">')
+        for key, label in _TABS:
+            if key in primary:
+                continue
+            cls = "btn" if key == active else "btn ghost"
+            out.append(f'<a class="{cls}" href="/operations?tab={key}">{_e(label)}</a>')
+        out.append("</div></details></div>")
         return "".join(out)
 
     def _operations_page(self, q, sess):
-        active = str((q.get("tab") or ["structured"])[0] or "structured")
+        active = str((q.get("tab") or ["overview"])[0] or "overview")
         if active not in {item[0] for item in _TABS}:
-            active = "structured"
+            active = "overview"
         notice = str((q.get("notice") or [""])[0] or "")
         renderer = {
+            "overview": self._ops_overview,
             "structured": self._ops_structured,
             "telemetry": self._ops_telemetry,
             "models": self._ops_models,
             "desired": self._ops_desired,
+            "intents": self._ops_intents,
             "campaigns": self._ops_campaigns,
             "intelligence": self._ops_intelligence,
             "ha": self._ops_ha,
         }[active]
         body = self._ops_tabs(active) + renderer(q, sess)
         self._send(self._page("Operations", body, sess, flash=notice or None))
+
+
+    def _ops_overview(self, q, sess):
+        return (
+            '<div class="panel"><h2>Operations workspace</h2>'
+            '<p>Start with the outcome you need. Read-only analysis and drift checking do not require you to trust NetConfig with configuration writes. '
+            'Change execution remains optional and keeps the existing approval/audit safeguards.</p>'
+            '<div class="ops-actions">'
+            '<div class="ops-card"><h3>Check templates & drift</h3><p>Compare devices or groups with a reusable configuration baseline before deciding whether to change anything.</p>'
+            '<a class="btn ghost" href="/operations?tab=desired">Configuration Baselines / Templates & Drift</a></div>'
+            '<div class="ops-card"><h3>Analyze the network</h3><p>Use stored topology, route, health and telemetry evidence for read-only impact and dependency analysis.</p>'
+            '<a class="btn ghost" href="/operations?tab=intelligence">Network Intelligence</a></div>'
+            '<div class="ops-card"><h3>Controlled changes</h3><p>Structured Changes handles one targeted change; Campaigns stages the same approved change across many devices.</p>'
+            '<a class="btn ghost" href="/operations?tab=structured">Structured Changes</a> '
+            '<a class="btn ghost" href="/operations?tab=campaigns">Campaigns</a></div>'
+            '<div class="ops-card"><h3>Automation requests</h3><p>Review the durable request/approval ledger created by NetConfig workflows or external automation integrations.</p>'
+            '<a class="btn ghost" href="/operations?tab=intents">Automation Requests</a></div>'
+            '</div><p class="muted">Telemetry subscriptions, Model Packs and HA/DR are available under Advanced operations.</p></div>'
+        )
 
     # ---- PH-4 structured changes ---------------------------------------
     def _ops_structured(self, q, sess):
@@ -586,7 +617,7 @@ class WebOpsMixin:
         create = ""
         if sess["role"] in _OPERATOR_ROLES:
             create = (
-                '<div class="panel"><h2>Create desired-state draft</h2>'
+                '<div class="panel"><h2>Create configuration baseline / template draft</h2>'
                 f'<form method="post" action="/ops-desired-create">{self._csrf_field()}<div class="row"><div><label>Name</label><input name="name"></div>'
                 '<div><label>Target kind</label><select name="target_kind"><option>device</option><option>group</option><option>tag</option></select></div>'
                 '<div><label>Target value</label><input name="target_value"></div></div><label>Description</label><input name="description">'
@@ -642,7 +673,7 @@ class WebOpsMixin:
                     '<div class="row"><div><h3>Plan</h3><pre>' + _pretty(plan) + '</pre></div><div><h3>Drift evaluation</h3><pre>' + _pretty(evaluation) + '</pre></div></div>'
                     f'<h3>Run history</h3><table><tr><th>Run</th><th>State</th><th>Actor</th><th>Error</th></tr>{run_rows or "<tr><td colspan=4 class=muted>no runs</td></tr>"}</table>{run_detail}</div>'
                 )
-        return create + detail + f'<div class="panel"><h2>Desired states</h2><table><tr><th>Name</th><th>Revision</th><th>Target</th><th>State</th></tr>{rows or "<tr><td colspan=4 class=muted>no desired states</td></tr>"}</table></div>'
+        return create + detail + f'<div class="panel"><h2>Configuration baselines / templates</h2><table><tr><th>Name</th><th>Revision</th><th>Target</th><th>State</th></tr>{rows or "<tr><td colspan=4 class=muted>no configuration baselines</td></tr>"}</table></div>'
 
     def _do_ops_desired_create(self, form, sess):
         if not self._ops_require(sess, _OPERATOR_ROLES):
@@ -690,6 +721,37 @@ class WebOpsMixin:
             return self._redirect(f"/request?id={rid}")
         except Exception as exc:
             return self._ops_redirect("desired", f"Apply request failed: {exc}")
+
+    # ---- PH-5 intent / approval surface ---------------------------------
+    def _ops_intents(self, q, sess):
+        requests = [item for item in self.wf.list() if item.get("mode") == "automation"][:100]
+        rows = []
+        for item in requests:
+            rows.append(
+                '<tr>'
+                f'<td><a href="/request?id={int(item["id"])}">CR#{int(item["id"])}</a></td>'
+                f'<td>{_e(item.get("title"))}</td><td>{_e(item.get("target_value") or "unknown")}</td>'
+                f'<td>{_status(item.get("status"))}</td><td>{_e(item.get("requested_by"))}</td>'
+                '</tr>'
+            )
+        table = (
+            '<div class="panel"><h2>Automation requests</h2>'
+            '<p class="muted">This is the approval/audit ledger for automation requests; it is not a free-form command builder. Durable requests are frozen before approval. '
+            'Execution remains behind the normal approval and snapshot-revalidation workflow; '
+            'this page does not execute device changes directly.</p>'
+            '<table><tr><th>Request</th><th>Title</th><th>Intent kind</th><th>Status</th><th>Requested by</th></tr>'
+            + (''.join(rows) if rows else '<tr><td colspan="5" class="muted">no automation requests</td></tr>')
+            + '</table></div>'
+        )
+        links = (
+            '<div class="panel"><h2>Start from the owning workflow</h2>'
+            '<p class="muted">Create intents from the typed workflow that owns the desired change. '
+            'Those workflows submit the frozen intent for separate approval.</p>'
+            '<div class="row"><a class="btn" href="/operations?tab=structured">Structured Change</a>'
+            '<a class="btn ghost" href="/operations?tab=desired">Configuration Baselines / Templates & Drift</a>'
+            '<a class="btn ghost" href="/operations?tab=campaigns">Campaign</a></div></div>'
+        )
+        return table + links
 
     # ---- NA-2 campaigns -------------------------------------------------
     def _ops_campaigns(self, q, sess):
@@ -903,7 +965,7 @@ class WebOpsMixin:
                 workflow = (
                     '<div class="panel"><h3>Action boundary</h3><p class="muted">Analytics cannot execute remediation. Continue only through an approved existing workflow.</p>'
                     '<div class="row"><a class="btn" href="/operations?tab=structured">Structured Change</a>'
-                    '<a class="btn ghost" href="/operations?tab=desired">Desired State</a>'
+                    '<a class="btn ghost" href="/operations?tab=desired">Configuration Baselines / Templates & Drift</a>'
                     '<a class="btn ghost" href="/operations?tab=campaigns">Campaign</a></div></div>'
                 )
                 detail = (
@@ -1004,7 +1066,7 @@ class WebOpsMixin:
             return
         try:
             iid = int(_value(form, "insight_id", "0"))
-            item = self.manager.analytics.set_state(iid, _value(form, "state"), sess["username"], _value(form, "note"))
+            self.manager.analytics.set_state(iid, _value(form, "state"), sess["username"], _value(form, "note"))
             return self._redirect(f"/operations?tab=intelligence&insight={iid}&notice=Insight+state+updated")
         except Exception as exc:
             return self._ops_redirect("intelligence", f"Insight lifecycle update failed: {exc}")

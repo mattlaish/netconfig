@@ -1,17 +1,28 @@
 # NetConfig development baseline
 
-> **Canonical project state — 2026-09-17:** **CURRENT IMPLEMENTATION BASELINE** = **Release 40 / NI-7 L3/VRF Path & Route Dependency Intelligence** (`IMPLEMENTED_TESTING_DEFERRED`). RPM/package version identity is `2.0.0-40`; NI-1 through NI-7 and Enterprise Operations are implemented in source. Q-1 live PostgreSQL/protocol/vendor/device/AlmaLinux gates remain deferred/`NOT_RUN`; Release 40 does not promote them to PASS.
+> **Canonical project state — 2026-09-23:** **CURRENT IMPLEMENTATION BASELINE** = **Release 51 / MC-3 Normalized Operational Evidence** (`2.0.0-51`, `IMPLEMENTED_TESTING_DEFERRED`). MC-1 Sensor Integration Unification and MC-2 Sensor History & State Transitions remain implemented. Release 51 adds a normalized cross-domain operational-evidence envelope, durable Sensor-transition → Event bridging, recovery/`UNKNOWN` semantics, additive event-schema migration/backfill/indexes, filtered/detail Event API reads, and an Event detail UI with current related Sensor state. NI-1 through **NI-7 L3/VRF Path & Route Dependency Intelligence** remain implemented. Formal RPM qualification remains deferred until the monitoring/correlation roadmap is complete; any ad-hoc RPM remains development evidence only.
 
-## Release 40 baseline identity
+> **Roadmap disposition — 2026-09-23:** The monitoring/correlation roadmap is active. MC-1 through MC-3 are implemented in source as `IMPLEMENTED_TESTING_DEFERRED`; the next planned slice is **MC-4 / Release 52 — Unified Alert Plane**. NI-7 remains implemented and Q-1 remains an open production/service qualification track. Do not invent NI-8/Q-2 or skip the defined MC sequence without an explicit roadmap decision.
 
-- Parent artifact: Release 39 Q-1 Production Qualification Hardening v5.
+## Release 44 — Intent Automation Operations Repair
+
+Release 44 fixes a real Web Console defect in `Operations -> Intent Automation`: `_TABS` accepted `tab=intents`, but `_operations_page()` had no `intents` renderer entry, so `GET /operations?tab=intents` raised `KeyError: 'intents'` and returned a server-error page. The renderer map now routes to `_ops_intents()`, which provides a read-only durable automation-request ledger plus links into the typed Structured Change / Desired State / Campaign creation paths. It does not create a direct network-write path; execution remains behind frozen snapshots, separate approval, current-snapshot revalidation, verification, and audit.
+
+HTTP-level regression coverage now requests `/operations?tab=intents` and requires a `200` response with the Intent Automation content instead of a server error. Release 43's left sidebar, supplied green theme, and neutral NetConfig branding are preserved. There is no schema or public REST contract change. Package release advances to `2.0.0-44` because shipped runtime source changed.
+
+
+## Current Release 43 baseline identity
+
+- Parent feature baseline: Release 40 / NI-7 L3/VRF Path & Route Dependency Intelligence, with Release 41 corrective REST/Git hardening inherited.
 - Application version: `2.0.0`.
-- RPM source Release: `40`.
-- Current phase: NI-7 — L3/VRF Path & Route Dependency Intelligence.
+- RPM source Release: `42`.
+- Current release: Release 43 — Offline RPM Builder Integration.
 - Status: `IMPLEMENTED_TESTING_DEFERRED`.
-- Schema revision: `ni7-l3-route-1`.
-- Primary new source: `opt/netconfig/netconfig/analytics/l3.py`, analytics service/API/UI wiring, `l3_route_observations`, and NI-7 tests.
-- Pre-package source regression: **211 passed / 7 skipped / 0 failed**.
+- NI-7 schema remains `ni7-l3-route-1`; Release 41 and Release 43 add no schema revision.
+- Correctness fix: campaign retry REST route reads list-valued `form["wave"]` instead of undefined `body`, with HTTP regression for explicit and omitted wave.
+- Git reproducibility: required launcher/package helpers are `100755` in the Git index and verified from a fresh clone.
+- Final fresh-clone regression: **213 passed / 7 skipped / 0 failed**; legacy selftest/compile/package-shell/manifests PASS; post-test worktree clean.
+- Ruff `0.16.7` and mypy remain `NOT_RUN` on this isolated runner; live Q-1 gates remain deferred.
 
 ## Historical Release 34 baseline identity
 
@@ -31,17 +42,17 @@ Application/project Version: `2.0.0`. RPM source Release: `33`. Database schema 
 
 Source includes PH-4 structured transactions, NI-5 telemetry/time-series foundation, VM-1 vendor model packs, NA-1 desired state, NA-2 fleet campaigns and HA-1 control-plane recovery/drain foundation. All are `IMPLEMENTED_TESTING_DEFERRED`; Q-1 real-service/RPM qualification remains outstanding. The source tree is the authoritative modifiable baseline; no claim is made that Release 33 RPM or real network devices have been qualified until corresponding evidence exists.
 
-> **Current continuation pointer:** use Release 40 as the active implementation source. Q-1 live qualification remains deferred; perform the next roadmap review from the NI-7 baseline.
+> **Current continuation pointer:** use **Release 51 / MC-3 Normalized Operational Evidence** (`2.0.0-51`) as the active full-source baseline. Preserve `IMPLEMENTED_TESTING_DEFERRED`. MC-1 through MC-3 are implemented in source; the next roadmap slice is **MC-4 / Release 52 — Unified Alert Plane**. Sensor generation/history and Sensor→Event normalization must not add device I/O; unchanged Sensor refreshes create no event, and missing evidence remains `UNKNOWN` rather than an automatic critical verdict. Formal RPM qualification remains deferred until the roadmap is complete.
 
 ## Historical Q-1 baseline note
 
-At the Q-1 baseline checkpoint, **Qualification Q-1 — Production Runtime & Service-backed Qualification** was the active track, status `IMPLEMENTED_TESTING_DEFERRED`; PH-3 was then the latest feature baseline. That historical baseline used RPM source Release `32` and schema revision `ph3-1`. Release 33 supersedes it as the active implementation source.
+At the Q-1 baseline checkpoint, **Qualification Q-1 — Production Runtime & Service-backed Qualification** was the active track, status `IMPLEMENTED_TESTING_DEFERRED`; PH-3 was then the latest feature baseline. That historical baseline used RPM source Release `32` and schema revision `ph3-1`. At that historical checkpoint, Release 33 superseded it as the active implementation source.
 
 Q-1 source adds runtime preflight, controlled PostgreSQL backup/restore, real PostgreSQL qualification tests, AlmaLinux/RPM qualification harnesses, hardened backup systemd service, and CI coverage for PostgreSQL client recovery tooling. Current local evidence before final packaging is **147 passed / 7 skipped**, Q-1 focused **11 passed**. Ruff/mypy, real PostgreSQL, and AlmaLinux install gates are explicitly `NOT_RUN` in this environment. No Q-2 is assigned.
 
 Historical PH-3 closeout immediately preceded Q-1. Release 33 subsequently implemented PH-4/NI-5/VM-1/NA-1/NA-2/HA-1 while leaving Q-1 qualification open. Historical Slice labels are provenance only; D.5 remains the separate completed-in-source Diagnostics Track.
 
-- Application version remains NetConfig 2.0.0; packaging spec source Release is 33 for the active Release 33 baseline.
+- Application version remains NetConfig 2.0.0; packaging spec source Release was 33 for the then-active Release 33 baseline.
 - Application source: `opt/netconfig/netconfig/`.
 - Tests: `tests/` plus legacy `opt/netconfig/selftest.py`.
 - RPM/build integration: `packaging/`, `etc/`, and `usr/`.

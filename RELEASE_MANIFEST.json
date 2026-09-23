@@ -1,35 +1,36 @@
 {
-  "changes": [
-    "Add durable explicit l3_route_observations evidence",
-    "Add same-VRF bounded/cycle-safe L3 path simulation with fail-closed ambiguity handling",
-    "Add ROUTE_DEPENDENCY candidate insights with alternate-observation evidence",
-    "Add analytics REST API and Operations Network Intelligence UI integration",
-    "Advance schema revision to ni7-l3-route-1 and RPM identity to 2.0.0-40"
-  ],
-  "deferred": [
-    "actual Ruff/mypy execution",
-    "real PostgreSQL backup/restore and distributed service qualification",
-    "OpenSSH/Net-SNMP integration",
-    "AlmaLinux 10 RPM build/install/restart",
-    "live vendor/device routing-table/FIB ingestion and scale qualification"
-  ],
-  "parent": "Release 39 Q-1 Production Qualification Hardening v5",
-  "release": "Release 40 NI-7 L3/VRF Path & Route Dependency Intelligence",
-  "rpm_release": 40,
+  "name": "NetConfig",
+  "version": "2.0.0",
+  "current_release": 51,
+  "current_package": "2.0.0-51",
   "status": "IMPLEMENTED_TESTING_DEFERRED",
-  "tests": {
-    "compileall": "PASS",
-    "final_delivery": "ZIP and Git-bundle 211 passed / 7 skipped / 0 failed; RPM build-source focused 25 passed; structural integrity PASS",
-    "fresh_clone": "211 passed / 7 skipped / 0 failed; selftest/compile/shell/manifests PASS; clean worktree",
-    "git_index_modes": "8/8 = 100755 PASS",
-    "launcher_py_compile": "PASS",
-    "mypy_2_3_1": "NOT_RUN (tool unavailable in isolated runner)",
-    "ni7_focused": "5 passed / 0 failed",
-    "packaging_shell_syntax": "PASS",
-    "q1_live_services": "DEFERRED / NOT_RUN",
-    "ruff_0_16_7": "NOT_RUN (tool unavailable in isolated runner)",
-    "selftest": "ALL PASS",
-    "source_full_regression": "211 passed / 7 skipped / 0 failed (complete test inventory executed in bounded groups)"
+  "current_slice": "MC-3 Normalized Operational Evidence + R51-HF1 pre-MC4 compatibility hotfix",
+  "mc1": "IMPLEMENTED_TESTING_DEFERRED",
+  "mc2": "IMPLEMENTED_TESTING_DEFERRED",
+  "mc3": "IMPLEMENTED_TESTING_DEFERRED",
+  "mc4": "PLANNED",
+  "feature_baseline": "NI-7 L3/VRF Path & Route Dependency Intelligence",
+  "release51_change": "MC-3 normalized operational evidence plus pre-MC4 SNMPv3 AES privacy compatibility and inventory-complete interactive topology graph",
+  "hotfix": "R51-HF1 pre-MC4 SNMPv3 + Topology compatibility hotfix",
+  "schema_revision": "mc3-operational-evidence-1",
+  "history_retention": {
+    "sensor_observations_days": 30,
+    "sensor_transitions_days": 180
   },
-  "version": "2.0.0"
+  "rpm_policy": "formal RPM qualification deferred until monitoring/correlation roadmap completion; no formal R51-HF1 RPM is claimed",
+  "source_manifest_sha256": "de239cd2767a7a8e0a2bc420094d81ffb6e2361d80f6a92024ef80d5f945d820",
+  "required_executables": [
+    "usr/bin/netconfig",
+    "packaging/build-rpm.sh",
+    "packaging/install-rpm.sh",
+    "packaging/inspect-rpm.sh",
+    "packaging/q1-qualify-almalinux.sh",
+    "packaging/q1-qualify-postgres.sh",
+    "packaging/q1-source-gates.sh",
+    "packaging/smoke-installed.sh",
+    "tools/rpm-builder/build.sh",
+    "tools/rpm-builder/verify.sh",
+    "tools/rpm-builder/rpm_builder.py",
+    "tools/rpm-builder/verify_rpm.py"
+  ]
 }

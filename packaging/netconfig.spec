@@ -1,6 +1,6 @@
 Name:           netconfig
 Version:        2.0.0
-Release:        40%{?dist}
+Release:        51%{?dist}
 Summary:        Network configuration and security operations console
 License:        Proprietary
 BuildArch:      noarch
@@ -84,6 +84,43 @@ exit 0
 %dir %attr(0700,netconfig,netconfig) %{_localstatedir}/lib/netconfig
 
 %changelog
+* Sun Sep 20 2026 OpenAI <noreply@openai.com> - 2.0.0-48
+- Add persisted normalized Sensor Engine and read-only /api/v1/sensors endpoint
+- Generate device, endpoint, interface, topology, and known Loop Protection sensors from existing DB/cache evidence only
+- Enforce OK/WARNING/CRITICAL/UNKNOWN semantics; missing evidence stays UNKNOWN without fabricated values
+- Add device/type/status sensor API filtering and regression coverage; no new polling or device I/O
+
+* Sat Sep 19 2026 OpenAI <noreply@openai.com> - 2.0.0-46
+- Add cached-data device health sensor cards and operator-oriented MIB summaries
+- Rename Desired State UI to Configuration Baselines / Templates & Drift
+- Move collection profile access out of everyday navigation and clarify network-device use
+- Preserve existing approval behavior; distributed Site Edge architecture remains deferred
+
+* Fri Sep 18 2026 OpenAI <noreply@openai.com> - 2.0.0-45
+- Simplify Operations, collection, MIB, and SNMP operator workflows
+- Remove duplicate top-level Network Intelligence navigation
+- Keep Automation Requests HTTP renderer and regression coverage
+
+* Fri Sep 18 2026 OpenAI <noreply@openai.com> - 2.0.0-44
+- Repair the Intent Automation Operations tab renderer and add HTTP regression coverage
+- Preserve the Release 43 sidebar/theme refresh and neutral NetConfig branding
+- Keep all device mutations behind approval and snapshot-revalidation workflows
+
+* Fri Sep 18 2026 OpenAI <noreply@openai.com> - 2.0.0-43
+- Refresh the web console chrome with a left sidebar navigation layout
+- Apply the supplied green shared theme palette and accessibility styling
+- Remove organization-specific visible branding from the console UI
+
+* Fri Sep 18 2026 OpenAI <noreply@openai.com> - 2.0.0-42
+- Add a dependency-free offline RPM builder and verifier under tools/rpm-builder
+- Preserve canonical rpmbuild/AlmaLinux qualification as the production packaging authority
+- Add deterministic RPM reproducibility, payload/source-identity, scriptlet, dependency, and config-flag tests
+
+* Thu Sep 17 2026 OpenAI <noreply@openai.com> - 2.0.0-41
+- Correct campaign retry REST parsing to use the form-encoded request contract
+- Add HTTP retry-route and Git-index executable-mode regression coverage
+- Reduce Ruff correctness/style debt without broadening lint ignores; keep unavailable tool execution explicit
+
 * Thu Sep 17 2026 OpenAI <noreply@openai.com> - 2.0.0-40
 - Add NI-7 L3/VRF path and route-dependency intelligence
 - Persist explicit route observations and fail closed on ambiguous/incomplete forwarding evidence

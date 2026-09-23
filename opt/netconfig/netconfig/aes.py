@@ -166,7 +166,7 @@ class AES:
 
 
 def _xor(a, b):
-    return bytes(x ^ y for x, y in zip(a, b))
+    return bytes(x ^ y for x, y in zip(a, b, strict=True))
 
 
 def cfb128_encrypt(key, iv, data):

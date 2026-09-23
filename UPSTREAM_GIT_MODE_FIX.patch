@@ -1,0 +1,24 @@
+diff --git a/usr/bin/netconfig b/usr/bin/netconfig
+old mode 100644
+new mode 100755
+diff --git a/packaging/build-rpm.sh b/packaging/build-rpm.sh
+old mode 100644
+new mode 100755
+diff --git a/packaging/inspect-rpm.sh b/packaging/inspect-rpm.sh
+old mode 100644
+new mode 100755
+diff --git a/packaging/install-rpm.sh b/packaging/install-rpm.sh
+old mode 100644
+new mode 100755
+diff --git a/packaging/q1-qualify-almalinux.sh b/packaging/q1-qualify-almalinux.sh
+old mode 100644
+new mode 100755
+diff --git a/packaging/q1-qualify-postgres.sh b/packaging/q1-qualify-postgres.sh
+old mode 100644
+new mode 100755
+diff --git a/packaging/q1-source-gates.sh b/packaging/q1-source-gates.sh
+old mode 100644
+new mode 100755
+diff --git a/packaging/smoke-installed.sh b/packaging/smoke-installed.sh
+old mode 100644
+new mode 100755

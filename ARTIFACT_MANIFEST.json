@@ -1,43 +1,58 @@
 {
-  "artifact": "netconfig_release40_NI7_L3_Route_Intelligence_v6",
-  "deferred": [
-    "actual Ruff/mypy execution",
-    "real PostgreSQL backup/restore and distributed service qualification",
-    "OpenSSH/Net-SNMP integration",
-    "AlmaLinux 10 RPM build/install/restart",
-    "live vendor/device routing-table/FIB ingestion and scale qualification"
-  ],
+  "artifact": "netconfig-2.0.0-51-pre-MC4-snmpv3-topology-hotfix-source-baseline.zip",
+  "status": "IMPLEMENTED_TESTING_DEFERRED",
+  "release": 51,
+  "version": "2.0.0",
+  "phase": "R51-HF1 pre-MC4 SNMPv3 + Topology compatibility hotfix",
+  "parent": "Release 51 MC-3 Normalized Operational Evidence",
+  "next_slice": "MC-4 / Release 52 \u2014 Unified Alert Plane",
+  "feature_baseline": "NI-7 L3/VRF Path & Route Dependency Intelligence",
+  "change": {
+    "snmpv3": "standard AES-192/AES-256 uses Blumenthal key extension; Cisco/Reeder remains explicit aes192c/aes256c",
+    "topology_cli": "topology --discover unlocks Vault credentials in the same process",
+    "topology_truth": "all managed inventory devices become nodes; LLDP/CDP is OBSERVED; unique persisted FDB/MAC correlation may add non-direct INFERRED paths",
+    "impact_safety": "inferred FDB paths are excluded from downstream-impact traversal and never replace observed adjacency",
+    "api": "read-only GET /api/v1/topology/graph from persisted evidence",
+    "webui": "dependency-free SVG drag/pan/zoom canvas; layout is browser-local only and never changes network truth",
+    "io_rule": "no additional polling or device I/O"
+  },
   "manifest_scope": {
-    "cache_policy": "__pycache__, .pytest_cache and *.py[co] prohibited from delivery archives",
+    "payload_files": 194,
+    "source_manifest": "source-manifest.sha256",
+    "source_manifest_sha256": "de239cd2767a7a8e0a2bc420094d81ffb6e2361d80f6a92024ef80d5f945d820",
     "excluded_dynamic_metadata": [
       "ARTIFACT_MANIFEST.json",
       "HANDOVER_MANIFEST_SHA256.txt",
+      "RELEASE51_SOURCE_MANIFEST.json",
       "RELEASE_MANIFEST.json",
       "RELEASE_MANIFEST_SHA256.txt",
       "SHA256SUMS",
       "source-manifest.sha256"
-    ],
-    "payload_files": 175,
-    "source_manifest": "source-manifest.sha256",
-    "tracked_payload_only": true
+    ]
   },
-  "parent": "netconfig_release39_Q1_Production_Qualification_Hardened_v5",
-  "phase": "Release 40 NI-7 L3/VRF Path & Route Dependency Intelligence",
   "qualification": {
+    "source_tree_pytest": "278 passed / 8 skipped / 0 failed (bounded groups plus explicit integration skips)",
+    "hotfix_focused": "8 passed / 0 failed",
+    "topology_web_ph1_legacy_focused": "40 passed / 1 expected source-archive Git-metadata skip / 0 failed",
+    "legacy_selftest": "ALL PASS",
     "compileall": "PASS",
-    "final_delivery": "ZIP and Git-bundle 211 passed / 7 skipped / 0 failed; RPM build-source focused 25 passed; structural integrity PASS",
-    "fresh_clone": "211 passed / 7 skipped / 0 failed; selftest/compile/shell/manifests PASS; clean worktree",
-    "git_index_modes": "8/8 = 100755 PASS",
     "launcher_py_compile": "PASS",
-    "mypy_2_3_1": "NOT_RUN (tool unavailable in isolated runner)",
-    "ni7_focused": "5 passed / 0 failed",
     "packaging_shell_syntax": "PASS",
-    "q1_live_services": "DEFERRED / NOT_RUN",
-    "ruff_0_16_7": "NOT_RUN (tool unavailable in isolated runner)",
-    "selftest": "ALL PASS",
-    "source_full_regression": "211 passed / 7 skipped / 0 failed (complete test inventory executed in bounded groups)"
+    "ruff": "NOT_RUN",
+    "mypy": "NOT_RUN",
+    "rpm": "formal qualification DEFERRED; no formal R51-HF1 RPM built",
+    "live_fortigate_snmpv3": "DEFERRED/NOT_RUN",
+    "live_vendor_topology": "DEFERRED/NOT_RUN",
+    "clean_extracted_pytest": "278 passed / 8 skipped / 0 failed (mode-preserving system unzip; bounded groups plus explicit integration skips)",
+    "clean_extracted_selftest": "ALL PASS",
+    "clean_extracted_compile_shell": "PASS"
   },
-  "rpm_identity": "netconfig-2.0.0-40.el10.noarch",
-  "source_manifest_sha256": "b94171dd71363f444331be4d68303f69b37cb6fe746ecd4906e042c0ecabd96d",
-  "status": "IMPLEMENTED_TESTING_DEFERRED"
+  "deferred": [
+    "live FortiGate SHA1+AES256 validation",
+    "live vendor LLDP/FDB identity behavior",
+    "live PostgreSQL/backup-restore",
+    "live protocol services",
+    "formal roadmap-completion RPM qualification"
+  ],
+  "source_manifest_sha256": null
 }
