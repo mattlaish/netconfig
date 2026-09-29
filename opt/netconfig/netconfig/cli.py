@@ -35,6 +35,7 @@ from .workflow import Workflow
 from . import compliance as _compliance
 from .debug import DebugBundle
 from .evidence_signing import signing_status
+from .incidents import EVIDENCE_TYPES as INCIDENT_EVIDENCE_TYPES
 
 
 def _master(manager, required=True):
@@ -97,6 +98,8 @@ def cmd_debug(m, args):
         print(json.dumps(result, indent=2, sort_keys=True))
     elif args.action == "signing-status":
         print(json.dumps(signing_status(m.settings), indent=2, sort_keys=True))
+    elif args.action == "status":
+        print(json.dumps(m.supportability.snapshot(), indent=2, sort_keys=True))
 
 
 def cmd_init(m, args):
@@ -461,6 +464,9 @@ def _parse_target(spec):
 
 def cmd_bulk(m, args):
     _master(m)
+    if args.mode != "command" or args.save:
+        print("bulk is read-only; submit network changes with `netconfig request submit` for approval", file=sys.stderr)
+        sys.exit(2)
     kind, value = _parse_target(args.target)
     devices = m.inv.resolve_target(kind, value, only_enabled=not args.include_disabled)
     if not devices:
@@ -471,9 +477,8 @@ def cmd_bulk(m, args):
             body = f.read()
     elif args.command:
         body = args.command
-    elif args.mode != "remediate":
-        print("provide --script FILE or --command, or use --mode remediate",
-              file=sys.stderr); sys.exit(1)
+    else:
+        print("provide --script FILE or --command", file=sys.stderr); sys.exit(1)
     print(f"running mode={args.mode} on {len(devices)} device(s) "
           f"with {args.workers or m.settings['bulk_workers']} workers...")
 
@@ -659,7 +664,7 @@ def cmd_snmp(m, args):
                   f"-a {(v3.auth_proto or '').upper()} -A '<authpass>' "
                   f"-x {_snmp.net_snmp_priv_name(v3.priv_proto)} -X '<privpass>' {dev['host']}:{port} system")
         else:
-            print(f"  v2c community: (hidden)")
+            print("  v2c community: (hidden)")
             print(f"  compare with: snmpwalk -v2c -c '<community>' {dev['host']}:{port} system")
         print("--- 1) system group (single GETs) ---")
         try:
@@ -803,6 +808,8 @@ def cmd_incident(m, args):
         print(json.dumps(incidents.evidence_links(item["id"]), indent=2, sort_keys=True))
     elif args.action == "timeline":
         print(json.dumps(incidents.timeline(args.ref, args.limit), indent=2, sort_keys=True))
+    elif args.action == "investigation":
+        print(json.dumps(incidents.investigation_view(args.ref, args.limit), indent=2, sort_keys=True))
     elif args.action == "export-case":
         item = m.case_exports.export_case(
             args.ref, args.actor, args.bundle or [], args.reason or "",
@@ -945,6 +952,49 @@ def cmd_alerts(m, args):
     if args.action == "tick":
         out=life.tick(); print(json.dumps(out,indent=2,sort_keys=True)); return
 
+def _cmd_lifecycle_offline(args):
+    """R60 local-state lifecycle operations that must not initialize/migrate the active DB."""
+    from .lifecycle import (
+        LifecycleError, create_local_snapshot, restore_local_snapshot,
+        retention_candidates, switch_postgres_database, verify_live_state, verify_local_snapshot,
+    )
+    from . import config as _cfg
+
+    home = args.home or _cfg.DEFAULT_HOME
+    try:
+        if args.action == "snapshot":
+            out = create_local_snapshot(
+                home, args.output, config_path=args.config_path,
+                min_free_bytes=args.min_free_bytes,
+            )
+        elif args.action == "verify":
+            out = verify_local_snapshot(args.snapshot, verify_external=not args.skip_external)
+            if not out.get("verified"):
+                print(json.dumps(out, indent=2, sort_keys=True))
+                sys.exit(1)
+        elif args.action == "restore-local":
+            out = restore_local_snapshot(
+                args.snapshot, home=home, config_path=args.config_path, confirm=args.confirm
+            )
+        elif args.action == "verify-live":
+            out = verify_live_state(
+                args.snapshot, home=home, config_path=args.config_path, verify_external=not args.skip_external
+            )
+            if not out.get("verified"):
+                print(json.dumps(out, indent=2, sort_keys=True))
+                sys.exit(1)
+        elif args.action == "retention-candidates":
+            out = {"candidates": retention_candidates(args.root, keep=args.keep), "keep": args.keep}
+        elif args.action == "switch-postgres-rollback":
+            out = switch_postgres_database(home, args.target_dbname, confirm=args.confirm)
+        else:
+            raise LifecycleError(f"unsupported lifecycle action: {args.action}")
+    except LifecycleError as exc:
+        print(str(exc), file=sys.stderr)
+        sys.exit(2)
+    print(json.dumps(out, indent=2, sort_keys=True))
+
+
 def cmd_storage(m, args):
     import time
     if args.action == "status":
@@ -961,15 +1011,31 @@ def cmd_storage(m, args):
             json.loads(payload)
         except Exception:
             print("--payload must be valid JSON", file=sys.stderr); sys.exit(2)
-        row = m.db.enqueue_distributed_task(args.queue, args.kind, payload, time.time())
+        row = m.db.enqueue_distributed_task(
+            args.queue, args.kind, payload, time.time(), replay_safe=args.replay_safe)
         print(json.dumps(row, indent=2, sort_keys=True)); return
     if args.action == "claim":
-        row = m.db.claim_distributed_task(args.queue, args.worker, time.time(), args.lease_seconds)
+        row = m.db.claim_distributed_task(
+            args.queue, args.worker, time.time(), args.lease_seconds,
+            instance_id=getattr(m, "cluster_instance_id", ""))
         print(json.dumps(row, indent=2, sort_keys=True)); return
     if args.action == "finish":
         row = m.db.finish_distributed_task(
             args.id, args.worker, time.time(), ok=not args.failed,
-            result=args.result or "", error=args.error or "")
+            result=args.result or "", error=args.error or "",
+            claim_token=args.claim_token, claim_generation=args.claim_generation)
+        print(json.dumps(row, indent=2, sort_keys=True)); return
+    if args.action == "renew":
+        row = m.db.renew_distributed_task(
+            args.id, args.worker, args.claim_token, args.claim_generation,
+            time.time(), args.lease_seconds)
+        print(json.dumps(row, indent=2, sort_keys=True)); return
+    if args.action == "recover-expired":
+        rows = m.ha.recover_expired_tasks(limit=args.limit)
+        print(json.dumps(rows, indent=2, sort_keys=True)); return
+    if args.action == "requeue-recovery":
+        row = m.db.requeue_distributed_task(
+            args.id, time.time(), reason=args.reason or "explicit operator replay")
         print(json.dumps(row, indent=2, sort_keys=True)); return
     if args.action == "migrate-sqlite":
         from .credentials import postgres_core_password
@@ -1028,7 +1094,14 @@ def _cmd_restore_postgres_offline(args):
 
 
 def cmd_qualify(m, args):
-    from .qualification import runtime_preflight
+    from .qualification import correlation_production_qualification, runtime_preflight
+    if getattr(args, "correlation", False):
+        report = correlation_production_qualification(
+            m, window_seconds=getattr(args, "window_seconds", 900))
+        print(json.dumps(report, indent=2, sort_keys=True))
+        if not report.get("local_ready"):
+            sys.exit(1)
+        return
     report = runtime_preflight(m)
     print(json.dumps(report, indent=2, sort_keys=True))
     if not report.get("ok"):
@@ -1523,13 +1596,13 @@ def build_parser():
     grm = gs.add_parser("rm"); grm.add_argument("name")
     g.set_defaults(func=cmd_group)
 
-    b = sub.add_parser("bulk", help="run commands/config across a target concurrently")
+    b = sub.add_parser("bulk", help="run bounded read-only commands across a target concurrently")
     b.add_argument("--target", required=True,
                    help="device:NAME | group:NAME | tag:NAME | all:")
-    b.add_argument("--mode", default="command", choices=["command", "config", "remediate"])
+    b.add_argument("--mode", default="command", choices=["command"], help="read-only command execution only; mutations require a change request")
     b.add_argument("--script", help="file with commands (one per line, ${VAR} allowed)")
     b.add_argument("--command", help="single command/line to run")
-    b.add_argument("--save", action="store_true", help="save to startup after config push")
+    b.add_argument("--save", action="store_true", help="deprecated/blocked; read-only bulk cannot save")
     b.add_argument("--workers", type=int)
     b.add_argument("--title")
     b.add_argument("--include-disabled", action="store_true")
@@ -1766,7 +1839,9 @@ def build_parser():
     ha_activate.add_argument("--node-id")
     ha_record = aus.add_parser("ha-drill-record")
     ha_record.add_argument(
-        "kind", choices=["NODE_FAILOVER", "DATABASE_RESTORE", "REBOOT_RECOVERY", "BACKUP_VERIFY"]
+        "kind", choices=["NODE_FAILOVER", "WORKER_FAILOVER", "DATABASE_FAILOVER", "NETWORK_PARTITION",
+                         "SPLIT_BRAIN_FENCE", "PARTIAL_JOB_RECOVERY", "REPLAY_RECOVERY",
+                         "DATABASE_RESTORE", "REBOOT_RECOVERY", "BACKUP_VERIFY"]
     )
     ha_record.add_argument("state", choices=["STARTED", "PASSED", "FAILED", "NOT_RUN"])
     ha_record.add_argument("--detail", help="JSON object or @file.json")
@@ -1784,9 +1859,12 @@ def build_parser():
     sts = st.add_subparsers(dest="action", required=True)
     ss = sts.add_parser("status"); ss.add_argument("--node-max-age", type=int, default=300)
     sl = sts.add_parser("tasks"); sl.add_argument("--queue"); sl.add_argument("--limit", type=int, default=100)
-    se = sts.add_parser("enqueue"); se.add_argument("kind"); se.add_argument("--queue", default="default"); se.add_argument("--payload", default="{}")
+    se = sts.add_parser("enqueue"); se.add_argument("kind"); se.add_argument("--queue", default="default"); se.add_argument("--payload", default="{}"); se.add_argument("--replay-safe", action="store_true")
     sc = sts.add_parser("claim"); sc.add_argument("--queue", default="default"); sc.add_argument("--worker", required=True); sc.add_argument("--lease-seconds", type=int, default=60)
-    sf = sts.add_parser("finish"); sf.add_argument("id", type=int); sf.add_argument("--worker", required=True); sf.add_argument("--failed", action="store_true"); sf.add_argument("--result", default=""); sf.add_argument("--error", default="")
+    sf = sts.add_parser("finish"); sf.add_argument("id", type=int); sf.add_argument("--worker", required=True); sf.add_argument("--claim-token", required=True); sf.add_argument("--claim-generation", type=int, required=True); sf.add_argument("--failed", action="store_true"); sf.add_argument("--result", default=""); sf.add_argument("--error", default="")
+    srn = sts.add_parser("renew"); srn.add_argument("id", type=int); srn.add_argument("--worker", required=True); srn.add_argument("--claim-token", required=True); srn.add_argument("--claim-generation", type=int, required=True); srn.add_argument("--lease-seconds", type=int, default=60)
+    sre = sts.add_parser("recover-expired"); sre.add_argument("--limit", type=int, default=100)
+    srr = sts.add_parser("requeue-recovery"); srr.add_argument("id", type=int); srr.add_argument("--reason", default="")
     sm = sts.add_parser("migrate-sqlite"); sm.add_argument("--source", help="SQLite inventory.db to copy; default current home/inventory.db")
     sb = sts.add_parser("backup-postgres", help="create an atomic checksummed pg_dump of the configured PostgreSQL core")
     sb.add_argument("--output", required=True); sb.add_argument("--timeout", type=int, default=600); sb.add_argument("--overwrite", action="store_true")
@@ -1797,7 +1875,34 @@ def build_parser():
     sr.add_argument("--timeout", type=int, default=900)
     st.set_defaults(func=cmd_storage)
 
-    ql = sub.add_parser("qualify", help="Q-1 production runtime dependency/readiness preflight")
+    lc = sub.add_parser("lifecycle", help="R60 pre-upgrade local-state preservation and recovery")
+    lcs = lc.add_subparsers(dest="action", required=True)
+    lcss = lcs.add_parser("snapshot", help="create a checksummed pre-upgrade local-state snapshot")
+    lcss.add_argument("--output", required=True)
+    lcss.add_argument("--config-path", default="/etc/default/netconfig")
+    lcss.add_argument("--min-free-bytes", type=int, default=256 * 1024 * 1024)
+    lcv = lcs.add_parser("verify", help="verify a lifecycle snapshot and external preservation fingerprints")
+    lcv.add_argument("snapshot")
+    lcv.add_argument("--skip-external", action="store_true", help="verify copied snapshot bytes only")
+    lcr = lcs.add_parser("restore-local", help="restore local state after a failed upgrade")
+    lcr.add_argument("snapshot")
+    lcr.add_argument("--config-path", default="/etc/default/netconfig")
+    lcr.add_argument("--confirm", required=True, help="must be RESTORE_LOCAL_STATE")
+    lcl = lcs.add_parser("verify-live", help="compare current local state with a pre-upgrade snapshot")
+    lcl.add_argument("snapshot")
+    lcl.add_argument("--config-path", default="/etc/default/netconfig")
+    lcl.add_argument("--skip-external", action="store_true")
+    lcc = lcs.add_parser("retention-candidates", help="list oldest lifecycle snapshots beyond --keep")
+    lcc.add_argument("--root", required=True)
+    lcc.add_argument("--keep", type=int, default=3)
+    lcp = lcs.add_parser("switch-postgres-rollback", help="repoint settings to a pre-restored validated rollback database")
+    lcp.add_argument("--target-dbname", required=True)
+    lcp.add_argument("--confirm", required=True, help="must be SWITCH_POSTGRES_ROLLBACK")
+    lc.set_defaults(func=None)
+
+    ql = sub.add_parser("qualify", help="Q-1 runtime preflight or MC-10 correlation qualification")
+    ql.add_argument("--correlation", action="store_true", help="emit MC-10 correlation production-hardening qualification truth")
+    ql.add_argument("--window-seconds", type=int, default=900, help="MC-10 self-monitoring window (60..86400)")
     ql.set_defaults(func=cmd_qualify)
 
     at = sub.add_parser("api-token", help="manage scoped read-only API bearer tokens")
@@ -1851,7 +1956,7 @@ def build_parser():
     inclb = incs.add_parser("link-bundle"); inclb.add_argument("ref"); inclb.add_argument("bundle")
     inculb = incs.add_parser("unlink-bundle"); inculb.add_argument("ref"); inculb.add_argument("bundle")
     ince = incs.add_parser("link-evidence")
-    ince.add_argument("ref"); ince.add_argument("type", choices=["audit","syslog","collection","compliance","protocol_trace"])
+    ince.add_argument("ref"); ince.add_argument("type", choices=INCIDENT_EVIDENCE_TYPES)
     ince.add_argument("source_id"); ince.add_argument("--note")
     incd = incs.add_parser("link-drift")
     incd.add_argument("ref"); incd.add_argument("device"); incd.add_argument("--note")
@@ -1859,6 +1964,7 @@ def build_parser():
     incue.add_argument("ref"); incue.add_argument("link_id", type=int)
     incev = incs.add_parser("evidence"); incev.add_argument("ref")
     inctl = incs.add_parser("timeline"); inctl.add_argument("ref"); inctl.add_argument("--limit", type=int, default=500)
+    inci = incs.add_parser("investigation"); inci.add_argument("ref"); inci.add_argument("--limit", type=int, default=500)
     incex = incs.add_parser("export-case", help="build a bounded support-case archive")
     incex.add_argument("ref")
     incex.add_argument("--bundle", action="append", help="linked diagnostic bundle to embed; repeatable")
@@ -1892,6 +1998,7 @@ def build_parser():
     dbgv.add_argument("--trusted-fingerprint", action="append",
                       help="independent SHA-256 SPKI trust pin; repeatable")
     dbgs.add_parser("signing-status", help="show external evidence signer readiness")
+    dbgs.add_parser("status", help="show R66 read-only supportability snapshot")
     dbg.set_defaults(func=cmd_debug)
 
     return p
@@ -1901,6 +2008,9 @@ def main(argv=None):
     args = build_parser().parse_args(argv)
     if args.cmd == "storage" and args.action == "restore-postgres":
         _cmd_restore_postgres_offline(args)
+        return
+    if args.cmd == "lifecycle":
+        _cmd_lifecycle_offline(args)
         return
     m = Manager(args.home)
     try:

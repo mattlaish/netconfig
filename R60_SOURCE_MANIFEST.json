@@ -1,0 +1,1682 @@
+{
+  "format": "netconfig-r60-source-manifest-v1",
+  "release": 60,
+  "version": "2.0.0-60",
+  "status": "IMPLEMENTED_TESTING_DEFERRED",
+  "files": [
+    {
+      "path": ".gitattributes",
+      "sha256": "583817183ab778fd9791eeca67598e12baf14874ef3c0842b478290f1660bd74",
+      "mode": "0644",
+      "size": 248
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "34467945e206e1597c3d49fac92745213603ab25ea3c07b920dfba3ab8ff1eb4",
+      "mode": "0644",
+      "size": 6638
+    },
+    {
+      "path": ".gitignore",
+      "sha256": "a351406e5baa081171a8b7965ae9bbb118a161b3588ddbcbf9f3ec0fbcc76efc",
+      "mode": "0644",
+      "size": 435
+    },
+    {
+      "path": "ADR/ADR-004-ui1-unified-operations-console.md",
+      "sha256": "d3c49a4f8028f53353fd88432680bd24910ba8715452588d184e5986b3ce7927",
+      "mode": "0644",
+      "size": 2730
+    },
+    {
+      "path": "AGENTS.md",
+      "sha256": "fbfadfeba9c84dfe1f8f09c9a049353f638d65837979b69806be083c29c46b6f",
+      "mode": "0644",
+      "size": 4859
+    },
+    {
+      "path": "AI_HANDOFF.md",
+      "sha256": "a79bc4965a481f4f09482a4e3bf748e0230067546d9ee36cfb61288212590896",
+      "mode": "0644",
+      "size": 120418
+    },
+    {
+      "path": "API.md",
+      "sha256": "d552dcd5afeacfb7ea9a0a764223c1a2513a7bf338f4d7c26c16b1a7894f8ce6",
+      "mode": "0644",
+      "size": 42756
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "sha256": "056582fb242f1ad5a5a95b85adf26384df65b6ed62bfdc977830daedeb3845ba",
+      "mode": "0644",
+      "size": 20859
+    },
+    {
+      "path": "CLAUDE.md",
+      "sha256": "da029d579534299521928b7ca0716173cab8ab82276407aac82a35be51b43f34",
+      "mode": "0644",
+      "size": 4959
+    },
+    {
+      "path": "CSS_UI_REVIEW_2026-09-22.md",
+      "sha256": "97e46ffab42b55b2411bad77f7ad5293100981ce1c907bca7d0569581a5bae1d",
+      "mode": "0644",
+      "size": 5428
+    },
+    {
+      "path": "CURRENT_PROGRESS_DELIVERY_REPORT.md",
+      "sha256": "ce4f11d7c5def386db9fa7e2b56433f94db18c1cc18e8fcd7a4e66745f7ea486",
+      "mode": "0644",
+      "size": 10096
+    },
+    {
+      "path": "DELIVERY_REPORT.md",
+      "sha256": "2685092f694a332ae635d2cf3dad72ce6f71a87c08e7ac5228d9e55f92445d80",
+      "mode": "0644",
+      "size": 19226
+    },
+    {
+      "path": "DELIVERY_REPORT_NI65.md",
+      "sha256": "d4da495dc5308889287505e8319d4404117cf661c21077d265bb19924a5d3d19",
+      "mode": "0644",
+      "size": 1115
+    },
+    {
+      "path": "DEVELOPMENT.md",
+      "sha256": "d1f14e4391e3c4c945133af9afe2e42d38b2a524959807e43579cb5d87ff530a",
+      "mode": "0644",
+      "size": 136058
+    },
+    {
+      "path": "DEV_BASELINE.md",
+      "sha256": "b442157edf2743bc12ee701cecd1fb02bfd6ed6f1addae4da39f9a8af1ccce7e",
+      "mode": "0644",
+      "size": 21226
+    },
+    {
+      "path": "DOCUMENTATION_STATUS.md",
+      "sha256": "417459de24bd07236533e70c4878e4f4cfe7ddab7257f183be3b1861fafcc2bd",
+      "mode": "0644",
+      "size": 19375
+    },
+    {
+      "path": "GIT_REPRODUCIBILITY.md",
+      "sha256": "2af557e73b23cddddc04a2a330ceb9b6cdb6ef4bef8fe47e40848cfbd7852d1f",
+      "mode": "0644",
+      "size": 4389
+    },
+    {
+      "path": "HANDOVER_2026-09-07.md",
+      "sha256": "8506ab334009a070894c3d33f67449b966141396122efb8dd45aa1216dc0e9d1",
+      "mode": "0644",
+      "size": 11668
+    },
+    {
+      "path": "HANDOVER_MANIFEST_SHA256.txt",
+      "sha256": "9604a1d4c9684b092bc13a2e589ce44b83449d12d652537ed6c4530845b95920",
+      "mode": "0644",
+      "size": 85
+    },
+    {
+      "path": "HANDOVER_PROMPT.md",
+      "sha256": "121cf817840dace42298d16a9ff10fad09f81a275f7f59dbedaf7c1cd2707622",
+      "mode": "0644",
+      "size": 34444
+    },
+    {
+      "path": "INSTALL_RPM.md",
+      "sha256": "3fada5331bb21848166dc415b97f12363d4968f57fd276beb6b191a5118043ec",
+      "mode": "0644",
+      "size": 10141
+    },
+    {
+      "path": "NETCONFIG_MONITORING_CORRELATION_SLICES.md",
+      "sha256": "96ee121a2399caa669bee731d12fee9bda17616b04f6182e932a8f392c72f893",
+      "mode": "0644",
+      "size": 32359
+    },
+    {
+      "path": "NI63_CAPACITY_ANALYTICS.md",
+      "sha256": "340ef9d88c825757449dfe938472935270b4e43b2bf0f71cb5cc0b79ad72cd0b",
+      "mode": "0644",
+      "size": 1178
+    },
+    {
+      "path": "NI64_FAILURE_RISK.md",
+      "sha256": "9e2e3ab3ac2dd83d468bc9859ed01f58183359fd6669809d31aa238e71970164",
+      "mode": "0644",
+      "size": 2281
+    },
+    {
+      "path": "NI65_IMPACT_SIMULATION.md",
+      "sha256": "3c43a29f6b3cdb70fa8197814238fe91d828b54cb6d1b7eb4b77fbfc7351691b",
+      "mode": "0644",
+      "size": 1078
+    },
+    {
+      "path": "NI66_HEALTH_DASHBOARD.md",
+      "sha256": "03f35279357e7aa151726deb9ccfaf11830047cc59b1667853d5b77dcad1a7b4",
+      "mode": "0644",
+      "size": 1438
+    },
+    {
+      "path": "NI7_L3_ROUTE_INTELLIGENCE.md",
+      "sha256": "6f216089c98aba4862a3f52d8f6c48e638bf018d0c0685b137efa1626ed198b0",
+      "mode": "0644",
+      "size": 3276
+    },
+    {
+      "path": "PH6_COMPLETION.md",
+      "sha256": "f502315f5034f23bf0bac550ba677ed7aaa6e3b8bf2daa172e8b55ddb5cfefbe",
+      "mode": "0644",
+      "size": 1349
+    },
+    {
+      "path": "Q1_PRODUCTION_QUALIFICATION.md",
+      "sha256": "a344e791a1bb2cd32c713db26da3585a582d3f9ba6ef52d976e7d34f0d19bc61",
+      "mode": "0644",
+      "size": 5343
+    },
+    {
+      "path": "Q2_GATE_CATALOG.json",
+      "sha256": "72dfa3e8c7216a6967f78a2cfd7509389d1abb7b844da046e42082ec216b2332",
+      "mode": "0644",
+      "size": 10762
+    },
+    {
+      "path": "Q2_PRODUCTION_QUALIFICATION.md",
+      "sha256": "a82c90f36be0e5db6e0a2c23b5fe74620e96185a0fc67030c39d7ba3751fd9ae",
+      "mode": "0644",
+      "size": 7053
+    },
+    {
+      "path": "Q2_QUALIFICATION_EVIDENCE_SUMMARY.json",
+      "sha256": "b559ce7a902b91869aa32aa4d0a66682cc086c2b717963a2564ba32cec25a17a",
+      "mode": "0644",
+      "size": 1198
+    },
+    {
+      "path": "Q2_SOURCE_MANIFEST.json",
+      "sha256": "f6c99dbb355991bf51fbac7effd9a64693bc14cc09f600c82a43619a9b2f1044",
+      "mode": "0644",
+      "size": 38636
+    },
+    {
+      "path": "R59_ARTIFACT_MANIFEST.json",
+      "sha256": "2d7af5837fb327982559421a07d93cb57c104d74c62c19a68c04486145c5bd58",
+      "mode": "0644",
+      "size": 3888
+    },
+    {
+      "path": "R60_APPLIANCE_LIFECYCLE.md",
+      "sha256": "4b4cf49c697c0d3fdd2466a9d7a14720947f99c8d0de18c9a7c64c0684776757",
+      "mode": "0644",
+      "size": 5072
+    },
+    {
+      "path": "R60_GATE_CATALOG.json",
+      "sha256": "57418c644e813d66a666ef6c43e7b7c98cdd72f7ab522013a790ac529a19e4a4",
+      "mode": "0644",
+      "size": 4976
+    },
+    {
+      "path": "README.md",
+      "sha256": "b5be39d7171dc665750c44b70a1ea7b5697185a6692e8bd6cf9f91e1ec3fe208",
+      "mode": "0644",
+      "size": 59831
+    },
+    {
+      "path": "RELEASE51_SOURCE_MANIFEST.json",
+      "sha256": "ddf99589515404bfe763961de45a569111729651e4e2a7f6e7c0015cc7f5ff5d",
+      "mode": "0644",
+      "size": 30594
+    },
+    {
+      "path": "RELEASE52_SOURCE_MANIFEST.json",
+      "sha256": "e09bc9552c8be449881ec44c9fe4a1b7dde398b13d5517f1a8773a6993ea8da9",
+      "mode": "0644",
+      "size": 30758
+    },
+    {
+      "path": "RELEASE53_SOURCE_MANIFEST.json",
+      "sha256": "e34205af8375dec39e9f23b6eeef3999904887bb3736f512eae74ddb70a11243",
+      "mode": "0644",
+      "size": 30929
+    },
+    {
+      "path": "RELEASE54_1_SOURCE_MANIFEST.json",
+      "sha256": "1076d4d05612e9a3cacb6a15aff853fd4d96196ef8aebd2843358c730e9ae248",
+      "mode": "0644",
+      "size": 31763
+    },
+    {
+      "path": "RELEASE54_SOURCE_MANIFEST.json",
+      "sha256": "cfa9e526bd1d4c7a7a5a24aabf985f96dd49aa1196e125d2f58bbb90c86f8c33",
+      "mode": "0644",
+      "size": 31434
+    },
+    {
+      "path": "RELEASE55_SOURCE_MANIFEST.json",
+      "sha256": "0f2dc3e680430653fd2553e7fed1f47d4b3416519a58fb1289f83aaeb2d0e8cd",
+      "mode": "0644",
+      "size": 32098
+    },
+    {
+      "path": "RELEASE56_SOURCE_MANIFEST.json",
+      "sha256": "338c17661c7b517b02647b5f55e06a3a2675f0cb53418d53aae79df40f2c0b01",
+      "mode": "0644",
+      "size": 32601
+    },
+    {
+      "path": "RELEASE57_SOURCE_MANIFEST.json",
+      "sha256": "12fa5ca323feffcca9784a002b7ba036eb1d49ff2ffee5414bd5e63f5c6d1d9c",
+      "mode": "0644",
+      "size": 33113
+    },
+    {
+      "path": "RELEASE58_SOURCE_MANIFEST.json",
+      "sha256": "674dba55a386b89842dc3b781b620f9a0df2bd7c41a8a8b68ae8be1b4f25f39a",
+      "mode": "0644",
+      "size": 33466
+    },
+    {
+      "path": "RELEASE59_SOURCE_MANIFEST.json",
+      "sha256": "b7feff3155097e1e133cf539b8b306cc698a351e13cfb18eb5ccb6c47d3bb610",
+      "mode": "0644",
+      "size": 33805
+    },
+    {
+      "path": "RELEASE_MANIFEST.json",
+      "sha256": "8766bebf7809a285a153b29d1af921d46eee959ae3fa6fc1465d5a620a6cd947",
+      "mode": "0644",
+      "size": 4411
+    },
+    {
+      "path": "RELEASE_MANIFEST_SHA256.txt",
+      "sha256": "eb2a66a54b8221a4d6e1e0e945aff2d059619b27c69a62b4a8bb32f3d2fe97c9",
+      "mode": "0644",
+      "size": 88
+    },
+    {
+      "path": "ROADMAP.md",
+      "sha256": "e6a6cf4b7bfb5904cf808c679d7f948064c288deee830b227f1a966b51f95972",
+      "mode": "0644",
+      "size": 81825
+    },
+    {
+      "path": "ROADMAP_NI_PH_SYNC_MANIFEST.json",
+      "sha256": "f8642321e3f204ef24d756f7d9dc848c44a05b69eb41725e7d9caef92c6db40f",
+      "mode": "0644",
+      "size": 575
+    },
+    {
+      "path": "SECURITY.md",
+      "sha256": "eed748efecd304b37cb58bf3a50303fe1e9150de7592c82bff9fdd56ab52dc27",
+      "mode": "0644",
+      "size": 53113
+    },
+    {
+      "path": "TESTING.md",
+      "sha256": "cd61d0b0744bd759816c9812755b6c3aa66c63cda043a3a5187d591c36641d23",
+      "mode": "0644",
+      "size": 94151
+    },
+    {
+      "path": "TESTING_RESULT_2026-09-07.md",
+      "sha256": "ad25d5451bf99aa5bf06961ae9277eb6751bd9cf3f8de82a8d0cfe9f9ca6d114",
+      "mode": "0644",
+      "size": 6477
+    },
+    {
+      "path": "TESTING_RESULT_2026-09-11.md",
+      "sha256": "ce2ef63d58181667b08b5a76a780f2f9e403d1449d4b714c8f5ab8636002ea05",
+      "mode": "0644",
+      "size": 22800
+    },
+    {
+      "path": "TESTING_RESULT_2026-09-12.md",
+      "sha256": "62aa3fabde9224b7b4fe98867d6bb08dae30989caef118fbbb17bd35eb9f45e4",
+      "mode": "0644",
+      "size": 7618
+    },
+    {
+      "path": "TESTING_RESULT_2026-09-13.md",
+      "sha256": "a483eb0ed5b552bf67710306c0bac05fb01c58b26601d59db044c919acef4b51",
+      "mode": "0644",
+      "size": 3831
+    },
+    {
+      "path": "UPSTREAM_GIT_MODE_FIX.patch",
+      "sha256": "3197fb155002e151107533b82d5ab4ef7e5f9657c1f9634f4ca0326cf596c30a",
+      "mode": "0644",
+      "size": 808
+    },
+    {
+      "path": "VALIDATION_SUMMARY.md",
+      "sha256": "5a46db59bdb1b5e268e7c3976903316cf550febd263663a0eb4870aabd7f4eba",
+      "mode": "0644",
+      "size": 26024
+    },
+    {
+      "path": "WEBGUI.md",
+      "sha256": "d9e7d4191790c5a56ebf452a9d0646140a12a3d943b4e8a530fa5bdc51e7cb77",
+      "mode": "0644",
+      "size": 26137
+    },
+    {
+      "path": "etc/default/netconfig",
+      "sha256": "72088444479b18d56f178b07cc26654644bf6d5c74409622f89cca85200ff42b",
+      "mode": "0644",
+      "size": 1855
+    },
+    {
+      "path": "etc/profile.d/netconfig.sh",
+      "sha256": "306221a608b379d1bddc9c652e8bac947bf9f334df24c9380eae2a075ed396f9",
+      "mode": "0644",
+      "size": 41
+    },
+    {
+      "path": "opt/netconfig/CREDENTIALS.md",
+      "sha256": "134d508c58c82df6d9c30e295942783a9add9c26103ab1fab1f77d076690f759",
+      "mode": "0644",
+      "size": 14683
+    },
+    {
+      "path": "opt/netconfig/INSTALL.md",
+      "sha256": "85bc2e5398ce9fe7c8ba58c15b2b7e713e32ab6b7a4a97637fe65c8cd127bcd3",
+      "mode": "0644",
+      "size": 26539
+    },
+    {
+      "path": "opt/netconfig/README.md",
+      "sha256": "b74252fda145bb73eedf89cb60730332abcd81a46eade25d20a83891fcd3abc1",
+      "mode": "0644",
+      "size": 26492
+    },
+    {
+      "path": "opt/netconfig/WEBGUI.md",
+      "sha256": "bab3eb20e28de7854cc60a78c7e93c20f6482b316976db532244131da038f8f5",
+      "mode": "0644",
+      "size": 26388
+    },
+    {
+      "path": "opt/netconfig/netconfig/__init__.py",
+      "sha256": "1f2221b1c78ac531ca56184f300a970c42ad0685d453a2059ef96f7367ba739c",
+      "mode": "0644",
+      "size": 88
+    },
+    {
+      "path": "opt/netconfig/netconfig/aead.py",
+      "sha256": "c39567346f799fbd87b136c1cd423b8b58295ae09bd04264ed3638a622ce7fa7",
+      "mode": "0644",
+      "size": 4650
+    },
+    {
+      "path": "opt/netconfig/netconfig/aes.py",
+      "sha256": "5973eb45e8123d67a323131faec903884b864627c118beb8718ec40c3bb6b3a0",
+      "mode": "0644",
+      "size": 6108
+    },
+    {
+      "path": "opt/netconfig/netconfig/analytics/__init__.py",
+      "sha256": "672b3c206cc5b717ef7253392ffe988863b983cccc9d60920283bb0a56f597a2",
+      "mode": "0644",
+      "size": 711
+    },
+    {
+      "path": "opt/netconfig/netconfig/analytics/capacity.py",
+      "sha256": "01cf4fa8cc3e70c3795cf29397f107609e8a3f8a91e7d76db99a41b76bf4d063",
+      "mode": "0644",
+      "size": 2128
+    },
+    {
+      "path": "opt/netconfig/netconfig/analytics/failure_risk.py",
+      "sha256": "934e6ebb8d4105d51e60f6785064c3914f1d3c20daff63691224ebdf1fb6b8c9",
+      "mode": "0644",
+      "size": 7228
+    },
+    {
+      "path": "opt/netconfig/netconfig/analytics/health.py",
+      "sha256": "499369099e92bf44ce49a02e108b8eafe93572ea81a440ccf6c30b6fe8e29a8c",
+      "mode": "0644",
+      "size": 2371
+    },
+    {
+      "path": "opt/netconfig/netconfig/analytics/impact.py",
+      "sha256": "41b4a7470afbefb5dfecaad4ea5fea62f35499f8fe67072b1395556efd71e47a",
+      "mode": "0644",
+      "size": 4535
+    },
+    {
+      "path": "opt/netconfig/netconfig/analytics/l3.py",
+      "sha256": "6490f489c17259f0f94752af82701df5070644f768d025891162d0484020a561",
+      "mode": "0644",
+      "size": 7051
+    },
+    {
+      "path": "opt/netconfig/netconfig/analytics/service.py",
+      "sha256": "69ba7fc1baf036fdb261c3b7f0ce899474087b94751445e6ead5cff4eaf08438",
+      "mode": "0644",
+      "size": 24826
+    },
+    {
+      "path": "opt/netconfig/netconfig/apitokens.py",
+      "sha256": "5117f5da89ff29b8a77bb4ebe63e4f030c91d70b4352ff925e71f7b10d16c350",
+      "mode": "0644",
+      "size": 3240
+    },
+    {
+      "path": "opt/netconfig/netconfig/appmon.py",
+      "sha256": "fee034e57ab41e0cf44ba1b4c45014aa1176f837834fdd3d0df60f1826946eb0",
+      "mode": "0644",
+      "size": 6381
+    },
+    {
+      "path": "opt/netconfig/netconfig/automation.py",
+      "sha256": "bbda46cefaaa2368a15cbd3ca9285cdff94a3e4c39bb97b11e05221373543c2e",
+      "mode": "0644",
+      "size": 3026
+    },
+    {
+      "path": "opt/netconfig/netconfig/campaigns.py",
+      "sha256": "8de333dd757953c066577d776fb87be4792d093d96c67645a34001a3413480ed",
+      "mode": "0644",
+      "size": 19506
+    },
+    {
+      "path": "opt/netconfig/netconfig/caseexport.py",
+      "sha256": "a5f5bc41f30cccaa8343f3dea2ee80701dec114041c47e435760fa8c542e4fd4",
+      "mode": "0644",
+      "size": 17523
+    },
+    {
+      "path": "opt/netconfig/netconfig/change_planning.py",
+      "sha256": "e5bfdfaac0ef84617ff102df8c4f4ad77556aa2498e6ddedb74b263634fa977b",
+      "mode": "0644",
+      "size": 25323
+    },
+    {
+      "path": "opt/netconfig/netconfig/cli.py",
+      "sha256": "57e71817fdcaf7663ed6d208bfa062df7143c65bfdf3d960289166bdb68aa7e0",
+      "mode": "0644",
+      "size": 96484
+    },
+    {
+      "path": "opt/netconfig/netconfig/compliance.py",
+      "sha256": "0805bd0c36ddec08f460bb0c25bd8c14e98d811a48d9270c4f034fa5a116ceee",
+      "mode": "0644",
+      "size": 17290
+    },
+    {
+      "path": "opt/netconfig/netconfig/config.py",
+      "sha256": "a42a57c0e493613b926f124d1d7e5e6c306b7af2be5efd3d15d38d3558f4f081",
+      "mode": "0644",
+      "size": 6530
+    },
+    {
+      "path": "opt/netconfig/netconfig/configmodel.py",
+      "sha256": "0f0b1a7ef23d816288ef2ddb3e1c072716d86324dcabdc04e361db6f71859f20",
+      "mode": "0644",
+      "size": 3785
+    },
+    {
+      "path": "opt/netconfig/netconfig/correlation.py",
+      "sha256": "eaf25ff116369b147a076268ecad0a4b43cc22921c2eaf35e7016f467afda931",
+      "mode": "0644",
+      "size": 29897
+    },
+    {
+      "path": "opt/netconfig/netconfig/correlation_hardening.py",
+      "sha256": "076e1976d478310a4aabba427b94c1dbfd198e03a0183686e5c88e826a857a7f",
+      "mode": "0644",
+      "size": 20001
+    },
+    {
+      "path": "opt/netconfig/netconfig/credentials.py",
+      "sha256": "662f1332a66f90cfd7f40a059b4f7ecafd1c10161c61799a9612701db59ad08a",
+      "mode": "0644",
+      "size": 2348
+    },
+    {
+      "path": "opt/netconfig/netconfig/db.py",
+      "sha256": "2db20877f228ae09060acdb3753c4f4a94e7e1a958075da2e51b1337f890e257",
+      "mode": "0644",
+      "size": 105029
+    },
+    {
+      "path": "opt/netconfig/netconfig/debug.py",
+      "sha256": "2bdbb007ae481836f035b60f237e8a08cc59d3091265104962eb1b773d5deb78",
+      "mode": "0644",
+      "size": 7676
+    },
+    {
+      "path": "opt/netconfig/netconfig/dependencies.py",
+      "sha256": "deb4dd8569116adb826d3b6fe7098caeb701950fecb017e53ad6654eaafb31a0",
+      "mode": "0644",
+      "size": 23332
+    },
+    {
+      "path": "opt/netconfig/netconfig/desired_state.py",
+      "sha256": "23fa038ed624b5278889414f6d7405d651c8f1fa1156faab747f3b8e6f500a70",
+      "mode": "0644",
+      "size": 15618
+    },
+    {
+      "path": "opt/netconfig/netconfig/diagnostic_maintenance.py",
+      "sha256": "36411e263b4bccf3784bb06d82e3859e4630dcd40bf1ac3a21df654b6401e4e2",
+      "mode": "0644",
+      "size": 3891
+    },
+    {
+      "path": "opt/netconfig/netconfig/digest.py",
+      "sha256": "25f58a00558d054924f185e15fa35a17e2f6609659cb19aaa7d9865a0a585bb0",
+      "mode": "0644",
+      "size": 2011
+    },
+    {
+      "path": "opt/netconfig/netconfig/drivers.py",
+      "sha256": "f50af81b304f90701e877bd968658157aa91ef200bfa844ebaafe32f70746933",
+      "mode": "0644",
+      "size": 14025
+    },
+    {
+      "path": "opt/netconfig/netconfig/evidence_signing.py",
+      "sha256": "acb54e3700e666eabf55e6c4eac9c1493508a8ccd8dcad47eaf7e218138b3e6b",
+      "mode": "0644",
+      "size": 16753
+    },
+    {
+      "path": "opt/netconfig/netconfig/external_evidence.py",
+      "sha256": "3a2d0d141f52f4ffa40cf5cbd50687ff3e8c2242412fb6401f1158dda67b4ae6",
+      "mode": "0644",
+      "size": 24466
+    },
+    {
+      "path": "opt/netconfig/netconfig/ha.py",
+      "sha256": "52dbb370989ac86bdccee349f144cf938d13bdc44c057ecb0cf8c8d007ee1b8e",
+      "mode": "0644",
+      "size": 9691
+    },
+    {
+      "path": "opt/netconfig/netconfig/ifhistory.py",
+      "sha256": "a7d90b10f3a3983a80622393a975a8cd00dd986dfc365a2c7463d32b8de5448f",
+      "mode": "0644",
+      "size": 8687
+    },
+    {
+      "path": "opt/netconfig/netconfig/incidents.py",
+      "sha256": "68ddf026ec26e0370a5b5ea671c334377691c2d4993ba382d1c16c93245fc5d1",
+      "mode": "0644",
+      "size": 37849
+    },
+    {
+      "path": "opt/netconfig/netconfig/inventory.py",
+      "sha256": "b66f0cc06c0bbf56978305944b0ff27e0ecf40719ae4d9b6ba33381509fd3cc2",
+      "mode": "0644",
+      "size": 14616
+    },
+    {
+      "path": "opt/netconfig/netconfig/l3topology.py",
+      "sha256": "e659cea4861ef6fb8afdc30388fd8d30e69dc60b57c0af782ad82e5efe3a57cb",
+      "mode": "0644",
+      "size": 26591
+    },
+    {
+      "path": "opt/netconfig/netconfig/lifecycle.py",
+      "sha256": "cb593f08152a5ce48280b0478774a3e8b0903eafd0784334d29f99bc5519d0e5",
+      "mode": "0644",
+      "size": 19657
+    },
+    {
+      "path": "opt/netconfig/netconfig/mailer.py",
+      "sha256": "dfa905d66aea995790fb2c76b0eee2c807ee7e74b8488f55e5b3542a42654418",
+      "mode": "0644",
+      "size": 3453
+    },
+    {
+      "path": "opt/netconfig/netconfig/manager.py",
+      "sha256": "3b67de1d317265fc4a2b6ac3a7741629bcac0c44b98f29305969bf4cbceddbd0",
+      "mode": "0644",
+      "size": 51279
+    },
+    {
+      "path": "opt/netconfig/netconfig/mib.py",
+      "sha256": "9a75cbb4213e4ddec522a0e365c478e98592aa1360ec962bf17c298553fedcf9",
+      "mode": "0644",
+      "size": 14593
+    },
+    {
+      "path": "opt/netconfig/netconfig/monitor.py",
+      "sha256": "6bca30f2f70b098d7b34c4ddaf2ad5f8b8b0ca9764ad5811937754027604e804",
+      "mode": "0644",
+      "size": 13161
+    },
+    {
+      "path": "opt/netconfig/netconfig/netflow.py",
+      "sha256": "c57cb464181991e3608a65c1fce9c6232dd904015f7b43e7147a67edf9c94957",
+      "mode": "0644",
+      "size": 10911
+    },
+    {
+      "path": "opt/netconfig/netconfig/network_intelligence.py",
+      "sha256": "903a925e2567c1078a25fb9358f0e42e02149ca385a6997b94c0a27fafde484a",
+      "mode": "0644",
+      "size": 9431
+    },
+    {
+      "path": "opt/netconfig/netconfig/oauth.py",
+      "sha256": "14df519ee4f31a4dc9057d63194a4d1695327ac9f35bbe61cf2f5097a32b57d2",
+      "mode": "0644",
+      "size": 2997
+    },
+    {
+      "path": "opt/netconfig/netconfig/observability.py",
+      "sha256": "62d87e202c16a1b0af9621979acbdee5de5e1f8b68d6ba67fb717446dbf2cd03",
+      "mode": "0644",
+      "size": 1407
+    },
+    {
+      "path": "opt/netconfig/netconfig/operational_alerts.py",
+      "sha256": "a8223b73226eee5efbff11356d88e28e0885ff043422a3e1b5d73d1ba3707bb0",
+      "mode": "0644",
+      "size": 20185
+    },
+    {
+      "path": "opt/netconfig/netconfig/operational_events.py",
+      "sha256": "68c64613e91c4f33ca7d4d5ce7f6d9a6da0fdf9e54644c73bceff61d0d0799a3",
+      "mode": "0644",
+      "size": 14644
+    },
+    {
+      "path": "opt/netconfig/netconfig/operations_correlation.py",
+      "sha256": "61cf33533894bb32642cc7ebeb0a49c3b410730baeae475abfdcd1a0eb71c145",
+      "mode": "0644",
+      "size": 9199
+    },
+    {
+      "path": "opt/netconfig/netconfig/ph4_recovery.py",
+      "sha256": "d3a74d980f6e0454d5eb8edc7f57a372254b3f67238db37c11ef3616b5c2563a",
+      "mode": "0644",
+      "size": 987
+    },
+    {
+      "path": "opt/netconfig/netconfig/ph5_api.py",
+      "sha256": "4cc60693fcdce78bd54a779ab3f4dedbf3c6355b676f849dd199a69a272d0b10",
+      "mode": "0644",
+      "size": 685
+    },
+    {
+      "path": "opt/netconfig/netconfig/ph5_intent.py",
+      "sha256": "f63a109647a74ab3562aa89e68a88892e68fd9ad150169f945ed78beca1f2887",
+      "mode": "0644",
+      "size": 1498
+    },
+    {
+      "path": "opt/netconfig/netconfig/ph6_api.py",
+      "sha256": "b2cd0b2ba4fb6651712c917b97ed2380bbb3745c331a4967b6337a22a5c72655",
+      "mode": "0644",
+      "size": 874
+    },
+    {
+      "path": "opt/netconfig/netconfig/ph6_execution.py",
+      "sha256": "f046738d0643b437f8f233bc38b8563f4182d25ed9e299cac9c9ca8b0dc38e79",
+      "mode": "0644",
+      "size": 2075
+    },
+    {
+      "path": "opt/netconfig/netconfig/portmon.py",
+      "sha256": "ae1b45c6d3e737e8e1bb208dbdd6442309d95944729ba98ad9fc5b6a87f276be",
+      "mode": "0644",
+      "size": 3974
+    },
+    {
+      "path": "opt/netconfig/netconfig/postgres_backup.py",
+      "sha256": "ff2ef73c15b1bd065a3896bd77fc794d0f7a7f687eee64540b43909b27d02783",
+      "mode": "0644",
+      "size": 10229
+    },
+    {
+      "path": "opt/netconfig/netconfig/postgres_core.py",
+      "sha256": "3980664ef8496883a42263222ddf6bb91315c1a7696223f37f4a831ceed430a0",
+      "mode": "0644",
+      "size": 16423
+    },
+    {
+      "path": "opt/netconfig/netconfig/protocols.py",
+      "sha256": "735036d7d464db2d68989ac598bfcd22e8e3f9d5f47243238aab09c5acf48640",
+      "mode": "0644",
+      "size": 810
+    },
+    {
+      "path": "opt/netconfig/netconfig/protocoltrace.py",
+      "sha256": "cd901482983a6ea4ccd21c5d610489408face15c150c6b3547f5548e0d6b9a9c",
+      "mode": "0644",
+      "size": 12351
+    },
+    {
+      "path": "opt/netconfig/netconfig/qualification.py",
+      "sha256": "bf77e00afdacba6f000875903c19801a33f541f82942fb6a90100a6e1d624940",
+      "mode": "0644",
+      "size": 2323
+    },
+    {
+      "path": "opt/netconfig/netconfig/scrub.py",
+      "sha256": "6f53f2f2f17accf93a66f2dcfe0e9a978c2615fc3c0bea1ba11e98a246454cec",
+      "mode": "0644",
+      "size": 2854
+    },
+    {
+      "path": "opt/netconfig/netconfig/security.py",
+      "sha256": "b6507311035803d32fbc351d749b6bf658f5acdb97565a5ffa09d751fe167ac6",
+      "mode": "0644",
+      "size": 3648
+    },
+    {
+      "path": "opt/netconfig/netconfig/sensor.py",
+      "sha256": "50b058052d7549f1610d8a3b87e497dfa53c485f07a68fc809715729f73789f3",
+      "mode": "0644",
+      "size": 27612
+    },
+    {
+      "path": "opt/netconfig/netconfig/session.py",
+      "sha256": "17b21e42c261171d8049eecd82b35fb7934083676fe33969d9db2fa2a538dba4",
+      "mode": "0644",
+      "size": 1550
+    },
+    {
+      "path": "opt/netconfig/netconfig/snmp.py",
+      "sha256": "cff8eb769e1b35572b5a4b15f8be6efc16aff1fa396c28cfdbc2ab6165b056bf",
+      "mode": "0644",
+      "size": 36327
+    },
+    {
+      "path": "opt/netconfig/netconfig/snmp_trap.py",
+      "sha256": "8d1286ba67da5530418eac052dcb6f5424b06183bdb7ec1ceb0536c91ed4f393",
+      "mode": "0644",
+      "size": 9465
+    },
+    {
+      "path": "opt/netconfig/netconfig/storage_backend.py",
+      "sha256": "b143b72b0d2e161d1b773499bffcd38c1d551879ea1fa819fe9b7aadadb46cb5",
+      "mode": "0644",
+      "size": 890
+    },
+    {
+      "path": "opt/netconfig/netconfig/store.py",
+      "sha256": "e8fc974e84441f726c8a6fe7b276ced12412e0b28ef408d530664ce952752d32",
+      "mode": "0644",
+      "size": 8654
+    },
+    {
+      "path": "opt/netconfig/netconfig/structured_changes.py",
+      "sha256": "8660d031a26c9e49e7411d765e9294da2d00da7774dbed6b4ddfd30cf4e799f4",
+      "mode": "0644",
+      "size": 21796
+    },
+    {
+      "path": "opt/netconfig/netconfig/structured_protocols.py",
+      "sha256": "a1afc7c578d17b80810f68447b20149dee0c9ed3216667a616071d126264a22b",
+      "mode": "0644",
+      "size": 80399
+    },
+    {
+      "path": "opt/netconfig/netconfig/syslog_receiver.py",
+      "sha256": "7f1b97ea6d9976e1f22b01bc5aa75d6ab688b16e3a349b41c95e4eaa1c2e74a9",
+      "mode": "0644",
+      "size": 3789
+    },
+    {
+      "path": "opt/netconfig/netconfig/telemetry.py",
+      "sha256": "6fc8ad46399f6dcfbcc1c66ca9641d1392f3ad5c4c81d25cb271c63c9406ecbc",
+      "mode": "0644",
+      "size": 24737
+    },
+    {
+      "path": "opt/netconfig/netconfig/topology.py",
+      "sha256": "534e35ff4ad61337829677bc416fd9c4137e905f3caec3693fab75b841791333",
+      "mode": "0644",
+      "size": 19840
+    },
+    {
+      "path": "opt/netconfig/netconfig/transport.py",
+      "sha256": "10949c303bc270bf62ddcea6de9959d2a18be19f03d14b7852c4ee275848b0a0",
+      "mode": "0644",
+      "size": 15861
+    },
+    {
+      "path": "opt/netconfig/netconfig/users.py",
+      "sha256": "1ce549044ce40e245c64a4c38ecfafb38ba44a910def3ff7536783d4f30cce56",
+      "mode": "0644",
+      "size": 4949
+    },
+    {
+      "path": "opt/netconfig/netconfig/vault.py",
+      "sha256": "fe93e5877dffa3651ffa888118c3308bdc7b42abb39016f324d83bf1c1855dc9",
+      "mode": "0644",
+      "size": 5966
+    },
+    {
+      "path": "opt/netconfig/netconfig/vendor_models.py",
+      "sha256": "21545c33455632a8132437aeb73efe1746f98bfa2dce38f5b82b11cbef293c5a",
+      "mode": "0644",
+      "size": 23487
+    },
+    {
+      "path": "opt/netconfig/netconfig/web.py",
+      "sha256": "0744b0b0b377563ac624ba9ab31891257835a93b8946b09394d0b98aa94bf4d8",
+      "mode": "0644",
+      "size": 239896
+    },
+    {
+      "path": "opt/netconfig/netconfig/web_api.py",
+      "sha256": "bf7eb5ce3104d49e5f6905653f10be30c538677f5cf2c1bcfefddb62aa6a0d0d",
+      "mode": "0644",
+      "size": 104936
+    },
+    {
+      "path": "opt/netconfig/netconfig/web_dependencies.py",
+      "sha256": "2deebe08bbe54e92dd8dbe60e7847633e3622786909f65e94c85193537142016",
+      "mode": "0644",
+      "size": 11458
+    },
+    {
+      "path": "opt/netconfig/netconfig/web_integrations.py",
+      "sha256": "9b4e618990a0189cf15f8a31c6460ceebd892c59d7e5bca9487966e184dec7eb",
+      "mode": "0644",
+      "size": 6845
+    },
+    {
+      "path": "opt/netconfig/netconfig/web_mc9.py",
+      "sha256": "f4320d26bc209c695514e6e6eed24b3d8424d53e641030a6958d497a1d9f6d29",
+      "mode": "0644",
+      "size": 14661
+    },
+    {
+      "path": "opt/netconfig/netconfig/web_ops.py",
+      "sha256": "dcf5c7d381f683fa858d5f440f8839e1b551e07d2c658933868231aa46530d04",
+      "mode": "0644",
+      "size": 85895
+    },
+    {
+      "path": "opt/netconfig/netconfig/web_ui.py",
+      "sha256": "12299b5386901fafd3505a0a521554cea2d5c08f689543cd262f585a7dd97db4",
+      "mode": "0644",
+      "size": 90561
+    },
+    {
+      "path": "opt/netconfig/netconfig/workflow.py",
+      "sha256": "dec6656fda4de9f7f59197876bde94218bb7922bc37a5e8ff032b7f75f629e45",
+      "mode": "0644",
+      "size": 26039
+    },
+    {
+      "path": "opt/netconfig/selftest.py",
+      "sha256": "e9e0139f03ab7b6fa6bc8fcfe65eb40ceb08b73c22442e66b679f8db18467de6",
+      "mode": "0644",
+      "size": 34771
+    },
+    {
+      "path": "packaging/README.md",
+      "sha256": "8b0fa6ff954949627ff3ff620a58d3134859f80306535ecd39c2e8160bfbce5b",
+      "mode": "0644",
+      "size": 16179
+    },
+    {
+      "path": "packaging/build-rpm.sh",
+      "sha256": "d6c22cae4ad2b279bc679fe1f995e601e8b80ce63bbad00aa37375ea8a9fd2c8",
+      "mode": "0755",
+      "size": 1645
+    },
+    {
+      "path": "packaging/inspect-rpm.sh",
+      "sha256": "624ac0d510150a9abf524644c0b1f25cd9fbfe5585855ec2c112353031e680a5",
+      "mode": "0755",
+      "size": 1376
+    },
+    {
+      "path": "packaging/install-rpm.sh",
+      "sha256": "8cf34b597348d7e36b77583335903c4f16c63a4420aba22006249196543325e8",
+      "mode": "0755",
+      "size": 2667
+    },
+    {
+      "path": "packaging/netconfig.spec",
+      "sha256": "86f9fa319276cd565857c288460cecff9a234c986c2de1616b23132c0adf718f",
+      "mode": "0644",
+      "size": 15296
+    },
+    {
+      "path": "packaging/prepare-transfer.ps1",
+      "sha256": "da09ddd87ba9b66eb6b079b49904447481645007be0e79956f22f967a666461d",
+      "mode": "0644",
+      "size": 2915
+    },
+    {
+      "path": "packaging/q1-qualify-almalinux.sh",
+      "sha256": "d250bc4cad73e63ff93ba19f2be04c3bfbc19d7b06cbd7f007de0fd530d8781e",
+      "mode": "0755",
+      "size": 4021
+    },
+    {
+      "path": "packaging/q1-qualify-postgres.sh",
+      "sha256": "a7483a8d24636a18ae547e22cc954f6675d63bd7adcbf8cd33f4b711155dafdd",
+      "mode": "0755",
+      "size": 1165
+    },
+    {
+      "path": "packaging/q1-source-gates.sh",
+      "sha256": "b3baab4e28243cb3c6410b7d1ad9406887905920db8036dbc85d91fecfc0807a",
+      "mode": "0755",
+      "size": 3638
+    },
+    {
+      "path": "packaging/q2-qualify.sh",
+      "sha256": "19e5cc6236c3b88d51fd3aa9e34357eb94f5f865ab4cf2a1701e392eb63c2e7f",
+      "mode": "0755",
+      "size": 144
+    },
+    {
+      "path": "packaging/q2-source-gates.sh",
+      "sha256": "ffd0c1b8acf81192a9f2d547e1d3e547dcd8962b92a93cfaedf51a35609d4737",
+      "mode": "0755",
+      "size": 784
+    },
+    {
+      "path": "packaging/r60-lifecycle-upgrade.sh",
+      "sha256": "793103eea24f5d182bb4199bb9072cfbee7b6fea20c17b226cc34f05f9fdd38c",
+      "mode": "0755",
+      "size": 11917
+    },
+    {
+      "path": "packaging/r60-qualify.sh",
+      "sha256": "f47b84a33f24319d4ff706ee92e8a998368b4fc5c0692b52c9930c65b5bb2417",
+      "mode": "0755",
+      "size": 127
+    },
+    {
+      "path": "packaging/smoke-installed.sh",
+      "sha256": "b4912deaa888a670143c065b55d19bdaa5e3ddfc9ee44979d4a2fe07a124c685",
+      "mode": "0755",
+      "size": 1928
+    },
+    {
+      "path": "patch.md",
+      "sha256": "d43585c61d5a14fab2b3ee144cf6da7b178e4057f051941952d32b0a93e62991",
+      "mode": "0644",
+      "size": 51930
+    },
+    {
+      "path": "pyproject.toml",
+      "sha256": "ae352a75e84ed0891e5034ec06a313b844df71583513fa02965094a1607be3ab",
+      "mode": "0644",
+      "size": 615
+    },
+    {
+      "path": "qualification/README.md",
+      "sha256": "097b9be51c93fb3dd9643603420ccc4fa6d57b966cdef8e61bb1c0e0e35bd8bd",
+      "mode": "0644",
+      "size": 2798
+    },
+    {
+      "path": "qualification/hooks.example/README.md",
+      "sha256": "d3309a6bf08cfc4f535acd313ed013c7f7f316d856b14696d60c7fcfc512d44b",
+      "mode": "0644",
+      "size": 559
+    },
+    {
+      "path": "qualification/hooks.example/almalinux-clean-install",
+      "sha256": "de99a02f7c670001723e764761baa6a351c112d3f7340cb881563ef14f24c6f1",
+      "mode": "0644",
+      "size": 133
+    },
+    {
+      "path": "qualification/hooks.example/api-latency",
+      "sha256": "de99a02f7c670001723e764761baa6a351c112d3f7340cb881563ef14f24c6f1",
+      "mode": "0644",
+      "size": 133
+    },
+    {
+      "path": "qualification/hooks.example/clock-skew",
+      "sha256": "de99a02f7c670001723e764761baa6a351c112d3f7340cb881563ef14f24c6f1",
+      "mode": "0644",
+      "size": 133
+    },
+    {
+      "path": "qualification/hooks.example/duplicate-replay",
+      "sha256": "de99a02f7c670001723e764761baa6a351c112d3f7340cb881563ef14f24c6f1",
+      "mode": "0644",
+      "size": 133
+    },
+    {
+      "path": "qualification/hooks.example/external-evidence",
+      "sha256": "de99a02f7c670001723e764761baa6a351c112d3f7340cb881563ef14f24c6f1",
+      "mode": "0644",
+      "size": 133
+    },
+    {
+      "path": "qualification/hooks.example/host-reboot",
+      "sha256": "de99a02f7c670001723e764761baa6a351c112d3f7340cb881563ef14f24c6f1",
+      "mode": "0644",
+      "size": 133
+    },
+    {
+      "path": "qualification/hooks.example/late-out-of-order",
+      "sha256": "de99a02f7c670001723e764761baa6a351c112d3f7340cb881563ef14f24c6f1",
+      "mode": "0644",
+      "size": 133
+    },
+    {
+      "path": "qualification/hooks.example/postgres-backup-restore",
+      "sha256": "de99a02f7c670001723e764761baa6a351c112d3f7340cb881563ef14f24c6f1",
+      "mode": "0644",
+      "size": 133
+    },
+    {
+      "path": "qualification/hooks.example/postgres-concurrency",
+      "sha256": "de99a02f7c670001723e764761baa6a351c112d3f7340cb881563ef14f24c6f1",
+      "mode": "0644",
+      "size": 133
+    },
+    {
+      "path": "qualification/hooks.example/postgres-migration",
+      "sha256": "de99a02f7c670001723e764761baa6a351c112d3f7340cb881563ef14f24c6f1",
+      "mode": "0644",
+      "size": 133
+    },
+    {
+      "path": "qualification/hooks.example/real-netflow-ipfix",
+      "sha256": "de99a02f7c670001723e764761baa6a351c112d3f7340cb881563ef14f24c6f1",
+      "mode": "0644",
+      "size": 133
+    },
+    {
+      "path": "qualification/hooks.example/real-snmp",
+      "sha256": "de99a02f7c670001723e764761baa6a351c112d3f7340cb881563ef14f24c6f1",
+      "mode": "0644",
+      "size": 133
+    },
+    {
+      "path": "qualification/hooks.example/real-snmp-trap",
+      "sha256": "de99a02f7c670001723e764761baa6a351c112d3f7340cb881563ef14f24c6f1",
+      "mode": "0644",
+      "size": 133
+    },
+    {
+      "path": "qualification/hooks.example/real-ssh",
+      "sha256": "de99a02f7c670001723e764761baa6a351c112d3f7340cb881563ef14f24c6f1",
+      "mode": "0644",
+      "size": 133
+    },
+    {
+      "path": "qualification/hooks.example/real-syslog",
+      "sha256": "de99a02f7c670001723e764761baa6a351c112d3f7340cb881563ef14f24c6f1",
+      "mode": "0644",
+      "size": 133
+    },
+    {
+      "path": "qualification/hooks.example/retention",
+      "sha256": "de99a02f7c670001723e764761baa6a351c112d3f7340cb881563ef14f24c6f1",
+      "mode": "0644",
+      "size": 133
+    },
+    {
+      "path": "qualification/hooks.example/rpm-rollback",
+      "sha256": "de99a02f7c670001723e764761baa6a351c112d3f7340cb881563ef14f24c6f1",
+      "mode": "0644",
+      "size": 133
+    },
+    {
+      "path": "qualification/hooks.example/rpm-upgrade",
+      "sha256": "de99a02f7c670001723e764761baa6a351c112d3f7340cb881563ef14f24c6f1",
+      "mode": "0644",
+      "size": 133
+    },
+    {
+      "path": "qualification/hooks.example/selinux-enforcing",
+      "sha256": "de99a02f7c670001723e764761baa6a351c112d3f7340cb881563ef14f24c6f1",
+      "mode": "0644",
+      "size": 133
+    },
+    {
+      "path": "qualification/hooks.example/systemd-restart",
+      "sha256": "de99a02f7c670001723e764761baa6a351c112d3f7340cb881563ef14f24c6f1",
+      "mode": "0644",
+      "size": 133
+    },
+    {
+      "path": "qualification/hooks.example/webui-latency",
+      "sha256": "de99a02f7c670001723e764761baa6a351c112d3f7340cb881563ef14f24c6f1",
+      "mode": "0644",
+      "size": 133
+    },
+    {
+      "path": "qualification/hooks.example/worker-restart",
+      "sha256": "de99a02f7c670001723e764761baa6a351c112d3f7340cb881563ef14f24c6f1",
+      "mode": "0644",
+      "size": 133
+    },
+    {
+      "path": "qualification/q2_runner.py",
+      "sha256": "e7596ae2615d9d414e0cb0e22ca337440e804fe159e9bcd46418463861869f60",
+      "mode": "0755",
+      "size": 23534
+    },
+    {
+      "path": "qualification/r60-hooks.example/README.md",
+      "sha256": "e3ed6883a7b70930c079604411b15839acca5012a531d1c7c4f20845c69511e6",
+      "mode": "0644",
+      "size": 472
+    },
+    {
+      "path": "qualification/r60-hooks.example/crash-recovery",
+      "sha256": "da1e1bb1993498634e72962297e5c10a046bfa14c6c45618bed2f7c36697531c",
+      "mode": "0644",
+      "size": 137
+    },
+    {
+      "path": "qualification/r60-hooks.example/disk-full",
+      "sha256": "da1e1bb1993498634e72962297e5c10a046bfa14c6c45618bed2f7c36697531c",
+      "mode": "0644",
+      "size": 137
+    },
+    {
+      "path": "qualification/r60-hooks.example/failed-upgrade-rollback",
+      "sha256": "da1e1bb1993498634e72962297e5c10a046bfa14c6c45618bed2f7c36697531c",
+      "mode": "0644",
+      "size": 137
+    },
+    {
+      "path": "qualification/r60-hooks.example/log-retention-maintenance",
+      "sha256": "da1e1bb1993498634e72962297e5c10a046bfa14c6c45618bed2f7c36697531c",
+      "mode": "0644",
+      "size": 137
+    },
+    {
+      "path": "qualification/r60-hooks.example/postgres-failed-migration-rollback",
+      "sha256": "da1e1bb1993498634e72962297e5c10a046bfa14c6c45618bed2f7c36697531c",
+      "mode": "0644",
+      "size": 137
+    },
+    {
+      "path": "qualification/r60-hooks.example/postgres-rollback-db",
+      "sha256": "da1e1bb1993498634e72962297e5c10a046bfa14c6c45618bed2f7c36697531c",
+      "mode": "0644",
+      "size": 137
+    },
+    {
+      "path": "qualification/r60-hooks.example/preservation",
+      "sha256": "da1e1bb1993498634e72962297e5c10a046bfa14c6c45618bed2f7c36697531c",
+      "mode": "0644",
+      "size": 137
+    },
+    {
+      "path": "qualification/r60-hooks.example/r59-to-r60-upgrade",
+      "sha256": "da1e1bb1993498634e72962297e5c10a046bfa14c6c45618bed2f7c36697531c",
+      "mode": "0644",
+      "size": 137
+    },
+    {
+      "path": "qualification/r60-hooks.example/service-ordering-restart",
+      "sha256": "da1e1bb1993498634e72962297e5c10a046bfa14c6c45618bed2f7c36697531c",
+      "mode": "0644",
+      "size": 137
+    },
+    {
+      "path": "qualification/r60-hooks.example/shutdown-reboot",
+      "sha256": "da1e1bb1993498634e72962297e5c10a046bfa14c6c45618bed2f7c36697531c",
+      "mode": "0644",
+      "size": 137
+    },
+    {
+      "path": "qualification/r60_runner.py",
+      "sha256": "64d598af774c2744656db1dd3beffd353fb6c30bc22e96df0c06e8eb7df8f52d",
+      "mode": "0755",
+      "size": 13028
+    },
+    {
+      "path": "qualification/run_bounded_regression.py",
+      "sha256": "5b91a2a98fd4bad12aaf0f33e46811830ba8973c3e6ea90aa143a97c04007a4b",
+      "mode": "0755",
+      "size": 3202
+    },
+    {
+      "path": "requirements-quality.txt",
+      "sha256": "88da888c0f97beb742fcfdb740f561f2bb6f76f3133d51b97c5b4daf3a714971",
+      "mode": "0644",
+      "size": 117
+    },
+    {
+      "path": "tests/integration/fake_device_shell.py",
+      "sha256": "6363de8460606f4eee7d055cb341dbd820efb502a7555d9f33bc171299c4f129",
+      "mode": "0644",
+      "size": 655
+    },
+    {
+      "path": "tests/integration/test_postgres_core_live.py",
+      "sha256": "82b763cfc797c54e04b998fd7685ab4ccb0be8927adc464756ab8d71cf185cb5",
+      "mode": "0644",
+      "size": 8164
+    },
+    {
+      "path": "tests/integration/test_protocol_fakes.py",
+      "sha256": "bf128cd1bc44cc467a51c7ee903cf88d5fc24afc2d149688f122e55261dbcfa2",
+      "mode": "0644",
+      "size": 1737
+    },
+    {
+      "path": "tests/test_analytics_enterprise_workflow.py",
+      "sha256": "52dd8c3c765fccd5783a3afa65ae64168982768085d9d816abe3db9d269cdeb2",
+      "mode": "0644",
+      "size": 8855
+    },
+    {
+      "path": "tests/test_api_tokens.py",
+      "sha256": "fbf2ec9509906d190091392e82079bcb69eefbbfbf96f825d37b99aed9976765",
+      "mode": "0644",
+      "size": 624
+    },
+    {
+      "path": "tests/test_automation_expansion.py",
+      "sha256": "7490fc447f252fa5cb8cbe06a1ac7097aad73d7824472d364a1bc599dfd8007a",
+      "mode": "0644",
+      "size": 20685
+    },
+    {
+      "path": "tests/test_campaign_retry_api.py",
+      "sha256": "a522fd5007dada1ce4acdb058349277b32ea023522eec7c33d247682ff9937e5",
+      "mode": "0644",
+      "size": 1979
+    },
+    {
+      "path": "tests/test_capacity_analyzer.py",
+      "sha256": "b92a8b70ef41010c59c4b70e8d9bb3f6a33f668cff3d708a011be954ea275343",
+      "mode": "0644",
+      "size": 630
+    },
+    {
+      "path": "tests/test_configmodel.py",
+      "sha256": "3b170580bada4bd297aa04ebf7425bf20768274c3e324e6a054bcabe9541ad3d",
+      "mode": "0644",
+      "size": 1587
+    },
+    {
+      "path": "tests/test_credentials.py",
+      "sha256": "a2e730e0176dc67747744133a31a6b93a41fb220cd3625e14b5a3b6569d8d6be",
+      "mode": "0644",
+      "size": 715
+    },
+    {
+      "path": "tests/test_css_regression_review.py",
+      "sha256": "f195a689b2d551a61bb4db80f8f768fee040ebb931055e80cf913b18466c5ae2",
+      "mode": "0644",
+      "size": 2077
+    },
+    {
+      "path": "tests/test_d5_closeout.py",
+      "sha256": "cc06ca60f8bdeb97c2f3766328f78a0bc0218679834cd71c4881497acab2bb24",
+      "mode": "0644",
+      "size": 4742
+    },
+    {
+      "path": "tests/test_digest.py",
+      "sha256": "abe0b948fdaeeb30a67570b8f48eda5721e4db91a4459026b944ecfa662ca39e",
+      "mode": "0644",
+      "size": 608
+    },
+    {
+      "path": "tests/test_evidence_signing.py",
+      "sha256": "022788290f7de2369b638baad68f2163465423943bfc645092f048cdf7333877",
+      "mode": "0644",
+      "size": 12888
+    },
+    {
+      "path": "tests/test_failure_risk_analyzer.py",
+      "sha256": "2c6746ee3cb4befe3f3c33ae8ade9d2214016b06c4cd751d3e0a19efc491eca8",
+      "mode": "0644",
+      "size": 2257
+    },
+    {
+      "path": "tests/test_failure_risk_insight.py",
+      "sha256": "8ef47f61f6ca9824ad83b39d137248160cad2aff9754eb4174c7d94e3ffa5dab",
+      "mode": "0644",
+      "size": 1144
+    },
+    {
+      "path": "tests/test_failure_risk_security_boundary.py",
+      "sha256": "971d02f74d9adba8554023cb6b0e5ffc21581c49a29b375b74fcab01dd33e15c",
+      "mode": "0644",
+      "size": 1520
+    },
+    {
+      "path": "tests/test_health_dashboard.py",
+      "sha256": "c56f7a3f3690001161639e493f5667b75685341c965e7819ce5897915089dd35",
+      "mode": "0644",
+      "size": 536
+    },
+    {
+      "path": "tests/test_impact_simulator.py",
+      "sha256": "bf796809d7835dafd13af39ae86c24e81919d2d7f92358405b61c509fb567b87",
+      "mode": "0644",
+      "size": 850
+    },
+    {
+      "path": "tests/test_incident_web.py",
+      "sha256": "a6aa3d362bf412dd74ab39c2159ddc4e87c9ae76a917ac30edf622e0caea9dcb",
+      "mode": "0644",
+      "size": 10065
+    },
+    {
+      "path": "tests/test_incidents.py",
+      "sha256": "c011b1760127c41e130c780674c8e90843e0dca34589baa1b9cc9f76cf6cd1a3",
+      "mode": "0644",
+      "size": 28294
+    },
+    {
+      "path": "tests/test_legacy_selftest.py",
+      "sha256": "8b2593a1762f084a7826fdf69f4f451b48a0c42961c49700c5e8c979e6c6731a",
+      "mode": "0644",
+      "size": 506
+    },
+    {
+      "path": "tests/test_mc10_correlation_production_hardening.py",
+      "sha256": "8362b74d8527cf3fd31de8885db0605f2ce663c14fe9079b098f39b0d4b80b53",
+      "mode": "0644",
+      "size": 17453
+    },
+    {
+      "path": "tests/test_mc11_topology_change_planning.py",
+      "sha256": "70a5c136dc965a723ac3c17911860f82c5012cad28f3f53d0a389f46432b19a0",
+      "mode": "0644",
+      "size": 17381
+    },
+    {
+      "path": "tests/test_mc1_sensor_integration.py",
+      "sha256": "a8dfdcee2f7fced7d950b6f75a2b242887e922df3efc258aa8c1fb436329303b",
+      "mode": "0644",
+      "size": 3092
+    },
+    {
+      "path": "tests/test_mc2_sensor_history.py",
+      "sha256": "d6f026541a168c0255848763d383ba1c4ed10a851f820ebfc457377010a6a134",
+      "mode": "0644",
+      "size": 11944
+    },
+    {
+      "path": "tests/test_mc3_operational_evidence.py",
+      "sha256": "6632455dcb51ac77b6c5e040d523a499a5bccb314d62c258979bafaf80d894f7",
+      "mode": "0644",
+      "size": 11383
+    },
+    {
+      "path": "tests/test_mc4_unified_alert_plane.py",
+      "sha256": "3b999159b041239135fc42ff1f182999ca1bde26759d6a702facf4eb3f54acd1",
+      "mode": "0644",
+      "size": 19268
+    },
+    {
+      "path": "tests/test_mc5_incident_evidence_timeline.py",
+      "sha256": "fdb98b05f0ee5e66d7f655a58f0c4584149d321fb62afcecd6e21f4506359efb",
+      "mode": "0644",
+      "size": 13166
+    },
+    {
+      "path": "tests/test_mc6_l3_topology_followup.py",
+      "sha256": "856a6ab80c4546b58fd745ee0a41ba5e275ceb60d74fe3ab3cc0b0c2deafcf0a",
+      "mode": "0644",
+      "size": 12254
+    },
+    {
+      "path": "tests/test_mc6_service_dependency_graph.py",
+      "sha256": "44f34dcd3656af96f2fb03f827ea89febc397f548fb1725a5b8af66afbe7c986",
+      "mode": "0644",
+      "size": 14581
+    },
+    {
+      "path": "tests/test_mc7_deterministic_correlation.py",
+      "sha256": "c2f60ea4ab50bc8052185a3fea61614801312a689b35f99cd5aca105e9f3849a",
+      "mode": "0644",
+      "size": 13319
+    },
+    {
+      "path": "tests/test_mc8_external_evidence.py",
+      "sha256": "23824f17ee9c54d09bcf4acf917ab02d5d35a1cc750098302582da3f00951a1c",
+      "mode": "0644",
+      "size": 18237
+    },
+    {
+      "path": "tests/test_mc9_operations_correlation_console.py",
+      "sha256": "bb8ecd07371df23e77036f93a3a4e82a431b665673b4e545b452a81ab687242f",
+      "mode": "0644",
+      "size": 8945
+    },
+    {
+      "path": "tests/test_network_intelligence.py",
+      "sha256": "9f10210f4d29c89ab87b8803639448a2bccb7fe7a77e1e88260200c6a4e830fc",
+      "mode": "0644",
+      "size": 7599
+    },
+    {
+      "path": "tests/test_network_intelligence_ni2.py",
+      "sha256": "4302e40746f4aac7e73d647bfc6afd74649a247b03fb42767b025b7a0dce5fa7",
+      "mode": "0644",
+      "size": 7807
+    },
+    {
+      "path": "tests/test_network_intelligence_ni3.py",
+      "sha256": "a03e8d4745b023de9f559456727053d71f6525fc7f91dec014efa43a40baf238",
+      "mode": "0644",
+      "size": 6240
+    },
+    {
+      "path": "tests/test_network_intelligence_ni4.py",
+      "sha256": "d4d16097e84bb9e2e66039771c097ced18784288d3b210fb3084518779e3821b",
+      "mode": "0644",
+      "size": 9098
+    },
+    {
+      "path": "tests/test_network_intelligence_ni7.py",
+      "sha256": "1b26b7c1b4f8ea502d61ff2d6d00d8b5bab38ca82d6fe81ae4fe7e5b2578dc48",
+      "mode": "0644",
+      "size": 8501
+    },
+    {
+      "path": "tests/test_offline_rpm_builder.py",
+      "sha256": "6eca895d4cc11daf1ca9b6f2d2b123946e1f1a505ab0b16e002157503522e539",
+      "mode": "0644",
+      "size": 2549
+    },
+    {
+      "path": "tests/test_ph4_completion_final.py",
+      "sha256": "2188280c90a7df685e83c5c52f64a98f48eeb54ee9c51f5befb9aba562ac8752",
+      "mode": "0644",
+      "size": 426
+    },
+    {
+      "path": "tests/test_ph5_api_surface.py",
+      "sha256": "08c6e95c75131284506a0093bb3dc9857d34a9f2f08177a06ba135a470a7caaa",
+      "mode": "0644",
+      "size": 275
+    },
+    {
+      "path": "tests/test_ph5_intent_foundation.py",
+      "sha256": "1b388921e65ab69192f3d029ea789d7010055b7bcd88417ff32a1ab0e4deac2b",
+      "mode": "0644",
+      "size": 244
+    },
+    {
+      "path": "tests/test_ph6_api.py",
+      "sha256": "5a178d9bc941a5706e747700c2603ebaf1475079fc23c61f1e8b50bf396b1712",
+      "mode": "0644",
+      "size": 615
+    },
+    {
+      "path": "tests/test_ph6_execution_foundation.py",
+      "sha256": "c49fdbc96ee5f144fd17f29435d1fc3140c5cf492596935a5a198d297d863c67",
+      "mode": "0644",
+      "size": 295
+    },
+    {
+      "path": "tests/test_platform_hardening_ph1.py",
+      "sha256": "365676acf86bf36b99e5ed4348b5235742f25000b4f5f206b9bad5051731ad06",
+      "mode": "0644",
+      "size": 3664
+    },
+    {
+      "path": "tests/test_platform_hardening_ph2.py",
+      "sha256": "09a4015cd29bc89dcb93f81153a143a27b8be3fee74acfb716afe27c4d0f7e3b",
+      "mode": "0644",
+      "size": 7533
+    },
+    {
+      "path": "tests/test_platform_hardening_ph3.py",
+      "sha256": "042cbfc6603983e092a006a0ffc7b540a5a97eca799258ff1b3f22f00de1ac50",
+      "mode": "0644",
+      "size": 21891
+    },
+    {
+      "path": "tests/test_protocol_trace.py",
+      "sha256": "400a2fd15b15c869b07c20b9ca09aab6381e6e6e9985225eddad63675873f4df",
+      "mode": "0644",
+      "size": 8578
+    },
+    {
+      "path": "tests/test_protocols_storage.py",
+      "sha256": "a65103d1751058d4201406ac4370eef7af81a6bb413bbe4f6279e83db63b0dd5",
+      "mode": "0644",
+      "size": 398
+    },
+    {
+      "path": "tests/test_q2_production_qualification.py",
+      "sha256": "9a7fc4af72fca67f0eda72cab7ae0b56c83735028b0760de5f11cada970c755c",
+      "mode": "0644",
+      "size": 6359
+    },
+    {
+      "path": "tests/test_qualification_q1.py",
+      "sha256": "60980aeb08d24de4d269671482e8f7f27e93a4234154ddafcecce3a76f135e9a",
+      "mode": "0644",
+      "size": 9886
+    },
+    {
+      "path": "tests/test_r51_pre_mc4_hotfix.py",
+      "sha256": "fa482c0b299d8458718447281df12f35cd8c57ea3c9ec7f057ac3ad1e7ce04ff",
+      "mode": "0644",
+      "size": 8771
+    },
+    {
+      "path": "tests/test_r60_lifecycle.py",
+      "sha256": "6e40b438632e47501190d462bbfdadd8049e565bec8e70f81c6603846f70636f",
+      "mode": "0644",
+      "size": 8403
+    },
+    {
+      "path": "tests/test_r60_qualification.py",
+      "sha256": "e75296c8f895924da7f0246ee695b417fcb4eb395ec13c34c89fe4c2077669f6",
+      "mode": "0644",
+      "size": 3669
+    },
+    {
+      "path": "tests/test_repo_hygiene.py",
+      "sha256": "e177913cb814daceda369d59a6199e01da6bba6caf461b0df2c533683b148cca",
+      "mode": "0644",
+      "size": 6828
+    },
+    {
+      "path": "tests/test_security.py",
+      "sha256": "77e0a19f14ad524ab79353d2c47f88db51f8cf36d700b57d96f2b5ef2fa1b86c",
+      "mode": "0644",
+      "size": 927
+    },
+    {
+      "path": "tests/test_sensor_api.py",
+      "sha256": "7b280d36f5b5fdb98f36afa7c5f46dce220b8aca14dafe312a3cb23ef4fa0201",
+      "mode": "0644",
+      "size": 3611
+    },
+    {
+      "path": "tests/test_sensor_model.py",
+      "sha256": "a1ec79626a1b68bc64b622a1a011000176ac74676fabe7c80d213afe460a2e8a",
+      "mode": "0644",
+      "size": 9192
+    },
+    {
+      "path": "tests/test_snmp_concurrency.py",
+      "sha256": "ac6d04c9cf15e205e16f851ac4cde9b1153ee651009c0e348d22a6cf9d80c974",
+      "mode": "0644",
+      "size": 774
+    },
+    {
+      "path": "tests/test_syslog_receiver.py",
+      "sha256": "01c011ef58b060596196f9fd08913adf04b6ea7a9c0a6cb6004b2c8d5020e1c0",
+      "mode": "0644",
+      "size": 1096
+    },
+    {
+      "path": "tests/test_topology.py",
+      "sha256": "e73c5c7788c0838764b730c7e11841b8cd18c24540b090624f76022d64220602",
+      "mode": "0644",
+      "size": 1168
+    },
+    {
+      "path": "tests/test_ui1_web_console.py",
+      "sha256": "691b1e97082e2b2511e73d2c7c06c8f1e2699007dc02554830e1f9f7872d70c1",
+      "mode": "0644",
+      "size": 23898
+    },
+    {
+      "path": "tools/rpm-builder/README.md",
+      "sha256": "9ed29584d688e1ae037beed8567a6ee36e13ffe717629fd4ae1ceaf884653d22",
+      "mode": "0644",
+      "size": 8791
+    },
+    {
+      "path": "tools/rpm-builder/build.sh",
+      "sha256": "62e5a107d17f1ea64e29516f891561cc1b4ffb39fd2e85e6b63798812cc83d1e",
+      "mode": "0755",
+      "size": 236
+    },
+    {
+      "path": "tools/rpm-builder/rpm_builder.py",
+      "sha256": "d202288acb3e0b96c45f0b52af20645ea8bc8a6c826c338fd37e67ab96e8e16a",
+      "mode": "0755",
+      "size": 15881
+    },
+    {
+      "path": "tools/rpm-builder/verify.sh",
+      "sha256": "20e6c4b5e690f04c507f177f85c1978a8f0b8fbfb3553641315f38476f1d5ef0",
+      "mode": "0755",
+      "size": 210
+    },
+    {
+      "path": "tools/rpm-builder/verify_rpm.py",
+      "sha256": "8ca30a409306b1d2af1c55ef3be2cc5b2b029558c228df8ff286d34511f54d27",
+      "mode": "0755",
+      "size": 6848
+    },
+    {
+      "path": "usr/bin/netconfig",
+      "sha256": "845ddc774550d19badbea1e33db5ff85ae4890e25e7f58d29ba86c9f7e8a4e8c",
+      "mode": "0755",
+      "size": 426
+    },
+    {
+      "path": "usr/lib/systemd/system/netconfig-backup.service",
+      "sha256": "6fbc1b2e686ca9265d6ae3e6eb0393a06ae770d499e723c4d72032ae08bdffc7",
+      "mode": "0644",
+      "size": 1148
+    },
+    {
+      "path": "usr/lib/systemd/system/netconfig-backup.timer",
+      "sha256": "e9d48c1ae52976b6a373fedecec4643443aaea0310a70bc3bb7f0b578eece86a",
+      "mode": "0644",
+      "size": 169
+    },
+    {
+      "path": "usr/lib/systemd/system/netconfig-web.service",
+      "sha256": "9fef6a59c86295cd569d32e53eb609ce710d008eccaa761b236000dc57679c63",
+      "mode": "0644",
+      "size": 1465
+    }
+  ]
+}

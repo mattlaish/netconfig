@@ -1,6 +1,6 @@
 # NetConfig — Web Console Operator Guide
 
-> **Canonical project state — 2026-09-23:** **CURRENT IMPLEMENTATION BASELINE** = **Release 51 / MC-3 Normalized Operational Evidence** (`2.0.0-51`, `IMPLEMENTED_TESTING_DEFERRED`). MC-1 Sensor Integration Unification and MC-2 Sensor History & State Transitions remain implemented. Release 51 adds a normalized cross-domain operational-evidence envelope, durable Sensor-transition → Event bridging, recovery/`UNKNOWN` semantics, additive event-schema migration/backfill/indexes, filtered/detail Event API reads, and an Event detail UI with current related Sensor state. NI-1 through **NI-7 L3/VRF Path & Route Dependency Intelligence** remain implemented. Formal RPM qualification remains deferred until the monitoring/correlation roadmap is complete; any ad-hoc RPM remains development evidence only.
+> **Canonical project state — 2026-09-25:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) on top of the frozen R67 candidate. MC-1 through MC-11 remain implemented; **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice and schema revision remains `mc11-topology-change-planning-1`; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included. R67.2 repairs fresh login, additive migration/index ordering, fail-closed Core PostgreSQL preflight, Core/History PostgreSQL configuration separation, and fresh PostgreSQL Core bootstrap without adding network-write authority. **All network mutation remains approval-gated; local/offline qualification does not establish RC or production release readiness; all required `LIVE_RC` gates remain mandatory. Do not create MC-12.** R68 must be rerun against the exact R67.2 candidate after mandatory live qualification.
 ## Release 48 — Sensor Model & Evidence Normalization
 
 Release 48 promotes the sensor work from UI-only health cards into a reusable persisted normalization layer. `SensorEngine` stores `sensor_type`, `device`, `resource`, `value`, `unit`, `status`, `message`, `threshold`, `source`, and `updated_at`, with the status contract limited to `OK`, `WARNING`, `CRITICAL`, and `UNKNOWN`. It reads existing NetConfig persistence only and does **not** initiate SNMP/NETCONF/RESTCONF/gNMI/SSH device I/O or change polling frequency.
@@ -24,7 +24,7 @@ The previously documented Central Controller + read-only Site Edge/Collector con
 **Release 46 source qualification:** repository regression executed in bounded groups totals **222 passed / 8 skipped / 0 failed**; the eight skips are seven explicit live/service prerequisites plus the expected Git-index mode skip because `.git` is absent. Focused Web Console/structural coverage is **13 passed**. Legacy selftest is **ALL PASS**; compileall, launcher `py_compile`, and packaging/tool shell syntax are **PASS**. Ruff `0.16.7` and mypy `2.3.1` remain **NOT_RUN** because the executables are unavailable. The dependency-free offline RPM builder is covered by Release 46 reproducibility and independent-verifier gates; the exact delivered RPM SHA-256 is recorded in the top-level release evidence rather than in packaged runtime documentation. Canonical AlmaLinux 10 `rpmbuild`/DNF install-upgrade/systemd/SELinux and other Q-1 live/device gates remain **NOT_RUN / DEFERRED**.
 
 
-> **Roadmap disposition — 2026-09-23:** The monitoring/correlation roadmap is active. MC-1 through MC-3 are implemented in source as `IMPLEMENTED_TESTING_DEFERRED`; the next planned slice is **MC-4 / Release 52 — Unified Alert Plane**. NI-7 remains implemented and Q-1 remains an open production/service qualification track. Do not invent NI-8/Q-2 or skip the defined MC sequence without an explicit roadmap decision.
+> **Roadmap disposition — 2026-09-24:** **R59 / MC-11 is the final Monitoring & Correlation functional slice.** Do not create MC-12. After R59, stop feature expansion and use the Release / Qualification track: **Q2 Production Qualification Campaign → R60 Appliance Reliability & Lifecycle Hardening → R61 Scale & Performance Qualification → R62 PostgreSQL / Concurrency / Recovery Hardening → R63 HA / Failure-Domain Engineering → R64 Security Hardening & Independent Abuse Testing → R65 Operator Workflow Completion → R66 Observability / Supportability → R67 Release Candidate / Full Artifact Qualification → R68 v2 Production Release Decision**. Simulation never counts as live PASS; mandatory gates use `PASS / FAIL / BLOCKED_ENVIRONMENT / NOT_RUN`.
 ## Recorded UX direction — baselines, MIB sensor summaries, and collection
 
 Future user-facing wording should describe `Configuration Baselines` as **Configuration Baselines / Templates & Drift**. The intent is to make clear that a baseline can act as a reusable configuration template and that the system can compare observed/current state against that baseline for drift before any remediation is considered.
@@ -34,7 +34,7 @@ Keep Structured Changes, Campaigns, Automation Requests, Device Collection/Proto
 For MIB/SNMP data, normal operator views should emphasize feature-oriented sensor cards and health indicators derived from existing collected evidence—for example `Loop Protection: enabled ports / loop detected / last event`—rather than presenting raw OID rows as the primary experience. Raw MIB/OID detail remains in Advanced/troubleshooting views. UI visualization should reuse DB/cache evidence by default and must not create higher-frequency polling or broader device walks merely to draw cards or status lights.
 
 
-> **Current continuation pointer:** use **Release 51 / MC-3 Normalized Operational Evidence** (`2.0.0-51`) as the active full-source baseline. Preserve `IMPLEMENTED_TESTING_DEFERRED`. MC-1 through MC-3 are implemented in source; the next roadmap slice is **MC-4 / Release 52 — Unified Alert Plane**. Sensor generation/history and Sensor→Event normalization must not add device I/O; unchanged Sensor refreshes create no event, and missing evidence remains `UNKNOWN` rather than an automatic critical verdict. Formal RPM qualification remains deferred until the roadmap is complete.
+> **Current continuation pointer:** use **Release 59 / MC-11 Topology-Aware Change Planning** (`2.0.0-59`) as the active full-source baseline once the final artifact gate below is frozen. Preserve `IMPLEMENTED_TESTING_DEFERRED`; do not promote to `TESTED` or `RELEASED` based on source simulation. MC-11 is the final functional slice and does not add direct execution authority. The immediate next track after artifact freeze is **Q2 Production Qualification Campaign**, not MC-12.
 
 This guide documents **every page and every control** in the console: what each
 button, field, and option does, and what value it expects. Controls you can't see
@@ -319,13 +319,13 @@ netconfig web --bind 0.0.0.0 --port 8778 \
   --tls-key /etc/netconfig/tls/server.key
 ```
 
-Session idle/absolute expiry is a known deferred security item and is intentionally not changed in this hardening slice. See the repository `SECURITY.md` and `ROADMAP.md`.
+Managed Console sessions enforce a 30-minute idle expiry and 12-hour absolute expiry, with authoritative user disable/delete/password/role revalidation on every request (implemented in R64).
 
 ## Topology, event-driven collection, and API
 
 - **Topology** shows persisted LLDP/CDP neighbour edges. Managed neighbours are matched against inventory name/IP and collected SNMP sysName; unmatched neighbours are explicitly flagged **UNMANAGED**. Operators can run **Discover now** to refresh the fleet.
 - **Settings → Monitoring** enables the bounded syslog receiver (default udp/5514), queue size, debounce window, and scheduled compliance/drift digest interval. A syslog config-change event from a known device triggers an immediate debounced collect.
-- Read-only API tokens are created from the host CLI, not the browser: `netconfig api-token create NAME --role viewer --scope inventory:read --scope topology:read`. Save the printed token immediately; only its hash is retained. Send it as `Authorization: Bearer <token>` to `/api/v1/inventory`, `/api/v1/topology`, `/api/v1/drift`, `/api/v1/compliance/latest`, `/api/v1/digest/latest`, or `/api/v1/audit` when the corresponding scope is granted.
+- API tokens can be created/listed/revoked by admin in **Settings → Integrations** or from the host CLI: `netconfig api-token create NAME --role viewer --scope inventory:read --scope topology:read`. Save the printed token immediately; only its hash is retained. Send it as `Authorization: Bearer <token>` to `/api/v1/inventory`, `/api/v1/topology`, `/api/v1/drift`, `/api/v1/compliance/latest`, `/api/v1/digest/latest`, or `/api/v1/audit` when the corresponding scope is granted.
 
 
 ---
@@ -335,7 +335,7 @@ Historical NI-1 documentation snapshot: `netconfig_network_intelligence_ni1_mark
 
 ## NI-4 Ops Alerts page
 
-`/op-alerts` shows operational alerts, maintenance windows and report schedules. Viewer is read-only. Operator/approver/admin can acknowledge/resolve alerts, add/cancel maintenance windows, and create/run/enable/disable report schedules; every browser mutation requires the existing CSRF token. This is separate from the legacy `/alerts` monitor-rule page.
+`/alerts` is the canonical unified alert surface. **Reports** contains operational report schedules and **Maintenance** contains maintenance windows. Legacy `/op-alerts` is a compatibility redirect; it is not a second operator console. Viewer is read-only; operator/approver/admin can acknowledge/resolve alerts, manage maintenance windows, and create/run/enable/disable report schedules with CSRF protection.
 
 ### Platform Hardening PH-1
 
@@ -353,3 +353,7 @@ The **Protocols** page shows each inventory device's active southbound profile. 
 ## NI-6.4 Failure Risk UI boundary
 
 NI-6.4 adds no new Web route or operator action in this delivery. Failure-risk results are an internal evidence/insight foundation only. UI surfacing is deferred; when added, it must remain read/decision oriented and must not create a direct remediation or configuration execution path.
+
+## R67.2 Database settings split
+
+Settings → Database separates **Core Database** from the optional **Interface History Store**. Core PostgreSQL Save is fail-closed on credential/driver/connectivity/schema preflight. History uses dedicated `if_history_pg_*` fields and its vault-backed password. Core and History test actions are distinct; `/db-test` remains a compatibility alias for the History test.

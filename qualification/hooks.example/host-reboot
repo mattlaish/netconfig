@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "Example hook only; replace with qualification-host implementation." >&2
+exit 20

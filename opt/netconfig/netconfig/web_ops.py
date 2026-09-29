@@ -15,6 +15,7 @@ import urllib.parse
 
 _TABS = (
     ("overview", "Overview"),
+    ("workflow", "Operator Journey"),
     ("structured", "Structured Changes"),
     ("telemetry", "Telemetry"),
     ("models", "Model Packs"),
@@ -80,6 +81,16 @@ def _sparkline(values, width=360, height=80):
 class WebOpsMixin:
     """Web-console UI for PH-4/NI-5/VM-1/NA-1/NA-2/HA-1."""
 
+    def _do_incident_correlate(self, form, sess):
+        ref = (form.get("ref") or [""])[0].strip()
+        if not self._incident_write_allowed(sess):
+            return self._send("forbidden", 403, "text/plain")
+        try:
+            self.manager.correlation.correlate(ref, actor=sess["username"])
+        except ValueError as exc:
+            return self._incident_error(sess, ref, exc)
+        return self._redirect(f"/incident?ref={urllib.parse.quote(ref)}&notice=correlated")
+
     def _dispatch_ops_post(self, path, form, sess):
         handlers = {
             "/ops-structured-submit": self._do_ops_structured_submit,
@@ -108,11 +119,19 @@ class WebOpsMixin:
             "/ops-l3-route-observe": self._do_ops_l3_route_observe,
             "/ops-l3-path": self._do_ops_l3_path,
             "/ops-l3-dependencies": self._do_ops_l3_dependencies,
+            "/ops-change-plan": self._do_ops_change_plan,
+            "/ops-change-evidence": self._do_ops_change_evidence,
+            "/ops-workflow-plan": self._do_ops_workflow_plan,
+            "/ops-workflow-request": self._do_ops_workflow_request,
+            "/ops-workflow-review": self._do_ops_workflow_review,
+            "/ops-workflow-execute": self._do_ops_workflow_execute,
+            "/ops-workflow-recover": self._do_ops_workflow_recover,
             "/ops-insight-state": self._do_ops_insight_state,
             "/ops-analytics-expire": self._do_ops_analytics_expire,
             "/ops-ha-node": self._do_ops_ha_node,
             "/ops-ha-drill-create": self._do_ops_ha_drill_create,
             "/ops-ha-drill-complete": self._do_ops_ha_drill_complete,
+            "/ops-ha-task-requeue": self._do_ops_ha_task_requeue,
         }
         handler = handlers.get(path)
         if handler is None:
@@ -133,7 +152,7 @@ class WebOpsMixin:
         return True
 
     def _ops_tabs(self, active):
-        primary = {"overview", "structured", "desired", "campaigns", "intelligence", "intents"}
+        primary = {"overview", "workflow", "structured", "desired", "campaigns", "intelligence", "intents"}
         out = ['<div class="panel"><div class="row">']
         for key, label in _TABS:
             if key not in primary:
@@ -156,6 +175,7 @@ class WebOpsMixin:
         notice = str((q.get("notice") or [""])[0] or "")
         renderer = {
             "overview": self._ops_overview,
+            "workflow": self._ops_workflow,
             "structured": self._ops_structured,
             "telemetry": self._ops_telemetry,
             "models": self._ops_models,
@@ -175,6 +195,8 @@ class WebOpsMixin:
             '<p>Start with the outcome you need. Read-only analysis and drift checking do not require you to trust NetConfig with configuration writes. '
             'Change execution remains optional and keeps the existing approval/audit safeguards.</p>'
             '<div class="ops-actions">'
+            '<div class="ops-card"><h3>Follow an incident to verified change</h3><p>Use the R65 persisted operator journey to move from incident evidence and hypothesis through MC-11 planning, approval, Structured Change verification and post-change evidence.</p>'
+            '<a class="btn" href="/operations?tab=workflow">Operator Journey</a></div>'
             '<div class="ops-card"><h3>Check templates & drift</h3><p>Compare devices or groups with a reusable configuration baseline before deciding whether to change anything.</p>'
             '<a class="btn ghost" href="/operations?tab=desired">Configuration Baselines / Templates & Drift</a></div>'
             '<div class="ops-card"><h3>Analyze the network</h3><p>Use stored topology, route, health and telemetry evidence for read-only impact and dependency analysis.</p>'
@@ -186,6 +208,271 @@ class WebOpsMixin:
             '<a class="btn ghost" href="/operations?tab=intents">Automation Requests</a></div>'
             '</div><p class="muted">Telemetry subscriptions, Model Packs and HA/DR are available under Advanced operations.</p></div>'
         )
+
+    # ---- R65 persisted operator journey --------------------------------
+    @staticmethod
+    def _ops_int(value):
+        raw = str(value or "").strip()
+        return int(raw) if raw.isdigit() else None
+
+    def _workflow_url(self, incident, *, plan=None, request=None, tx=None, notice=""):
+        params = {"tab": "workflow", "incident": str(incident)}
+        if plan:
+            params["plan"] = str(int(plan))
+        if request:
+            params["request"] = str(int(request))
+        if tx:
+            params["tx"] = str(int(tx))
+        if notice:
+            params["notice"] = str(notice)[:500]
+        return "/operations?" + urllib.parse.urlencode(params)
+
+    def _ops_workflow(self, q, sess):
+        incident_ref = str((q.get("incident") or [""])[0] or "").strip()
+        if not incident_ref:
+            rows = []
+            for inc in self.manager.incidents.list(limit=100):
+                rows.append(
+                    '<tr>'
+                    f'<td><a href="/operations?tab=workflow&incident={urllib.parse.quote(str(inc["incident_key"]))}"><b>{_e(inc["incident_key"])}</b></a></td>'
+                    f'<td>{_e(inc.get("title"))}</td><td>{_status(inc.get("severity"))}</td><td>{_status(inc.get("status"))}</td>'
+                    f'<td><a href="/incident?ref={urllib.parse.quote(str(inc["incident_key"]))}">Incident console</a></td></tr>'
+                )
+            return (
+                '<div class="panel"><h2>R65 · Operator Journey</h2>'
+                '<p class="muted">Persisted-data-first workflow: Dashboard → Incident → Hypothesis → Evidence → Topology / Path Analysis → Proposed Change → Approval → Structured Change → Validation → post-change evidence. This view does not poll devices and does not bypass existing approval, frozen snapshot, verification, rollback or audit authority.</p>'
+                '<table><tr><th>Incident</th><th>Title</th><th>Severity</th><th>Status</th><th>Investigation</th></tr>'
+                + (''.join(rows) or '<tr><td colspan="5" class="muted">No incidents yet.</td></tr>') + '</table></div>'
+            )
+        try:
+            view = self.manager.operator_workflow.view(
+                incident_ref,
+                plan_id=self._ops_int((q.get("plan") or [""])[0]),
+                request_id=self._ops_int((q.get("request") or [""])[0]),
+                transaction_id=self._ops_int((q.get("tx") or [""])[0]),
+            )
+        except Exception as exc:
+            return '<div class="panel"><h2>Operator Journey</h2><div class="err">' + _e(exc) + '</div></div>'
+
+        inc = view["incident"]
+        key = inc["incident_key"]
+        stage_rows = ''.join(
+            f'<tr><td>{idx + 1}</td><td><b>{_e(stage["key"].replace("_", " ").title())}</b></td>'
+            f'<td>{_status(stage["state"])}</td><td>{_e(stage["summary"])}</td></tr>'
+            for idx, stage in enumerate(view["stages"])
+        )
+        header = (
+            f'<div class="panel"><h2>R65 Operator Journey · {_e(key)}</h2>'
+            '<p class="muted">One persisted context across investigation, MC-11 planning, approval, execution and verification. Root cause is never auto-confirmed; analysis and candidate state remain read-only; this journey does not poll devices or trigger page-side network actions.</p>'
+            '<div class="row">'
+            f'<a class="btn ghost" href="/dashboard">Dashboard</a><a class="btn ghost" href="/incident?ref={urllib.parse.quote(key)}">Incident</a>'
+            '<a class="btn ghost" href="/topology">Topology</a><a class="btn ghost" href="/operations?tab=intelligence">Network Intelligence</a>'
+            '</div><table><tr><th>#</th><th>Stage</th><th>State</th><th>Persisted evidence / next action</th></tr>'
+            + stage_rows + '</table></div>'
+        )
+
+        inv = view.get("investigation") or {}
+        hyp = inv.get("current_hypothesis") or {}
+        investigation = (
+            '<div class="panel"><h3>Investigation context</h3>'
+            f'<p><b>Incident:</b> {_e(inc.get("title"))} · {_status(inc.get("status"))}</p>'
+            f'<p><b>Current hypothesis:</b> {_e(hyp.get("hypothesis_type") or "No active hypothesis")} · confidence {_e(hyp.get("confidence") or 0)}%</p>'
+            f'<p>{_e(hyp.get("summary") or "Correlate persisted Incident evidence before treating any explanation as supported.")}</p>'
+            f'<p class="muted">Timeline/evidence items: {len(inv.get("timeline") or [])}. Correlation remains decision support, not causation proof.</p></div>'
+        )
+
+        plan = view.get("selected_plan")
+        plan_panel = ''
+        if plan:
+            result = plan.get("result") or {}
+            plan_panel = (
+                f'<div class="panel"><h3>Path Analysis · PLAN#{int(plan["id"])} · {_status(plan.get("planning_status"))}</h3>'
+                f'<p><b>Source:</b> {_e(plan.get("source_selector"))} → <b>Destination:</b> {_e(plan.get("destination_selector"))} · VRF {_e(plan.get("vrf"))}</p>'
+                '<div class="row"><div><h4>Forward path</h4><pre>' + _pretty(result.get("forward_path")) + '</pre></div>'
+                '<div><h4>Return path</h4><pre>' + _pretty(result.get("return_path")) + '</pre></div></div>'
+                '<h4>Why here? / configuration gaps</h4><pre>' + _pretty(result.get("configuration_gaps")) + '</pre></div>'
+            )
+        elif sess.get("role") in _OPERATOR_ROLES:
+            plan_panel = (
+                '<div class="panel"><h3>Persist incident-linked MC-11 path plan</h3>'
+                '<p class="muted">Use already-collected topology, endpoint, route, dependency and policy evidence only; this action performs no device polling.</p>'
+                f'<form method="post" action="/ops-workflow-plan">{self._csrf_field()}'
+                f'<input type="hidden" name="incident" value="{_e(key)}">'
+                '<div class="row"><div><label>Source device / endpoint</label><input name="source" required></div>'
+                '<div><label>Destination device / endpoint</label><input name="destination" required></div>'
+                '<div><label>VRF</label><input name="vrf" value="default"></div></div>'
+                '<div class="row"><div><label>Destination prefix</label><input name="destination_prefix"></div>'
+                '<div><label>Source / return prefix</label><input name="source_prefix"></div>'
+                '<div><label>Service</label><input name="service" value="any"></div><div><label>Max hops</label><input name="max_hops" value="16"></div></div>'
+                '<button>Analyze persisted evidence</button></form></div>'
+            )
+
+        proposals_panel = ''
+        proposals = view.get("proposals") or []
+        if plan and proposals:
+            items = []
+            for idx, proposal in enumerate(proposals):
+                action = ''
+                if sess.get("role") in _OPERATOR_ROLES:
+                    action = (
+                        f'<form method="post" action="/ops-workflow-request">{self._csrf_field()}'
+                        f'<input type="hidden" name="incident" value="{_e(key)}"><input type="hidden" name="plan_id" value="{int(plan["id"])}">'
+                        f'<input type="hidden" name="proposal_index" value="{idx}"><button>Submit frozen proposal for approval</button></form>'
+                    )
+                items.append(f'<div class="ops-card"><h4>Proposal {idx + 1}</h4><pre>{_pretty(proposal)}</pre>{action}</div>')
+            proposals_panel = '<div class="panel"><h3>Proposed Structured Changes</h3><p class="muted">Buttons submit the exact persisted schema-bounded proposal; no arbitrary command, RPC, URL or caller-supplied approval state is accepted.</p><div class="ops-actions">' + ''.join(items) + '</div></div>'
+
+        request_panel = ''
+        selected_request = view.get("selected_request") or {}
+        req = selected_request.get("request") or {}
+        if req:
+            try:
+                preview = self.wf.preview(int(req["id"]))
+                auto = (preview or {}).get("automation") or {}
+                snapshot_text = _pretty(auto.get("submitted_snapshot") or {})
+                fresh = bool(auto.get("snapshot_matches"))
+            except Exception as exc:
+                snapshot_text = _e(f"preview unavailable: {exc}")
+                fresh = False
+            actions = ''
+            if req.get("status") == "pending" and sess.get("role") in _APPROVER_ROLES:
+                actions = (
+                    f'<form method="post" action="/ops-workflow-review">{self._csrf_field()}<input type="hidden" name="incident" value="{_e(key)}">'
+                    f'<input type="hidden" name="request_id" value="{int(req["id"])}"><button name="action" value="approve">Approve frozen request</button> '
+                    '<input name="note" placeholder="rejection reason"><button class="danger" name="action" value="reject">Reject</button></form>'
+                )
+            elif req.get("status") == "approved" and sess.get("role") in _APPROVER_ROLES:
+                locked = not self.manager.vault_ready()
+                actions = (
+                    f'<form method="post" action="/ops-workflow-execute">{self._csrf_field()}<input type="hidden" name="incident" value="{_e(key)}">'
+                    f'<input type="hidden" name="request_id" value="{int(req["id"])}"><button {"disabled" if locked else ""}>Execute approved Structured Change</button></form>'
+                    + ('<span class="vault-lock">vault locked — unlock before execution</span>' if locked else '')
+                )
+            request_panel = (
+                f'<div class="panel"><h3>Approval · CR#{int(req["id"])} · {_status(req.get("status"))}</h3>'
+                f'<p><b>{_e(req.get("title"))}</b> · requested by {_e(req.get("requested_by"))}. Frozen snapshot current: {_status("CURRENT" if fresh else "STALE")}</p>'
+                '<pre>' + snapshot_text + '</pre>' + actions + '</div>'
+            )
+
+        tx_panel = ''
+        tx = view.get("selected_transaction")
+        if tx:
+            recovery = ''
+            if tx.get("state") == "RECOVERY_REQUIRED" and sess.get("role") in _ADMIN_ROLES:
+                recovery = (
+                    f'<form method="post" action="/ops-workflow-recover">{self._csrf_field()}<input type="hidden" name="incident" value="{_e(key)}">'
+                    f'<input type="hidden" name="request_id" value="{int(req.get("id") or 0)}"><input type="hidden" name="txid" value="{int(tx["id"])}"><button>Reconcile interrupted transaction</button></form>'
+                )
+            tx_panel = (
+                f'<div class="panel"><h3>Structured Change · TX#{int(tx["id"])} · {_status(tx.get("state"))}</h3>'
+                f'<table><tr><th>Device</th><td>{_e(tx.get("device"))}</td></tr><tr><th>Resource</th><td>{_e(tx.get("resource"))}</td></tr>'
+                f'<tr><th>Approval</th><td>{_e(tx.get("approval_ref"))}</td></tr><tr><th>Verification</th><td>{_status(tx.get("verification_state") or "PENDING")}</td></tr>'
+                f'<tr><th>Rollback</th><td>{_e(tx.get("rollback_state") or "")}</td></tr></table>{recovery}</div>'
+            )
+        post_rows = ''.join(
+            f'<tr><td>{int(x["event"]["id"])}</td><td>{_e(x["event"].get("event_type"))}</td><td>{_status(x["event"].get("status"))}</td><td>{_e(x["event"].get("summary"))}</td></tr>'
+            for x in (view.get("post_change_evidence") or [])
+        )
+        validation = (
+            '<div class="panel"><h3>Validation & post-change evidence</h3>'
+            '<p class="muted">Structured Change verification is authoritative for the write. R65 then links its normalized execution change-event back to the originating Incident so operators can correlate subsequent evidence without copying raw device payloads.</p>'
+            '<table><tr><th>Event</th><th>Type</th><th>Status</th><th>Summary</th></tr>'
+            + (post_rows or '<tr><td colspan="4" class="muted">No linked post-change execution evidence yet.</td></tr>') + '</table></div>'
+        )
+        return header + investigation + plan_panel + proposals_panel + request_panel + tx_panel + validation
+
+    def _do_ops_workflow_plan(self, form, sess):
+        if not self._ops_require(sess, _OPERATOR_ROLES):
+            return
+        incident = _value(form, "incident").strip()
+        try:
+            item = self.manager.change_planning.plan(
+                source=_value(form, "source"), destination=_value(form, "destination"),
+                vrf=_value(form, "vrf", "default"), destination_prefix=_value(form, "destination_prefix"),
+                source_prefix=_value(form, "source_prefix"), service=_value(form, "service", "any"),
+                max_hops=int(_value(form, "max_hops", "16") or 16), actor=sess["username"],
+                incident_ref=incident)
+            return self._redirect(self._workflow_url(incident, plan=int(item["id"]), notice="Incident-linked MC-11 plan stored"))
+        except Exception as exc:
+            return self._redirect(self._workflow_url(incident, notice=f"Path planning failed: {exc}"))
+
+    def _do_ops_workflow_request(self, form, sess):
+        if not self._ops_require(sess, _OPERATOR_ROLES):
+            return
+        incident = _value(form, "incident").strip()
+        try:
+            plan_id = int(_value(form, "plan_id", "0"))
+            index = int(_value(form, "proposal_index", "0"))
+            plan = self.manager.change_planning.get_plan(plan_id)
+            if not plan or str((plan.get("input") or {}).get("incident_ref") or "") != incident:
+                raise ValueError("plan is not linked to this incident workflow")
+            proposals = list((plan.get("result") or {}).get("proposed_structured_changes") or [])
+            if index < 0 or index >= len(proposals):
+                raise ValueError("proposal index is out of range")
+            proposal = proposals[index]
+            intent = {"kind": "structured_change", **proposal}
+            rid = self.wf.submit_automation(
+                title=f"{incident} PLAN#{plan_id} proposal {index + 1}", intent=intent,
+                requested_by=sess["username"],
+                context={"incident_ref": incident, "plan_id": plan_id, "proposal_index": index},
+            )
+            return self._redirect(self._workflow_url(incident, plan=plan_id, request=rid, notice="Frozen proposal submitted for approval"))
+        except Exception as exc:
+            return self._redirect(self._workflow_url(incident, notice=f"Approval request failed: {exc}"))
+
+    def _do_ops_workflow_review(self, form, sess):
+        if not self._ops_require(sess, _APPROVER_ROLES):
+            return
+        incident = _value(form, "incident").strip()
+        rid = int(_value(form, "request_id", "0") or 0)
+        try:
+            ctx = self.wf.automation_context(rid)
+            if ctx.get("incident_ref") != incident:
+                raise ValueError("request is not linked to this incident workflow")
+            if _value(form, "action") == "approve":
+                self.wf.approve(rid, sess["username"])
+                notice = "Frozen request approved"
+            elif _value(form, "action") == "reject":
+                self.wf.reject(rid, sess["username"], _value(form, "note"))
+                notice = "Request rejected"
+            else:
+                raise ValueError("unsupported review action")
+            return self._redirect(self._workflow_url(incident, plan=ctx.get("plan_id"), request=rid, notice=notice))
+        except Exception as exc:
+            return self._redirect(self._workflow_url(incident, request=rid, notice=f"Review failed: {exc}"))
+
+    def _do_ops_workflow_execute(self, form, sess):
+        if not self._ops_require(sess, _APPROVER_ROLES):
+            return
+        incident = _value(form, "incident").strip()
+        rid = int(_value(form, "request_id", "0") or 0)
+        try:
+            ctx = self.wf.automation_context(rid)
+            if ctx.get("incident_ref") != incident:
+                raise ValueError("request is not linked to this incident workflow")
+            if not self.manager.vault_ready():
+                raise ValueError("vault is locked")
+            self.wf.execute(rid, sess["username"])
+            view = self.manager.operator_workflow.view(incident, plan_id=ctx["plan_id"], request_id=rid)
+            tx = view.get("selected_transaction") or {}
+            return self._redirect(self._workflow_url(incident, plan=ctx["plan_id"], request=rid, tx=tx.get("id"), notice="Approved Structured Change executed and verification recorded"))
+        except Exception as exc:
+            return self._redirect(self._workflow_url(incident, request=rid, notice=f"Execution failed: {exc}"))
+
+    def _do_ops_workflow_recover(self, form, sess):
+        if not self._ops_require(sess, _ADMIN_ROLES):
+            return
+        incident = _value(form, "incident").strip()
+        rid = int(_value(form, "request_id", "0") or 0)
+        txid = int(_value(form, "txid", "0") or 0)
+        try:
+            ctx = self.wf.automation_context(rid)
+            if ctx.get("incident_ref") != incident:
+                raise ValueError("request is not linked to this incident workflow")
+            item = self.manager.structured_changes.recover(txid, actor=sess["username"])
+            return self._redirect(self._workflow_url(incident, plan=ctx["plan_id"], request=rid, tx=txid, notice=f"TX#{txid} reconciled as {item.get('state')}"))
+        except Exception as exc:
+            return self._redirect(self._workflow_url(incident, request=rid, tx=txid, notice=f"Recovery failed: {exc}"))
 
     # ---- PH-4 structured changes ---------------------------------------
     def _ops_structured(self, q, sess):
@@ -909,6 +1196,64 @@ class WebOpsMixin:
             '<h3>Recent route evidence</h3><table><tr><th>ID</th><th>Device</th><th>VRF</th><th>Destination</th><th>Next hop</th><th>Next device</th><th>Terminal</th></tr>'
             + route_rows + '</table></div>'
         )
+        plans = self.manager.change_planning.plans(50)
+        plan_rows = ''.join(
+            '<tr>'
+            f'<td><a href="/operations?tab=intelligence&plan={int(p["id"])}">PLAN#{int(p["id"])}</a></td>'
+            f'<td>{_e(p.get("source_selector"))}</td><td>{_e(p.get("destination_selector"))}</td>'
+            f'<td>{_e(p.get("vrf"))}</td><td>{_status(p.get("planning_status"))}</td>'
+            f'<td>{len((p.get("result") or {}).get("configuration_gaps") or [])}</td></tr>'
+            for p in plans
+        ) or '<tr><td colspan="6" class="muted">No persisted MC-11 plans.</td></tr>'
+        mc11_forms = ''
+        if sess["role"] in _OPERATOR_ROLES:
+            mc11_forms = (
+                '<div class="row"><div><h3>Topology-aware path plan</h3>'
+                f'<form method="post" action="/ops-change-plan">{self._csrf_field()}'
+                '<label>Source device / endpoint</label><input name="source" required>'
+                '<label>Destination device / endpoint</label><input name="destination" required>'
+                '<label>VRF</label><input name="vrf" value="default">'
+                '<label>Destination prefix</label><input name="destination_prefix" placeholder="10.2.2.20/32">'
+                '<label>Source/return prefix</label><input name="source_prefix" placeholder="10.1.1.10/32">'
+                '<label>Service</label><input name="service" value="any">'
+                '<label>Max hops</label><input name="max_hops" value="16">'
+                '<button>Analyze and persist plan</button></form></div>'
+                '<div><h3>Record policy/control evidence</h3>'
+                f'<form method="post" action="/ops-change-evidence">{self._csrf_field()}'
+                f'<label>Device</label><select name="device">{device_opts}</select>'
+                '<label>Kind</label><select name="evidence_kind"><option>ACL</option><option>FIREWALL</option><option>NAT</option><option>PBR</option><option>ROUTING_POLICY</option></select>'
+                '<label>Direction</label><select name="direction"><option>BOTH</option><option>FORWARD</option><option>RETURN</option></select>'
+                '<label>VRF</label><input name="vrf" value="default">'
+                '<label>Source selector</label><input name="source_selector" value="*">'
+                '<label>Destination selector</label><input name="destination_selector" value="*">'
+                '<label>Service</label><input name="service" value="any">'
+                '<label>State</label><select name="state"><option>PRESENT</option><option>ALLOW</option><option>DENY</option><option>MISSING</option><option>UNKNOWN</option><option>TRANSLATE</option><option>STEER</option></select>'
+                '<label>Evidence reference</label><input name="evidence_ref" required>'
+                '<label>Optional Structured Change proposal JSON</label><textarea name="proposal_json" rows="5" placeholder="{&quot;device&quot;:&quot;fw1&quot;,&quot;resource&quot;:&quot;interface_enabled&quot;,&quot;selectors&quot;:{&quot;interface&quot;:&quot;GigabitEthernet2&quot;},&quot;value&quot;:true}"></textarea>'
+                '<button>Persist evidence only</button></form></div></div>'
+            )
+        plan_detail = ''
+        plan_raw = str((q.get("plan") or [""])[0] or "")
+        if plan_raw.isdigit():
+            plan_item = self.manager.change_planning.get_plan(int(plan_raw))
+            if plan_item:
+                result = plan_item.get("result") or {}
+                plan_detail = (
+                    f'<div class="panel"><h3>PLAN#{int(plan_item["id"])} · {_status(plan_item.get("planning_status"))}</h3>'
+                    '<p class="muted">Why-here evidence, exact change points and candidate proposals are analysis output only. What-if never executes configuration; proposals must continue through the existing Structured Change approval path.</p>'
+                    '<h4>Forward path</h4><pre>' + _pretty(result.get("forward_path")) + '</pre>'
+                    '<h4>Return path</h4><pre>' + _pretty(result.get("return_path")) + '</pre>'
+                    '<h4>Configuration gaps / Why here?</h4><pre>' + _pretty(result.get("configuration_gaps")) + '</pre>'
+                    '<h4>Proposed Structured Changes</h4><pre>' + _pretty(result.get("proposed_structured_changes")) + '</pre>'
+                    '<div class="row"><a class="btn ghost" href="/operations?tab=structured">Continue to Structured Change approval</a></div></div>'
+                )
+        mc11_panel = (
+            '<div class="panel"><h2>MC-11 · Topology-Aware Change Planning</h2>'
+            '<p class="muted">Persisted-data-only Source → Destination planning combines endpoint attachment, forward/return L3/VRF path evidence, service dependencies, and ACL/firewall/NAT/PBR/routing-policy evidence. Missing or ambiguous evidence stays UNKNOWN. Planning can propose a schema-bounded Structured Change but cannot execute it.</p>'
+            + mc11_forms + '<h3>Recent plans</h3><table><tr><th>Plan</th><th>Source</th><th>Destination</th><th>VRF</th><th>Status</th><th>Gaps</th></tr>'
+            + plan_rows + '</table></div>' + plan_detail
+        )
+
         summary = (
             '<div class="panel"><h2>Operational intelligence health</h2>'
             f'<div class="row"><div><b>{int(dashboard.get("active",0))}</b><br><span class="muted">active insights</span></div>'
@@ -980,7 +1325,7 @@ class WebOpsMixin:
             for j in jobs
         ) or '<tr><td colspan="5" class="muted">No analytics jobs yet.</td></tr>'
         job_panel = '<div class="panel"><h2>Analytics execution history</h2><table><tr><th>Job</th><th>Analyzer</th><th>Object</th><th>Status</th><th>Actor</th></tr>' + job_rows + '</table></div>'
-        return summary + forms + l3_panel + filter_form + detail + ledger + job_panel
+        return summary + forms + l3_panel + mc11_panel + filter_form + detail + ledger + job_panel
 
     @staticmethod
     def _ops_select_options(values, selected=""):
@@ -1061,6 +1406,42 @@ class WebOpsMixin:
         except Exception as exc:
             return self._ops_redirect("intelligence", f"Route dependency analysis failed: {exc}")
 
+    def _do_ops_change_plan(self, form, sess):
+        if not self._ops_require(sess, _OPERATOR_ROLES):
+            return
+        try:
+            item = self.manager.change_planning.plan(
+                source=_value(form, "source"), destination=_value(form, "destination"),
+                vrf=_value(form, "vrf", "default"),
+                destination_prefix=_value(form, "destination_prefix"),
+                source_prefix=_value(form, "source_prefix"),
+                service=_value(form, "service", "any"),
+                max_hops=int(_value(form, "max_hops", "16") or 16), actor=sess["username"])
+            return self._redirect(
+                f'/operations?tab=intelligence&plan={int(item["id"])}&notice=MC-11+plan+stored')
+        except Exception as exc:
+            return self._ops_redirect("intelligence", f"Change planning failed: {exc}")
+
+    def _do_ops_change_evidence(self, form, sess):
+        if not self._ops_require(sess, _OPERATOR_ROLES):
+            return
+        try:
+            raw = _value(form, "proposal_json").strip()
+            metadata = {}
+            if raw:
+                proposal = _json_input(raw, object_only=True)
+                metadata["proposal"] = proposal
+            item = self.manager.change_planning.observe_policy_evidence(
+                device=_value(form, "device"), evidence_kind=_value(form, "evidence_kind"),
+                direction=_value(form, "direction", "BOTH"), vrf=_value(form, "vrf", "default"),
+                source_selector=_value(form, "source_selector", "*"),
+                destination_selector=_value(form, "destination_selector", "*"),
+                service=_value(form, "service", "any"), state=_value(form, "state", "UNKNOWN"),
+                evidence_ref=_value(form, "evidence_ref"), metadata=metadata, actor=sess["username"])
+            return self._ops_redirect("intelligence", f"MC-11 evidence #{int(item['id'])} stored")
+        except Exception as exc:
+            return self._ops_redirect("intelligence", f"Change-planning evidence failed: {exc}")
+
     def _do_ops_insight_state(self, form, sess):
         if not self._ops_require(sess, _OPERATOR_ROLES):
             return
@@ -1123,8 +1504,25 @@ class WebOpsMixin:
                         '<label>Additional evidence JSON</label><textarea name="detail">{}</textarea><button>Complete drill</button></form>'
                     )
                 detail = f'<div class="panel"><h2>DRILL#{int(raw)} · {_e(drill.get("kind"))} · {_status(drill.get("state"))}</h2><pre>{_pretty(drill)}</pre>{complete}</div>'
+        tasks = self.manager.db.list_distributed_tasks(limit=200)
+        task_rows = []
+        for task in tasks:
+            action = ""
+            if (sess["role"] == "admin" and task.get("state") == "RECOVERY_REQUIRED"
+                    and bool(task.get("replay_safe"))):
+                action = (f'<form method="post" action="/ops-ha-task-requeue" class="inline-form">{self._csrf_field()}'
+                          f'<input type="hidden" name="task_id" value="{int(task["id"])}"><input name="reason" required maxlength="240" placeholder="operator recovery reason"><button class="ghost">Requeue safe task</button></form>')
+            task_rows.append(
+                f'<tr><td>#{int(task["id"])}</td><td>{_e(task.get("queue"))}</td><td>{_e(task.get("kind"))}</td>'
+                f'<td>{_status(task.get("state"))}</td><td>{"yes" if task.get("replay_safe") else "no"}</td>'
+                f'<td>{int(task.get("claim_generation") or 0)}</td><td>{_e(task.get("claimed_instance") or task.get("claimed_by"))}</td><td>{action}</td></tr>')
+        task_panel = (
+            '<div class="panel"><h2>Distributed work recovery</h2>'
+            '<p class=muted>R63 fenced work queue. Expired/unknown-side-effect work remains RECOVERY_REQUIRED; only explicitly replay-safe work may be manually requeued, and only by admin.</p>'
+            f'<div class="table-wrap"><table><tr><th>ID</th><th>Queue</th><th>Kind</th><th>State</th><th>Replay safe</th><th>Generation</th><th>Claimed by</th><th>Recovery</th></tr>{"".join(task_rows) or "<tr><td colspan=8 class=muted>no distributed tasks</td></tr>"}</table></div></div>'
+        )
         return (
-            f'<div class="panel"><h2>HA readiness</h2><pre>{_pretty(readiness)}</pre></div>' + admin + drill_form + detail +
+            f'<div class="panel"><h2>HA readiness</h2><pre>{_pretty(readiness)}</pre></div>' + admin + task_panel + drill_form + detail +
             '<div class="panel"><h2>Cluster nodes</h2><form method="get" action="/operations"><input type="hidden" name="tab" value="ha"><label>Heartbeat history window seconds</label>'
             f'<input name="stale_seconds" value="{stale}"><button class="ghost">Refresh</button></form><table><tr><th>Node</th><th>State</th><th>Host</th><th>PID</th><th>Last heartbeat</th><th>Reason</th></tr>{node_rows or "<tr><td colspan=6 class=muted>no cluster-node records</td></tr>"}</table></div>'
             f'<div class="panel"><h2>Recovery drills</h2><table><tr><th>Drill</th><th>Kind</th><th>State</th><th>Node</th><th>Verification</th></tr>{drill_rows or "<tr><td colspan=5 class=muted>no recovery drill evidence</td></tr>"}</table></div>'
@@ -1138,6 +1536,21 @@ class WebOpsMixin:
             return self._ops_redirect("ha", "Cluster node state updated")
         except Exception as exc:
             return self._ops_redirect("ha", f"Node-state update failed: {exc}")
+
+    def _do_ops_ha_task_requeue(self, form, sess):
+        if not self._ops_require(sess, _ADMIN_ROLES):
+            return
+        try:
+            task_id = int(_value(form, "task_id", "0"))
+            reason = _value(form, "reason").strip()
+            if task_id <= 0 or not reason:
+                raise ValueError("task id and recovery reason are required")
+            item = self.manager.db.requeue_distributed_task(task_id, time.time(), reason=reason)
+            self.manager.db.audit(sess["username"], "distributed_task_requeue", str(task_id),
+                                  f"generation={int(item.get('claim_generation') or 0)};reason={reason[:160]}")
+            return self._ops_redirect("ha", f"Replay-safe distributed task #{task_id} requeued")
+        except Exception as exc:
+            return self._ops_redirect("ha", f"Distributed task recovery rejected: {exc}")
 
     def _do_ops_ha_drill_create(self, form, sess):
         if not self._ops_require(sess, _OPERATOR_ROLES):

@@ -1,6 +1,24 @@
+## Current continuation — R60
+
+Use the complete Release 60 source baseline. Preserve MC-11 as the final feature slice and do not create MC-12. Continue R60 appliance lifecycle qualification/hardening only until its live/local evidence and artifact truth are synchronized; after R60 closeout, the next approved track is R61 Scale & Performance Qualification. Never report local snapshot simulation as live AlmaLinux/PostgreSQL/reboot evidence.
+
+## Current continuation pointer — Q2 Production Qualification Campaign
+
+Continue Q2 over the frozen R59/MC-11 product baseline. The qualification harness is implemented; next work is real AlmaLinux/PostgreSQL/device/protocol/recovery/performance execution and evidence collection, not another MC feature slice. Preserve the four-state gate model and never convert local/offline/simulation evidence into live PASS.
+
 # New Chat Handover Prompt
 
-> **Canonical project state — 2026-09-23:** **CURRENT IMPLEMENTATION BASELINE** = **Release 51 / MC-3 Normalized Operational Evidence** (`2.0.0-51`, `IMPLEMENTED_TESTING_DEFERRED`). MC-1 Sensor Integration Unification and MC-2 Sensor History & State Transitions remain implemented. Release 51 adds a normalized cross-domain operational-evidence envelope, durable Sensor-transition → Event bridging, recovery/`UNKNOWN` semantics, additive event-schema migration/backfill/indexes, filtered/detail Event API reads, and an Event detail UI with current related Sensor state. NI-1 through **NI-7 L3/VRF Path & Route Dependency Intelligence** remain implemented. Formal RPM qualification remains deferred until the monitoring/correlation roadmap is complete; any ad-hoc RPM remains development evidence only.
+
+## Current R58 / MC-10 continuation
+
+Use Release 58 / MC-10 as the active baseline. Preserve the deterministic/non-causal MC-7 hypothesis semantics, MC-8 evidence-only integrations, MC-9 read-only console, and MC-10 hard bounds/run evidence. Do not let replay preview alter hypotheses, do not let retention delete evidence/hypotheses, do not turn qualification into release approval, and do not introduce MC-11 path-planning/execution authority early. Next/final slice is R59/MC-11.
+
+> **Canonical project state — 2026-09-25:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) on top of the frozen R67 candidate. MC-1 through MC-11 remain implemented; **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice and schema revision remains `mc11-topology-change-planning-1`; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included. R67.2 repairs fresh login, additive migration/index ordering, fail-closed Core PostgreSQL preflight, Core/History PostgreSQL configuration separation, and fresh PostgreSQL Core bootstrap without adding network-write authority. **All network mutation remains approval-gated; local/offline qualification does not establish RC or production release readiness; all required `LIVE_RC` gates remain mandatory. Do not create MC-12.** R68 must be rerun against the exact R67.2 candidate after mandatory live qualification.
+
+## Release 54 continuation
+
+Continue from Release 55 / MC-7 (`2.0.0-55`, `IMPLEMENTED_TESTING_DEFERRED`). Preserve canonical `operational_alerts` authority from MC-4, the MC-5 typed-reference Incident/timeline model, the MC-6 typed Service/Dependency/L3 context, and MC-7 deterministic hypothesis semantics. Correlation must require shared entity or trusted bounded CONFIGURED/fresh DISCOVERED dependency context rather than time alone; supporting and contradicting evidence must remain visible; replay must be idempotent; correlation must never be presented as confirmed causation/root cause or gain device/configuration authority. The next roadmap slice is MC-8 / Release 56 External Evidence Ingestion & Connectors. Formal live RPM/platform qualification remains deferred until actually executed.
+
 
 ## Release 46 — Operator Health Cards & UX Follow-through
 
@@ -15,7 +33,7 @@ The previously documented Central Controller + read-only Site Edge/Collector con
 **Release 46 source qualification:** repository regression executed in bounded groups totals **222 passed / 8 skipped / 0 failed**; the eight skips are seven explicit live/service prerequisites plus the expected Git-index mode skip because `.git` is absent. Focused Web Console/structural coverage is **13 passed**. Legacy selftest is **ALL PASS**; compileall, launcher `py_compile`, and packaging/tool shell syntax are **PASS**. Ruff `0.16.7` and mypy `2.3.1` remain **NOT_RUN** because the executables are unavailable. The dependency-free offline builder emitted `netconfig-2.0.0-46.el10.noarch.rpm` twice byte-identically; independent verification passed and SHA-256 is `5b26c9ae73ac4248171196ee3637f51bd238fed090c4ce3fa820419842f510cd`. Canonical AlmaLinux 10 `rpmbuild`/DNF install-upgrade/systemd/SELinux and other Q-1 live/device gates remain **NOT_RUN / DEFERRED**.
 
 
-> **Roadmap disposition — 2026-09-23:** The monitoring/correlation roadmap is active. MC-1 through MC-3 are implemented in source as `IMPLEMENTED_TESTING_DEFERRED`; the next planned slice is **MC-4 / Release 52 — Unified Alert Plane**. NI-7 remains implemented and Q-1 remains an open production/service qualification track. Do not invent NI-8/Q-2 or skip the defined MC sequence without an explicit roadmap decision.
+> **Roadmap disposition — 2026-09-24:** **R59 / MC-11 is the final Monitoring & Correlation functional slice.** Do not create MC-12. After R59, stop feature expansion and use the Release / Qualification track: **Q2 Production Qualification Campaign → R60 Appliance Reliability & Lifecycle Hardening → R61 Scale & Performance Qualification → R62 PostgreSQL / Concurrency / Recovery Hardening → R63 HA / Failure-Domain Engineering → R64 Security Hardening & Independent Abuse Testing → R65 Operator Workflow Completion → R66 Observability / Supportability → R67 Release Candidate / Full Artifact Qualification → R68 v2 Production Release Decision**. Simulation never counts as live PASS; mandatory gates use `PASS / FAIL / BLOCKED_ENVIRONMENT / NOT_RUN`.
 ## Recorded continuation decisions — 2026-09-18
 
 - No new development phase is assigned. Treat the following as future-design constraints, not implemented features.
@@ -53,7 +71,7 @@ The latest implementation baseline is Release `2.0.0-33`, schema revision `ha1-2
 
 Preserve these Release 33 invariants: all network mutations use the durable request/approve/execute workflow; automation snapshots/model-pack hashes are frozen and revalidated; `RECOVERY_REQUIRED` blocks blind replay; desired-state rollback is compensating/reverse-order; campaign plans are frozen with stable retry identity; DRAINING/DRAINED HA nodes reject new automation work. Session idle/absolute expiry is still explicitly deferred.
 
-> **Current continuation pointer:** use **Release 51 / MC-3 Normalized Operational Evidence** (`2.0.0-51`) as the active full-source baseline. Preserve `IMPLEMENTED_TESTING_DEFERRED`. MC-1 through MC-3 are implemented in source; the next roadmap slice is **MC-4 / Release 52 — Unified Alert Plane**. Sensor generation/history and Sensor→Event normalization must not add device I/O; unchanged Sensor refreshes create no event, and missing evidence remains `UNKNOWN` rather than an automatic critical verdict. Formal RPM qualification remains deferred until the roadmap is complete.
+> **Current continuation pointer:** use **Release 59 / MC-11 Topology-Aware Change Planning** (`2.0.0-59`) as the active full-source baseline once the final artifact gate below is frozen. Preserve `IMPLEMENTED_TESTING_DEFERRED`; do not promote to `TESTED` or `RELEASED` based on source simulation. MC-11 is the final functional slice and does not add direct execution authority. The immediate next track after artifact freeze is **Q2 Production Qualification Campaign**, not MC-12.
 
 ## Historical Q-1 takeover truth
 
@@ -410,4 +428,26 @@ NI-6.1–NI-6.6 are implemented and productized through Manager/API/UI. Durable 
 
 ## 2026-09-23 continuation — R51-HF1 pre-MC4 compatibility hotfix
 
-Continue from Release 51 / MC-3 (`2.0.0-51`, `IMPLEMENTED_TESTING_DEFERRED`) with the R51-HF1 pre-MC4 hotfix applied. Standard SNMPv3 `aes192`/`aes256` use Blumenthal key extension; Cisco/Reeder is explicit `aes192c`/`aes256c`. Topology discovery unlocks Vault credentials in-process. Every managed inventory device appears in the graph even without LLDP/CDP; unique persisted FDB/MAC correlation is `INFERRED`, non-direct, and excluded from downstream-impact traversal. `/topology` is now a drag/pan/zoom SVG canvas with browser-local layout only. `GET /api/v1/topology/graph` is read-only and adds no device I/O. MC-4 / Release 52 remains `PLANNED`. Live FortiGate SHA1+AES256 and vendor topology validation remain deferred.
+Historical R51-HF1 handoff (superseded by Release 52): Release 51 / MC-3 (`2.0.0-51`, `IMPLEMENTED_TESTING_DEFERRED`) with the pre-MC4 hotfix applied. Standard SNMPv3 `aes192`/`aes256` use Blumenthal key extension; Cisco/Reeder is explicit `aes192c`/`aes256c`. Topology discovery unlocks Vault credentials in-process. Every managed inventory device appears in the graph even without LLDP/CDP; unique persisted FDB/MAC correlation is `INFERRED`, non-direct, and excluded from downstream-impact traversal. `/topology` is now a drag/pan/zoom SVG canvas with browser-local layout only. `GET /api/v1/topology/graph` is read-only and adds no device I/O. At that checkpoint MC-4 / Release 52 was `PLANNED`; Release 52 now supersedes this chronology as `IMPLEMENTED_TESTING_DEFERRED`. Live FortiGate SHA1+AES256 and vendor topology validation remain deferred.
+
+## R61 continuation pointer
+
+Continue from Release 61 / `2.0.0-61` Scale & Performance Qualification. Preserve MC-10 bounds and MC-11 proposal-only authority. Do not create MC-12. Do not use SQLite/local synthetic throughput as PostgreSQL/production sizing. R61 live production scale gates remain required before production capacity claims. Next approved track after R61 closeout is R62 PostgreSQL / Concurrency / Recovery Hardening, only when explicitly selected.
+
+## R63 handover rule
+
+Continue from Release 63. Preserve R62.1 security fixes and R63 HA fencing. Do not treat local/fake PostgreSQL tests as live HA evidence. Do not automatically replay an expired distributed task unless it is explicitly `replay_safe`; otherwise retain `RECOVERY_REQUIRED`. Do not claim PostgreSQL primary failover is managed by NetConfig.
+
+
+## R65 continuation truth
+
+Release 65 (`2.0.0-65`) implements Operator Workflow Completion on top of R64. The persisted-data-first journey binds Incident → MC-11 plan → exact persisted proposal → existing Automation Request/approval → Structured Change → verification/recovery/rollback → Incident-linked post-change evidence. It adds no MC-12, no parallel write authority, no page-triggered polling, and no schema migration. Status remains `IMPLEMENTED_TESTING_DEFERRED`; `LIVE_OPERATOR` evidence is still required for production operator-workflow claims. Next approved track is R66 Observability / Supportability and is not started.
+
+## R66 handover delta
+
+Continue from Release 66 / `2.0.0-66`. Preserve `r66-supportability-1` as a transient read-only model over the unchanged `mc11-topology-change-planning-1` persisted schema. Do not add device polling to observability reads, do not create MC-12, and do not convert local diagnostics into production supportability claims. The next approved track is R67 RC / Full Artifact Qualification only when explicitly selected.
+
+
+## R67 continuation
+
+Continue from Release 67 / `2.0.0-67`, status `IMPLEMENTED_TESTING_DEFERRED`. Treat the tree as feature-frozen. Preserve MC-11 as final and do not create MC-12. R67 qualification evidence is valid only for the exact candidate fingerprint; any source/package change requires a complete rerun. Do not promote `RELEASED`; R68 owns the explicit production release decision.

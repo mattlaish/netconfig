@@ -38,11 +38,39 @@ REQUIRED_EXECUTABLES = (
     "packaging/q1-qualify-almalinux.sh",
     "packaging/q1-qualify-postgres.sh",
     "packaging/q1-source-gates.sh",
+    "packaging/q2-qualify.sh",
+    "packaging/q2-source-gates.sh",
+    "packaging/r60-qualify.sh",
+    "packaging/r60-lifecycle-upgrade.sh",
+    "packaging/r61-qualify.sh",
+    "packaging/r62-qualify.sh",
+    "packaging/r63-qualify.sh",
+    "packaging/r64-qualify.sh",
+    "packaging/r65-qualify.sh",
+    "packaging/r66-qualify.sh",
+    "packaging/r67-qualify.sh",
+    "packaging/r67_1-qualify.sh",
+    "packaging/r67_2-qualify.sh",
+    "packaging/bootstrap-postgres-core.sh",
+    "qualification/q2_runner.py",
+    "qualification/r60_runner.py",
+    "qualification/r61_runner.py",
+    "qualification/r61_benchmark.py",
+    "qualification/r62_runner.py",
+    "qualification/r63_runner.py",
+    "qualification/r64_runner.py",
+    "qualification/r65_runner.py",
+    "qualification/r66_runner.py",
+    "qualification/r67_runner.py",
+    "qualification/r67_1_runner.py",
+    "qualification/r67_2_runner.py",
+    "qualification/run_bounded_regression.py",
     "packaging/smoke-installed.sh",
     "tools/rpm-builder/build.sh",
     "tools/rpm-builder/verify.sh",
     "tools/rpm-builder/rpm_builder.py",
     "tools/rpm-builder/verify_rpm.py",
+    "tools/release_metadata.py",
 )
 
 
@@ -76,14 +104,14 @@ def test_required_git_index_executables_are_100755():
         assert fields and fields[0] == "100755", f"{relative}: {result.stdout.strip()}"
 
 
-def test_release_51_mc3_canonical_truth_is_consistent():
+def test_release_67_rc_canonical_truth_is_consistent():
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     package = (ROOT / "opt/netconfig/netconfig/__init__.py").read_text(encoding="utf-8")
     spec = (ROOT / "packaging/netconfig.spec").read_text(encoding="utf-8")
     assert 'version = "2.0.0"' in pyproject
     assert '__version__ = "2.0.0"' in package
     assert "Version:        2.0.0" in spec
-    assert "Release:        51%{?dist}" in spec
+    assert "Release:        67.2%{?dist}" in spec
     for relative in (
         "README.md", "DEVELOPMENT.md", "AI_HANDOFF.md", "ROADMAP.md",
         "SECURITY.md", "API.md", "TESTING.md", "DEV_BASELINE.md",
@@ -93,9 +121,9 @@ def test_release_51_mc3_canonical_truth_is_consistent():
     ):
         text = (ROOT / relative).read_text(encoding="utf-8")
         canonical = next(line for line in text.splitlines() if line.startswith("> **Canonical project state"))
-        assert "2.0.0-51" in canonical, relative
-        assert "Release 51" in canonical, relative
-        assert "MC-3 Normalized Operational Evidence" in canonical, relative
+        assert "2.0.0-67.2" in canonical, relative
+        assert "Release 67.2" in canonical, relative
+        assert "MC-11 Topology-Aware Change Planning" in canonical, relative
         assert "NI-7 L3/VRF Path & Route Dependency Intelligence" in canonical, relative
         assert "Release 33 full source baseline as the active implementation source" not in text, relative
 
@@ -146,10 +174,10 @@ def test_release_48_required_executable_list_matches_ci_contract():
         assert relative in workflow, relative
 
 
-def test_release_48_installer_accepts_release_48_identity():
+def test_release_67_installer_accepts_release_67_identity():
     installer = (ROOT / "packaging/install-rpm.sh").read_text(encoding="utf-8")
     alma = (ROOT / "packaging/q1-qualify-almalinux.sh").read_text(encoding="utf-8")
-    assert '${RELEASE%%.*} != "48"' in installer
-    assert 'expected NetConfig RPM release 48' in installer
-    assert '2.0.0-48.*.noarch' in alma
+    assert '${RELEASE%%.*} != "67"' in installer
+    assert 'expected NetConfig RPM release 67' in installer
+    assert '2.0.0-67.*.noarch' in alma
     assert '${RELEASE%%.*} != "37"' not in installer

@@ -1,6 +1,6 @@
 Name:           netconfig
 Version:        2.0.0
-Release:        51%{?dist}
+Release:        67.2%{?dist}
 Summary:        Network configuration and security operations console
 License:        Proprietary
 BuildArch:      noarch
@@ -13,6 +13,7 @@ BuildRequires:  systemd-rpm-macros
 Requires:       /usr/bin/python3.12
 Requires:       /usr/bin/ssh
 Requires:       /usr/bin/openssl
+Suggests:       python3.12dist(psycopg) >= 3
 Requires(pre):  shadow-utils
 %{?systemd_requires}
 
@@ -41,6 +42,8 @@ find "%{buildroot}/opt/netconfig" -type f -name '*.py[co]' -delete
 install -D -m 0755 /dev/null "%{buildroot}%{_bindir}/netconfig"
 sed 's/\r$//' usr/bin/netconfig > "%{buildroot}%{_bindir}/netconfig"
 chmod 0755 "%{buildroot}%{_bindir}/netconfig"
+install -D -m 0755 packaging/bootstrap-postgres-core.sh \
+    "%{buildroot}%{_libexecdir}/netconfig/bootstrap-postgres-core"
 install -D -m 0644 usr/lib/systemd/system/netconfig-web.service \
     "%{buildroot}%{_unitdir}/netconfig-web.service"
 install -D -m 0644 usr/lib/systemd/system/netconfig-backup.service \
@@ -76,6 +79,7 @@ exit 0
 /opt/netconfig/WEBGUI.md
 /opt/netconfig/CREDENTIALS.md
 %{_bindir}/netconfig
+%{_libexecdir}/netconfig/bootstrap-postgres-core
 %{_unitdir}/netconfig-web.service
 %{_unitdir}/netconfig-backup.service
 %{_unitdir}/netconfig-backup.timer
@@ -84,6 +88,80 @@ exit 0
 %dir %attr(0700,netconfig,netconfig) %{_localstatedir}/lib/netconfig
 
 %changelog
+* Fri Sep 25 2026 OpenAI <noreply@openai.com> - 2.0.0-67.2
+- Corrective RC: repair fresh login, migration ordering, Core PostgreSQL preflight, Core/History DB separation, and fresh PostgreSQL bootstrap.
+
+* Thu Sep 24 2026 OpenAI <noreply@openai.com> - 2.0.0-67.1
+- Corrective RC: remove legacy direct-write bypasses and consolidate operator Console surfaces.
+
+* Thu Sep 24 2026 OpenAI <noreply@openai.com> - 2.0.0-67
+- R67 freezes feature authority and adds full release-candidate/artifact qualification, exact-candidate evidence binding, synchronized release metadata, and SPDX source SBOM.
+- R67 cannot promote RELEASED; all required LIVE_RC gates remain mandatory for RC qualification and R68 remains the explicit production release decision.
+
+* Thu Sep 24 2026 OpenAI <noreply@openai.com> - 2.0.0-66
+- R66 adds bounded read-only health/readiness/lag/queue/DB/ingest/correlation/collector/drop/retention/disk/restart/last-success supportability telemetry and sanitized support bundles.
+- Add request correlation IDs and fixed LIVE_SUPPORT qualification hooks without adding device-write authority or MC-12.
+
+* Thu Sep 24 2026 OpenAI <noreply@openai.com> - 2.0.0-65
+- R65 completes the persisted-data-first operator journey from incident and hypothesis through evidence, topology/path planning, exact proposal approval, Structured Change verification, and post-change evidence.
+- Reuse existing approval, frozen-snapshot revalidation, execution, verification, recovery, rollback, audit, and MC-11 authority; no MC-12 or parallel execution engine is added.
+
+* Thu Sep 24 2026 OpenAI <noreply@openai.com> - 2.0.0-64
+- R64 hardens session/RBAC/request framing, OAuth egress validation, hostile archive handling, and independent abuse qualification boundaries.
+- Local abuse evidence is explicitly separated from LIVE_ABUSE production security evidence.
+
+* Thu Sep 24 2026 OpenAI <noreply@openai.com> - 2.0.0-63
+- R63 adds PostgreSQL session-generation-aware advisory fencing, scheduler takeover/revalidation, failure-domain HA readiness, and fenced distributed-task recovery semantics.
+- Expired worker leases enter RECOVERY_REQUIRED instead of being silently replayed; completion requires the current claim token/generation.
+
+* Thu Sep 24 2026 OpenAI <noreply@openai.com> - 2.0.0-62.1
+- Refuse RESTCONF redirects to close redirect-target SSRF/TLS-downgrade paths.
+- Terminate OpenSSH option parsing before the managed user@host target.
+- Refresh executable-mode repair coverage for all required operational entry points.
+
+* Thu Sep 24 2026 OpenAI <noreply@openai.com> - 2.0.0-62
+- R62 hardens PostgreSQL concurrency/recovery with bounded retry-safe DB transactions, fail-closed connection-loss semantics, MC-11 planning/external-ingest concurrency serialization, and live PostgreSQL qualification gates.
+
+* Thu Sep 24 2026 OpenAI <noreply@openai.com> - 2.0.0-61
+- R61 adds repeatable scale/performance qualification tooling, local synthetic comparative benchmarks, production scale hook gates, capacity/latency/resource evidence, and explicit MC-10 overload-bound verification without changing network execution authority.
+
+* Thu Sep 24 2026 OpenAI <noreply@openai.com> - 2.0.0-60
+- R60 adds fail-closed appliance lifecycle preservation, transactional R59-to-R60 upgrade/rollback tooling, local-state recovery, PostgreSQL rollback-database switching, service-state restoration, disk-space preflight, and lifecycle qualification evidence.
+
+* Thu Sep 24 2026 OpenAI <noreply@openai.com> - 2.0.0-59
+- R59/MC-11 adds persisted topology-aware forward/return path planning, policy evidence/gap/change-point reasoning, candidate what-if, and schema-bounded Structured Change proposals while preserving approval-only execution authority.
+
+* Thu Sep 24 2026 OpenAI <noreply@openai.com> - 2.0.0-58
+- R58/MC-10 adds bounded correlation production hardening, durable run/replay telemetry, restart recovery, retention controls, self-monitoring, and qualification truth without claiming deferred live gates.
+
+* Thu Sep 24 2026 OpenAI <noreply@openai.com> - 2.0.0-57
+- Add MC-9 read-only Operations Correlation Console dashboard and global bounded traffic analytics
+- Surface supporting/contradicting hypothesis evidence without causal/root-cause authority
+
+* Wed Sep 23 2026 OpenAI <noreply@openai.com> - 2.0.0-56
+- Add MC-8 source-bound external evidence ingestion, connector health, replay protection, and Settings/Integrations
+- Preserve evidence-only authority: no external response/reconfiguration or arbitrary-command plane
+
+* Wed Sep 23 2026 OpenAI <noreply@openai.com> - 2.0.0-55
+- Add MC-7 deterministic incident correlation with versioned evidence-backed hypotheses
+- Require entity/dependency context, retain supporting and contradicting evidence, and fail closed on inferred/unknown/stale dependency claims
+- Add incident correlation API/Web surfaces while explicitly avoiding confirmed-causation or root-cause verdicts
+
+* Wed Sep 23 2026 OpenAI <noreply@openai.com> - 2.0.0-54.1
+- Add MC-6 L3 Routing Topology follow-up with route/interface evidence collected during normal config collection
+- Add VRF/freshness-aware managed next-hop resolution plus Physical/Layer 3/Combined topology views
+- Preserve fail-closed ambiguity semantics and keep topology rendering free of device I/O
+
+* Wed Sep 23 2026 OpenAI <noreply@openai.com> - 2.0.0-54
+- Add MC-6 typed Service & Dependency Graph entities and provenance/freshness-aware relationships
+- Add bounded cycle-safe dependency traversal, impact reuse, and read-only NI-7 L3/VRF network overlays
+- Add dependency API/WebUI surfaces while keeping UNKNOWN fail-closed and configuration authority separate
+
+* Wed Sep 23 2026 OpenAI <noreply@openai.com> - 2.0.0-53
+- Add MC-5 typed Incident evidence references and deterministic unified timeline semantics
+- Add normalized summary-only change events and bounded external evidence storage without connector/action authority
+- Add Incident investigation API/CLI/Web grouping with late-arrival and evidence-retention handling; no automatic root-cause verdict
+
 * Sun Sep 20 2026 OpenAI <noreply@openai.com> - 2.0.0-48
 - Add persisted normalized Sensor Engine and read-only /api/v1/sensors endpoint
 - Generate device, endpoint, interface, topology, and known Loop Protection sensors from existing DB/cache evidence only

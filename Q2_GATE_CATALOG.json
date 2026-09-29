@@ -1,0 +1,433 @@
+[
+  {
+    "area": "baseline",
+    "builtin": "baseline",
+    "destructive": false,
+    "evidence_class": "LOCAL_REGRESSION",
+    "gate_id": "Q2-BASE-001",
+    "hook_name": "",
+    "required_env": [],
+    "required_modules": [],
+    "required_tools": [],
+    "target_os_id": "",
+    "target_os_major": "",
+    "timeout_seconds": 30,
+    "title": "R59 release/schema/authority identity"
+  },
+  {
+    "area": "baseline",
+    "builtin": "runner_tests",
+    "destructive": false,
+    "evidence_class": "LOCAL_REGRESSION",
+    "gate_id": "Q2-BASE-002",
+    "hook_name": "",
+    "required_env": [],
+    "required_modules": [],
+    "required_tools": [
+      "pytest"
+    ],
+    "target_os_id": "",
+    "target_os_major": "",
+    "timeout_seconds": 60,
+    "title": "Q2 runner self-test"
+  },
+  {
+    "area": "baseline",
+    "builtin": "full_regression",
+    "destructive": false,
+    "evidence_class": "LOCAL_REGRESSION",
+    "gate_id": "Q2-BASE-003",
+    "hook_name": "",
+    "required_env": [],
+    "required_modules": [],
+    "required_tools": [
+      "pytest"
+    ],
+    "target_os_id": "",
+    "target_os_major": "",
+    "timeout_seconds": 600,
+    "title": "R59 full repository regression"
+  },
+  {
+    "area": "baseline",
+    "builtin": "mc11_regression",
+    "destructive": false,
+    "evidence_class": "LOCAL_REGRESSION",
+    "gate_id": "Q2-BASE-004",
+    "hook_name": "",
+    "required_env": [],
+    "required_modules": [],
+    "required_tools": [
+      "pytest"
+    ],
+    "target_os_id": "",
+    "target_os_major": "",
+    "timeout_seconds": 180,
+    "title": "MC-11 focused authority regression"
+  },
+  {
+    "area": "platform",
+    "builtin": "hook",
+    "destructive": true,
+    "evidence_class": "LIVE_PRODUCTION",
+    "gate_id": "Q2-PLAT-001",
+    "hook_name": "almalinux-clean-install",
+    "required_env": [],
+    "required_modules": [],
+    "required_tools": [
+      "rpm",
+      "dnf",
+      "systemctl"
+    ],
+    "target_os_id": "almalinux",
+    "target_os_major": "10",
+    "timeout_seconds": 1200,
+    "title": "AlmaLinux 10 clean RPM install"
+  },
+  {
+    "area": "platform",
+    "builtin": "hook",
+    "destructive": true,
+    "evidence_class": "LIVE_PRODUCTION",
+    "gate_id": "Q2-PLAT-002",
+    "hook_name": "rpm-upgrade",
+    "required_env": [],
+    "required_modules": [],
+    "required_tools": [
+      "rpm",
+      "dnf",
+      "systemctl"
+    ],
+    "target_os_id": "almalinux",
+    "target_os_major": "10",
+    "timeout_seconds": 1200,
+    "title": "RPM supported-baseline upgrade"
+  },
+  {
+    "area": "platform",
+    "builtin": "hook",
+    "destructive": true,
+    "evidence_class": "LIVE_PRODUCTION",
+    "gate_id": "Q2-PLAT-003",
+    "hook_name": "rpm-rollback",
+    "required_env": [],
+    "required_modules": [],
+    "required_tools": [
+      "rpm",
+      "dnf",
+      "systemctl"
+    ],
+    "target_os_id": "almalinux",
+    "target_os_major": "10",
+    "timeout_seconds": 1200,
+    "title": "RPM rollback to prior working baseline"
+  },
+  {
+    "area": "platform",
+    "builtin": "hook",
+    "destructive": true,
+    "evidence_class": "LIVE_PRODUCTION",
+    "gate_id": "Q2-PLAT-004",
+    "hook_name": "systemd-restart",
+    "required_env": [],
+    "required_modules": [],
+    "required_tools": [
+      "systemctl"
+    ],
+    "target_os_id": "almalinux",
+    "target_os_major": "10",
+    "timeout_seconds": 300,
+    "title": "systemd restart recovery"
+  },
+  {
+    "area": "platform",
+    "builtin": "hook",
+    "destructive": true,
+    "evidence_class": "LIVE_PRODUCTION",
+    "gate_id": "Q2-PLAT-005",
+    "hook_name": "host-reboot",
+    "required_env": [],
+    "required_modules": [],
+    "required_tools": [
+      "systemctl"
+    ],
+    "target_os_id": "almalinux",
+    "target_os_major": "10",
+    "timeout_seconds": 1800,
+    "title": "host reboot recovery"
+  },
+  {
+    "area": "platform",
+    "builtin": "hook",
+    "destructive": false,
+    "evidence_class": "LIVE_PRODUCTION",
+    "gate_id": "Q2-PLAT-006",
+    "hook_name": "selinux-enforcing",
+    "required_env": [],
+    "required_modules": [],
+    "required_tools": [
+      "getenforce"
+    ],
+    "target_os_id": "almalinux",
+    "target_os_major": "10",
+    "timeout_seconds": 300,
+    "title": "SELinux enforcing operation"
+  },
+  {
+    "area": "postgresql",
+    "builtin": "postgres_migration",
+    "destructive": false,
+    "evidence_class": "LIVE_PRODUCTION",
+    "gate_id": "Q2-DB-001",
+    "hook_name": "",
+    "required_env": [
+      "NETCONFIG_TEST_PG_PASSWORD"
+    ],
+    "required_modules": [
+      "psycopg"
+    ],
+    "required_tools": [],
+    "target_os_id": "",
+    "target_os_major": "",
+    "timeout_seconds": 900,
+    "title": "PostgreSQL SQLite\u2192PostgreSQL migration"
+  },
+  {
+    "area": "postgresql",
+    "builtin": "postgres_backup_restore",
+    "destructive": false,
+    "evidence_class": "LIVE_PRODUCTION",
+    "gate_id": "Q2-DB-002",
+    "hook_name": "",
+    "required_env": [
+      "NETCONFIG_TEST_PG_PASSWORD"
+    ],
+    "required_modules": [
+      "psycopg"
+    ],
+    "required_tools": [
+      "pg_dump",
+      "pg_restore"
+    ],
+    "target_os_id": "",
+    "target_os_major": "",
+    "timeout_seconds": 1200,
+    "title": "PostgreSQL backup and restore drill"
+  },
+  {
+    "area": "postgresql",
+    "builtin": "postgres_concurrency",
+    "destructive": false,
+    "evidence_class": "LIVE_PRODUCTION",
+    "gate_id": "Q2-DB-003",
+    "hook_name": "",
+    "required_env": [
+      "NETCONFIG_TEST_PG_PASSWORD"
+    ],
+    "required_modules": [
+      "psycopg"
+    ],
+    "required_tools": [],
+    "target_os_id": "",
+    "target_os_major": "",
+    "timeout_seconds": 900,
+    "title": "PostgreSQL concurrency and advisory locking"
+  },
+  {
+    "area": "protocol",
+    "builtin": "hook",
+    "destructive": false,
+    "evidence_class": "LIVE_PRODUCTION",
+    "gate_id": "Q2-PROTO-001",
+    "hook_name": "real-snmp",
+    "required_env": [],
+    "required_modules": [],
+    "required_tools": [],
+    "target_os_id": "",
+    "target_os_major": "",
+    "timeout_seconds": 300,
+    "title": "Real SNMP collection"
+  },
+  {
+    "area": "protocol",
+    "builtin": "hook",
+    "destructive": false,
+    "evidence_class": "LIVE_PRODUCTION",
+    "gate_id": "Q2-PROTO-002",
+    "hook_name": "real-ssh",
+    "required_env": [],
+    "required_modules": [],
+    "required_tools": [
+      "ssh"
+    ],
+    "target_os_id": "",
+    "target_os_major": "",
+    "timeout_seconds": 300,
+    "title": "Real SSH configuration collection"
+  },
+  {
+    "area": "protocol",
+    "builtin": "hook",
+    "destructive": false,
+    "evidence_class": "LIVE_PRODUCTION",
+    "gate_id": "Q2-PROTO-003",
+    "hook_name": "real-syslog",
+    "required_env": [],
+    "required_modules": [],
+    "required_tools": [],
+    "target_os_id": "",
+    "target_os_major": "",
+    "timeout_seconds": 300,
+    "title": "Real syslog ingestion"
+  },
+  {
+    "area": "protocol",
+    "builtin": "hook",
+    "destructive": false,
+    "evidence_class": "LIVE_PRODUCTION",
+    "gate_id": "Q2-PROTO-004",
+    "hook_name": "real-snmp-trap",
+    "required_env": [],
+    "required_modules": [],
+    "required_tools": [],
+    "target_os_id": "",
+    "target_os_major": "",
+    "timeout_seconds": 300,
+    "title": "Real SNMP trap ingestion"
+  },
+  {
+    "area": "protocol",
+    "builtin": "hook",
+    "destructive": false,
+    "evidence_class": "LIVE_PRODUCTION",
+    "gate_id": "Q2-PROTO-005",
+    "hook_name": "real-netflow-ipfix",
+    "required_env": [],
+    "required_modules": [],
+    "required_tools": [],
+    "target_os_id": "",
+    "target_os_major": "",
+    "timeout_seconds": 600,
+    "title": "Real NetFlow/IPFIX ingestion"
+  },
+  {
+    "area": "external",
+    "builtin": "hook",
+    "destructive": false,
+    "evidence_class": "LIVE_PRODUCTION",
+    "gate_id": "Q2-EXT-001",
+    "hook_name": "external-evidence",
+    "required_env": [],
+    "required_modules": [],
+    "required_tools": [],
+    "target_os_id": "",
+    "target_os_major": "",
+    "timeout_seconds": 600,
+    "title": "Real external evidence connector"
+  },
+  {
+    "area": "recovery",
+    "builtin": "hook",
+    "destructive": true,
+    "evidence_class": "LIVE_PRODUCTION",
+    "gate_id": "Q2-REC-001",
+    "hook_name": "worker-restart",
+    "required_env": [],
+    "required_modules": [],
+    "required_tools": [],
+    "target_os_id": "",
+    "target_os_major": "",
+    "timeout_seconds": 600,
+    "title": "Worker restart and deterministic recovery"
+  },
+  {
+    "area": "recovery",
+    "builtin": "hook",
+    "destructive": false,
+    "evidence_class": "LIVE_PRODUCTION",
+    "gate_id": "Q2-REC-002",
+    "hook_name": "clock-skew",
+    "required_env": [],
+    "required_modules": [],
+    "required_tools": [],
+    "target_os_id": "",
+    "target_os_major": "",
+    "timeout_seconds": 600,
+    "title": "Clock-skew evidence handling"
+  },
+  {
+    "area": "recovery",
+    "builtin": "hook",
+    "destructive": false,
+    "evidence_class": "LIVE_PRODUCTION",
+    "gate_id": "Q2-REC-003",
+    "hook_name": "late-out-of-order",
+    "required_env": [],
+    "required_modules": [],
+    "required_tools": [],
+    "target_os_id": "",
+    "target_os_major": "",
+    "timeout_seconds": 600,
+    "title": "Late/out-of-order evidence handling"
+  },
+  {
+    "area": "recovery",
+    "builtin": "hook",
+    "destructive": false,
+    "evidence_class": "LIVE_PRODUCTION",
+    "gate_id": "Q2-REC-004",
+    "hook_name": "duplicate-replay",
+    "required_env": [],
+    "required_modules": [],
+    "required_tools": [],
+    "target_os_id": "",
+    "target_os_major": "",
+    "timeout_seconds": 600,
+    "title": "Duplicate/replay idempotency"
+  },
+  {
+    "area": "recovery",
+    "builtin": "hook",
+    "destructive": false,
+    "evidence_class": "LIVE_PRODUCTION",
+    "gate_id": "Q2-REC-005",
+    "hook_name": "retention",
+    "required_env": [],
+    "required_modules": [],
+    "required_tools": [],
+    "target_os_id": "",
+    "target_os_major": "",
+    "timeout_seconds": 900,
+    "title": "Retention with authoritative evidence preserved"
+  },
+  {
+    "area": "performance",
+    "builtin": "hook",
+    "destructive": false,
+    "evidence_class": "LIVE_PRODUCTION",
+    "gate_id": "Q2-PERF-001",
+    "hook_name": "api-latency",
+    "required_env": [],
+    "required_modules": [],
+    "required_tools": [],
+    "target_os_id": "",
+    "target_os_major": "",
+    "timeout_seconds": 900,
+    "title": "Representative API latency"
+  },
+  {
+    "area": "performance",
+    "builtin": "hook",
+    "destructive": false,
+    "evidence_class": "LIVE_PRODUCTION",
+    "gate_id": "Q2-PERF-002",
+    "hook_name": "webui-latency",
+    "required_env": [],
+    "required_modules": [],
+    "required_tools": [],
+    "target_os_id": "",
+    "target_os_major": "",
+    "timeout_seconds": 900,
+    "title": "Representative WebUI render latency"
+  }
+]

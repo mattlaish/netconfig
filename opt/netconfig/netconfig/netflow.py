@@ -148,6 +148,66 @@ class NetflowParser:
         return out
 
 
+def summarize_flows(flows, limit=8):
+    """Return FortiView-style bounded summaries from already-collected flows."""
+    flows = list(flows or [])
+    limit = max(1, min(int(limit), 20))
+    total_bytes = sum(max(0, int(f.get("bytes") or 0)) for f in flows)
+    total_packets = sum(max(0, int(f.get("packets") or 0)) for f in flows)
+
+    def aggregate(key_fn, label_fn=None):
+        buckets = {}
+        for f in flows:
+            key = key_fn(f)
+            if key in (None, "", ("", "")):
+                continue
+            item = buckets.setdefault(key, {"bytes": 0, "packets": 0, "flows": 0})
+            item["bytes"] += max(0, int(f.get("bytes") or 0))
+            item["packets"] += max(0, int(f.get("packets") or 0))
+            item["flows"] += 1
+        rows = []
+        for key, values in buckets.items():
+            label = label_fn(key) if label_fn else str(key)
+            rows.append({"key": key, "label": label, **values,
+                         "byte_share": (values["bytes"] / total_bytes) if total_bytes else 0.0})
+        rows.sort(key=lambda x: (x["bytes"], x["packets"], x["flows"]), reverse=True)
+        return rows[:limit]
+
+    top_sources = aggregate(lambda f: f.get("src"))
+    top_destinations = aggregate(lambda f: f.get("dst"))
+    protocols = aggregate(lambda f: f.get("proto") or "UNKNOWN")
+    top_ports = aggregate(lambda f: (str(f.get("proto") or "UNKNOWN"), int(f.get("dport") or 0)),
+                          lambda k: f"{k[0]}/{k[1]}" if k[1] else str(k[0]))
+    conversations = aggregate(
+        lambda f: (str(f.get("src") or ""), str(f.get("dst") or ""),
+                   str(f.get("proto") or "UNKNOWN"), int(f.get("dport") or 0)),
+        lambda k: f"{k[0]} → {k[1]} {k[2]}/{k[3]}" if k[3] else f"{k[0]} → {k[1]} {k[2]}")
+
+    insights = []
+    if top_sources and total_bytes:
+        lead = top_sources[0]
+        insights.append(f'Top source {lead["label"]} accounts for {lead["byte_share"]*100:.0f}% of observed bytes.')
+    if protocols and total_bytes:
+        lead = protocols[0]
+        insights.append(f'{lead["label"]} is the largest protocol by bytes ({lead["byte_share"]*100:.0f}%).')
+    if top_ports:
+        lead = top_ports[0]
+        insights.append(f'Most observed destination traffic is {lead["label"]} ({lead["flows"]} flow records).')
+    if not flows:
+        insights.append("No recent flow records are available for this exporter.")
+
+    times = [float(f.get("ts") or 0) for f in flows if f.get("ts")]
+    return {
+        "flow_count": len(flows), "total_bytes": total_bytes, "total_packets": total_packets,
+        "unique_sources": len({f.get("src") for f in flows if f.get("src")}),
+        "unique_destinations": len({f.get("dst") for f in flows if f.get("dst")}),
+        "first_ts": min(times) if times else None, "last_ts": max(times) if times else None,
+        "top_sources": top_sources, "top_destinations": top_destinations,
+        "protocols": protocols, "top_ports": top_ports, "conversations": conversations,
+        "insights": insights,
+    }
+
+
 class Collector:
     """UDP NetFlow collector. Keeps a bounded ring of recent flows per exporter."""
 

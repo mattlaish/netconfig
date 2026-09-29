@@ -121,7 +121,9 @@ def test_sqlite_distributed_task_claim_is_single_claim(tmp_path):
         assert claimed["id"] == task["id"]
         assert claimed["attempts"] == 1
         assert db.claim_distributed_task("jobs", "worker-b", 101.0, 60) is None
-        done = db.finish_distributed_task(task["id"], "worker-a", 102.0, result="ok")
+        done = db.finish_distributed_task(
+            task["id"], "worker-a", 102.0, result="ok",
+            claim_token=claimed["claim_token"], claim_generation=claimed["claim_generation"])
         assert done["state"] == "DONE"
         assert db.storage_status()["backend"] == "sqlite"
         assert db.storage_status()["ok"] is True

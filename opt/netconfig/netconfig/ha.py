@@ -11,7 +11,7 @@ import time
 
 
 _NODE_STATES = {"ACTIVE", "DRAINING", "DRAINED"}
-_DRILL_KINDS = {"NODE_FAILOVER", "DATABASE_RESTORE", "REBOOT_RECOVERY", "BACKUP_VERIFY"}
+_DRILL_KINDS = {"NODE_FAILOVER", "WORKER_FAILOVER", "DATABASE_FAILOVER", "NETWORK_PARTITION", "SPLIT_BRAIN_FENCE", "PARTIAL_JOB_RECOVERY", "REPLAY_RECOVERY", "DATABASE_RESTORE", "REBOOT_RECOVERY", "BACKUP_VERIFY"}
 _DRILL_STATES = {"STARTED", "PASSED", "FAILED", "NOT_RUN"}
 
 
@@ -50,8 +50,31 @@ class HAService:
         item = self.node()
         return str((item or {}).get("state") or "ACTIVE").upper()
 
+    def ensure_node_identity_fence(self):
+        if getattr(self.manager.db, "dialect", "sqlite") != "postgres":
+            return True
+        name = getattr(self.manager, "cluster_identity_lock",
+                       f"netconfig:cluster-node:{self.manager.cluster_node_id}")
+        try:
+            return bool(self.manager.db.try_advisory_lock(name))
+        except Exception:
+            return False
+
+    def heartbeat(self):
+        if not self.ensure_node_identity_fence():
+            return False
+        try:
+            return bool(self.manager.db.heartbeat_cluster_node(
+                self.manager.cluster_node_id, time.time(),
+                getattr(self.manager, "cluster_instance_id", None)))
+        except Exception:
+            return False
+
     def accepts_automation_work(self):
-        return self.current_node_state() == "ACTIVE"
+        # Every automation/scheduler pass revalidates the PostgreSQL session fence.
+        # A DB/network partition therefore fails closed instead of continuing to
+        # perform device-side work after leadership ownership becomes uncertain.
+        return self.current_node_state() == "ACTIVE" and self.ensure_node_identity_fence()
 
     def require_active_node(self):
         state = self.current_node_state()
@@ -107,6 +130,11 @@ class HAService:
             (node for node in nodes if node.get("node_id") == self.manager.cluster_node_id),
             self.node(),
         )
+        failure_domains = sorted({
+            str(node.get("failure_domain") or "").strip() for node in active_nodes
+            if str(node.get("failure_domain") or "").strip()
+        })
+        identity_fenced = self.ensure_node_identity_fence()
         issues = []
         if backend != "postgres":
             issues.append("core backend is not PostgreSQL; multi-node HA is unavailable")
@@ -114,6 +142,10 @@ class HAService:
             issues.append("core backend is not distributed-capable")
         if backend == "postgres" and len(active_nodes) < 2:
             issues.append("fewer than two fresh ACTIVE cluster nodes are visible")
+        if backend == "postgres" and len(failure_domains) < 2:
+            issues.append("fewer than two distinct declared failure domains are visible")
+        if backend == "postgres" and not identity_fenced:
+            issues.append("local PostgreSQL node-identity fence is not held")
         if local and str(local.get("state") or "ACTIVE").upper() != "ACTIVE":
             issues.append(f"local control-plane node is {str(local.get('state')).upper()}")
         return {
@@ -122,6 +154,10 @@ class HAService:
             "fresh_nodes": nodes,
             "fresh_node_count": len(nodes),
             "fresh_active_node_count": len(active_nodes),
+            "failure_domains": failure_domains,
+            "distinct_failure_domain_count": len(failure_domains),
+            "identity_fenced": identity_fenced,
+            "local_instance_id": getattr(self.manager, "cluster_instance_id", ""),
             "local_node": local,
             "accepts_automation_work": self.accepts_automation_work(),
             "ready_for_multi_node": not issues,
@@ -134,7 +170,12 @@ class HAService:
             ),
             "automatic_database_failover": False,
             "pitr_managed_by_netconfig": False,
+            "expired_task_replay_policy": "RECOVERY_REQUIRED_EXPLICIT_ONLY",
         }
+
+    def recover_expired_tasks(self, *, now=None, limit=100):
+        return self.manager.db.recover_expired_distributed_tasks(
+            time.time() if now is None else float(now), limit=limit)
 
     def start_drill(self, *, kind, actor, detail=None, node_id="", verification_ref=""):
         return self.record_drill(

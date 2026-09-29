@@ -1,18 +1,16 @@
+## R60 appliance lifecycle
+
+R60 adds a fail-closed lifecycle workflow for supported R59→R60 upgrades. Use the release source package's `packaging/r60-lifecycle-upgrade.sh` for qualification/controlled upgrade rather than treating a direct DNF transaction as rollback proof. The lifecycle snapshot covers local NetConfig state and `/etc/default/netconfig`; external secret and TLS key/certificate files are fingerprinted but not duplicated. Failed upgrade recovery downgrades the RPM and restores prior local state; PostgreSQL additionally switches only to a pre-restored, separately validated rollback database.
+
 # NetConfig — Install & Operations
 
-> **Canonical project state — 2026-09-23:** **CURRENT IMPLEMENTATION BASELINE** = **Release 51 / MC-3 Normalized Operational Evidence** (`2.0.0-51`, `IMPLEMENTED_TESTING_DEFERRED`). MC-1 Sensor Integration Unification and MC-2 Sensor History & State Transitions remain implemented. Release 51 adds a normalized cross-domain operational-evidence envelope, durable Sensor-transition → Event bridging, recovery/`UNKNOWN` semantics, additive event-schema migration/backfill/indexes, filtered/detail Event API reads, and an Event detail UI with current related Sensor state. NI-1 through **NI-7 L3/VRF Path & Route Dependency Intelligence** remain implemented. Formal RPM qualification remains deferred until the monitoring/correlation roadmap is complete; any ad-hoc RPM remains development evidence only.
+> **Canonical project state — 2026-09-25:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) on top of the frozen R67 candidate. MC-1 through MC-11 remain implemented; **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice and schema revision remains `mc11-topology-change-planning-1`; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included. R67.2 repairs fresh login, additive migration/index ordering, fail-closed Core PostgreSQL preflight, Core/History PostgreSQL configuration separation, and fresh PostgreSQL Core bootstrap without adding network-write authority. **All network mutation remains approval-gated; local/offline qualification does not establish RC or production release readiness; all required `LIVE_RC` gates remain mandatory. Do not create MC-12.** R68 must be rerun against the exact R67.2 candidate after mandatory live qualification.
 
-## Release 48 package identity
+## Release 54 package identity
 
-Current RPM identity is `netconfig-2.0.0-48.el10.noarch`. The offline helper RPM is built only after the final source-artifact integrity gate; canonical AlmaLinux 10 `rpmbuild`/DNF/systemd/SELinux qualification remains separate and deferred until actually run.
+Current RPM identity is `netconfig-2.0.0-56.el10.noarch`. MC-7 Deterministic Correlation & Hypothesis Engine remains `IMPLEMENTED_TESTING_DEFERRED`; helper-built RPMs are offline-structurally qualified only until canonical AlmaLinux 10 `rpmbuild`/DNF/systemd/SELinux gates actually run. The package preserves `/var/lib/netconfig` and `%config(noreplace)` settings across upgrade and does not create administrator credentials.
 
-**Release 48 source qualification (2026-09-20):** focused Sensor Model/API coverage is **14 passed / 0 failed**. The full repository regression was executed in four bounded mutually exclusive groups and totals **236 passed / 8 skipped / 0 failed**; the eight skips are seven explicit live/service prerequisites plus the expected Git-index mode skip because `.git` is absent from this archive-derived workspace. Legacy selftest is **ALL PASS**; compileall, launcher `py_compile`, and packaging/tool shell syntax are **PASS**. Ruff `0.16.7` and mypy `2.3.1` remain **NOT_RUN** because their executables are unavailable. Canonical AlmaLinux 10 `rpmbuild`/DNF install-upgrade/systemd/SELinux, PostgreSQL live/backup-restore, protocol-service and vendor/device live gates remain **NOT_RUN / DEFERRED**. Final source-artifact integrity qualification and offline RPM build occur after this source/documentation sync and do not promote the project beyond `IMPLEMENTED_TESTING_DEFERRED`.
-
-
-**Release 46 source qualification:** repository regression executed in bounded groups totals **222 passed / 8 skipped / 0 failed**; the eight skips are seven explicit live/service prerequisites plus the expected Git-index mode skip because `.git` is absent. Focused Web Console/structural coverage is **13 passed**. Legacy selftest is **ALL PASS**; compileall, launcher `py_compile`, and packaging/tool shell syntax are **PASS**. Ruff `0.16.7` and mypy `2.3.1` remain **NOT_RUN** because the executables are unavailable. The dependency-free offline RPM builder is covered by Release 46 reproducibility and independent-verifier gates; the exact delivered RPM SHA-256 is recorded in the top-level release evidence rather than in packaged runtime documentation. Canonical AlmaLinux 10 `rpmbuild`/DNF install-upgrade/systemd/SELinux and other Q-1 live/device gates remain **NOT_RUN / DEFERRED**.
-
-
-> **Roadmap disposition — 2026-09-23:** The monitoring/correlation roadmap is active. MC-1 through MC-3 are implemented in source as `IMPLEMENTED_TESTING_DEFERRED`; the next planned slice is **MC-4 / Release 52 — Unified Alert Plane**. NI-7 remains implemented and Q-1 remains an open production/service qualification track. Do not invent NI-8/Q-2 or skip the defined MC sequence without an explicit roadmap decision.
+> **Roadmap disposition — 2026-09-24:** **R59 / MC-11 is the final Monitoring & Correlation functional slice.** Do not create MC-12. After R59, stop feature expansion and use the Release / Qualification track: **Q2 Production Qualification Campaign → R60 Appliance Reliability & Lifecycle Hardening → R61 Scale & Performance Qualification → R62 PostgreSQL / Concurrency / Recovery Hardening → R63 HA / Failure-Domain Engineering → R64 Security Hardening & Independent Abuse Testing → R65 Operator Workflow Completion → R66 Observability / Supportability → R67 Release Candidate / Full Artifact Qualification → R68 v2 Production Release Decision**. Simulation never counts as live PASS; mandatory gates use `PASS / FAIL / BLOCKED_ENVIRONMENT / NOT_RUN`.
 
 ## Release 44 — Intent Automation Operations Repair
 
@@ -21,27 +19,27 @@ Release 44 fixes a real Web Console defect in `Operations -> Intent Automation`:
 HTTP-level regression coverage now requests `/operations?tab=intents` and requires a `200` response with the Intent Automation content instead of a server error. Release 43's left sidebar, supplied green theme, and neutral NetConfig branding are preserved. There is no schema or public REST contract change. Package release advances to `2.0.0-44` because shipped runtime source changed.
 
 
-> **Release 48 RPM status:** the final helper-emitted `netconfig-2.0.0-48.el10.noarch.rpm` is built only after the final source artifact gate. Production qualification still requires the canonical AlmaLinux package path.
+> **Release 56 RPM status:** a helper-emitted `netconfig-2.0.0-56.el10.noarch.rpm` may be produced after the final source artifact gate. Production qualification still requires the canonical AlmaLinux package path.
 
 ## Production installation — AlmaLinux 10 RPM
 
-The supported production package target is **AlmaLinux 10**. Use RPM Release `2.0.0-48` for the current Release 48 source baseline. Do not install an older package and assume it contains the current Sensor Engine/API runtime.
+The supported production package target is **AlmaLinux 10**. Use RPM Release `2.0.0-54` for the current Release 54 / MC-6 source baseline. Do not install an older package and assume it contains the current Incident evidence/timeline runtime.
 
 ### A. Install or upgrade the RPM
 
 On a clean or existing AlmaLinux 10 host:
 
 ```bash
-sudo dnf install ./netconfig-2.0.0-48.el10.noarch.rpm
+sudo dnf install ./netconfig-2.0.0-56.el10.noarch.rpm
 # For an existing installation, dnf install is also upgrade-safe; alternatively:
-# sudo dnf upgrade ./netconfig-2.0.0-48.el10.noarch.rpm
+# sudo dnf upgrade ./netconfig-2.0.0-56.el10.noarch.rpm
 sudo systemctl daemon-reload
 ```
 
 From the source bundle you can use the guarded helper instead:
 
 ```bash
-sudo ./packaging/install-rpm.sh ./netconfig-2.0.0-48.el10.noarch.rpm
+sudo ./packaging/install-rpm.sh ./netconfig-2.0.0-56.el10.noarch.rpm
 ```
 
 The RPM:
@@ -95,7 +93,7 @@ Then open `http://127.0.0.1:8778/` locally.
 From the source/qualification bundle:
 
 ```bash
-./packaging/inspect-rpm.sh ./netconfig-2.0.0-48.el10.noarch.rpm
+./packaging/inspect-rpm.sh ./netconfig-2.0.0-56.el10.noarch.rpm
 ./packaging/smoke-installed.sh
 ```
 
@@ -119,18 +117,18 @@ Build on an **AlmaLinux 10** build host/VM, not on the production host:
 sudo dnf install -y rpm-build python3.12 systemd-rpm-macros
 chmod 0755 packaging/*.sh
 ./packaging/build-rpm.sh
-./packaging/inspect-rpm.sh ./netconfig-2.0.0-48.el10.noarch.rpm
+./packaging/inspect-rpm.sh ./netconfig-2.0.0-56.el10.noarch.rpm
 ```
 
 Expected outputs:
 
 ```text
-netconfig-2.0.0-48.el10.noarch.rpm
-netconfig-2.0.0-48.el10.src.rpm
+netconfig-2.0.0-56.el10.noarch.rpm
+netconfig-2.0.0-56.el10.src.rpm
 ```
 
 The provided source delivery can be transferred to AlmaLinux as-is; the separate
-`netconfig-netconfig-2.0.0-48-rpm-build-source.zip` is a minimized build-transfer bundle.
+`netconfig-netconfig-2.0.0-56-rpm-build-source.zip` is a minimized build-transfer bundle.
 
 ## Manual source install
 
@@ -550,3 +548,32 @@ sudo -u netconfig /usr/bin/netconfig --home /var/lib/netconfig qualify
 ```
 
 When PostgreSQL core mode is selected, qualification requires a working psycopg 3 runtime, `pg_dump`, `pg_restore`, the configured PostgreSQL endpoint and the protected pre-vault database credential. Q-1 also provides `netconfig storage backup-postgres` and recovery-safe `netconfig storage restore-postgres`; restore requires SHA-256 verification, the literal confirmation `RESTORE_DATABASE`, and a target database different from the active core database. The restore path is intended for an isolated drill/standby/recovery database, not an in-place hot overwrite.
+
+## R67.2 fresh PostgreSQL Core installation
+
+This path is **fresh-install only**. It is not SQLite→PostgreSQL migration, upgrade, force-install, or recovery of an operational appliance. The normal RPM path remains SQLite-first.
+
+Before running the helper, install an organization-approved **psycopg 3** runtime that imports from `/usr/bin/python3.12`:
+
+```bash
+/usr/bin/python3.12 -c 'import psycopg; print(psycopg.__version__)'
+```
+
+Prepare a root-readable file containing only the PostgreSQL role password, then run the packaged helper. A distinct Core database is the default:
+
+```bash
+sudo /usr/libexec/netconfig/bootstrap-postgres-core \
+  --password-file /root/netconfig-postgres-password \
+  --host 127.0.0.1 \
+  --dbname netconfig_core \
+  --db-user netconfig
+```
+
+For a remote PostgreSQL host, pre-create the database and role there and pass `--host`; the helper validates that the target database has no existing public tables before it bootstraps NetConfig. Local `127.0.0.1`, `localhost`, and `::1` targets can have the role/database provisioned by the helper.
+
+The helper installs `/etc/netconfig/postgres-core-password` as `root:netconfig` mode `0640`, creates explicit systemd drop-ins for both `netconfig-web.service` and `netconfig-backup.service` using `LoadCredential=postgres-core-password:...`, bootstraps the schema, saves Core PostgreSQL settings only after preflight succeeds, creates the first administrator interactively, starts Web/backup timer, and runs storage-status validation.
+
+If a fresh bootstrap is interrupted, rerun the **same arguments** with `--resume`. Resume requires the stored argument fingerprint and refuses an operational SQLite Core, pre-existing untracked settings, a completed installation, or a different/non-fresh PostgreSQL user set.
+
+Do not use the Interface History password field as the Core credential. R67.2 separates these settings in the Console.
+

@@ -48,3 +48,8 @@ def runtime_preflight(manager) -> dict:
         "required_failures": required_failures,
         "ok": not required_failures,
     }
+
+
+def correlation_production_qualification(manager, *, window_seconds=900):
+    """Return MC-10 local qualification truth without promoting deferred live gates."""
+    return manager.correlation_hardening.qualification_report(window_seconds=window_seconds)

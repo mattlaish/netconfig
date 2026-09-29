@@ -1,6 +1,101 @@
+# Active handoff — R67.2 corrective RC
+
+> **Canonical project state — 2026-09-25:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) on top of the frozen R67 candidate. MC-1 through MC-11 remain implemented; **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice and schema revision remains `mc11-topology-change-planning-1`; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included. R67.2 repairs fresh login, additive migration/index ordering, fail-closed Core PostgreSQL preflight, Core/History PostgreSQL configuration separation, and fresh PostgreSQL Core bootstrap without adding network-write authority. **All network mutation remains approval-gated; local/offline qualification does not establish RC or production release readiness; all required `LIVE_RC` gates remain mandatory. Do not create MC-12.** R68 must be rerun against the exact R67.2 candidate after mandatory live qualification.
+
+Continue only from the complete R67.2 full-source baseline once frozen. Preserve: no MC-12; all network mutation approval-gated; legacy ad-hoc/device CLI read-only; Alerts is the canonical NI-4 alert/report surface; API-token lifecycle in Settings/Integrations; read-only Supportability for authenticated Console users with admin-only bundles; R63 replay-safe-only distributed-task recovery; and exact-candidate LIVE_RC evidence separation. R68 is not a source-development track and must be rerun only after the exact R67.2 candidate completes mandatory live gates.
+
+## Historical handoff ledger
+
+## R60 qualification closeout — 2026-09-24
+
+**R60 local/offline and clean-extract qualification (2026-09-24):** repository regression is **418 collected / 410 passed / 8 skipped / 0 failed**; R60 focused lifecycle/qualification coverage is **24/24 PASS** and retained MC-11 authority coverage is **12/12 PASS**. `compileall`, launcher/Q2/R60 `py_compile`, packaging/tool shell syntax, and legacy selftest are PASS. The dependency-free helper RPM contains **99 payload files**; two source-tree builds and two clean-extract builds are byte-identical and independently verified, SHA-256 `901142aab3041272d0929360bee1d555f5e5600fa428fd771bcbdceff75469ad`. The initial R60 campaign on the current non-AlmaLinux runner records **3 LOCAL_REGRESSION PASS / 0 FAIL / 0 BLOCKED_ENVIRONMENT / 10 NOT_RUN / 0 LIVE_PRODUCTION PASS** because destructive appliance hooks were not authorized/executed in this runner. These results do not promote R60 beyond `IMPLEMENTED_TESTING_DEFERRED`; live AlmaLinux R59→R60 upgrade/rollback, systemd/SELinux/reboot/crash/disk-pressure and PostgreSQL rollback-database gates remain separate live evidence.
+
+## Active handoff — R60 Appliance Reliability & Lifecycle Hardening
+
+Continue from Release 60 / `2.0.0-60` / `IMPLEMENTED_TESTING_DEFERRED`. Do not create MC-12. Preserve schema `mc11-topology-change-planning-1` and all MC-4→MC-11 evidence/authority semantics. R60 lifecycle recovery is fail-closed: pre-upgrade state is checksummed, external secrets/certificates are fingerprinted rather than copied to evidence, local restore requires `RESTORE_LOCAL_STATE`, PostgreSQL rollback switching requires a separately restored/validated rollback database plus `SWITCH_POSTGRES_ROLLBACK`, and lifecycle wrapper failures that cannot prove recovery stop as `RECOVERY_REQUIRED`. Next track after R60 closeout is R61 Scale & Performance Qualification.
+
+## Q2 qualification-harness artifact closeout
+
+The complete Q2 qualification-tooling source tree and clean system-unzip extract both pass **394 collected / 386 passed / 8 skipped / 0 failed**. Q2 focused harness coverage is **14/14 PASS**; MC-11 focused authority coverage is **12/12 PASS**. `compileall`, launcher/Q2 `py_compile`, shell syntax and legacy selftest are PASS. Clean-extract helper RPM rebuilds are byte-identical to each other and to the frozen R59 helper RPM, and the independent RPM verifier passes. Product runtime payload remains byte-identical to the frozen R59 runtime.
+
+The Q2 harness source artifact remains qualification tooling over R59, not a new product release. Live production gates remain deferred according to the initial campaign matrix; project state remains `IMPLEMENTED_TESTING_DEFERRED`.
+
+## Q2 local qualification closeout for this environment
+
+The implemented Q2 harness was exercised on the current non-AlmaLinux runner. Repository regression after the Q2 tooling changes is **394 collected / 386 passed / 8 skipped / 0 failed**. Q2 focused harness tests are **14/14 PASS** and MC-11 focused authority tests are **12/12 PASS**. `compileall`, launcher/Q2 `py_compile`, packaging/tool shell syntax and legacy selftest are PASS. Product runtime payload is byte-identical to frozen R59, and two helper-RPM rebuilds remain byte-identical to the frozen R59 RPM (`af001a110e0d1eb6f3013f1608e1cf9159fecc2b590fccc2516738dc32a2d2a9`).
+
+The first formal Q2 matrix selected 25 gates (the full-repository gate was recorded separately to avoid duplicating the bounded regression run): **3 LOCAL_REGRESSION PASS / 0 FAIL / 16 BLOCKED_ENVIRONMENT / 6 NOT_RUN / 0 LIVE_PRODUCTION PASS**. This is correct deferred truth for the current environment and does not promote the product. The evidence bundle is `netconfig-2.0.0-59-Q2-initial-qualification-evidence.zip`, SHA-256 `8feb30d7c57112321b21c0f6ad7ce712454a6a079712c11ebbedbd5cfc30181e`.
+
+## Active continuation — Q2 Production Qualification Campaign
+
+The frozen product baseline remains R59/MC-11 `2.0.0-59`, schema `mc11-topology-aware-change-planning-1`, status `IMPLEMENTED_TESTING_DEFERRED`. Q2 qualification tooling is implemented under `qualification/` plus `packaging/q2-qualify.sh`; it is not a new product feature slice and does not change RPM release identity. Continue by executing and expanding real qualification evidence, not by creating MC-12.
+
+Canonical Q2 gate truth is only `PASS`, `FAIL`, `BLOCKED_ENVIRONMENT`, or `NOT_RUN`. Always preserve the evidence-class distinction: local/offline/simulation results are `LOCAL_REGRESSION` and cannot satisfy `LIVE_PRODUCTION`. Destructive gates require explicit opt-in. The runner never performs release promotion.
+
 # AI Development Handoff
 
-> **Canonical project state — 2026-09-23:** **CURRENT IMPLEMENTATION BASELINE** = **Release 51 / MC-3 Normalized Operational Evidence** (`2.0.0-51`, `IMPLEMENTED_TESTING_DEFERRED`). MC-1 Sensor Integration Unification and MC-2 Sensor History & State Transitions remain implemented. Release 51 adds a normalized cross-domain operational-evidence envelope, durable Sensor-transition → Event bridging, recovery/`UNKNOWN` semantics, additive event-schema migration/backfill/indexes, filtered/detail Event API reads, and an Event detail UI with current related Sensor state. NI-1 through **NI-7 L3/VRF Path & Route Dependency Intelligence** remain implemented. Formal RPM qualification remains deferred until the monitoring/correlation roadmap is complete; any ad-hoc RPM remains development evidence only.
+**Release 59 source-tree qualification:** **372 passed / 8 skipped / 0 failed** across **380 collected tests**. MC-11 focused is **12/12 PASS**. Selected compatibility coverage across MC-3→MC-11 plus NI-7 and ImpactSimulator is **112/112 PASS**. The eight skips are three live PostgreSQL tests, one PostgreSQL backup/restore test, three protocol-service integration tests, and the expected archive Git-index executable-mode gate. `compileall`, launcher `py_compile`, packaging/tool shell syntax, and legacy selftest are PASS. The dependency-free helper RPM rebuild is deterministic and independently verified; canonical AlmaLinux 10 `rpmbuild`/DNF/systemd/SELinux qualification is `BLOCKED_ENVIRONMENT` on the current Debian 13 runner (qualification script exit 20), not PASS. Final clean-extract and frozen-artifact evidence is recorded in `ARTIFACT_MANIFEST.json` and the external artifact-gate evidence.
+
+
+
+## Release 58 / MC-10 handoff
+
+Current hardening baseline is `CorrelationHardeningService` plus the existing deterministic correlation engine and MC-9 console. Preserve `correlation_runs` as execution/qualification evidence, not as a second hypothesis store. Replay preview must remain read-only with respect to active hypotheses; runtime retention may delete only finished run metadata; abandoned runs become `INTERRUPTED / ProcessRestart` and are not automatically replayed. Same-incident work stays serialized and PostgreSQL uses the advisory-lock path. Qualification truth must continue to distinguish local checks from deferred live gates and can never self-release the product.
+
+**Release 58 source-tree qualification:** **360 passed / 8 skipped / 0 failed** across **368 collected tests**, executed as five mutually exclusive non-live groups plus the explicit live-integration inventory. MC-10 focused is **11/11 PASS**; the earlier selected MC-3→MC-10 compatibility run is **83/83 PASS**. The eight skips are three live PostgreSQL tests, one PostgreSQL backup/restore test, three protocol-service integration tests, and the expected archive Git-index executable-mode gate. `compileall`, launcher `py_compile`, packaging/tool shell syntax, and legacy selftest are PASS. A real R57→R58 SQLite additive upgrade preserved the seeded Incident, External Event, and two MC-7 hypotheses while advancing the schema to `mc10-correlation-hardening-1` and creating `correlation_runs`. This is SQLite migration evidence only, not live PostgreSQL qualification. The unsigned offline helper RPM is `netconfig-2.0.0-58.el10.noarch.rpm`, SHA-256 `29ba4491d19cfe48aaf9601d6eb196f29e29b3daed3aa47f3421116f0e81a9ae`, with **97 payload files**; two independent source-tree builds are byte-identical and the independent verifier passes. Canonical AlmaLinux `rpmbuild`/DNF/systemd/SELinux and the MC-10 live PostgreSQL/external-product/production-scale/clock-skew/HA gates remain `NOT_RUN / DEFERRED`.
+
+Status remains `IMPLEMENTED_TESTING_DEFERRED`. The next and final roadmap slice is R59/MC-11 topology-aware change planning.
+
+## Release 57 / MC-9 handoff
+
+Current UI baseline is the Operations Correlation Console. Keep `/dashboard` and `/traffic` DB/ring-read-only; do not add implicit SNMP/SSH/config collection on page render. Incident UI must retain supporting and contradicting evidence and never upgrade a hypothesis to confirmed causation. Traffic analytics are explicitly bounded by the in-memory collector ring, not a persistent flow warehouse. Next formal slice is R58/MC-10 production hardening/qualification; R59/MC-11 is topology-aware change planning.
+
+**Release 57 source-tree qualification:** **349 passed / 8 skipped / 0 failed** across **357 collected tests**, including **8/8 MC-9 focused PASS** and **83/83 MC-4 through MC-9 / Incident / Web / CSS compatibility PASS**. The eight skips are seven explicit PostgreSQL/backup/protocol-service live prerequisites plus the expected archive Git-index executable-mode gate. `compileall`, launcher `py_compile`, packaging/tool shell syntax, and legacy selftest are PASS. The unsigned offline helper RPM is `netconfig-2.0.0-57.el10.noarch.rpm`, SHA-256 `92eb370f9d0a5b47043c526df9960e2520dee16a454ececdff0fbd0cdf53e98e`, with **96 payload files**; two independent source-tree builds are byte-identical and the independent offline verifier passes. Canonical AlmaLinux `rpmbuild`/DNF/systemd/SELinux, live PostgreSQL/protocol services, representative browser/load qualification, and production-scale correlation/traffic qualification remain `NOT_RUN / DEFERRED`.
+
+**Release 57 clean-extract artifact qualification:** **349 passed / 8 skipped / 0 failed** across **357 collected tests**, with MC-9 focused **8/8 PASS**. ZIP structural verification is **223 entries**, **0 duplicates**, **0 unsafe paths**, **0 symlinks**, **223/223 source↔ZIP↔system-unzip extract byte+mode parity**, **209/209 source payload manifest**, **222/222 SHA256SUMS**, and **12/12 required executable modes = 0755**. `compileall`, launcher `py_compile`, packaging/tool shell syntax, and legacy selftest pass from the extracted artifact. Two helper-RPM rebuilds from the clean extract are byte-identical to each other and to the source-tree RPM and pass the independent RPM verifier.
+
+**Release 58 clean-extract artifact qualification:** provisional clean-extract verification completed with **360 passed / 8 skipped / 0 failed** across **368 collected tests**, MC-10 focused included in the full run, **226 ZIP entries**, **0 duplicates**, **0 unsafe paths**, **0 symlinks**, **226/226 source↔ZIP↔system-unzip extract byte+mode parity**, **211/211 source payload manifest**, **225/225 SHA256SUMS**, and **12/12 required executable modes = 0755**. `compileall`, launcher `py_compile`, packaging/tool shell syntax, and legacy selftest pass from the extracted artifact. Two helper-RPM rebuilds from that clean extract are byte-identical to each other and to the source-tree helper RPM and pass the independent verifier. These results are re-run once more against the frozen final ZIP before delivery; the ZIP is not promoted to `TESTED` or `RELEASED`.
+
+> **Canonical project state — 2026-09-25:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) on top of the frozen R67 candidate. MC-1 through MC-11 remain implemented; **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice and schema revision remains `mc11-topology-change-planning-1`; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included. R67.2 repairs fresh login, additive migration/index ordering, fail-closed Core PostgreSQL preflight, Core/History PostgreSQL configuration separation, and fresh PostgreSQL Core bootstrap without adding network-write authority. **All network mutation remains approval-gated; local/offline qualification does not establish RC or production release readiness; all required `LIVE_RC` gates remain mandatory. Do not create MC-12.** R68 must be rerun against the exact R67.2 candidate after mandatory live qualification.
+
+## Release 55 / MC-7 handoff
+
+MC-7 Deterministic Correlation & Hypothesis Engine is implemented on the R54.1/MC-6 L3 Routing Topology baseline. Current schema revision is `mc7-deterministic-correlation-1`; primary implementation is `opt/netconfig/netconfig/correlation.py`, exposed as `Manager.correlation`. Durable hypothesis state is stored in `correlation_hypotheses` and is keyed by deterministic incident/rule/evidence fingerprints.
+
+Rule set `mc7-r55-v1` currently covers recent configuration change, network-path degradation, and related-entity degradation. Same evidence + same rule version produces the same hypothesis/confidence; replay does not duplicate rows or churn `updated_at`. Time-only grouping is forbidden. Cross-entity correlation requires a trusted bounded MC-6 dependency path, using only active CONFIGURED or fresh DISCOVERED edges by default. INFERRED/UNKNOWN/stale dependency claims remain excluded unless a future explicit policy says otherwise. Supporting and contradicting evidence must both remain visible.
+
+REST: `POST /api/v1/incidents/{ref}/correlate`, `GET /api/v1/incidents/{ref}/hypotheses`, and enriched `GET /api/v1/incidents/{ref}/investigation`. Web Incident detail shows current hypotheses and an authorized Run correlation action. Root cause remains unset; wording must continue to distinguish correlation from causation. MC-7 has no polling, connector action, remediation, Structured Change execution, or arbitrary device configuration authority.
+
+Current source qualification is **329 passed / 8 skipped / 0 failed** across **337 collected tests**, MC-7 focused **8/8 PASS**, plus compileall / launcher compile / shell syntax / legacy selftest PASS. The unsigned offline helper RPM `netconfig-2.0.0-55.el10.noarch.rpm` is deterministic across two builds, independently verified, contains 92 payload files, and has SHA-256 `f52b87b73c41051a5db60cf9f0efa3b524de27490afae048efc6b0ed55fdff0e`. Status remains `IMPLEMENTED_TESTING_DEFERRED`; live PostgreSQL/services, canonical AlmaLinux/DNF/systemd/SELinux, vendor/device, and production-scale correlation gates remain deferred. The next formal slice is **R56 / MC-8 — External Evidence Ingestion & Connectors**.
+
+Final clean-extract qualification also reports **329 passed / 8 skipped / 0 failed** across **337 collected tests**, MC-7 focused **8/8 PASS**, with 215 ZIP entries, 0 duplicate/unsafe/symlink entries, 215/215 source↔ZIP↔extract byte+mode parity, 203/203 payload-manifest checks, 214/214 SHA256SUMS checks, and 12/12 required executables mode 0755. The helper RPM rebuilt from the extracted artifact is byte-identical and independently verified.
+
+
+## Release 54 / MC-6 handoff
+
+MC-6 Service & Dependency Graph is implemented on top of R53/MC-5. The schema revision is `mc6-service-dependency-graph-1`. Primary implementation is `opt/netconfig/netconfig/dependencies.py`; `Manager.dependencies` is the runtime service. Durable objects are `service_entities` and `service_dependencies`. Required entity types and relationship types from the roadmap are implemented exactly, with configured/discovered/inferred/unknown evidence classification, provenance, evidence reference, freshness, optional VRF/destination scope for route-through evidence, and deterministic evidence refresh.
+
+Traversal defaults to configured + fresh discovered evidence, excludes stale and unknown evidence, requires explicit opt-in for inferred candidates, and is bounded to depth 8 / 250 nodes / 1,000 edges. It is cycle-safe and deterministic. `UNKNOWN` remains insufficient evidence rather than failure. Service impact reuses `ImpactSimulator`; DB-only network overlay reuses NI-7 `L3RouteAnalyzer`, remains VRF scoped/fail-closed, never maps a next-hop IP into a managed object, and causes no device polling.
+
+REST endpoints use existing `analytics:read` and operator-or-higher `analytics:write`. `/dependencies` is the operator-facing Web surface. Web viewer sessions cannot submit dependency changes; operator-or-higher can manage dependency inventory metadata. MC-6 does not add a causal verdict, hypothesis score, external connector authority, or direct network configuration execution path. Next slice is R55/MC-7 deterministic correlation and hypothesis handling.
+
+## Release 53 / MC-5 handoff
+
+MC-5 Incident Evidence & Unified Timeline is implemented in source on top of repaired R52/MC-4. The schema revision is `mc5-incident-evidence-timeline-1`. Incident evidence types now include Sensor transitions, Operational Events/Alerts, normalized change events, analytics insights, and normalized external events. Evidence links snapshot source/receive time and source-clock metadata; timeline ordering is deterministic and survives late arrival or later source-row retention as an explicit unavailable marker. The investigation view groups impact, alerts, changes, network/security/infrastructure/advanced evidence and explicitly leaves root cause `NOT_EVALUATED`.
+
+The historical R53/MC-5 boundary remains preserved: MC-5 did not implement hypothesis scoring or connector/action authority. MC-6 is now implemented in R54; the next roadmap slice is **MC-7 / Release 55 — Deterministic Correlation & Hypothesis Engine**. Preserve MC-6 provenance/freshness, bounded traversal, VRF/path scoping, and fail-closed ambiguity semantics when adding MC-7.
+
+Current R54.1 source-tree verification is **321 passed / 8 skipped / 0 failed** across **329 collected tests**, including **9/9** L3 Routing Topology follow-up focused tests. Seven skips are explicit PostgreSQL/backup/protocol-service prerequisites and one is the archive Git-mode gate. Compileall, launcher compilation, shell syntax, and legacy selftest pass. The helper RPM `netconfig-2.0.0-54.1.el10.noarch.rpm` is deterministic across two builds, independently verified, contains 91 payload files, and has SHA-256 `8e8b5acc38335026906f797a4163ff40e0679d0b8143448bdbdd39ef11cd2134`. Live AlmaLinux/RPM/systemd/SELinux, PostgreSQL service-backed, protocol-service, representative vendor/device route-output, and production-scale graph qualification remain deferred.
+
+
+## Historical predecessor — Release 52 / MC-4 correctness-repaired baseline
+
+The predecessor baseline was `2.0.0-52`, status `IMPLEMENTED_TESTING_DEFERRED`, schema revision `mc4-unified-alert-plane-2`. MC-4 is implemented and its correlation/migration edge cases are repaired: empty legacy `operational_alerts.correlation_key` rows are backfilled on SQLite/PostgreSQL startup with the same runtime identity function; manually resolved still-firing Sensor alerts reopen the same lifecycle on the next DB-only refresh; maintenance-covered persistent Sensor events are re-evaluated after maintenance without synthetic transitions.
+
+Configuration collection now fails closed before storage on empty or recognized CLI command-error output. A native `fortigate_fortios` driver (aliases `fortigate`, `fortios`, `fortinet_fortigate`) defaults to `show full-configuration` and deliberately avoids changing FortiGate console paging state. The per-device override remains a single bounded read command; RouterOS accepts exact `/export` only, so `/export file=...` cannot write device filesystem state through the collection override. Endpoint combined confidence becomes `PARTIAL` when the IP→MAC evidence is stale even if fresh FDB evidence identifies a port.
+
+NetFlow is unchanged by this repair: current MC-4 still provides bounded top sources/destinations/protocols/ports/conversations plus Advanced raw rows; persistent/time-window/global FortiView analytics remains future productization. Source regression truth before final packaging is **295 passed / 8 skipped / 0 failed**, including **17/17** focused MC-4 tests; seven skips are explicit live integrations and one is the archive Git-mode gate. This is retained as historical R52 evidence; R53/MC-5 above is now the active baseline. Formal RPM and live-device qualification remain deferred.
+
 ## Release 48 — Sensor Model & Evidence Normalization
 
 Release 48 promotes the sensor work from UI-only health cards into a reusable persisted normalization layer. `SensorEngine` stores `sensor_type`, `device`, `resource`, `value`, `unit`, `status`, `message`, `threshold`, `source`, and `updated_at`, with the status contract limited to `OK`, `WARNING`, `CRITICAL`, and `UNKNOWN`. It reads existing NetConfig persistence only and does **not** initiate SNMP/NETCONF/RESTCONF/gNMI/SSH device I/O or change polling frequency.
@@ -24,7 +119,7 @@ The previously documented Central Controller + read-only Site Edge/Collector con
 **Release 46 source qualification:** repository regression executed in bounded groups totals **222 passed / 8 skipped / 0 failed**; the eight skips are seven explicit live/service prerequisites plus the expected Git-index mode skip because `.git` is absent. Focused Web Console/structural coverage is **13 passed**. Legacy selftest is **ALL PASS**; compileall, launcher `py_compile`, and packaging/tool shell syntax are **PASS**. Ruff `0.16.7` and mypy `2.3.1` remain **NOT_RUN** because the executables are unavailable. The dependency-free offline builder emitted `netconfig-2.0.0-46.el10.noarch.rpm` twice byte-identically; independent verification passed and SHA-256 is `5b26c9ae73ac4248171196ee3637f51bd238fed090c4ce3fa820419842f510cd`. Canonical AlmaLinux 10 `rpmbuild`/DNF install-upgrade/systemd/SELinux and other Q-1 live/device gates remain **NOT_RUN / DEFERRED**.
 
 
-> **Roadmap disposition — 2026-09-23:** The monitoring/correlation roadmap is active. MC-1 through MC-3 are implemented in source as `IMPLEMENTED_TESTING_DEFERRED`; the next planned slice is **MC-4 / Release 52 — Unified Alert Plane**. NI-7 remains implemented and Q-1 remains an open production/service qualification track. Do not invent NI-8/Q-2 or skip the defined MC sequence without an explicit roadmap decision.
+> **Roadmap disposition — 2026-09-24:** **R59 / MC-11 is the final Monitoring & Correlation functional slice.** Do not create MC-12. After R59, stop feature expansion and use the Release / Qualification track: **Q2 Production Qualification Campaign → R60 Appliance Reliability & Lifecycle Hardening → R61 Scale & Performance Qualification → R62 PostgreSQL / Concurrency / Recovery Hardening → R63 HA / Failure-Domain Engineering → R64 Security Hardening & Independent Abuse Testing → R65 Operator Workflow Completion → R66 Observability / Supportability → R67 Release Candidate / Full Artifact Qualification → R68 v2 Production Release Decision**. Simulation never counts as live PASS; mandatory gates use `PASS / FAIL / BLOCKED_ENVIRONMENT / NOT_RUN`.
 
 ## Release 45 — Operator UX Simplification
 
@@ -103,7 +198,7 @@ The latest implementation baseline is Release `2.0.0-33`, schema revision `ha1-2
 
 Preserve these Release 33 invariants: all network mutations use the durable request/approve/execute workflow; automation snapshots/model-pack hashes are frozen and revalidated; `RECOVERY_REQUIRED` blocks blind replay; desired-state rollback is compensating/reverse-order; campaign plans are frozen with stable retry identity; DRAINING/DRAINED HA nodes reject new automation work. Session idle/absolute expiry is still explicitly deferred.
 
-> **Current continuation pointer:** use **Release 51 / MC-3 Normalized Operational Evidence** (`2.0.0-51`) as the active full-source baseline. Preserve `IMPLEMENTED_TESTING_DEFERRED`. MC-1 through MC-3 are implemented in source; the next roadmap slice is **MC-4 / Release 52 — Unified Alert Plane**. Sensor generation/history and Sensor→Event normalization must not add device I/O; unchanged Sensor refreshes create no event, and missing evidence remains `UNKNOWN` rather than an automatic critical verdict. Formal RPM qualification remains deferred until the roadmap is complete.
+> **Current continuation pointer:** use **Release 59 / MC-11 Topology-Aware Change Planning** (`2.0.0-59`) as the active full-source baseline once the final artifact gate below is frozen. Preserve `IMPLEMENTED_TESTING_DEFERRED`; do not promote to `TESTED` or `RELEASED` based on source simulation. MC-11 is the final functional slice and does not add direct execution authority. The immediate next track after artifact freeze is **Q2 Production Qualification Campaign**, not MC-12.
 
 ## Historical checkpoint — Qualification Q-1
 
@@ -1070,7 +1165,7 @@ Release 51 local verification evidence: MC-3 focused **10 passed**; bounded repo
 
 ## 2026-09-23 — R51-HF1 pre-MC4 SNMPv3 + Topology compatibility hotfix
 
-Status remains `IMPLEMENTED_TESTING_DEFERRED`; the package/release line remains `2.0.0-51` and MC-4 / Release 52 remains `PLANNED`.
+Historical R51-HF1 checkpoint: status was `IMPLEMENTED_TESTING_DEFERRED`, package/release was `2.0.0-51`, and MC-4 / Release 52 was still `PLANNED`. Release 52 now supersedes that continuation state.
 
 This hotfix repairs the Release 51 operational baseline before MC-4. Standard SNMPv3 `aes192` / `aes256` privacy now use the Blumenthal key-extension semantics used by Net-SNMP `AES-192` / `AES-256`; Cisco/Reeder key extension remains available only through explicit `aes192c` / `aes256c` compatibility modes. Engine discovery behavior is unchanged. The live FortiGate SHA1+AES256 case that exposed the mismatch must still be revalidated on the target device after deploying this source; no live-device PASS is claimed here.
 
@@ -1080,3 +1175,90 @@ The Topology Web console now renders an interactive dependency-free SVG canvas w
 
 Offline verification: hotfix focused **8 passed**; topology/Web/PH-1/legacy combined **40 passed**; bounded repository **278 passed / 8 skipped / 0 failed** (278 ordinary tests plus 1 source-archive Git-metadata skip; seven live PostgreSQL/backup/protocol-service integration skips); legacy selftest **ALL PASS**; compileall, launcher `py_compile`, packaging/rpm-builder shell syntax **PASS**. Ruff/mypy are `NOT_RUN` because the binaries are unavailable. Formal RPM qualification remains deferred.
 
+
+## R54.1 / MC-6 L3 Routing Topology follow-up — current handoff
+
+Current baseline is `2.0.0-54.1`, schema `mc6-service-dependency-graph-2`, status `IMPLEMENTED_TESTING_DEFERRED`. Configuration collection on supported CLI network devices now also runs driver-declared read-only interface/route commands in the same SSH session. Parsed evidence is persisted by generation; failure keeps the prior successful generation. L3 graph resolution is VRF-aware and freshness-aware, and a next-hop IP becomes a managed-device edge only after a unique same-VRF managed-interface match. Never infer a managed device merely from a next-hop IP.
+
+Topology UI/API has Physical / Layer 3 / Combined read-only views. Do not make page rendering trigger polling. MC-7 remains the next formal slice. Topology-aware change planning remains reserved for R59/MC-11 and must continue to use Structured Changes / Desired State / Campaign for any execution authority.
+
+**Release 54.1 clean-extract artifact qualification:** **321 passed / 8 skipped / 0 failed** across **329 collected tests**, with L3 follow-up focused **9/9 PASS**. ZIP structural verification is **212 entries**, **0 duplicates**, **0 unsafe paths**, **0 symlinks**, **212/212 source↔ZIP↔extract byte+mode parity**, **201/201 source payload manifest**, **211/211 SHA256SUMS**, and **12/12 required executable modes = 0755**. `compileall`, launcher `py_compile`, packaging/tool shell syntax, and legacy selftest pass from the extracted artifact. Rebuilding the helper RPM from the clean extract is byte-identical to the source-tree build and passes the independent RPM verifier.
+
+Current R54.1 source-tree verification is **321 passed / 8 skipped / 0 failed** across **329 collected tests**, including **9/9** L3 Routing Topology follow-up focused tests. Seven skips are explicit PostgreSQL/backup/protocol-service prerequisites and one is the archive Git-mode gate. Compileall, launcher compilation, shell syntax, and legacy selftest pass. The helper RPM `netconfig-2.0.0-54.1.el10.noarch.rpm` is deterministic across two builds, independently verified, contains 91 payload files, and has SHA-256 `8e8b5acc38335026906f797a4163ff40e0679d0b8143448bdbdd39ef11cd2134`. Live AlmaLinux/RPM/systemd/SELinux, PostgreSQL service-backed, protocol-service, representative vendor/device route-output, and production-scale graph qualification remain deferred.
+
+## R56 / MC-8 handoff
+
+Current implementation baseline is Release 56 / MC-8. Preserve source-bound evidence-only semantics: never give an external connector response/configuration authority, never store plaintext bearer tokens in `external_sources`, preserve deterministic replay conflict handling, secret redaction, payload/rate bounds and visible connector health. The next formal slice is R57 / MC-9; R59 / MC-11 remains the final topology-aware change-planning slice.
+
+## R56 / MC-8 qualification checkpoint
+
+Source tree: **341 passed / 8 skipped / 0 failed** across **349 collected tests**; MC-8 focused **12/12 PASS**; additive R55→R56 SQLite preservation PASS; compileall/launcher/shell/selftest PASS. Offline helper RPM: **94 payload files**, deterministic two-build byte identity, independent verifier PASS, SHA-256 `0fa3f4e877d5a6c69d56d1138341c32834f977e741ab492b63b76750611d3242`. Keep `IMPLEMENTED_TESTING_DEFERRED`; live PostgreSQL, canonical AlmaLinux, external vendor products and production-scale ingestion remain deferred.
+
+## R56 / MC-8 final artifact truth
+
+Final source and clean-extract regression are both **341 passed / 8 skipped / 0 failed** across **349 collected tests**; MC-8 focused is **12/12 PASS**. ZIP integrity is 219 entries, 0 duplicate/unsafe/symlink, 219/219 byte+mode parity, 206/206 source manifest, 218/218 SHA256SUMS, 12/12 executable modes. Clean-extract RPM rebuild is byte-identical and independently verified. Keep status `IMPLEMENTED_TESTING_DEFERRED`; live PostgreSQL, AlmaLinux and external-product qualification remain deferred.
+
+## R61 handoff — Scale & Performance Qualification
+
+Current package identity is `2.0.0-61`; persisted schema is unchanged at `mc11-topology-change-planning-1`; status remains `IMPLEMENTED_TESTING_DEFERRED`. Source regression is 435 collected / 427 passed / 8 skipped / 0 failed. R61 focused is 17/17 PASS and MC-11 focused is 12/12 PASS. Initial campaign on the current Debian runner is 5 PASS (4 LOCAL_REGRESSION + 1 LOCAL_SYNTHETIC), 0 FAIL, 12 BLOCKED_ENVIRONMENT, 0 NOT_RUN, 0 LIVE_PRODUCTION PASS. The local benchmark is comparative only and recorded `production_capacity_claim=false`; IPFIX v10 is not inferred from the local NetFlow v5 parser result. Production scale claims require the fixed live hooks on AlmaLinux/PostgreSQL. Next approved track after R61 closeout is R62 PostgreSQL / Concurrency / Recovery Hardening; do not start R62 unless explicitly selected.
+
+**R61 clean-extract qualification (2026-09-24):** the provisional source artifact was extracted with system `unzip` and reproduced **435 collected / 427 passed / 8 skipped / 0 failed** across the deterministic five-way bounded partition; R61 focused coverage is **17/17 PASS** and retained MC-11 authority coverage is **12/12 PASS**. `compileall`, launcher/R61 `py_compile`, packaging/tool shell syntax, and legacy selftest are PASS. The clean extract rebuilt the offline helper RPM twice byte-identically; both builds are byte-identical to the source-tree RPM and pass the independent verifier. RPM SHA-256 remains `c1458d97a19ce0390f0c6f42384c652eed1704c47f57f41e11f0c95a11d2ed5b`. This is local/offline artifact evidence only and does not establish production capacity.
+
+### R62 source/offline qualification truth — 2026-09-24
+
+- Repository: **453 collected / 442 PASS / 11 SKIP / 0 FAIL**.
+- R62 focused: **15/15 PASS**. MC-11 authority regression: **12/12 PASS**.
+- Compileall, launcher/R62 py_compile, packaging/hook shell syntax, and legacy selftest: **PASS**.
+- Initial R62 campaign on this runner: **3 LOCAL_REGRESSION PASS / 0 FAIL / 12 BLOCKED_ENVIRONMENT / 0 NOT_RUN / 0 LIVE_POSTGRESQL PASS**. Production PostgreSQL claim remains false.
+- Offline helper RPM: **99 payload files**, two source-tree rebuilds byte-identical, independent verifier PASS, SHA-256 `c47c4a7a1a8e2c26e86d7f5135965df3beced8fa38e593c7de8df457721edc1b`. This is not canonical live PostgreSQL/AlmaLinux evidence.
+- Initial evidence bundle SHA-256: `b723e441bc309bdee8a142071f5e13271ce39c50cfd739728b7e2dccd2e60f4a`.
+
+### R62 verified clean-extract truth
+
+Provisional system-unzip clean extraction reproduced **453 collected / 442 PASS / 11 SKIP / 0 FAIL**; R62 focused **15/15 PASS**, MC-11 focused **12/12 PASS**, compileall/py_compile/shell/selftest PASS. Two clean-extract helper RPM rebuilds were byte-identical to the source-tree helper RPM and independently verified. Final frozen-artifact revalidation is performed after this documentation sync.
+
+
+## R62.1 corrective hotfix
+
+Current package identity is `2.0.0-64`. Preserve R62.1 redirect-refusing RESTCONF/SSH target hardening and R63 HA fencing. R64 adds bounded session/login/request handling, authoritative session revalidation, OAuth redirect/authority/response hardening, hostile-archive streaming limits, and fixed-hook independent abuse qualification. Preserve archive `0755` vs external Git-index `100755` truth. Production security remains unclaimed until all LIVE_ABUSE gates pass; R65 remains not started.
+
+## R63 continuation state
+
+Current package is `2.0.0-64`, schema remains `mc11-topology-change-planning-1`, and status remains `IMPLEMENTED_TESTING_DEFERRED`. Preserve R63 fencing and R64 abuse-resistant web/OAuth/archive boundaries. Local abuse regression does not equal independent production security evidence. R63 live HA and R64 LIVE_ABUSE gates remain separately mandatory for their respective production claims. Next approved track is R65, not MC-12.
+
+## R63 verified clean-extract truth — 2026-09-24
+
+The provisional source archive was extracted with system `unzip` and reproduced **477 collected / 463 passed / 14 skipped / 0 failed**. R63 focused coverage is **16/16 PASS** and retained MC-11 authority coverage is **12/12 PASS**. `compileall`, launcher/qualification `py_compile`, packaging/qualification/tool shell syntax, and legacy selftest are PASS. The provisional structural gate is **348 entries / 0 duplicates / 0 unsafe paths / 0 symlinks / CRC PASS / 348/348 byte+mode parity / 346/346 R63 source manifest / 347/347 whole-tree SHA256SUMS / 26/26 executable modes**. Two clean-extract helper RPM rebuilds are byte-identical to each other and to the source-tree RPM; independent verification passes. RPM SHA-256 is `1e2a40476c212d2ffe410d51ef1cd9b2fac3051fc96bf30789539be5bca4b60d`. This is local/offline artifact evidence only; live HA remains deferred.
+
+## R64 handoff checkpoint
+
+R64 is the current implementation baseline (`2.0.0-64`, `IMPLEMENTED_TESTING_DEFERRED`, schema `mc11-topology-change-planning-1`). Continue from the final R64 full-source package once frozen. Preserve the R64 session/login/request framing, OAuth, hostile archive, MC-11 non-execution, fixed-hook/redaction, and local-vs-live evidence boundaries. Never infer a production security PASS from local abuse tests. The next approved track is R65 Operator Workflow Completion and must not be started without explicit selection.
+
+## R64 current verification truth
+
+Source-tree regression: **498 collected / 484 PASS / 14 SKIP / 0 FAIL**. R64 focused: **21/21 PASS**. MC-11 focused: **12/12 PASS**. Security/compatibility focused set: **102 PASS / 1 expected no-.git SKIP / 0 FAIL**. Initial selected R64 campaign: **6 local PASS / 0 FAIL / 12 BLOCKED_ENVIRONMENT / 0 NOT_RUN / 0 LIVE_ABUSE PASS**; `production_security_claim=false`. The runner all-local nested full-regression invocation exceeded the surrounding execution envelope, so the full regression was executed separately with the same deterministic five-group partition and recorded in the evidence bundle; this does not change its `LOCAL_REGRESSION` class.
+
+
+## R65 current handoff
+
+Release 65 (`2.0.0-65`) implements Operator Workflow Completion on top of R64. The persisted-data-first journey binds Incident → MC-11 plan → exact persisted proposal → existing Automation Request/approval → Structured Change → verification/recovery/rollback → Incident-linked post-change evidence. It adds no MC-12, no parallel write authority, no page-triggered polling, and no schema migration. Status remains `IMPLEMENTED_TESTING_DEFERRED`; `LIVE_OPERATOR` evidence is still required for production operator-workflow claims. Next approved track is R66 Observability / Supportability and is not started.
+
+## R65 qualification closeout
+
+Canonical package is `2.0.0-65`, schema remains `mc11-topology-change-planning-1`, and status remains `IMPLEMENTED_TESTING_DEFERRED`. Source regression is **508 collected / 494 PASS / 14 SKIP / 0 FAIL**; R65 focused **10/10 PASS**; MC-11 **12/12 PASS**. Initial campaign: **4 local PASS / 0 FAIL / 10 BLOCKED_ENVIRONMENT / 0 NOT_RUN / 0 LIVE_OPERATOR PASS**; `production_operator_workflow_claim=false`. Final artifact structural truth is **385 entries / 0 duplicate / 0 unsafe / 0 symlink / CRC PASS / 385/385 byte+mode parity / 383/383 source manifest / 384/384 SHA256SUMS / 30/30 source executable modes**. Preserve exact proposal binding and existing Automation/Structured Change authority. Next approved track is R66 Observability / Supportability; do not start it without explicit selection.
+
+## R66 current handoff
+
+Release 66 (`2.0.0-66`) implements Observability / Supportability on top of R65 without a schema migration or new execution authority. `SupportabilityService` is the canonical read-only aggregate; API/CLI/Diagnostics/Prometheus/support-bundle surfaces consume it. Production supportability remains unclaimed until all required `LIVE_SUPPORT` gates pass. Next approved track is R67 Release Candidate / Full Artifact Qualification and is not started.
+
+### R66 closeout evidence
+
+Final source and frozen clean-extract regression: 519 collected / 505 PASS / 14 SKIP / 0 FAIL. R66 focused 11/11; MC-11 12/12; clean combined 23/23; compile/syntax/selftest PASS. Initial campaign: 5 local PASS / 10 BLOCKED_ENVIRONMENT / 0 LIVE_SUPPORT PASS; production supportability remains unclaimed. Offline helper RPM has 103 payload files and source/clean rebuilds are byte-identical with independent verification PASS.
+
+## R67 current handoff
+
+Current package is `2.0.0-67`, status `IMPLEMENTED_TESTING_DEFERRED`, schema `mc11-topology-change-planning-1`. R67 is feature-frozen and qualification-only. Use `R67_RELEASE_CANDIDATE_QUALIFICATION.md` and `qualification/r67_runner.py` as the RC gate contract. Do not reuse R67 live evidence after any candidate change. Do not mark `RELEASED`; R68 is the explicit production decision. Do not create MC-12.
+
+## R67.2 handoff delta — 2026-09-25
+
+R67.2 supersedes R67.1 for development. Continue from the complete R67.2 source/artifact once frozen. The key new files are `opt/netconfig/netconfig/web_database.py`, `packaging/bootstrap-postgres-core.sh`, `qualification/r67_2_runner.py`, `tests/test_r67_2_fresh_postgres_hardening.py`, `R67_2_FRESH_DATABASE_BOOTSTRAP_HARDENING.md`, and `R67_2_LOCAL_VALIDATION.json`. Preserve the Core/History separation and fail-closed fresh-install semantics. Do not use the bootstrap helper for migration or existing-production recovery. All 12 LIVE_RC gates still block RC qualification and R68 remains the next release-decision track only after exact-candidate live qualification.

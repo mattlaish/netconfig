@@ -181,12 +181,23 @@ class OperationalEventStore:
         device = str(transition.get("device") or "")
 
         if sensor_type.startswith("interface."):
+            domain = "NETWORK"
             entity_type = "interface"
             entity_id = resource
         elif sensor_type.startswith("endpoint."):
+            domain = "NETWORK"
             entity_type = "device" if device else "network"
             entity_id = device or "global"
+        elif sensor_type.startswith("application."):
+            domain = "APPLICATION"
+            entity_type = "application"
+            entity_id = resource or device or "application"
+        elif sensor_type.startswith("service."):
+            domain = "SYSTEM"
+            entity_type = "service"
+            entity_id = resource or device or "service"
         else:
+            domain = "NETWORK"
             entity_type = "device" if device else "network"
             entity_id = device or "global"
 
@@ -203,7 +214,7 @@ class OperationalEventStore:
             event_type = f"{sensor_type}.{suffix}" if sensor_type else f"sensor.{suffix}"
 
         return {
-            "domain": "NETWORK",
+            "domain": domain,
             "event_type": event_type,
             "entity_type": entity_type,
             "entity_id": entity_id,

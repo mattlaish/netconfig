@@ -1,6 +1,66 @@
 # Security
 
-> **Canonical project state — 2026-09-23:** **CURRENT IMPLEMENTATION BASELINE** = **Release 51 / MC-3 Normalized Operational Evidence** (`2.0.0-51`, `IMPLEMENTED_TESTING_DEFERRED`). MC-1 Sensor Integration Unification and MC-2 Sensor History & State Transitions remain implemented. Release 51 adds a normalized cross-domain operational-evidence envelope, durable Sensor-transition → Event bridging, recovery/`UNKNOWN` semantics, additive event-schema migration/backfill/indexes, filtered/detail Event API reads, and an Event detail UI with current related Sensor state. NI-1 through **NI-7 L3/VRF Path & Route Dependency Intelligence** remain implemented. Formal RPM qualification remains deferred until the monitoring/correlation roadmap is complete; any ad-hoc RPM remains development evidence only.
+## Current security truth — R67.1
+
+> **Canonical project state — 2026-09-25:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) on top of the frozen R67 candidate. MC-1 through MC-11 remain implemented; **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice and schema revision remains `mc11-topology-change-planning-1`; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included. R67.2 repairs fresh login, additive migration/index ordering, fail-closed Core PostgreSQL preflight, Core/History PostgreSQL configuration separation, and fresh PostgreSQL Core bootstrap without adding network-write authority. **All network mutation remains approval-gated; local/offline qualification does not establish RC or production release readiness; all required `LIVE_RC` gates remain mandatory. Do not create MC-12.** R68 must be rerun against the exact R67.2 candidate after mandatory live qualification.
+
+Console session idle/absolute expiry is implemented and enforced by the R64 managed-session runtime: 30-minute idle expiry and 12-hour absolute expiry, with authoritative disable/delete/password-hash/role revalidation on every request. Legacy immediate command surfaces are now server-enforced read-only (`show`/`display`/`get` or exact `/export`); configuration mutation must use the durable approval workflow. Supportability snapshot access is read-only; support-bundle creation/download remains admin-only.
+
+Older phase notes below are retained as historical evidence. Any statement below saying session idle/absolute expiry "remains deferred" describes the historical phase at that time and is superseded by the current truth above.
+
+## Historical security notes
+
+## R60 lifecycle security boundary
+
+Lifecycle snapshots are operational recovery material and may contain the encrypted credential vault, local database and configuration evidence; snapshot directories are therefore mode 0700 and manifests 0600. External master-password files, PostgreSQL password files, evidence-signing keys and configured TLS key/certificate files are fingerprinted for preservation verification and are not copied into exported qualification evidence. Symlinks in preserved local state fail closed. Restore and PostgreSQL rollback switching require explicit confirmation tokens. The R60 wrapper accepts fixed package/file inputs and uses no arbitrary shell-command parameter, `eval`, or generic execution hook. Failure to prove package downgrade, state restore, preservation, or post-rollback CLI state is `RECOVERY_REQUIRED`, not success.
+
+## Q2 qualification-harness security boundary
+
+Q2 qualification tooling is outside the product runtime authority plane. It does not expose arbitrary shell command strings, does not submit device configuration, does not change MC-11 what-if semantics, and does not promote release state. Environment-specific live actions use predefined executable hook filenames from an operator-selected hook directory. Destructive actions require explicit `--allow-destructive` authorization.
+
+Evidence capture is allow-listed and secret-minimized: automatic inventory excludes hostname, interface addresses and environment-variable dumps; logs and optional JSON metrics are size-bounded and redacted for common credential/token/community patterns. Qualification hooks remain responsible for never deliberately writing secrets into result files.
+
+
+## MC-11 authority and hostile-input controls
+
+Topology planning does not grant configuration authority. Policy evidence and proposal metadata are normalized and proposal objects must match the existing Structured Change schema; unsupported kinds/fields, non-scalar selectors, oversized selector sets, ambiguous endpoint attachment and insufficient path evidence fail closed. Planner/API/UI paths do not call device collection or execution methods, and candidate what-if cannot mutate network state. R64 later adds independent abuse testing for command injection, schema bypass, hostile evidence/parser input and what-if/execute separation.
+
+## Release 58 / MC-10 hardening security boundary
+
+MC-10 adds bounded execution controls, not new southbound authority. Correlation and replay consume persisted evidence only; UI/health/qualification rendering causes no SNMP/SSH/device collection. Replay preview cannot mutate active hypotheses. PostgreSQL advisory locks serialize correlation work only and confer no device, external-product, Structured Change, approval, or arbitrary-command privilege. Runtime retention is deliberately limited to finished correlation-run metadata. Non-deterministic replay detection fails closed and records integrity state. Qualification is evidence-only and cannot approve or release the product.
+
+> **Canonical project state — 2026-09-25:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) on top of the frozen R67 candidate. MC-1 through MC-11 remain implemented; **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice and schema revision remains `mc11-topology-change-planning-1`; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included. R67.2 repairs fresh login, additive migration/index ordering, fail-closed Core PostgreSQL preflight, Core/History PostgreSQL configuration separation, and fresh PostgreSQL Core bootstrap without adding network-write authority. **All network mutation remains approval-gated; local/offline qualification does not establish RC or production release readiness; all required `LIVE_RC` gates remain mandatory. Do not create MC-12.** R68 must be rerun against the exact R67.2 candidate after mandatory live qualification.
+
+## Release 55 / MC-7 correlation security boundary
+
+MC-7 is read-mostly decision support over persisted evidence. It does **not** gain SNMP/SSH/NETCONF/RESTCONF/gNMI execution, connector action, remediation, change-approval bypass, Structured Change execution, or arbitrary device configuration authority. The correlation API mutation only updates NetConfig hypothesis metadata.
+
+Cross-entity correlation fails closed unless an exact entity match or trusted bounded MC-6 dependency path exists. Normal dependency traversal accepts active `CONFIGURED` and fresh `DISCOVERED` evidence only; `INFERRED`, `UNKNOWN`, stale, ambiguous, and unresolved relationships do not silently become causal context. Temporal proximity by itself is never sufficient. Supporting and contradicting evidence are both persisted so healthy/recovery evidence cannot be discarded merely because it weakens a hypothesis.
+
+Correlation resource use is bounded: at most 500 facts, 25 hypotheses per run, dependency depth 4, 250 dependency nodes, and 1,000 dependency edges. Rule/version and evidence fingerprints make replay deterministic and auditable. User-facing language explicitly avoids confirmed-causation/root-cause claims.
+
+
+## Release 54 / MC-6 dependency security boundaries
+
+Service/dependency evidence is metadata, not configuration authority. Web/API dependency mutations can create or refresh NetConfig graph records only; they cannot open device sessions, run commands, change application/database settings, or bypass Structured Changes / Desired State / Campaign controls. Web viewer sessions remain read-only; Web dependency editing requires the dedicated operator-or-higher `manage_dependencies` capability. REST writes require `analytics:write` plus operator-or-higher role.
+
+Dependency traversal is fail-closed. `UNKNOWN`, inactive, and stale discovered evidence is excluded by default; `INFERRED` candidates require explicit opt-in. Cross-tenant input is rejected in the current single-tenant deployment. Entity/metadata sizes and graph depth/node/edge counts are bounded. `DISCOVERED` and `INFERRED` dependencies require durable evidence references, reducing the chance that temporal proximity is silently promoted to production truth.
+
+NI-7 network overlays are read-only and DB-backed. They preserve VRF/destination-prefix scope, stop on ambiguous/incomplete/loop/unmanaged states, and only accept explicit managed `next_device` identities. Next-hop IP values are never converted to managed-device identity. Opening the WebUI or invoking graph/overlay reads does not trigger SNMP/SSH/device polling.
+
+## Release 53 / MC-5 evidence security boundaries
+
+Incident links are references, not a second raw-event store. MC-5 snapshots only bounded timing/source-clock metadata and bounded normalized summaries needed for investigation. Change-event generation intentionally excludes configuration command bodies/secrets. External-event storage enforces bounded normalized metadata and source-event idempotency; it does not grant external systems a connector credential, device session, arbitrary command path, or configuration authority.
+
+The new investigation endpoint remains read-only under `incident:read`; evidence linking remains under existing Incident write authorization. Timeline rendering uses stored evidence only and cannot cause SNMP/device polling. Missing/deleted evidence renders as unavailable instead of being reconstructed or guessed. MC-5 does not promote temporal correlation into a root-cause assertion.
+
+
+## Release 52 security boundaries
+
+The per-device config collection override does not reuse the unrestricted Run Command surface. It is stored only by existing device-management roles and is revalidated at execution: one bounded line, no chaining separators, `show`/`display`/`get`, or exact `/export` only. Argument-bearing RouterOS forms such as `/export file=...` are rejected because they can write device filesystem state. FortiGate collection uses a native read-only `show full-configuration` profile and intentionally does not mutate `config system console` merely to alter paging. Collected CLI output is validated before scrub/store; empty or recognized command-error output fails closed and cannot become configuration truth. Structured changes, desired state, campaigns, and existing execution authorization remain unchanged.
+
+MC-4 alert convergence does not grant alert evidence any remediation authority. Sensor/Event/Alert state is observational; `UNKNOWN` remains missing evidence and does not qualify as critical by itself. Endpoint FDB inference remains non-authoritative path evidence and never fabricates direct adjacency or a unique access port. NetFlow analysis is deterministic aggregation only and does not label traffic malicious or causal without evidence.
+
 
 ## Release 46 — Operator Health Cards & UX Follow-through
 
@@ -13,7 +73,7 @@ The SNMP device page now derives operator-facing health cards from **already-col
 The previously documented Central Controller + read-only Site Edge/Collector concept remains a **future architecture item only**. No distributed collector, local site-alert engine, store-and-forward transport, secondary WAN/LTE/SMS path, or distributed execution node is implemented in Release 46.
 
 
-> **Roadmap disposition — 2026-09-23:** The monitoring/correlation roadmap is active. MC-1 through MC-3 are implemented in source as `IMPLEMENTED_TESTING_DEFERRED`; the next planned slice is **MC-4 / Release 52 — Unified Alert Plane**. NI-7 remains implemented and Q-1 remains an open production/service qualification track. Do not invent NI-8/Q-2 or skip the defined MC sequence without an explicit roadmap decision.
+> **Roadmap disposition — 2026-09-24:** **R59 / MC-11 is the final Monitoring & Correlation functional slice.** Do not create MC-12. After R59, stop feature expansion and use the Release / Qualification track: **Q2 Production Qualification Campaign → R60 Appliance Reliability & Lifecycle Hardening → R61 Scale & Performance Qualification → R62 PostgreSQL / Concurrency / Recovery Hardening → R63 HA / Failure-Domain Engineering → R64 Security Hardening & Independent Abuse Testing → R65 Operator Workflow Completion → R66 Observability / Supportability → R67 Release Candidate / Full Artifact Qualification → R68 v2 Production Release Decision**. Simulation never counts as live PASS; mandatory gates use `PASS / FAIL / BLOCKED_ENVIRONMENT / NOT_RUN`.
 ## Future Site Edge / Collector security boundary
 
 The recorded distributed design keeps collection and execution separated. Site Edge/Collector nodes are **read-only by default** and may use only bounded collection operations such as SNMP GET/WALK, NETCONF GET/read, RESTCONF GET/read, and gNMI subscribe/read. Possession of collection credentials must never imply permission to mutate device state.
@@ -59,7 +119,7 @@ Release 33 preserves the existing fail-closed boundaries and adds the following 
 
 Session idle/absolute expiry remains deliberately deferred security debt and is unchanged.
 
-> **Current continuation pointer:** use **Release 51 / MC-3 Normalized Operational Evidence** (`2.0.0-51`) as the active full-source baseline. Preserve `IMPLEMENTED_TESTING_DEFERRED`. MC-1 through MC-3 are implemented in source; the next roadmap slice is **MC-4 / Release 52 — Unified Alert Plane**. Sensor generation/history and Sensor→Event normalization must not add device I/O; unchanged Sensor refreshes create no event, and missing evidence remains `UNKNOWN` rather than an automatic critical verdict. Formal RPM qualification remains deferred until the roadmap is complete.
+> **Current continuation pointer:** use **Release 59 / MC-11 Topology-Aware Change Planning** (`2.0.0-59`) as the active full-source baseline once the final artifact gate below is frozen. Preserve `IMPLEMENTED_TESTING_DEFERRED`; do not promote to `TESTED` or `RELEASED` based on source simulation. MC-11 is the final functional slice and does not add direct execution authority. The immediate next track after artifact freeze is **Q2 Production Qualification Campaign**, not MC-12.
 
 ## Q-1 production qualification security boundaries
 
@@ -518,3 +578,52 @@ MC-3 keeps operational-event metadata fail-closed through an explicit bounded al
 - Drag/drop topology layout is local browser presentation state only. It creates no server-side topology assertion, configuration change, device action, or approval bypass.
 - `GET /api/v1/topology/graph` is read-only and retains `topology:read` authorization/audit boundaries.
 
+
+## R54.1 L3 topology security boundary
+
+L3 collection reuses an SSH session already authorized for configuration read. Commands are fixed per driver and are not supplied by the topology UI/API. Generic/unknown platforms have no L3 evidence commands rather than guessed commands. L3 collection failure is isolated from a valid configuration snapshot and cannot cause stale/partial evidence to be promoted as the current generation.
+
+Managed next-hop resolution is fail-closed: a next-hop IP must uniquely match fresh same-VRF managed-interface evidence. Cross-VRF, stale, ambiguous, or unresolved values never create managed devices. Topology GET/API rendering is persisted-data-only and cannot trigger SSH/SNMP polling. No new configuration-write authority is added.
+
+## R56 / MC-8 external integration security boundary
+
+Each normalized external source is bound to one enabled API token with `external:ingest`; a token cannot be shared by two source registrations. Tokens remain hash-only in the existing token subsystem. Incoming metadata/payload/source-clock objects are recursively redacted for password/secret/token/authorization/API-key/cookie/credential-like keys before persistence. Global and per-source body limits, per-source bounded rate control, strict schema v1, source/idempotency replay checks, single-tenant enforcement and source enable/disable state fail closed.
+
+External evidence authority is deliberately non-actuating: no WAF configuration, SIEM mutation, EDR response, database/storage/cloud mutation, device command, Structured Change approval bypass or arbitrary command surface is introduced.
+
+## R61 scale-test security boundaries
+
+R61 live tests use fixed hook names rather than arbitrary commands. Evidence logging is bounded and redacts common credential/token/community/authorization forms. Local benchmarks use isolated temporary state and do not poll or configure devices. Scale testing must not relax MC-10 bounds, RBAC, secret handling, approval, rollback, tenant/object boundaries or MC-11 proposal-only authority.
+
+## R62 PostgreSQL fail-closed transaction boundary
+
+R62 never automatically replays a write or transaction after a PostgreSQL connection-class failure because the server-side commit outcome may be unknown. Automatic retry is restricted to explicitly DB-only dedicated transactions and only SQLSTATE `40001`/`40P01`. Concurrency is bounded; exhaustion fails closed rather than creating unbounded connections. MC-11 planning remains proposal-only and what-if remains read-only.
+
+
+## R62.1 RESTCONF redirect and SSH argv hardening
+
+RESTCONF redirects are forbidden rather than revalidated/followed. This prevents a managed device from redirecting the controller to metadata/internal services or downgrading HTTPS to HTTP. SSH places `--` before `user@host`, so host/username text cannot be interpreted as later OpenSSH options. No arbitrary RESTCONF URL or generic command path is introduced.
+
+## R63 HA fencing security boundary
+
+R63 treats stale ownership as a security/integrity failure. A PostgreSQL reconnect invalidates cached session-lock ownership; work must reacquire its advisory lock. Duplicate configured node identity is fenced by a dedicated database advisory lock. Distributed task completion/renewal requires the exact worker, claim token, claim generation, and unexpired lease. Expired work is quarantined in `RECOVERY_REQUIRED`; unsafe side effects are never automatically replayed. Network/database partition causes automation eligibility to fail closed.
+
+## R64 security hardening and abuse-evidence boundary
+
+R64 bounds login-throttle identity cardinality, managed session lifetime/cardinality, and HTTP request framing/body sizes. Managed production sessions revalidate the authoritative user record on every request: deletion/disable or password change revokes the session and role changes take effect immediately. Ambiguous `Content-Length`, any request `Transfer-Encoding`, oversized form/MIB bodies, excessive multipart parts/files, and oversized multipart boundaries fail closed before unbounded reads. External 500 responses contain only a reference ID; traceback details remain server-side.
+
+The public-cloud O365 client pins `https://login.microsoftonline.com`, validates tenant path syntax, refuses HTTP redirects, uses normal certificate verification, and caps token responses at 1 MiB. Sovereign-cloud authority customization is intentionally unsupported by this release rather than permitting arbitrary OAuth egress. Signed evidence archives are streamed member-by-member, bounded before full member-list materialization, and accept only regular files/directories in addition to existing traversal/hash/size/signature controls.
+
+`LOCAL_ABUSE` proves code behavior only. Independent production security evidence is `LIVE_ABUSE`; all required live gates must pass before `production_security_claim=true`. R64 does not add device-write authority and MC-11 arbitrary-command fields remain rejected; candidate what-if remains non-executing.
+
+## R65 workflow-bound proposal integrity
+
+R65 context is a locator, not authority. `incident_ref + plan_id + proposal_index` is validated against persisted state and hashed inside the automation payload; the Structured Change intent must normalize exactly to the selected MC-11 proposal. This prevents a workflow deep link from becoming an approval bypass or arbitrary-change channel. Read models do not poll devices, candidate what-if remains non-executing, and final evidence linkage cannot rewrite an already committed network transaction outcome.
+
+## R66 observability security boundary
+
+Supportability surfaces are aggregate and secret-free: no credential values, bearer tokens, communities, private keys, raw database path, node identity, or per-device Prometheus labels are emitted. Collector errors are bounded and secret-pattern redacted. Support-bundle database metadata omits filesystem paths. Read-only supportability has no device polling or network-write authority. Production supportability claims require all fixed `LIVE_SUPPORT` gates; local diagnostics cannot promote release state.
+
+## R67 security qualification boundary
+
+R67 introduces no security bypass or new runtime trust boundary. Independent security/abuse qualification is one mandatory `LIVE_RC` gate and cannot be satisfied by the R64 local abuse suite. Release logs remain bounded/redacted, hook names are fixed, no `shell=True` execution is used, and live hooks require explicit opt-in. A changed candidate invalidates prior security sign-off for RC purposes.

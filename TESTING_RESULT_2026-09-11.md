@@ -4,7 +4,7 @@
 
 > **Current roadmap pointer — 2026-09-18:** This file is retained as historical evidence. The post-NI-7 roadmap review is complete and **no new development phase is currently assigned**. NI-7 remains the current feature baseline and Q-1 remains the open qualification track. Historical “next”, “planned”, or package-baseline statements below are chronology only and do not override current Release 44 truth.
 
-> **Current continuation pointer:** use **Release 51 / MC-3 Normalized Operational Evidence** (`2.0.0-51`) as the active full-source baseline. Preserve `IMPLEMENTED_TESTING_DEFERRED`. MC-1 through MC-3 are implemented in source; the next roadmap slice is **MC-4 / Release 52 — Unified Alert Plane**. Sensor generation/history and Sensor→Event normalization must not add device I/O; unchanged Sensor refreshes create no event, and missing evidence remains `UNKNOWN` rather than an automatic critical verdict. Formal RPM qualification remains deferred until the roadmap is complete.
+> **Current continuation pointer:** use **Release 55 / MC-7 Deterministic Correlation & Hypothesis Engine** (`2.0.0-55`) as the active full-source baseline. Preserve `IMPLEMENTED_TESTING_DEFERRED`. MC-1 through MC-7 are implemented in source; the next roadmap slice is **MC-8 / Release 56 — External Evidence Ingestion & Connectors**. Correlation remains deterministic, evidence-backed, bounded, and explicitly non-causal; dependency claims remain provenance/freshness scoped and `UNKNOWN` continues to mean insufficient evidence. Formal AlmaLinux/RPM/PostgreSQL/vendor/production-scale qualification remains deferred.
 
 Implementation line: **Network Intelligence NI-1 — VLAN-aware Endpoint Attachment Correlation**  
 Roadmap state: **IMPLEMENTED_TESTING_DEFERRED**  

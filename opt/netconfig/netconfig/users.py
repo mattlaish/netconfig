@@ -36,6 +36,7 @@ _CAPS = {
     "execute":         {"approver", "admin"},
     "remediate":       {"approver", "admin"},
     "manage_devices":  {"approver", "admin"},
+    "manage_dependencies": {"operator", "approver", "admin"},
     "unlock_vault":    {"approver", "admin"},
     "manage_users":    {"admin"},
     "settings":        {"admin"},

@@ -1,0 +1,54 @@
+{
+  "release": "62.1",
+  "package": "2.0.0-62.1",
+  "status": "IMPLEMENTED_TESTING_DEFERRED",
+  "schema_revision": "mc11-topology-change-planning-1",
+  "review_fixes": {
+    "restconf_redirect_ssrf": {
+      "status": "FIXED_LOCAL_REGRESSION",
+      "policy": "all redirects refused before a second network request",
+      "redirect_target_requests_in_regression": 0,
+      "https_to_http_redirect_following": false
+    },
+    "ssh_target_option_parsing": {
+      "status": "FIXED_LOCAL_REGRESSION",
+      "policy": "double-dash terminates OpenSSH option parsing before user@host for CLI and subsystem transports"
+    },
+    "dead_code": {
+      "status": "REMOVED",
+      "items": [
+        "manager.py unused previous_facts fetch",
+        "web.py unused _TOPOLOGY_JS import",
+        "cli.py empty f-string"
+      ]
+    },
+    "git_executable_modes": {
+      "artifact_modes": "0755",
+      "required_paths": 24,
+      "upstream_patch": "UPSTREAM_GIT_MODE_FIX.patch",
+      "external_git_index_verified": false,
+      "truth_boundary": "archive mode evidence does not establish external Git index 100755; upstream patch must be applied/committed and fresh-clone verified"
+    }
+  },
+  "validation": {
+    "focused": {"passed": 82, "skipped": 1, "failed": 0},
+    "full_repository": {"collected": 458, "passed": 447, "skipped": 11, "failed": 0},
+    "compileall": "PASS",
+    "py_compile": "PASS",
+    "shell_syntax": "PASS",
+    "legacy_selftest": "PASS"
+  },
+  "offline_helper_rpm": {
+    "artifact": "netconfig-2.0.0-62.1.el10.noarch.rpm",
+    "sha256": "84caef15419b339e10f3b22a8c22c9ae80b25da910bbeceea4389b566043d042",
+    "payload_files": 99,
+    "two_source_tree_builds_byte_identical": true,
+    "independent_verifier": "PASS",
+    "qualification_boundary": "offline helper RPM only; no new AlmaLinux/rpmbuild/live PostgreSQL claim"
+  },
+  "roadmap": {
+    "mc12_created": false,
+    "r63_started": false,
+    "next_approved_track": "R63 HA / Failure-Domain Engineering"
+  }
+}

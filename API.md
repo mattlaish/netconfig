@@ -1,6 +1,77 @@
+## R60 lifecycle management surface
+
+R60 adds no public REST mutation API. Appliance lifecycle authority remains local/operator controlled through the CLI and packaging runbook: `netconfig lifecycle snapshot`, `verify`, `verify-live`, `restore-local`, `retention-candidates`, and `switch-postgres-rollback`. These commands do not add network-device configuration authority and do not bypass Automation Request / Structured Change approval.
+
+## Q2 qualification API impact
+
+None. Q2 adds offline/qualification-host tooling and evidence files only. There is no new REST endpoint, no new device/configuration authority, and no public API contract change. MC-11 proposed changes continue to enter the existing Automation Request / Structured Change workflow.
+
 # NetConfig API Contract
 
-> **Canonical project state — 2026-09-23:** **CURRENT IMPLEMENTATION BASELINE** = **Release 51 / MC-3 Normalized Operational Evidence** (`2.0.0-51`, `IMPLEMENTED_TESTING_DEFERRED`). MC-1 Sensor Integration Unification and MC-2 Sensor History & State Transitions remain implemented. Release 51 adds a normalized cross-domain operational-evidence envelope, durable Sensor-transition → Event bridging, recovery/`UNKNOWN` semantics, additive event-schema migration/backfill/indexes, filtered/detail Event API reads, and an Event detail UI with current related Sensor state. NI-1 through **NI-7 L3/VRF Path & Route Dependency Intelligence** remain implemented. Formal RPM qualification remains deferred until the monitoring/correlation roadmap is complete; any ad-hoc RPM remains development evidence only.
+
+## MC-11 Topology-Aware Change Planning API
+
+- `POST /api/v1/change-planning/evidence` — operator + `analytics:write`; persists normalized ACL/firewall/NAT/PBR/routing-policy evidence and optional validated Structured Change proposal metadata.
+- `GET /api/v1/change-planning/evidence` — `analytics:read`; bounded persisted evidence query.
+- `POST /api/v1/change-planning/plans` — operator + `analytics:write`; persists deterministic Source→Destination planning result from already-collected evidence.
+- `GET /api/v1/change-planning/plans` and `GET /api/v1/change-planning/plans/{id}` — `analytics:read`.
+- `POST /api/v1/change-planning/plans/{id}/what-if` — operator + `analytics:write`; evaluates candidate proposal state without network mutation.
+
+The API accepts no arbitrary command payload. Proposed changes use the existing Structured Change schema and remain non-executing until the separate approval/execution workflow is used.
+
+## Release 58 / MC-10 correlation hardening API
+
+MC-10 adds read/qualification and bounded maintenance surfaces without adding device or external-product action authority:
+
+- `GET /api/v1/operations/correlation/health` — `analytics:read`; optional bounded `window_seconds` (60..86400). Returns run counts/states, latency percentiles, queue/inflight state, truncation/skew counters, evidence/event rates, duplicate/reject counters, connector lag and hard limits.
+- `GET /api/v1/operations/qualification/correlation` — `analytics:read`. Returns local checks plus explicit deferred live gates and always preserves `IMPLEMENTED_TESTING_DEFERRED` / `release_eligible=false` until a separate release process has real evidence.
+- `GET /api/v1/incidents/{incident_ref}/correlation-runs` — `incident:read`. Returns bounded durable run/replay evidence; Incident investigation also includes the latest run history.
+- `POST /api/v1/incidents/{incident_ref}/correlation-replay` — `incident:write` plus operator/approver/admin. Requires a bounded start/end range no larger than seven days. It evaluates the same deterministic engine in preview mode and does **not** persist/deactivate hypotheses.
+- `POST /api/v1/operations/correlation/retention` — `analytics:write` plus operator/approver/admin. Prunes only old finished `correlation_runs`; it does not delete Incident evidence or hypotheses.
+
+Same-incident contention returns a bounded/fail-closed busy result; detected non-deterministic replay integrity failure is surfaced as conflict rather than silently accepted.
+
+> **Canonical project state — 2026-09-25:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) on top of the frozen R67 candidate. MC-1 through MC-11 remain implemented; **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice and schema revision remains `mc11-topology-change-planning-1`; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included. R67.2 repairs fresh login, additive migration/index ordering, fail-closed Core PostgreSQL preflight, Core/History PostgreSQL configuration separation, and fresh PostgreSQL Core bootstrap without adding network-write authority. **All network mutation remains approval-gated; local/offline qualification does not establish RC or production release readiness; all required `LIVE_RC` gates remain mandatory. Do not create MC-12.** R68 must be rerun against the exact R67.2 candidate after mandatory live qualification.
+
+## Release 55 / MC-7 Incident correlation API
+
+MC-7 adds deterministic Incident correlation without adding any device-write or connector-action authority.
+
+- `POST /api/v1/incidents/{incident_ref}/correlate` — requires `incident:write` and operator/approver/admin role. Runs the bounded deterministic rule set against already-persisted Incident evidence and trusted MC-6 dependency context. The response contains generated/active hypotheses and execution bounds. It does not poll devices, execute remediation, or confirm root cause.
+- `GET /api/v1/incidents/{incident_ref}/hypotheses` — requires `incident:read`. Returns persisted hypotheses including rule/version, confidence, supporting evidence, contradicting evidence, affected entities, evidence time range, and score breakdown.
+- `GET /api/v1/incidents/{incident_ref}/investigation` — existing endpoint now includes `hypotheses` and `current_hypothesis`. `root_cause` remains unset; `root_cause_state` may be `NOT_CONFIRMED` when hypotheses exist and otherwise remains `NOT_EVALUATED`.
+
+Correlation is replay-idempotent for the same incident/evidence/rule version and does not use time proximity alone to connect unrelated entities.
+
+
+## Release 54 / MC-6 Service & Dependency Graph API
+
+MC-6 reuses the existing analytics authorization boundary. Read endpoints require `analytics:read`. Mutation of NetConfig's dependency inventory requires `analytics:write` plus an `operator`, `approver`, or `admin` token role. These writes only update dependency metadata; they cannot execute device/application configuration. The API currently accepts only the deployment's `default` tenant scope.
+
+- `POST /api/v1/dependencies/entities` — create/update a typed service entity. Fields: `entity_key`, `entity_type`, `name`, optional `description`, optional JSON `metadata`.
+- `GET /api/v1/dependencies/entities` — query entities by optional `type`, `q`, and bounded `limit`.
+- `POST /api/v1/dependencies/edges` — create/refresh typed dependency evidence. Fields: `source_key`, `target_key`, `relationship`, `evidence_state`, `provenance`, optional `evidence_ref`, `observed_ts`, `max_age_seconds`, `vrf`, `destination_prefix`, and JSON `metadata`. `DISCOVERED` / `INFERRED` require an evidence reference. VRF/destination scope is accepted only for `ROUTES_THROUGH`.
+- `GET /api/v1/dependencies/edges` — query dependency evidence with source/target/relationship/state filters.
+- `POST /api/v1/dependencies/edges/{id}/state` — activate/deactivate one dependency evidence row.
+- `GET /api/v1/dependencies/graph/{root}` — bounded directed traversal. Query options: `max_depth` (0–8), `max_nodes` (1–250), `include_inferred`, and `include_stale`. Default traversal does not follow INFERRED, stale, inactive, or UNKNOWN evidence.
+- `GET /api/v1/dependencies/impact/{root}` — dependency impact projection through the existing `ImpactSimulator`; stale evidence is excluded and inferred evidence requires explicit opt-in.
+- `GET /api/v1/dependencies/network-overlay/{root}` — read-only NI-7 L3/VRF overlay using `source_device`, `vrf`, `destination_prefix`, optional `max_hops`. It reads persisted route observations only, performs no device I/O, and fails closed on unresolved/ambiguous paths.
+
+Graph responses expose nodes, evidence edges, traversal/exclusion decisions, evidence-state/freshness counts, cycle count, configured hard bounds, and explicit truncation state. `UNKNOWN` is not returned as a failure condition.
+
+## Release 53 / MC-5 Incident API additions
+
+Incident evidence linking accepts the existing types plus `sensor_transition`, `operational_event`, `operational_alert`, `change_event`, `analytics_insight`, and `external_event`. References are type-validated and must resolve at link time. The link records source/receive timestamps and bounded source-clock metadata while the source object remains authoritative.
+
+`GET /api/v1/incidents/{ref}/investigation` requires the existing `incident:read` scope and returns Incident summary/impact, deterministic Unified Timeline, Related Alerts, Related Changes, Network Evidence, Security Evidence, Infrastructure Evidence, and Raw/Advanced Evidence. It returns no automatic root-cause verdict. The normalized `external_events` table is internal MC-5 evidence storage; R53 does **not** publish the MC-8 external connector/ingestion contract. Existing Incident write/RBAC semantics are unchanged.
+
+
+## Release 52 alert and endpoint API additions
+
+`GET /api/v1/alerts` is the canonical MC-4 read alias for the `operational_alerts` lifecycle and accepts `state`, `device`, and bounded `limit`; it requires `alerts:read`. Existing `GET /api/v1/operational-alerts` remains compatible and returns the same authoritative lifecycle. Existing alert write operations are also accepted under `/api/v1/alerts/{id}/...` with the same `alerts:write` and role requirements; old operational-alert write URLs remain valid.
+
+`GET /api/v1/endpoints` now accepts optional `q` and `device`. `q` searches IP, MAC, resolved switch/port and candidate evidence. Correlation is global before the optional device filter so ARP/IP-neighbor evidence on an L3 gateway can join FDB/MAC evidence on a different managed switch. Responses include `evidence_chain.ip_neighbors` and `evidence_chain.fdb_candidates`; ambiguous/transit/stale states remain explicit. When IP evidence exists, `ip_mapping_fresh` reports whether at least one current IP-neighbor mapping supports the combined conclusion; stale-only IP evidence downgrades combined confidence instead of being reported as `HIGH`.
+
 ## Release 48 — Sensor Model & Evidence Normalization
 
 Release 48 promotes the sensor work from UI-only health cards into a reusable persisted normalization layer. `SensorEngine` stores `sensor_type`, `device`, `resource`, `value`, `unit`, `status`, `message`, `threshold`, `source`, and `updated_at`, with the status contract limited to `OK`, `WARNING`, `CRITICAL`, and `UNKNOWN`. It reads existing NetConfig persistence only and does **not** initiate SNMP/NETCONF/RESTCONF/gNMI/SSH device I/O or change polling frequency.
@@ -11,7 +82,7 @@ The generator now derives: device reachability/polling; endpoint FDB/MAC and ARP
 
 **Release 48 source qualification (2026-09-20):** focused Sensor Model/API coverage is **14 passed / 0 failed**. The full repository regression was executed in four bounded mutually exclusive groups and totals **236 passed / 8 skipped / 0 failed**; the eight skips are seven explicit live/service prerequisites plus the expected Git-index mode skip because `.git` is absent from this archive-derived workspace. Legacy selftest is **ALL PASS**; compileall, launcher `py_compile`, and packaging/tool shell syntax are **PASS**. Ruff `0.16.7` and mypy `2.3.1` remain **NOT_RUN** because their executables are unavailable. Canonical AlmaLinux 10 `rpmbuild`/DNF install-upgrade/systemd/SELinux, PostgreSQL live/backup-restore, protocol-service and vendor/device live gates remain **NOT_RUN / DEFERRED**. Final source-artifact integrity qualification and offline RPM build occur after this source/documentation sync and do not promote the project beyond `IMPLEMENTED_TESTING_DEFERRED`.
 
-> **Roadmap disposition — 2026-09-23:** The monitoring/correlation roadmap is active. MC-1 through MC-3 are implemented in source as `IMPLEMENTED_TESTING_DEFERRED`; the next planned slice is **MC-4 / Release 52 — Unified Alert Plane**. NI-7 remains implemented and Q-1 remains an open production/service qualification track. Do not invent NI-8/Q-2 or skip the defined MC sequence without an explicit roadmap decision.
+> **Roadmap disposition — 2026-09-24:** **R59 / MC-11 is the final Monitoring & Correlation functional slice.** Do not create MC-12. After R59, stop feature expansion and use the Release / Qualification track: **Q2 Production Qualification Campaign → R60 Appliance Reliability & Lifecycle Hardening → R61 Scale & Performance Qualification → R62 PostgreSQL / Concurrency / Recovery Hardening → R63 HA / Failure-Domain Engineering → R64 Security Hardening & Independent Abuse Testing → R65 Operator Workflow Completion → R66 Observability / Supportability → R67 Release Candidate / Full Artifact Qualification → R68 v2 Production Release Decision**. Simulation never counts as live PASS; mandatory gates use `PASS / FAIL / BLOCKED_ENVIRONMENT / NOT_RUN`.
 
 ## Release 44 — Intent Automation Operations Repair
 
@@ -45,7 +116,7 @@ Primary read/write surfaces include:
 
 All structured resource selection is server-side/model-pack resolved. API clients cannot supply arbitrary southbound XML, arbitrary RESTCONF URLs/bodies, arbitrary gNMI proto requests, or secrets in protocol traces/audit responses.
 
-> **Current continuation pointer:** use **Release 51 / MC-3 Normalized Operational Evidence** (`2.0.0-51`) as the active full-source baseline. Preserve `IMPLEMENTED_TESTING_DEFERRED`. MC-1 through MC-3 are implemented in source; the next roadmap slice is **MC-4 / Release 52 — Unified Alert Plane**. Sensor generation/history and Sensor→Event normalization must not add device I/O; unchanged Sensor refreshes create no event, and missing evidence remains `UNKNOWN` rather than an automatic critical verdict. Formal RPM qualification remains deferred until the roadmap is complete.
+> **Current continuation pointer:** use **Release 59 / MC-11 Topology-Aware Change Planning** (`2.0.0-59`) as the active full-source baseline once the final artifact gate below is frozen. Preserve `IMPLEMENTED_TESTING_DEFERRED`; do not promote to `TESTED` or `RELEASED` based on source simulation. MC-11 is the final functional slice and does not add direct execution authority. The immediate next track after artifact freeze is **Q2 Production Qualification Campaign**, not MC-12.
 
 ## Q-1 API impact
 
@@ -398,3 +469,77 @@ Read-only; requires `topology:read`. Returns the current graph derived from pers
 
 The response contains `nodes`, `edges`, and `summary`. Every managed inventory device is represented as a node. LLDP/CDP resolved direct adjacency is returned with `evidence_kind="OBSERVED"` and `direct_adjacency=true`; FDB/MAC correlation is returned only as `evidence_kind="INFERRED"`, `direct_adjacency=false`, and must not be interpreted as proof of a direct physical link. Nodes without adjacency evidence remain `UNKNOWN` rather than disappearing from the graph.
 
+
+## R54.1 L3 topology read APIs
+
+All endpoints below require `topology:read` and are read-only:
+
+- `GET /api/v1/topology/l3` — current fresh L3 graph; optional `include_stale=true` exposes stale evidence without treating it as fresh truth.
+- `GET /api/v1/topology/combined` — L2 physical/FDB evidence overlaid with the L3 graph.
+- `GET /api/v1/topology/l3/status?device=<name>` — L3 collection generation/status.
+- `GET /api/v1/topology/l3/interfaces?device=<name>` — normalized interface-address observations.
+
+Existing `GET /api/v1/analytics/l3/routes` remains the route-evidence query surface. No L3 topology endpoint performs device I/O or configuration execution.
+
+## Release 56 / MC-8 external evidence API
+
+MC-8 exposes an inbound, evidence-only normalized ingestion plane. API-token scopes are `external:manage` (admin source lifecycle), `external:ingest` (operator-or-higher source-bound connector ingestion), and `external:read` (viewer-or-higher health/evidence reads). One enabled ingest token may bind to only one external source. Token hashes remain in the existing API-token store; connector plaintext secrets are not stored in the source registry.
+
+Management/read routes:
+
+- `POST /api/v1/external-sources` — create/update a normalized source (`external:manage`, admin).
+- `POST /api/v1/external-sources/{source_key}/state` — enable/disable source (`external:manage`, admin).
+- `GET /api/v1/external-sources` and `/api/v1/external-sources/{source_key}` — health/state (`external:read`).
+- `GET /api/v1/external-sources/{source_key}/events` — bounded normalized events (`external:read`).
+- `GET /api/v1/external-evidence/{event_id}` — sanitized Advanced evidence (`external:read`).
+- `POST /api/v1/external-evidence/{source_key}/events` — source-bound normalized ingest (`external:ingest`).
+
+Normalized schema v1 example:
+
+```json
+{
+  "schema_version": "1",
+  "source_event_id": "ndr-evt-123",
+  "idempotency_key": "delivery-123",
+  "event_type": "traffic.spike",
+  "source_ts": 1770000000.0,
+  "severity": "MAJOR",
+  "domain": "SECURITY",
+  "entity_type": "ip",
+  "entity_id": "10.0.0.10",
+  "summary": "Traffic volume spike",
+  "metadata": {},
+  "payload": {},
+  "source_clock": {}
+}
+```
+
+A new event returns `201`; an identical idempotent/source-event replay returns `200` without creating another event. Reusing an idempotency key or source-event ID with different normalized evidence returns `409`. Disabled source is `409`; authentication/source-binding failure is `403`; source-specific/global oversized payload is `413`; source rate limit is `429`; malformed or unsupported schema is a bounded 4xx rejection and increments visible schema/rejection health. Secret-like fields are recursively redacted before persistence. MC-8 routes never reconfigure the external source or invoke response actions.
+
+## R61 API qualification note
+
+R61 adds no public REST contract. The qualification benchmark measures existing read-only API and WebUI paths. Reported local percentiles are `LOCAL_SYNTHETIC`; production API/WebUI latency claims require the corresponding `LIVE_PRODUCTION` gates.
+
+## R62 API impact
+
+R62 adds no public REST mutation authority. Existing APIs retain their contracts; the change is PostgreSQL concurrency/recovery hardening underneath persisted-data operations. Qualification hooks are operational tooling, not public API endpoints.
+
+## R63 API/contract impact
+
+R63 does not add a parallel device-execution REST authority. Existing readiness/storage representations may expose additive non-secret HA readiness information derived from cluster membership and failure domains. The operational task contract now relies on fenced claim token/generation/lease semantics internally; stale or expired ownership is rejected. PostgreSQL primary promotion remains outside the NetConfig API.
+
+## R65 operator-workflow API
+
+- `POST /api/v1/change-planning/plans` accepts optional `incident_ref`; when supplied, the incident must exist and the reference is persisted with the MC-11 input.
+- `POST /api/v1/automation-requests` accepts optional bounded `context` containing only `incident_ref`, `plan_id`, and `proposal_index`. The submitted Structured Change intent must exactly match the persisted proposal selected by the context.
+- `GET /api/v1/operator-workflows/{incident}` is read-only and requires `incident:read`, `analytics:read`, and `automation:read`; optional `plan_id`, `request_id`, and `transaction_id` selectors constrain the persisted read model.
+
+These endpoints do not grant direct device-write authority; approval/execution still use existing Workflow and Structured Change controls.
+
+## R66 supportability API
+
+`GET /api/v1/supportability` requires bearer scope `debug:read`. It returns schema `r66-supportability-1` with aggregate storage, HA, restart, queue, telemetry, external-ingest, collector, correlation, retention, disk and last-success state plus explicit read-only truth. The route performs no device polling or network mutation. HTTP responses include a server-generated `X-Request-ID` for log/error correlation.
+
+## R67 API status
+
+R67 adds no REST endpoint, request/response schema, permission, or mutation authority. Existing API behavior remains frozen from R66; API/operator acceptance is exercised only through qualification gates.

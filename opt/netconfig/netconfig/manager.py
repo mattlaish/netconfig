@@ -5,7 +5,7 @@ Ties inventory + vault + transport + driver + store + scrubber + session recorde
 into two operations the rest of the app calls:
 
     collect(device_name)          -> fetch & archive one device's config
-    run(device_name, command)     -> run an arbitrary command, return output
+    run(device_name, command)     -> run one bounded read-only command, return output
 
 The vault must be unlocked (unlock_vault) before collecting devices that use
 password/enable secrets. Key-only devices need no vault.
@@ -33,7 +33,7 @@ from .vault import Vault
 from .store import ConfigStore
 from .session import SessionRecorder
 from .transport import SSHTransport, TransportError, AuthError
-from .drivers import get_driver, DriverError
+from .drivers import get_driver, DriverError, validate_config_output as validate_driver_config_output
 from . import configmodel as _configmodel
 from .observability import METRICS, event as _obs_event
 from . import topology as _topology
@@ -51,9 +51,35 @@ def _remediation_lines(baseline_text):
     return _configmodel.clean_lines(baseline_text)
 
 
+def validate_read_only_command(command, *, label="command"):
+    """Fail closed unless one bounded, non-chained CLI read command is supplied.
+
+    This is the common authority boundary for legacy exec surfaces.  Configuration
+    mutation belongs to the durable request/approve/execute workflow; an
+    approver/admin role alone is not authority to bypass that workflow.
+    """
+    command = str(command or "").strip()
+    if not command:
+        raise ValueError(f"{label} is required")
+    if len(command) > 240 or any(x in command for x in ("\n", "\r", ";", "&&", "||", "|", "`")):
+        raise ValueError(f"{label} must be one bounded command without chaining")
+    lower = command.lower()
+    if not (lower.startswith(("show ", "display ", "get ")) or lower == "/export"):
+        raise ValueError(f"{label} must be read-only: show/display/get or exact /export")
+    return command
+
+
+def validate_config_collect_command(command):
+    """Validate one stored read-only CLI command used for config collection."""
+    command = str(command or "").strip()
+    if not command:
+        return ""
+    return validate_read_only_command(command, label="config collection override")
+
+
 class CollectionResult:
     def __init__(self, device, ok, changed=False, message="", version=None,
-                 diff="", config=None, session_path=None):
+                 diff="", config=None, session_path=None, l3=None):
         self.device = device
         self.ok = ok
         self.changed = changed
@@ -62,6 +88,7 @@ class CollectionResult:
         self.diff = diff
         self.config = config
         self.session_path = session_path
+        self.l3 = l3 or {}
 
     def __repr__(self):
         state = "OK" if self.ok else "FAIL"
@@ -89,11 +116,21 @@ class Manager:
         from .storage_backend import StorageBackend
         self.storage = StorageBackend(self.db)
         import socket as _socket
+        import uuid as _uuid
         self.cluster_node_id = (str(self.settings.get("cluster_node_id") or "").strip() or
                                 f"{_socket.gethostname()}:{os.getpid()}")
+        self.cluster_instance_id = _uuid.uuid4().hex
+        self.cluster_failure_domain = str(self.settings.get("cluster_failure_domain") or "").strip()[:256]
+        self.cluster_identity_lock = f"netconfig:cluster-node:{self.cluster_node_id}"
         try:
+            if getattr(self.db, "dialect", "sqlite") == "postgres":
+                if not self.db.try_advisory_lock(self.cluster_identity_lock):
+                    raise RuntimeError(
+                        f"cluster node id {self.cluster_node_id!r} is already owned by another live PostgreSQL session"
+                    )
             self.db.register_cluster_node(
-                self.cluster_node_id, _socket.gethostname(), os.getpid(), time.time())
+                self.cluster_node_id, _socket.gethostname(), os.getpid(), time.time(),
+                failure_domain=self.cluster_failure_domain, instance_id=self.cluster_instance_id)
         except Exception:
             # PostgreSQL selection itself is fail-closed at connection/schema time;
             # heartbeat metadata must not block SQLite development startup.
@@ -119,6 +156,15 @@ class Manager:
         from .campaigns import CampaignService
         from .ha import HAService
         from .analytics import AnalyticsService
+        from .dependencies import ServiceDependencyGraph
+        from .l3topology import L3TopologyService
+        from .correlation_hardening import CorrelationHardeningService
+        from .correlation import CorrelationEngine
+        from .external_evidence import ExternalEvidenceService
+        from .operations_correlation import OperationsCorrelationConsole
+        from .change_planning import TopologyChangePlanningService
+        from .operator_workflow import OperatorWorkflowService
+        from .supportability import SupportabilityService
         self.vendor_models = VendorModelRegistry(self)
         self.structured_changes = StructuredChangeEngine(self)
         self.telemetry = TelemetryService(self)
@@ -126,6 +172,16 @@ class Manager:
         self.campaigns = CampaignService(self)
         self.ha = HAService(self)
         self.analytics = AnalyticsService(self)
+        self.dependencies = ServiceDependencyGraph(self)
+        self.l3_topology = L3TopologyService(self)
+        self.correlation_hardening = CorrelationHardeningService(self)
+        self.correlation = CorrelationEngine(self)
+        self.external_evidence = ExternalEvidenceService(self)
+        self.operations_console = OperationsCorrelationConsole(self)
+        self.change_planning = TopologyChangePlanningService(self)
+        self.operator_workflow = OperatorWorkflowService(self)
+        self.runtime_collectors = {}
+        self.supportability = SupportabilityService(self)
         self.alert_lifecycle = OperationalAlertLifecycle(self)
         self.events = OperationalEventStore(self)
         self.recorder = SessionRecorder(
@@ -239,6 +295,18 @@ class Manager:
             self.db.get_topology_device_identities(),
             self.db.get_topology_interfaces(), fdb_rows)
 
+    def l3_topology_graph(self, include_stale=False):
+        """Return persisted Layer-3 routing topology without device I/O."""
+        return self.l3_topology.graph(include_stale=bool(include_stale))
+
+    def combined_topology_graph(self, include_stale=False):
+        """Overlay physical L2 evidence and persisted L3 routing evidence."""
+        return self.l3_topology.combined_graph(
+            self.topology_graph(), include_stale=bool(include_stale))
+
+    def l3_collection_status(self, device=None):
+        return self.l3_topology.collection_status(device=device)
+
     def downstream_impact(self, device, port=None, max_depth=16):
         if not self.inv.get(device):
             raise ValueError("unknown root device")
@@ -280,10 +348,14 @@ class Manager:
             self.db.set_topology_interfaces(dev["name"], interfaces)
         return identity
 
-    def endpoint_inventory(self, device=None):
-        return _network_intelligence.correlate(
-            self.db, device,
+    def endpoint_inventory(self, device=None, query=None):
+        rows = _network_intelligence.correlate(
+            self.db, device, inventory=self.inv.all(),
             max_age=self.settings.get("network_intelligence_max_age_seconds", 1800))
+        needle = str(query or "").strip().lower()
+        if not needle:
+            return rows
+        return [row for row in rows if _network_intelligence.endpoint_matches(row, needle)]
 
     def endpoint_summary(self, device=None):
         return _network_intelligence.summary(self.endpoint_inventory(device))
@@ -389,6 +461,30 @@ class Manager:
             raise
         return tp, enable_pw
 
+    @staticmethod
+    def _validate_config_collect_command(command):
+        return validate_config_collect_command(command)
+
+    def config_collection_method(self, device_name):
+        """Describe the effective config collection path without device I/O."""
+        device = self.inv.get(device_name)
+        if not device:
+            return None
+        profile = self.protocol_profiles.get(device_name)
+        if profile and profile.get("enabled") and profile.get("protocol") != "cli_ssh":
+            return {
+                "mode": "structured", "protocol": profile.get("protocol"),
+                "path": profile.get("path") or "", "command": "",
+                "source": "protocol_profile",
+            }
+        driver = get_driver(device["platform"])
+        override = self._validate_config_collect_command(device.get("config_collect_command") or "")
+        return {
+            "mode": "cli_ssh", "protocol": "cli_ssh", "path": "",
+            "command": override or (driver.config_command or ""),
+            "source": "device_override" if override else "platform_default",
+        }
+
     def collect(self, device_name):
         device = self.inv.get(device_name)
         if not device:
@@ -424,20 +520,33 @@ class Manager:
             driver = get_driver(device["platform"])
             tp.discover_prompt()
             driver.initialize(tp, enable_password=enable_pw)
-            raw = driver.fetch_config(tp)
+            override = self._validate_config_collect_command(device.get("config_collect_command") or "")
+            command = override or (driver.config_command or "")
+            raw = driver.run(tp, override) if override else driver.fetch_config(tp)
+            validator = getattr(driver, "validate_config_output", None)
+            raw = (validator(raw, command=command) if callable(validator)
+                   else validate_driver_config_output(raw, command=command, platform=device.get("platform") or "generic"))
+            l3_result = {"status": "NOT_APPLICABLE", "routes": 0, "interfaces": 0}
+            if "network" in _dtypes_m(device):
+                # Reuse the authenticated CLI session. L3 evidence is an
+                # independent best-effort read: a parse/command failure must not
+                # discard a valid configuration snapshot.
+                l3_result = self.l3_topology.collect_from_session(device, driver, tp)
             from . import scrub as _scrub
             stored = raw
             if device["scrub"]:
                 stored, _ = _scrub.scrub(raw)
             result = self.store.save(device_name, stored)
             spath = self.recorder.write(device_name, tp.transcript)
-            self.inv.log_run(device_name, True, result["changed"],
-                             "changed" if result["changed"] else "no change")
+            method = self.config_collection_method(device_name) or {}
+            method_note = ("cli override" if method.get("source") == "device_override" else "cli default")
+            msg = ("changed" if result["changed"] else "no change") + f" ({method_note})"
+            self.inv.log_run(device_name, True, result["changed"], msg)
             return CollectionResult(
                 device_name, True, changed=result["changed"],
-                message="changed" if result["changed"] else "no change",
+                message=msg,
                 version=result["version"], diff=result["diff"],
-                config=stored, session_path=spath)
+                config=stored, session_path=spath, l3=l3_result)
         except (AuthError, TransportError, DriverError, RuntimeError) as e:
             msg = f"{type(e).__name__}: {e}"
             if tp is not None:
@@ -570,6 +679,7 @@ class Manager:
         return summary
 
     def run(self, device_name, command):
+        command = validate_read_only_command(command)
         device = self.inv.get(device_name)
         if not device:
             raise RuntimeError("unknown device")
@@ -619,6 +729,7 @@ class Manager:
             tp.discover_prompt()
             driver.initialize(tp, enable_password=enable_pw)
             if mode == "command":
+                lines = [validate_read_only_command(c) for c in lines]
                 out = "\n".join(driver.run(tp, c) for c in lines)
                 errors = []
             elif mode == "remediate":
@@ -770,7 +881,8 @@ class Manager:
 
     def storage_status(self):
         try:
-            self.db.heartbeat_cluster_node(self.cluster_node_id, time.time())
+            self.db.heartbeat_cluster_node(
+                self.cluster_node_id, time.time(), getattr(self, "cluster_instance_id", None))
         except Exception:
             pass
         out = self.db.readiness()
@@ -805,6 +917,10 @@ class Manager:
         pw = self._pg_password()
         key = (bool(self.settings.get("if_history_enabled")),
                (self.settings.get("if_history_dsn") or "").strip(),
+               self.settings.get("if_history_pg_host"), self.settings.get("if_history_pg_port"),
+               self.settings.get("if_history_pg_dbname"), self.settings.get("if_history_pg_user"),
+               self.settings.get("if_history_pg_sslmode"),
+               # legacy fallback remains part of the cache key for upgrades
                self.settings.get("pg_host"), self.settings.get("pg_port"),
                self.settings.get("pg_dbname"), self.settings.get("pg_user"),
                self.settings.get("pg_sslmode"),
@@ -828,13 +944,13 @@ class Manager:
             row = self.events.record_sensor_transition(transition)
             if row is not None:
                 bridged.append(row)
+        self.alert_lifecycle.reconcile_sensor_conditions(device=device_name)
         return bridged
 
     def snmp_poll(self, device_name, interfaces=True, vendor_force=False):
         dev = self.inv.get(device_name)
         if not dev:
             return {"ok": False, "error": "unknown device"}
-        previous_facts = self.inv.get_facts(device_name) or {}
         try:
             version, community, v3, port = self._snmp_params_for(dev)
             trace_cb = self.protocol_traces.callback(device_name, "snmp")

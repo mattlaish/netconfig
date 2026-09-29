@@ -30,6 +30,29 @@ _RE_CFG_ERROR = re.compile(
 # This matches any trailing device prompt line ending in > or #.
 _ANY_PROMPT = re.compile(rb"[\r\n][^\r\n]{1,120}?[>#]\s*$")
 
+_RE_CONFIG_FETCH_ERROR = re.compile(
+    r"(?im)^\s*(?:"
+    r"%\s*(?:invalid input|incomplete command|ambiguous command|unrecognized command|unknown command|error|not permitted|authorization failed).*|"
+    r"unknown action(?:\s+\d+)?\s*|"
+    r"command fail(?:\.\s*return code\s*-?\d+)?\s*|"
+    r"command parse error.*|invalid command.*|unrecognized command.*|syntax error.*"
+    r")\s*$"
+)
+
+
+def validate_config_output(raw, *, command="", platform="generic"):
+    """Reject obvious CLI error output before it can become config truth."""
+    text = str(raw or "").replace("\x00", "")
+    if not text.strip():
+        raise DriverError(
+            f"configuration collection returned empty output for {command or 'configured command'}")
+    match = _RE_CONFIG_FETCH_ERROR.search(text)
+    if match:
+        snippet = " ".join(match.group(0).split())[:180]
+        raise DriverError(
+            f"configuration collection command failed on {platform}: {snippet}")
+    return text
+
 
 class Driver:
     name = "generic"
@@ -43,6 +66,10 @@ class Driver:
     save_command = None           # persist running->startup, if the platform needs it
     negation_verb = "no"
     rollback_guard = None         # cisco_reload | junos_commit_confirmed | None
+    # Optional read-only L3 evidence commands. Empty means unsupported rather
+    # than guessed: topology collection must never send an arbitrary vendor CLI.
+    l3_interface_command = None
+    l3_route_command = None
 
     def initialize(self, tp, enable_password=None):
         """Post-login setup: enter enable (if needed) then disable paging."""
@@ -73,6 +100,9 @@ class Driver:
 
     def run(self, tp, command):
         return tp.execute(command)
+
+    def validate_config_output(self, raw, command=""):
+        return validate_config_output(raw, command=command, platform=self.name)
 
     def apply_lines(self, tp, lines, save=False, remediation=False):
         """Push config commands. Enters config mode (if the platform has one),
@@ -163,6 +193,8 @@ class DriverError(Exception):
 # ---- concrete platforms -------------------------------------------------
 class CiscoIOS(Driver):
     name = "cisco_ios"
+    l3_interface_command = "show ip interface brief"
+    l3_route_command = "show ip route"
     rollback_guard = "cisco_reload"
     disable_paging = ["terminal length 0"]
     config_command = "show running-config"
@@ -174,6 +206,8 @@ class CiscoIOS(Driver):
 
 class CiscoNXOS(Driver):
     name = "cisco_nxos"
+    l3_interface_command = "show ip interface brief vrf all"
+    l3_route_command = "show ip route vrf all"
     disable_paging = ["terminal length 0"]
     config_command = "show running-config"
     needs_enable = False  # NX-OS role-based; usually no enable step
@@ -184,6 +218,8 @@ class CiscoNXOS(Driver):
 
 class CiscoASA(Driver):
     name = "cisco_asa"
+    l3_interface_command = "show interface ip brief"
+    l3_route_command = "show route"
     rollback_guard = "cisco_reload"
     disable_paging = ["terminal pager 0"]
     config_command = "show running-config"
@@ -195,6 +231,8 @@ class CiscoASA(Driver):
 
 class AristaEOS(Driver):
     name = "arista_eos"
+    l3_interface_command = "show ip interface brief"
+    l3_route_command = "show ip route vrf all"
     rollback_guard = "cisco_reload"
     disable_paging = ["terminal length 0"]
     config_command = "show running-config"
@@ -206,6 +244,8 @@ class AristaEOS(Driver):
 
 class JuniperJunOS(Driver):
     name = "juniper_junos"
+    l3_interface_command = "show interfaces terse"
+    l3_route_command = "show route terse"
     rollback_guard = "junos_commit_confirmed"
     disable_paging = ["set cli screen-length 0", "set cli screen-width 0"]
     config_command = "show configuration | display set"
@@ -241,6 +281,8 @@ class JuniperJunOS(Driver):
 
 class HPComware(Driver):
     name = "hp_comware"
+    l3_interface_command = "display ip interface brief"
+    l3_route_command = "display ip routing-table"
     negation_verb = "undo"
     disable_paging = ["screen-length disable"]
     config_command = "display current-configuration"
@@ -251,8 +293,24 @@ class HPComware(Driver):
     save_command = None   # `save` is interactive on Comware; leave to operator
 
 
+class FortiGateFortiOS(Driver):
+    name = "fortigate_fortios"
+    l3_interface_command = "get system interface"
+    l3_route_command = "get router info routing-table all"
+    # Do not change ``config system console set output`` merely to collect data:
+    # that is device configuration state. Keep the collection path read-only.
+    disable_paging = []
+    config_command = "show full-configuration"
+    needs_enable = False
+    config_enter = []
+    config_exit = []
+    save_command = None
+
+
 class MikroTik(Driver):
     name = "mikrotik_routeros"
+    l3_interface_command = "/ip/address/print detail without-paging"
+    l3_route_command = "/ip/route/print detail without-paging"
     disable_paging = []  # RouterOS export doesn't page the same way
     config_command = "/export"
     needs_enable = False
@@ -260,6 +318,18 @@ class MikroTik(Driver):
     config_enter = []
     config_exit = []
     save_command = None
+
+
+class ArubaAOSCX(Driver):
+    name = "aruba_aoscx"
+    disable_paging = ["no page"]
+    config_command = "show running-config"
+    needs_enable = False
+    config_enter = ["configure terminal"]
+    config_exit = ["end"]
+    save_command = "write memory"
+    l3_interface_command = "show ip interface brief"
+    l3_route_command = "show ip route"
 
 
 class Generic(Driver):
@@ -273,12 +343,15 @@ class Generic(Driver):
 
 
 _REGISTRY = {d.name: d for d in [
-    CiscoIOS, CiscoNXOS, CiscoASA, AristaEOS, JuniperJunOS, HPComware, MikroTik, Generic,
+    CiscoIOS, CiscoNXOS, CiscoASA, AristaEOS, JuniperJunOS, HPComware, FortiGateFortiOS, MikroTik, ArubaAOSCX, Generic,
 ]}
 
 
 def get_driver(platform):
-    cls = _REGISTRY.get((platform or "generic").lower())
+    key = (platform or "generic").lower()
+    key = {"fortigate": "fortigate_fortios", "fortios": "fortigate_fortios",
+           "fortinet_fortigate": "fortigate_fortios"}.get(key, key)
+    cls = _REGISTRY.get(key)
     if cls is None:
         raise DriverError(f"unknown platform {platform!r}; known: {sorted(_REGISTRY)}")
     return cls()

@@ -1,0 +1,204 @@
+[
+  {
+    "area": "baseline",
+    "builtin": "baseline",
+    "destructive": false,
+    "evidence_class": "LOCAL_REGRESSION",
+    "gate_id": "R60-BASE-001",
+    "hook_name": "",
+    "required_tools": [],
+    "target_os": false,
+    "timeout": 30,
+    "title": "R60 release identity and closed MC-11 authority"
+  },
+  {
+    "area": "baseline",
+    "builtin": "focused",
+    "destructive": false,
+    "evidence_class": "LOCAL_REGRESSION",
+    "gate_id": "R60-BASE-002",
+    "hook_name": "",
+    "required_tools": [
+      "pytest"
+    ],
+    "target_os": false,
+    "timeout": 120,
+    "title": "R60 lifecycle focused regression"
+  },
+  {
+    "area": "baseline",
+    "builtin": "full",
+    "destructive": false,
+    "evidence_class": "LOCAL_REGRESSION",
+    "gate_id": "R60-BASE-003",
+    "hook_name": "",
+    "required_tools": [
+      "pytest"
+    ],
+    "target_os": false,
+    "timeout": 900,
+    "title": "Full bounded repository regression"
+  },
+  {
+    "area": "baseline",
+    "builtin": "mc11",
+    "destructive": false,
+    "evidence_class": "LOCAL_REGRESSION",
+    "gate_id": "R60-BASE-004",
+    "hook_name": "",
+    "required_tools": [
+      "pytest"
+    ],
+    "target_os": false,
+    "timeout": 180,
+    "title": "MC-11 authority regression retained"
+  },
+  {
+    "area": "lifecycle",
+    "builtin": "hook",
+    "destructive": true,
+    "evidence_class": "LIVE_PRODUCTION",
+    "gate_id": "R60-LIFE-001",
+    "hook_name": "r59-to-r60-upgrade",
+    "required_tools": [
+      "rpm",
+      "dnf",
+      "systemctl",
+      "flock"
+    ],
+    "target_os": true,
+    "timeout": 1200,
+    "title": "AlmaLinux R59 to R60 lifecycle upgrade success"
+  },
+  {
+    "area": "lifecycle",
+    "builtin": "hook",
+    "destructive": true,
+    "evidence_class": "LIVE_PRODUCTION",
+    "gate_id": "R60-LIFE-002",
+    "hook_name": "failed-upgrade-rollback",
+    "required_tools": [
+      "rpm",
+      "dnf",
+      "systemctl",
+      "flock"
+    ],
+    "target_os": true,
+    "timeout": 1800,
+    "title": "Injected failed upgrade returns to prior working R59 state"
+  },
+  {
+    "area": "lifecycle",
+    "builtin": "hook",
+    "destructive": true,
+    "evidence_class": "LIVE_PRODUCTION",
+    "gate_id": "R60-LIFE-003",
+    "hook_name": "preservation",
+    "required_tools": [
+      "rpm",
+      "dnf",
+      "systemctl"
+    ],
+    "target_os": true,
+    "timeout": 600,
+    "title": "Configuration secret and certificate preservation"
+  },
+  {
+    "area": "lifecycle",
+    "builtin": "hook",
+    "destructive": true,
+    "evidence_class": "LIVE_PRODUCTION",
+    "gate_id": "R60-LIFE-004",
+    "hook_name": "service-ordering-restart",
+    "required_tools": [
+      "systemctl",
+      "systemd-analyze"
+    ],
+    "target_os": true,
+    "timeout": 600,
+    "title": "Service dependency ordering and restart recovery"
+  },
+  {
+    "area": "lifecycle",
+    "builtin": "hook",
+    "destructive": true,
+    "evidence_class": "LIVE_PRODUCTION",
+    "gate_id": "R60-LIFE-005",
+    "hook_name": "shutdown-reboot",
+    "required_tools": [
+      "systemctl"
+    ],
+    "target_os": true,
+    "timeout": 1800,
+    "title": "Graceful shutdown and reboot recovery"
+  },
+  {
+    "area": "lifecycle",
+    "builtin": "hook",
+    "destructive": true,
+    "evidence_class": "LIVE_PRODUCTION",
+    "gate_id": "R60-LIFE-006",
+    "hook_name": "crash-recovery",
+    "required_tools": [
+      "systemctl"
+    ],
+    "target_os": true,
+    "timeout": 900,
+    "title": "Crash recovery preserves deterministic state"
+  },
+  {
+    "area": "storage",
+    "builtin": "hook",
+    "destructive": true,
+    "evidence_class": "LIVE_PRODUCTION",
+    "gate_id": "R60-STOR-001",
+    "hook_name": "disk-full",
+    "required_tools": [],
+    "target_os": true,
+    "timeout": 900,
+    "title": "Disk-space preflight and disk-full fail-closed behavior"
+  },
+  {
+    "area": "storage",
+    "builtin": "hook",
+    "destructive": true,
+    "evidence_class": "LIVE_PRODUCTION",
+    "gate_id": "R60-STOR-002",
+    "hook_name": "log-retention-maintenance",
+    "required_tools": [],
+    "target_os": true,
+    "timeout": 900,
+    "title": "Log rotation retention and database maintenance under pressure"
+  },
+  {
+    "area": "postgresql",
+    "builtin": "hook",
+    "destructive": true,
+    "evidence_class": "LIVE_PRODUCTION",
+    "gate_id": "R60-DB-001",
+    "hook_name": "postgres-rollback-db",
+    "required_tools": [
+      "pg_dump",
+      "pg_restore"
+    ],
+    "target_os": true,
+    "timeout": 1200,
+    "title": "PostgreSQL pre-upgrade pg_dump and validated separate rollback database"
+  },
+  {
+    "area": "postgresql",
+    "builtin": "hook",
+    "destructive": true,
+    "evidence_class": "LIVE_PRODUCTION",
+    "gate_id": "R60-DB-002",
+    "hook_name": "postgres-failed-migration-rollback",
+    "required_tools": [
+      "pg_dump",
+      "pg_restore",
+      "systemctl"
+    ],
+    "target_os": true,
+    "timeout": 1800,
+    "title": "PostgreSQL failed migration rollback switches to validated rollback database"
+  }
+]

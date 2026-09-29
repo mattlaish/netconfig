@@ -1,0 +1,4 @@
+#!/usr/bin/bash
+set -euo pipefail
+echo "R60 live qualification hook template: configure the designated lab before execution" >&2
+exit 20

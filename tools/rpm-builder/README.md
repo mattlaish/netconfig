@@ -1,6 +1,6 @@
 # NetConfig Offline RPM Builder
 
-> **Canonical project state — 2026-09-23:** **CURRENT IMPLEMENTATION BASELINE** = **Release 51 / MC-3 Normalized Operational Evidence** (`2.0.0-51`, `IMPLEMENTED_TESTING_DEFERRED`). MC-1 Sensor Integration Unification and MC-2 Sensor History & State Transitions remain implemented. Release 51 adds a normalized cross-domain operational-evidence envelope, durable Sensor-transition → Event bridging, recovery/`UNKNOWN` semantics, additive event-schema migration/backfill/indexes, filtered/detail Event API reads, and an Event detail UI with current related Sensor state. NI-1 through **NI-7 L3/VRF Path & Route Dependency Intelligence** remain implemented. Formal RPM qualification remains deferred until the monitoring/correlation roadmap is complete; any ad-hoc RPM remains development evidence only.
+> **Canonical project state — 2026-09-24:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67 / R67 Release Candidate / Full Artifact Qualification** (`2.0.0-67`, `IMPLEMENTED_TESTING_DEFERRED`) on top of **R66 Observability / Supportability**. MC-1 through MC-11 remain implemented; **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice and schema revision remains `mc11-topology-change-planning-1`; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included. R67 is a **feature freeze** and adds release-candidate/full-artifact qualification, exact-candidate evidence binding, synchronized release metadata, and an SPDX 2.3 source SBOM; it adds no device-write, polling, approval-bypass, workflow, HA, security, or MC authority. **Local/offline qualification does not establish RC or production release readiness; all required `LIVE_RC` gates remain mandatory. R67 cannot mark the product `RELEASED`. Do not create MC-12.** The next approved track is **R68 v2 Production Release Decision**, but R67 does not start or decide R68.
 ## Release 48 — Sensor Model & Evidence Normalization
 
 Release 48 promotes the sensor work from UI-only health cards into a reusable persisted normalization layer. `SensorEngine` stores `sensor_type`, `device`, `resource`, `value`, `unit`, `status`, `message`, `threshold`, `source`, and `updated_at`, with the status contract limited to `OK`, `WARNING`, `CRITICAL`, and `UNKNOWN`. It reads existing NetConfig persistence only and does **not** initiate SNMP/NETCONF/RESTCONF/gNMI/SSH device I/O or change polling frequency.
@@ -24,7 +24,7 @@ The previously documented Central Controller + read-only Site Edge/Collector con
 **Release 46 source qualification:** repository regression executed in bounded groups totals **222 passed / 8 skipped / 0 failed**; the eight skips are seven explicit live/service prerequisites plus the expected Git-index mode skip because `.git` is absent. Focused Web Console/structural coverage is **13 passed**. Legacy selftest is **ALL PASS**; compileall, launcher `py_compile`, and packaging/tool shell syntax are **PASS**. Ruff `0.16.7` and mypy `2.3.1` remain **NOT_RUN** because the executables are unavailable. The dependency-free offline builder emitted `netconfig-2.0.0-46.el10.noarch.rpm` twice byte-identically; independent verification passed and SHA-256 is `5b26c9ae73ac4248171196ee3637f51bd238fed090c4ce3fa820419842f510cd`. Canonical AlmaLinux 10 `rpmbuild`/DNF install-upgrade/systemd/SELinux and other Q-1 live/device gates remain **NOT_RUN / DEFERRED**.
 
 
-> **Roadmap disposition — 2026-09-23:** The monitoring/correlation roadmap is active. MC-1 through MC-3 are implemented in source as `IMPLEMENTED_TESTING_DEFERRED`; the next planned slice is **MC-4 / Release 52 — Unified Alert Plane**. NI-7 remains implemented and Q-1 remains an open production/service qualification track. Do not invent NI-8/Q-2 or skip the defined MC sequence without an explicit roadmap decision.
+> **Roadmap disposition — 2026-09-24:** **R59 / MC-11 is the final Monitoring & Correlation functional slice.** Do not create MC-12. After R59 use **Q2 Production Qualification Campaign → R60 Lifecycle → R61 Scale → R62 PostgreSQL → R63 HA → R64 Security → R65 Operator Workflow → R66 Supportability → R67 RC → R68 Production Release Decision**. Simulation never counts as live PASS; qualification states are `PASS / FAIL / BLOCKED_ENVIRONMENT / NOT_RUN`.
 
 This tool emits a deterministic unsigned RPM using only the Python standard library. It exists for isolated runners that do not have `rpm`, `rpmbuild`, Docker/Podman, or outbound package access. It packages the same NetConfig runtime paths, permissions, config-file semantics, dependencies, and systemd lifecycle scriptlets defined by `packaging/netconfig.spec`.
 
@@ -32,7 +32,7 @@ Use it from the repository root:
 
 ```bash
 ./tools/rpm-builder/build.sh
-./tools/rpm-builder/verify.sh ./dist/netconfig-2.0.0-48.el10.noarch.rpm
+./tools/rpm-builder/verify.sh ./dist/netconfig-2.0.0-57.el10.noarch.rpm
 ```
 
 `SOURCE_DATE_EPOCH` controls deterministic timestamps. If unset, Release 43 uses `1789689600` (`2026-09-18T00:00:00Z`). Rebuilding the same source with the same epoch must produce the same SHA-256.
@@ -48,3 +48,7 @@ This helper does **not** replace the canonical AlmaLinux `rpmbuild` path. A help
 The candidate fresh-clone build was reproduced byte-for-byte twice. The resulting unsigned helper RPM SHA-256 was `095b32b594b771e37e83c2cc89a27e9f87d8c5ae925d81ad94510083f0e612a1`; `verify_rpm.py` passed header/payload digest verification, gzip/newc parsing, source-byte identity, modes, config flags, requirements, and scriptlets. This is offline evidence, not target-host qualification.
 
 The builder excludes complete `__pycache__` subtrees. CI compiles Python before building the helper RPM so empty cache directories cannot silently enter the package.
+
+## R63 identity
+
+The offline deterministic helper builder now emits `netconfig-2.0.0-63.el10.noarch.rpm`. This builder is artifact/reproducibility evidence only and is not a substitute for AlmaLinux/rpmbuild or live HA qualification.

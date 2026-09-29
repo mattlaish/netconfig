@@ -238,7 +238,7 @@ def test_restconf_discovery_get_content_validation_and_secret_not_in_url(tmp_pat
             return Resp(b'{"ietf-restconf:restconf":{}}', "application/yang-data+json")
         return Resp(b'{"ietf-system:system":{"hostname":"r1"}}', "application/yang-data+json")
 
-    monkeypatch.setattr("netconfig.structured_protocols.urllib.request.urlopen", fake)
+    monkeypatch.setattr("netconfig.structured_protocols._restconf_open", fake)
     text, meta = m.structured_collector.collect(m.inv.get("r1"), p)
     assert len(seen) == 3
     assert all(url.startswith("https://") and "topsecret" not in url for url, _ in seen)
@@ -264,12 +264,12 @@ def test_restconf_malformed_and_oversized_payload_rejected(tmp_path, monkeypatch
         def read(self, n):
             return self.body
 
-    monkeypatch.setattr("netconfig.structured_protocols.urllib.request.urlopen", lambda *a, **k: Resp(b"{bad"))
+    monkeypatch.setattr("netconfig.structured_protocols._restconf_open", lambda *a, **k: Resp(b"{bad"))
     with pytest.raises(StructuredProtocolError, match="malformed"):
         m.structured_collector.read_config(m.inv.get("r1"), p)
 
     monkeypatch.setattr(
-        "netconfig.structured_protocols.urllib.request.urlopen",
+        "netconfig.structured_protocols._restconf_open",
         lambda *a, **k: Resp(b"x" * (MAX_PAYLOAD_BYTES + 1)),
     )
     with pytest.raises(StructuredProtocolError, match="exceeds 16 MiB"):
@@ -302,7 +302,7 @@ def test_restconf_controlled_replace_pre_post_verify_and_rollback(tmp_path, monk
             return Resp(json.dumps(state).encode())
         return Resp(json.dumps(state).encode())
 
-    monkeypatch.setattr("netconfig.structured_protocols.urllib.request.urlopen", fake)
+    monkeypatch.setattr("netconfig.structured_protocols._restconf_open", fake)
     desired = {"ietf-interfaces:interface": {"name": "Ethernet1", "enabled": True}}
     out = m.structured_collector.restconf_replace_json(
         m.inv.get("r1"), p, path="/restconf/data/ietf-interfaces:interfaces/interface=Ethernet1",

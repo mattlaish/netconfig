@@ -117,6 +117,125 @@ def _cmp(a, op, b):
             ">=": a >= b, "<=": a <= b}.get(op, False)
 
 
+
+
+def _sensor_status_for_metric(manager, dev, metric, result):
+    """Map one legacy monitor observation into the canonical Sensor status.
+
+    Existing alert rules remain threshold inputs during MC-4 migration, but
+    the authoritative alert lifecycle is operational_events -> operational_alerts.
+    """
+    rules = [r for r in manager.db.rules(enabled_only=True)
+             if r["metric"] == metric
+             and (not r["device"] or r["device"] == dev["name"])
+             and (not r["target"] or r["target"] == result["target"])]
+    breached = []
+    for rule in rules:
+        hit, _ = _breach(rule, result)
+        if hit:
+            breached.append(rule)
+    if breached:
+        rank = {"low": 1, "medium": 2, "warning": 2, "high": 3,
+                "major": 3, "critical": 3}
+        highest = max(rank.get(str(r.get("severity") or "medium").lower(), 2)
+                      for r in breached)
+        return "CRITICAL" if highest >= 3 else "WARNING", breached
+
+    status = str(result.get("status") or "").lower()
+    value = result.get("value")
+    if metric == "port_state":
+        return ("OK" if status == "open" else "CRITICAL"), []
+    if metric == "http_status":
+        if status == "down":
+            return "CRITICAL", []
+        code = _num(status)
+        if code is None:
+            return "UNKNOWN", []
+        if code >= 500:
+            return "CRITICAL", []
+        if code >= 400:
+            return "WARNING", []
+        return "OK", []
+    if metric == "tls_valid":
+        if not status:
+            return "UNKNOWN", []
+        return ("OK" if status == "valid" else "CRITICAL"), []
+    if metric in {"response_time", "tls_expiry"}:
+        return ("OK" if _num(value) is not None else "UNKNOWN"), []
+    return "UNKNOWN", []
+
+
+def _monitor_sensor_specs(manager, dev, results):
+    specs = []
+    for result in results:
+        kind = result.get("kind")
+        target = str(result.get("target") or "")
+        metrics = []
+        if kind == "port":
+            metrics = [("port_state", "service.port_state", result.get("status"), "")]
+        elif kind == "http":
+            metrics = [
+                ("http_status", "application.http_status", result.get("status"), "http"),
+                ("response_time", "application.response_time", result.get("value"), "ms"),
+            ]
+        elif kind == "tls":
+            metrics = [
+                ("tls_valid", "application.tls_valid", result.get("status"), ""),
+                ("tls_expiry", "application.tls_expiry", result.get("value"), "days"),
+            ]
+        for metric, sensor_type, value, unit in metrics:
+            status, breached = _sensor_status_for_metric(manager, dev, metric, result)
+            threshold = "; ".join(
+                f'{r["metric"]} {r["op"]} {r["threshold"]}' for r in breached[:4])
+            message = f'{metric} {status.lower()} for {target}'
+            specs.append({
+                "metric": metric, "sensor_type": sensor_type, "device": dev["name"],
+                "resource": target, "value": "" if value is None else value,
+                "unit": unit, "status": status, "message": message,
+                "threshold": threshold, "source": "monitor_results",
+            })
+    return specs
+
+
+def normalize_results(manager, dev, results):
+    """Persist monitor observations as Sensors and bridge only state changes.
+
+    The function performs no network I/O. First-seen WARNING/CRITICAL evidence is
+    emitted once so an already-broken service is visible immediately; later
+    observations rely on durable Sensor transitions.
+    """
+    before = manager.sensors.latest_transition_id()
+    initial_events = []
+    for spec in _monitor_sensor_specs(manager, dev, results):
+        previous = manager.db.conn.execute(
+            "SELECT * FROM sensors WHERE sensor_type=? AND device=? AND resource=?",
+            (spec["sensor_type"], spec["device"], spec["resource"])).fetchone()
+        manager.sensors.upsert(
+            spec["sensor_type"], device=spec["device"], resource=spec["resource"],
+            value=spec["value"], unit=spec["unit"], status=spec["status"],
+            message=spec["message"], threshold=spec["threshold"], source=spec["source"])
+        if previous is None and spec["status"] in {"WARNING", "CRITICAL"}:
+            sensor_key = manager.sensors.sensor_key(
+                spec["sensor_type"], spec["device"], spec["resource"])
+            event = manager.events.record(
+                source_type="sensor_transition", source="monitor_results",
+                device=spec["device"], event_type=f'{spec["sensor_type"]}.{spec["status"].lower()}',
+                severity=spec["status"], message=spec["message"],
+                metadata={"sensor_key": sensor_key, "sensor_type": spec["sensor_type"],
+                          "previous_status": "UNKNOWN", "new_status": spec["status"],
+                          "transition_reason": "initial_bad_state"},
+                domain="APPLICATION" if spec["sensor_type"].startswith("application.") else "SYSTEM",
+                entity_type="application" if spec["sensor_type"].startswith("application.") else "service",
+                entity_id=spec["resource"], resource=spec["resource"], status=spec["status"])
+            initial_events.append(event)
+    bridged = list(initial_events)
+    for transition in manager.sensors.transitions_after_id(before, device=dev["name"]):
+        event = manager.events.record_sensor_transition(transition)
+        if event is not None:
+            bridged.append(event)
+    manager.alert_lifecycle.reconcile_sensor_conditions(device=dev["name"])
+    return bridged
+
 def evaluate_alerts(manager, dev, results):
     """Apply enabled rules to this device's fresh results; open/resolve alerts.
     Returns a list of newly-opened alert dicts (for notification)."""
@@ -164,22 +283,22 @@ def notify(manager, newly):
 
 
 def poll_once(manager):
-    """One full pass over all enabled devices. Returns (checks, new_alerts)."""
+    """One pass over enabled devices using the MC-4 canonical alert plane.
+
+    Legacy ``alerts`` rows remain readable as historical compatibility data, but
+    new monitor observations now flow through Sensor -> Event -> Operational Alert.
+    Existing ``alert_rules`` remain threshold inputs.
+    """
     checks = 0
-    opened = []
+    events = []
     for dev in manager.inv.all(only_enabled=True):
         try:
             results = run_device_checks(manager, dev)
         except Exception:
             continue
         checks += len(results)
-        opened.extend(evaluate_alerts(manager, dev, results))
-    if opened:
-        try:
-            notify(manager, opened)
-        except Exception:
-            pass
-    return checks, opened
+        events.extend(normalize_results(manager, dev, results))
+    return checks, events
 
 
 def poller(manager, interval, stop):
@@ -187,7 +306,7 @@ def poller(manager, interval, stop):
     retain = float(manager.settings.get("monitor_history_days", 7)) * 86400
     while not stop.is_set():
         try:
-            if not manager.ha.accepts_automation_work():
+            if not manager.scheduler_leader("monitor-poller"):
                 stop.wait(interval)
                 continue
             poll_once(manager)

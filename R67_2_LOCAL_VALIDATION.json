@@ -1,0 +1,136 @@
+{
+  "baseline": "2.0.0-67.2",
+  "bounded_regression": {
+    "collected": 548,
+    "failed": 0,
+    "groups": 12,
+    "groups_detail": [
+      {
+        "failed": 0,
+        "group": 1,
+        "log_sha256": "37a3c8c347aa09dbef56ce71e84245660318748948068cdf5295944e5cb06bd4",
+        "passed": 68,
+        "skipped": 4
+      },
+      {
+        "failed": 0,
+        "group": 2,
+        "log_sha256": "6c0b5c7cb70f90452dd02a7909fe8528e2a7cb5e9ff7c922dca69330099c5197",
+        "passed": 47,
+        "skipped": 3
+      },
+      {
+        "failed": 0,
+        "group": 3,
+        "log_sha256": "e201f1bf6ed94914743846fd39a46d4efae97eed277bf1aa476a37d2c4338643",
+        "passed": 41,
+        "skipped": 3
+      },
+      {
+        "failed": 0,
+        "group": 4,
+        "log_sha256": "088f6d6e771a0bbff7a05ab592f5eb09cfa1197c212125f670b72f1033d7a190",
+        "passed": 42,
+        "skipped": 3
+      },
+      {
+        "failed": 0,
+        "group": 5,
+        "log_sha256": "a58ef26d022766ef789d887620211f02fa9ddd2282c300faebc4bb23bbbaedc7",
+        "passed": 49,
+        "skipped": 0
+      },
+      {
+        "failed": 0,
+        "group": 6,
+        "log_sha256": "046d7918f2fb67e4cf857d6ec51d0edfc95276a1d225506e248798de77ccd9cf",
+        "passed": 32,
+        "skipped": 0
+      },
+      {
+        "failed": 0,
+        "group": 7,
+        "log_sha256": "2130c435d5f11cde8a36cb06f57c5735c4e1b2324a9e135f18895c5e8c6b3cb0",
+        "passed": 54,
+        "skipped": 1
+      },
+      {
+        "failed": 0,
+        "group": 8,
+        "log_sha256": "48426f4c2a3a4c5124903f65561d88c7aa8eef416f96fc13af936ccae6924bfa",
+        "passed": 25,
+        "skipped": 0
+      },
+      {
+        "failed": 0,
+        "group": 9,
+        "log_sha256": "57472c6a9654345b09f673e7a81cbccd52d2cb4968bca47b01b51bebdcf4da21",
+        "passed": 36,
+        "skipped": 0
+      },
+      {
+        "failed": 0,
+        "group": 10,
+        "log_sha256": "9f9bc5f1607804ad75303b4f6787681eb227064b969296e6e015211e417c5439",
+        "passed": 54,
+        "skipped": 0
+      },
+      {
+        "failed": 0,
+        "group": 11,
+        "log_sha256": "9089a622ebab6cc478514012ecb8156f169c883750d03b14317b48ed2cf93196",
+        "passed": 33,
+        "skipped": 0
+      },
+      {
+        "failed": 0,
+        "group": 12,
+        "log_sha256": "fa700a212434e81d9d2415ca24a1477901717f205ab58d11a9d4978f7b8a328e",
+        "passed": 53,
+        "skipped": 0
+      }
+    ],
+    "passed": 534,
+    "skipped": 14
+  },
+  "focused": {
+    "mc11": "12/12 PASS",
+    "r67_2": "9/9 PASS",
+    "transition_selected": "71/71 PASS"
+  },
+  "live_truth": {
+    "live_rc_pass": 0,
+    "live_rc_required": 12,
+    "production_release_claim": false,
+    "release_candidate_qualified": false
+  },
+  "offline_rpm": {
+    "artifact": "netconfig-2.0.0-67.2.el10.noarch.rpm",
+    "deterministic_rebuild": "PASS",
+    "independent_verifier": "PASS",
+    "payload_files": 106,
+    "payload_sha256": "a2bcab1a23a90eaf9bd27a13f4b88cdfeab4669010b2f1d98a97a2a148fd026e",
+    "payload_size": 1966675,
+    "sha256": "289caa0e57137ed3c2e5a3a3fb55b197c3c58d8094b682c4b5e5f6861ecbb118"
+  },
+  "qualification_runner_subset": {
+    "full_bounded_gate_executed_separately": true,
+    "local_gates_fail": 0,
+    "local_gates_pass": 6
+  },
+  "schema_revision": "mc11-topology-change-planning-1",
+  "single_process_pytest": {
+    "counted_as_pass": false,
+    "failure_output_observed": false,
+    "progress_observed": "about 37%",
+    "status": "TIMED_OUT"
+  },
+  "status": "IMPLEMENTED_TESTING_DEFERRED",
+  "syntax": {
+    "compileall": "PASS",
+    "javascript_node_check": "PASS",
+    "legacy_selftest": "ALL PASS",
+    "py_compile": "PASS",
+    "shell_bash_n": "PASS"
+  }
+}

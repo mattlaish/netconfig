@@ -65,6 +65,12 @@ class Workflow:
         self.conn = db.conn
         self.m = manager
 
+    def _change_event(self, request_id, event_type, status, actor, summary, **metadata):
+        """Append normalized MC-5 change evidence without copying command bodies."""
+        return self.db.record_change_event(
+            request_id, event_type, status, actor, summary, metadata=metadata,
+        )
+
     # ---- change requests -------------------------------------------------
     def submit(self, *, title, body, target_kind, target_value, mode,
                requested_by):
@@ -77,6 +83,11 @@ class Workflow:
         rid = cur.lastrowid
         self.db.audit(requested_by, "submit_request", f"CR#{rid}",
                       f"{mode} on {target_kind}:{target_value} — {title}")
+        self._change_event(
+            rid, "REQUEST_SUBMITTED", "pending", requested_by,
+            f"CR#{rid} submitted: {title}", mode=mode, target_kind=target_kind,
+            target_value=target_value,
+        )
         return rid
 
     def get(self, rid):
@@ -221,8 +232,44 @@ class Workflow:
             "pre_hash": tx.get("pre_hash") or "", "reversible": bool(tx.get("reversible")),
         }
 
-    def submit_automation(self, *, title, intent, requested_by):
+    def _normalize_automation_context(self, context):
+        if context in (None, {}):
+            return {}
+        if not isinstance(context, dict):
+            raise ValueError("automation context must be an object")
+        allowed = {"incident_ref", "plan_id", "proposal_index"}
+        if set(context) - allowed:
+            raise ValueError("unsupported automation context fields")
+        incident_ref = str(context.get("incident_ref") or "").strip()[:64]
+        plan_id = int(context.get("plan_id") or 0)
+        proposal_index = int(context.get("proposal_index") or 0)
+        if not incident_ref or plan_id <= 0 or proposal_index < 0 or proposal_index > 31:
+            raise ValueError("automation workflow context requires incident_ref, plan_id and proposal_index")
+        incident = self.m.incidents.get(incident_ref)
+        if not incident:
+            raise ValueError("automation workflow incident not found")
+        incident_ref = incident["incident_key"]
+        plan = self.m.change_planning.get_plan(plan_id)
+        if not plan:
+            raise ValueError("automation workflow change plan not found")
+        if str((plan.get("input") or {}).get("incident_ref") or "") != incident_ref:
+            raise ValueError("automation workflow plan is not linked to the incident")
+        proposals = list((plan.get("result") or {}).get("proposed_structured_changes") or [])
+        if proposal_index >= len(proposals):
+            raise ValueError("automation workflow proposal index is out of range")
+        return {"incident_ref": incident_ref, "plan_id": plan_id, "proposal_index": proposal_index}
+
+    def submit_automation(self, *, title, intent, requested_by, context=None):
         normalized = self._normalize_automation_intent(intent)
+        workflow_context = self._normalize_automation_context(context)
+        if workflow_context:
+            if normalized.get("kind") != "structured_change":
+                raise ValueError("operator workflow context only supports Structured Change proposals")
+            plan = self.m.change_planning.get_plan(workflow_context["plan_id"])
+            proposal = list((plan.get("result") or {}).get("proposed_structured_changes") or [])[workflow_context["proposal_index"]]
+            expected = self._normalize_automation_intent({"kind": "structured_change", **proposal})
+            if normalized != expected:
+                raise ValueError("automation intent does not match the persisted workflow proposal")
         snapshot = self._automation_snapshot(normalized)
         payload = {
             "schema": 1,
@@ -230,14 +277,37 @@ class Workflow:
             "snapshot": snapshot,
             "snapshot_sha256": self._automation_hash(snapshot),
         }
+        if workflow_context:
+            payload["context"] = workflow_context
+            payload["context_sha256"] = self._automation_hash(workflow_context)
         rid = self.submit(
             title=title, body=self._automation_body(payload),
             target_kind="automation", target_value=normalized["kind"],
             mode="automation", requested_by=requested_by,
         )
         self.db.audit(requested_by, "submit_automation_request", f"CR#{rid}",
-                      f"kind={normalized['kind']};snapshot={payload['snapshot_sha256']}")
+                      f"kind={normalized['kind']};snapshot={payload['snapshot_sha256']}"
+                      + (f";incident={workflow_context['incident_ref']};plan={workflow_context['plan_id']}"
+                         if workflow_context else ""))
         return rid
+
+    def automation_context(self, rid):
+        cr = self.get(rid)
+        if not cr or cr.get("mode") != "automation":
+            raise ValueError("request is not an automation request")
+        try:
+            payload = json.loads(cr.get("body") or "")
+        except json.JSONDecodeError as exc:
+            raise ValueError("automation request body is malformed") from exc
+        if not isinstance(payload, dict) or payload.get("schema") != 1:
+            raise ValueError("unsupported automation request schema")
+        raw = payload.get("context") or {}
+        if not raw:
+            return {}
+        context = self._normalize_automation_context(raw)
+        if str(payload.get("context_sha256") or "") != self._automation_hash(context):
+            raise ValueError("automation workflow context integrity check failed")
+        return context
 
     def _automation_request(self, cr, *, require_fresh=False):
         if cr.get("mode") != "automation":
@@ -249,6 +319,7 @@ class Workflow:
         if not isinstance(payload, dict) or payload.get("schema") != 1:
             raise ValueError("unsupported automation request schema")
         intent = self._normalize_automation_intent(payload.get("intent") or {})
+        context = self.automation_context(int(cr["id"])) if payload.get("context") else {}
         submitted_snapshot = payload.get("snapshot")
         submitted_hash = str(payload.get("snapshot_sha256") or "")
         if not isinstance(submitted_snapshot, dict) or submitted_hash != self._automation_hash(submitted_snapshot):
@@ -259,7 +330,7 @@ class Workflow:
         if require_fresh and not fresh:
             raise ValueError("automation request plan changed after submission; submit a new request")
         return {
-            "intent": intent, "submitted_snapshot": submitted_snapshot,
+            "intent": intent, "context": context, "submitted_snapshot": submitted_snapshot,
             "current_snapshot": current_snapshot, "snapshot_sha256": submitted_hash,
             "snapshot_current_sha256": current_hash, "snapshot_matches": fresh,
         }
@@ -306,6 +377,8 @@ class Workflow:
             "reviewed_ts=? WHERE id=?", (approver, time.time(), rid))
         self.conn.commit()
         self.db.audit(approver, "approve_request", f"CR#{rid}", cr["title"])
+        self._change_event(rid, "REQUEST_APPROVED", "approved", approver,
+                           f"CR#{rid} approved: {cr['title']}")
 
     def reject(self, rid, approver, note=""):
         cr = self.get(rid)
@@ -317,6 +390,8 @@ class Workflow:
             (approver, time.time(), note, rid))
         self.conn.commit()
         self.db.audit(approver, "reject_request", f"CR#{rid}", note or cr["title"])
+        self._change_event(rid, "REQUEST_REJECTED", "rejected", approver,
+                           f"CR#{rid} rejected: {cr['title']}", note=str(note or "")[:500])
 
     def cancel(self, rid, actor):
         cr = self.get(rid)
@@ -326,6 +401,8 @@ class Workflow:
                           (rid,))
         self.conn.commit()
         self.db.audit(actor, "cancel_request", f"CR#{rid}", cr["title"])
+        self._change_event(rid, "REQUEST_CANCELLED", "cancelled", actor,
+                           f"CR#{rid} cancelled: {cr['title']}")
 
     # ---- execution -------------------------------------------------------
     def execute(self, rid, executor, save=False):
@@ -343,6 +420,9 @@ class Workflow:
         affected = ", ".join(d["name"] for d in devices)
         self.db.audit(executor, "execute_request", f"CR#{rid}",
                       f"job#{job_id} on [{affected}]")
+        self._change_event(rid, "EXECUTION_STARTED", "running", executor,
+                           f"CR#{rid} execution started", job_id=job_id,
+                           affected_devices=[d["name"] for d in devices])
         results = self.m.bulk(devices, mode=cr["mode"], body=cr["body"], save=save)
         ok = sum(1 for r in results if r["ok"])
         fail = len(results) - ok
@@ -352,6 +432,12 @@ class Workflow:
             "UPDATE change_requests SET status=?, job_id=? WHERE id=?",
             (status, job_id, rid))
         self.conn.commit()
+        self._change_event(
+            rid, "EXECUTION_COMPLETED" if fail == 0 else "EXECUTION_FAILED", status,
+            executor, f"CR#{rid} {status}: {ok} ok, {fail} failed",
+            job_id=job_id, ok_count=ok, fail_count=fail,
+            affected_devices=[r["device"] for r in results],
+        )
         for r in results:
             self.db.audit(executor, "device_change",
                           f"CR#{rid}/{r['device']}",
@@ -364,7 +450,12 @@ class Workflow:
         intent = auto["intent"]
         kind = intent["kind"]
         job_id = self._start_job(cr, executor)
+        context = auto.get("context") or {}
+        self._change_event(rid, "EXECUTION_STARTED", "running", executor,
+                           f"CR#{rid} automation execution started", job_id=job_id,
+                           automation_kind=kind, workflow_context=context)
         results = []
+        workflow_tx_id = 0
         try:
             if kind == "structured_change":
                 tx = self.m.structured_changes.execute_resource(
@@ -373,6 +464,7 @@ class Workflow:
                     actor=executor, approved=True, approval_ref=f"CR#{rid}",
                     source_kind="manual", source_ref=f"CR#{rid}",
                 )
+                workflow_tx_id = int(tx["id"])
                 results = [{
                     "device": intent["device"], "ok": tx["state"] == "SUCCEEDED",
                     "changed": bool(tx.get("changed")),
@@ -383,6 +475,7 @@ class Workflow:
                     intent["transaction_id"], actor=executor, approved=True,
                     approval_ref=f"CR#{rid}",
                 )
+                workflow_tx_id = int(tx["id"])
                 results = [{
                     "device": tx["device"], "ok": tx["state"] == "SUCCEEDED",
                     "changed": bool(tx.get("changed")),
@@ -439,6 +532,25 @@ class Workflow:
         self.conn.commit()
         self.db.audit(executor, "execute_automation_request", f"CR#{rid}",
                       f"kind={kind};job={job_id};ok={ok};fail={fail}")
+        final_event = self._change_event(
+            rid, "EXECUTION_COMPLETED" if fail == 0 else "EXECUTION_FAILED", status,
+            executor, f"CR#{rid} {status}: {ok} ok, {fail} failed",
+            job_id=job_id, automation_kind=kind, ok_count=ok, fail_count=fail,
+            affected_devices=[result["device"] for result in results],
+            workflow_context=context, structured_transaction_id=workflow_tx_id or None,
+        )
+        incident_ref = str(context.get("incident_ref") or "")
+        if incident_ref:
+            try:
+                self.m.incidents.link_evidence(
+                    incident_ref, "change_event", final_event["id"], executor,
+                    note=f"R65 post-change evidence for CR#{rid}",
+                )
+            except Exception as exc:
+                # The network transaction is already committed at this point; never
+                # misreport it as failed solely because evidence back-linking failed.
+                self.db.audit(executor, "operator_workflow_evidence_link_failed", incident_ref,
+                              f"CR#{rid};{type(exc).__name__}")
         for result in results:
             self.db.audit(executor, "device_change", f"CR#{rid}/{result['device']}",
                           "ok" if result["ok"] else "FAILED")
@@ -446,11 +558,17 @@ class Workflow:
 
     def run_adhoc(self, *, devices, mode, body, run_by, title="", save=False,
                   extra_vars=None):
-        """Execute a job outside the approval flow (e.g. an admin read-only
-        'show' across a group, or a collect). Still audited and recorded."""
+        """Execute bounded read-only CLI commands outside the approval flow.
+
+        Legacy ad-hoc config/remediation used to create a second network-write
+        authority.  Mutation now fails closed here and must use a durable change
+        request / Structured Change approval path.
+        """
+        if mode != "command" or save:
+            raise ValueError("ad-hoc execution is read-only; submit network changes for approval")
         job_id = self._start_job(
-            {"mode": mode, "title": title or f"ad-hoc {mode}"}, run_by, request_id=None)
-        results = self.m.bulk(devices, mode=mode, body=body, save=save,
+            {"mode": mode, "title": title or "ad-hoc read-only"}, run_by, request_id=None)
+        results = self.m.bulk(devices, mode="command", body=body, save=False,
                               extra_vars=extra_vars)
         ok = sum(1 for r in results if r["ok"])
         self._finish_job(job_id, results, ok, len(results) - ok)

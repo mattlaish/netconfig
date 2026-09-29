@@ -1,6 +1,65 @@
 # NetConfig Architecture
 
-> **Canonical project state — 2026-09-23:** **CURRENT IMPLEMENTATION BASELINE** = **Release 51 / MC-3 Normalized Operational Evidence** (`2.0.0-51`, `IMPLEMENTED_TESTING_DEFERRED`). MC-1 Sensor Integration Unification and MC-2 Sensor History & State Transitions remain implemented. Release 51 adds a normalized cross-domain operational-evidence envelope, durable Sensor-transition → Event bridging, recovery/`UNKNOWN` semantics, additive event-schema migration/backfill/indexes, filtered/detail Event API reads, and an Event detail UI with current related Sensor state. NI-1 through **NI-7 L3/VRF Path & Route Dependency Intelligence** remain implemented. Formal RPM qualification remains deferred until the monitoring/correlation roadmap is complete; any ad-hoc RPM remains development evidence only.
+
+## MC-11 planning boundary
+
+MC-11 is an evidence/planning layer above existing persisted topology, NI-7 L3/VRF route evidence, endpoint attachment and MC-6 service dependencies. `TopologyChangePlanningService` reads those stores plus MC-11 policy evidence, persists plans, and emits evidence-backed gap/change-point explanations and schema-bounded Structured Change proposals. It does not own device polling, arbitrary command construction, approval, or execution. Candidate what-if operates only on planner state.
+
+## Release 58 / MC-10 correlation hardening layer
+
+`CorrelationHardeningService` sits around the existing MC-7 deterministic correlation engine. It persists execution evidence in `correlation_runs`, supplies bounded per-incident serialization/advisory locking, startup interruption recovery, replay/input/result fingerprinting, skew/truncation diagnostics, metadata retention, self-monitoring and qualification reporting. MC-5 remains the evidence system of record; MC-7 remains the hypothesis engine; MC-9 remains the operator presentation layer. The hardening layer does not poll infrastructure and is not a device/external-product execution plane.
+
+> **Canonical project state — 2026-09-25:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) on top of the frozen R67 candidate. MC-1 through MC-11 remain implemented; **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice and schema revision remains `mc11-topology-change-planning-1`; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included. R67.2 repairs fresh login, additive migration/index ordering, fail-closed Core PostgreSQL preflight, Core/History PostgreSQL configuration separation, and fresh PostgreSQL Core bootstrap without adding network-write authority. **All network mutation remains approval-gated; local/offline qualification does not establish RC or production release readiness; all required `LIVE_RC` gates remain mandatory. Do not create MC-12.** R68 must be rerun against the exact R67.2 candidate after mandatory live qualification.
+
+## Release 55 / MC-7 deterministic correlation pipeline
+
+MC-7 sits above the durable evidence and dependency layers rather than replacing them:
+
+```text
+Sensor / Event / Alert / Change / Analytics / External evidence
+                         |
+                         v
+             MC-5 Incident evidence timeline
+                         |
+                         +---- MC-6 Service/Dependency + L3 context
+                         |
+                         v
+              MC-7 deterministic rule engine
+                         |
+                         v
+                  Hypothesis records
+             + supporting evidence
+             + contradicting evidence
+             + confidence / rule version
+                         |
+                         v
+             Incident investigation UI/API
+```
+
+The engine never treats event-time proximity as a dependency. Exact entity identity or trusted active CONFIGURED/fresh DISCOVERED MC-6 relationships are required for cross-entity reasoning. Evaluation is bounded and deterministic; unchanged evidence replay is idempotent. The output is a hypothesis, not a root-cause or attack verdict, and the layer has no device polling/configuration authority.
+
+
+## MC-6 Service & Dependency Graph architecture
+
+MC-6 adds a service-knowledge layer above existing network evidence rather than merging service claims into topology tables. `service_entities` stores stable typed logical/runtime entities. `service_dependencies` stores directed typed evidence with provenance and freshness. Physical LLDP/CDP/FDB topology, endpoint attachment, NI-7 L3 routes, and service dependencies therefore remain separately auditable evidence domains.
+
+The graph path is: `persisted service entity/dependency evidence -> freshness/evidence-state filter -> bounded cycle-safe traversal -> optional ImpactSimulator projection`. Network overlay is a separate read-only path: `persisted NI-7 route observations -> L3RouteAnalyzer -> managed-device overlay`. The L3 analyzer remains authoritative for VRF scope, explicit `next_device`, loop bounds, and multipath ambiguity. A next-hop IP is evidence only and never creates a managed device or service dependency.
+
+`CONFIGURED` and fresh `DISCOVERED` edges participate in normal traversal. `INFERRED` is a candidate and requires explicit opt-in; `UNKNOWN` and stale evidence remain visible but are excluded by default. No event-time proximity creates a service dependency. Hard traversal limits prevent graph cycles or unexpectedly dense data from consuming unbounded CPU/RAM. MC-7 may consume this graph as context, but MC-6 itself produces no causal hypothesis.
+
+## MC-5 Incident evidence architecture
+
+The R53 evidence path is `durable source evidence -> typed validated Incident reference -> deterministic unified timeline -> grouped investigation view`. Incident links snapshot `source_ts`, `received_ts`, and bounded source-clock metadata; they do not clone large raw payloads. Source stores remain authoritative. If a referenced source row is later removed by retention, the Incident preserves the original link/timing and renders an unavailable-evidence marker rather than inventing content.
+
+Normalized change events are generated from existing structured workflow lifecycle transitions. Normalized external events are a bounded durable evidence primitive only; MC-5 has no connector runtime or external action plane. The Web/API/CLI investigation surfaces consume database evidence and do not trigger polling. MC-5 does not infer service dependencies or root cause. Those boundaries remain MC-6 and MC-7 respectively.
+
+
+## Release 52 — Unified alert and operator-evidence flow
+
+The canonical new-monitoring path is `port/http/tls check -> monitor_results -> Sensor -> durable Sensor transition -> normalized Operational Event -> operational_alerts`. `alert_rules` remain threshold inputs during compatibility migration; the legacy `alerts` table is read-only history for new monitor polls. Stable Sensor keys are the alert correlation identity so severity escalation updates one lifecycle and recovery resolves that same lifecycle. Upgrade-time migration backfills that identity for legacy active rows before the unique-correlation index is relied upon. Manual resolution does not permanently hide a still-firing Sensor: a DB-only reconciliation pass reopens the same lifecycle, and maintenance-covered durable Sensor evidence is re-evaluated after maintenance ends without manufacturing a new transition. Dependency suppression and maintenance remain outside collectors and are evaluated at the Event/Alert boundary.
+
+Endpoint correlation is an evidence join, not a collector: persisted ARP/IP-neighbor rows from L3 devices are joined by MAC to persisted FDB rows from switches, then LLDP/CDP plus explicitly `INFERRED` managed-device path evidence is used only to identify transit-facing candidates. Fresh FDB evidence can still establish a MAC attachment, but stale-only IP-neighbor evidence cannot yield `HIGH` confidence for the combined IP-to-port conclusion. NetFlow summaries are computed from the collector's bounded recent-flow ring and do not increase export or polling load. Config collection overrides remain inside the existing SSH collection path and are restricted to one read-oriented command; RouterOS accepts only exact `/export`, FortiGate/FortiOS has a native `show full-configuration` read profile, and CLI output is validated before it can become configuration truth.
+
 ## Release 48 — Sensor Model & Evidence Normalization
 
 Release 48 promotes the sensor work from UI-only health cards into a reusable persisted normalization layer. `SensorEngine` stores `sensor_type`, `device`, `resource`, `value`, `unit`, `status`, `message`, `threshold`, `source`, and `updated_at`, with the status contract limited to `OK`, `WARNING`, `CRITICAL`, and `UNKNOWN`. It reads existing NetConfig persistence only and does **not** initiate SNMP/NETCONF/RESTCONF/gNMI/SSH device I/O or change polling frequency.
@@ -42,7 +101,7 @@ The SNMP device page now derives operator-facing health cards from **already-col
 The previously documented Central Controller + read-only Site Edge/Collector concept remains a **future architecture item only**. No distributed collector, local site-alert engine, store-and-forward transport, secondary WAN/LTE/SMS path, or distributed execution node is implemented in Release 46.
 
 
-> **Roadmap disposition — 2026-09-23:** The monitoring/correlation roadmap is active. MC-1 through MC-3 are implemented in source as `IMPLEMENTED_TESTING_DEFERRED`; the next planned slice is **MC-4 / Release 52 — Unified Alert Plane**. NI-7 remains implemented and Q-1 remains an open production/service qualification track. Do not invent NI-8/Q-2 or skip the defined MC sequence without an explicit roadmap decision.
+> **Roadmap disposition — 2026-09-24:** **R59 / MC-11 is the final Monitoring & Correlation functional slice.** Do not create MC-12. After R59 use **Q2 Production Qualification Campaign → R60 Lifecycle → R61 Scale → R62 PostgreSQL → R63 HA → R64 Security → R65 Operator Workflow → R66 Supportability → R67 RC → R68 Production Release Decision**. Simulation never counts as live PASS; qualification states are `PASS / FAIL / BLOCKED_ENVIRONMENT / NOT_RUN`.
 ## Future distributed site-resilience architecture (recorded, not implemented)
 
 Distribution is motivated by **failure-domain isolation and site survivability** as well as eventual scale. A remote/site deployment must be able to keep observing local devices when the central controller or WAN path is unavailable.
@@ -128,3 +187,31 @@ Inventory membership creates nodes; it does not claim adjacency. Resolved LLDP/C
 
 The graph pipeline consumes persisted evidence and therefore adds no collection cadence or device I/O.
 
+
+## MC-6 follow-up: L3 routing topology evidence
+
+The physical graph and Layer-3 graph remain distinct evidence domains. CLI collection may produce normalized interface-address and active-route observations; the topology service resolves only fresh same-VRF evidence and emits `DIRECTLY_CONNECTED` and `NEXT_HOP` relationships. Combined topology is a presentation overlay, not a merged authority model. Physical LLDP/CDP evidence, FDB inferred paths, route evidence, endpoint attachment, and service dependencies retain their own provenance.
+
+A next-hop IP is not an inventory identity. Resolution requires a unique match to fresh managed-interface evidence in the same VRF. Ambiguous, stale, cross-VRF, unresolved, or unmanaged next hops remain explicit unknown/ambiguous evidence and do not become managed graph edges. Rendering is DB-only and bounded by persisted evidence; configuration collection is the only new read-side collection hook in this follow-up.
+
+## R56 / MC-8 external evidence ingestion architecture
+
+`ExternalEvidenceService` upgrades the pre-existing durable `external_events` evidence type rather than introducing a parallel event universe. `external_sources` holds source identity, type, one-to-one ingest-token reference, bounded payload/rate policy and operational health; `external_ingest_receipts` gives source-scoped idempotency receipts. Successful normalized evidence is persisted in `external_events` with tenant/source identity, sanitized metadata/payload, source/receive timestamps, connector type and deterministic payload hash, so MC-5 Incident timelines and MC-7 correlation consume the same durable evidence layer.
+
+The boundary is inbound and evidence-only. MC-8 creates no outbound command executor or vendor-response plane. Authentication, schema, size, replay and rate failures are explicit bounded outcomes and health signals rather than silent drops.
+
+## R62 PostgreSQL concurrency/recovery boundary
+
+Production PostgreSQL uses bounded DB-only dedicated transactions for retry-safe work. Serialization failures and deadlocks may be retried within the database transaction boundary; connection loss never triggers automatic write replay. Read-only statements may reconnect and retry once. Existing MC-10 advisory locks, Structured Change resource locks, MC-11 planning identity locks, and external-evidence idempotency locks remain separate purpose-specific concurrency authorities.
+
+## R65 operator-workflow composition
+
+`OperatorWorkflowService` is a read-model/composition boundary over existing stores; it is not an execution engine. Mutating steps continue through MC-11 planning → Workflow approval → Structured Change → verification/recovery/rollback. This preserves one authority path while providing a continuous operator surface.
+
+## R66 supportability read model
+
+`SupportabilityService` is a read-only composition layer over existing authorities. It may inspect persisted DB state and in-process collector status but cannot start collection, poll devices, execute changes, approve requests, or mutate incidents. Web/API/CLI/Prometheus/support-bundle surfaces consume the same bounded aggregate to avoid divergent health truth.
+
+## R67 release-engineering boundary
+
+R67 adds no runtime component or authority. The qualification runner and release-metadata generator operate outside the runtime control plane. Candidate evidence is cryptographically bound to release metadata/source-manifest identity and is invalidated by candidate changes. Runtime architecture and MC-11 authority are unchanged from R66.

@@ -1,6 +1,11 @@
 # NetConfig Documentation Status
 
-> **Canonical project state — 2026-09-23:** **CURRENT IMPLEMENTATION BASELINE** = **Release 51 / MC-3 Normalized Operational Evidence** (`2.0.0-51`, `IMPLEMENTED_TESTING_DEFERRED`). MC-1 Sensor Integration Unification and MC-2 Sensor History & State Transitions remain implemented. Release 51 adds a normalized cross-domain operational-evidence envelope, durable Sensor-transition → Event bridging, recovery/`UNKNOWN` semantics, additive event-schema migration/backfill/indexes, filtered/detail Event API reads, and an Event detail UI with current related Sensor state. NI-1 through **NI-7 L3/VRF Path & Route Dependency Intelligence** remain implemented. Formal RPM qualification remains deferred until the monitoring/correlation roadmap is complete; any ad-hoc RPM remains development evidence only.
+> **Canonical project state — 2026-09-25:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) on top of the frozen R67 candidate. MC-1 through MC-11 remain implemented; **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice and schema revision remains `mc11-topology-change-planning-1`; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included. R67.2 repairs fresh login, additive migration/index ordering, fail-closed Core PostgreSQL preflight, Core/History PostgreSQL configuration separation, and fresh PostgreSQL Core bootstrap without adding network-write authority. **All network mutation remains approval-gated; local/offline qualification does not establish RC or production release readiness; all required `LIVE_RC` gates remain mandatory. Do not create MC-12.** R68 must be rerun against the exact R67.2 candidate after mandatory live qualification.
+
+## Release 53 documentation sync — 2026-09-23
+
+Canonical docs describe MC-5 as `IMPLEMENTED_TESTING_DEFERRED`, Release `2.0.0-53`, schema revision `mc5-incident-evidence-timeline-1`, typed validated Incident references, deterministic source/receive-time timeline semantics, normalized change/external evidence stores, retention-safe unavailable markers, and read-only investigation API/CLI/Web presentation without automatic root-cause claims. R52/MC-4 remains historical predecessor evidence. The next roadmap slice is MC-6 / Release 54. Formal AlmaLinux/RPM/PostgreSQL/vendor qualification remains deferred.
+
 ## Release 48 — Sensor Model & Evidence Normalization
 
 Release 48 promotes the sensor work from UI-only health cards into a reusable persisted normalization layer. `SensorEngine` stores `sensor_type`, `device`, `resource`, `value`, `unit`, `status`, `message`, `threshold`, `source`, and `updated_at`, with the status contract limited to `OK`, `WARNING`, `CRITICAL`, and `UNKNOWN`. It reads existing NetConfig persistence only and does **not** initiate SNMP/NETCONF/RESTCONF/gNMI/SSH device I/O or change polling frequency.
@@ -35,7 +40,7 @@ The previously documented Central Controller + read-only Site Edge/Collector con
 **Release 46 source qualification:** repository regression executed in bounded groups totals **222 passed / 8 skipped / 0 failed**; the eight skips are seven explicit live/service prerequisites plus the expected Git-index mode skip because `.git` is absent. Focused Web Console/structural coverage is **13 passed**. Legacy selftest is **ALL PASS**; compileall, launcher `py_compile`, and packaging/tool shell syntax are **PASS**. Ruff `0.16.7` and mypy `2.3.1` remain **NOT_RUN** because the executables are unavailable. The dependency-free offline builder emitted `netconfig-2.0.0-46.el10.noarch.rpm` twice byte-identically; independent verification passed and SHA-256 is `5b26c9ae73ac4248171196ee3637f51bd238fed090c4ce3fa820419842f510cd`. Canonical AlmaLinux 10 `rpmbuild`/DNF install-upgrade/systemd/SELinux and other Q-1 live/device gates remain **NOT_RUN / DEFERRED**.
 
 
-> **Roadmap disposition — 2026-09-23:** The monitoring/correlation roadmap is active. MC-1 through MC-3 are implemented in source as `IMPLEMENTED_TESTING_DEFERRED`; the next planned slice is **MC-4 / Release 52 — Unified Alert Plane**. NI-7 remains implemented and Q-1 remains an open production/service qualification track. Do not invent NI-8/Q-2 or skip the defined MC sequence without an explicit roadmap decision.
+> **Roadmap disposition — 2026-09-24:** The monitoring/correlation roadmap is active. MC-1 through MC-9 are implemented in source as `IMPLEMENTED_TESTING_DEFERRED`; the next formal slice is **MC-10 / Release 58 — Correlation Production Hardening & Qualification**. NI-7 remains implemented and Q-1 remains an open production/service qualification track. MC-11 / Release 59 remains the final Topology-Aware Change Planning slice. Do not invent NI-8/Q-2 or skip the defined MC sequence without an explicit roadmap decision.
 
 
 ## 2026-09-18 documentation-only decision sync
@@ -44,7 +49,7 @@ Canonical design documentation now records the future Site Edge/Collector surviv
 
 ## Purpose
 
-This file is the documentation truth map. Historical release records retain their original measured counts and decisions; they do not override the current Release 45 state above.
+This file is the documentation truth map. Historical release records retain their original measured counts and decisions; they do not override the current Release 53 / MC-5 state above.
 
 ## Complete Markdown inventory
 
@@ -152,5 +157,10 @@ MC-2 runtime, API, WebUI, data-model/retention, test evidence, and continuation 
 
 ## 2026-09-23 — R51-HF1 documentation truth
 
-Current implementation baseline remains Release 51 / MC-3 (`2.0.0-51`, `IMPLEMENTED_TESTING_DEFERRED`) with a pre-MC4 compatibility hotfix overlay. MC-4 / Release 52 remains `PLANNED`. The hotfix repairs SNMPv3 AES-192/AES-256 key-extension semantics, same-process Vault unlock for topology discovery, inventory-complete topology nodes, non-authoritative FDB/MAC inferred paths, and interactive browser-local topology layout. No formal RPM or live-vendor qualification is claimed.
+Historical R51-HF1 documentation checkpoint: the baseline was Release 51 / MC-3 (`2.0.0-51`, `IMPLEMENTED_TESTING_DEFERRED`) with a pre-MC4 compatibility hotfix overlay and MC-4 was still `PLANNED`. Release 52 now supersedes that state. The hotfix repairs SNMPv3 AES-192/AES-256 key-extension semantics, same-process Vault unlock for topology discovery, inventory-complete topology nodes, non-authoritative FDB/MAC inferred paths, and interactive browser-local topology layout. No formal RPM or live-vendor qualification is claimed.
 
+
+
+## R67 documentation status
+
+Canonical documentation is synchronized to Release 67. `R67_RELEASE_CANDIDATE_QUALIFICATION.md` is the release-candidate gate contract. `RELEASE_MANIFEST.json` and `SBOM.spdx.json` are generated deterministically and checked for drift.

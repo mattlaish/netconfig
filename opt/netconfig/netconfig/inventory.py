@@ -17,7 +17,8 @@ import time
 
 _FIELDS = ["name", "host", "port", "platform", "device_type", "secret_ref", "enable_ref",
            "use_key", "legacy", "scrub", "enabled", "tags", "notes",
-           "snmp_version", "snmp_ref", "netflow", "monitor_ports", "monitor_urls"]
+           "snmp_version", "snmp_ref", "netflow", "monitor_ports", "monitor_urls",
+           "config_collect_command"]
 
 
 class Inventory:
@@ -67,6 +68,8 @@ class Inventory:
                 data["monitor_ports"] = ""
             if data.get("monitor_urls") is None:
                 data["monitor_urls"] = ""
+            if data.get("config_collect_command") is None:
+                data["config_collect_command"] = ""
             for b in ("use_key", "legacy", "scrub", "netflow"):
                 data[b] = int(bool(data.get(b)))
             data["enabled"] = 0 if data.get("enabled") in (0, False) else 1

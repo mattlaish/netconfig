@@ -64,7 +64,13 @@ DEFAULT_SETTINGS = {
     "network_intelligence_max_age_seconds": 1800, # freshness budget for endpoint correlation
     "core_db_backend": "sqlite",       # sqlite (single-node dev) | postgres (PH-2 production core)
     "core_db_application_name": "netconfig",
+    "pg_max_concurrent_transactions": 8, # bounded dedicated DB-only transactions (R62)
+    "pg_transaction_acquire_timeout_seconds": 5.0, # fail bounded on pool/budget pressure
+    "pg_transaction_retry_attempts": 3, # serialization/deadlock only; never replay connection-loss writes
     "cluster_node_id": "",             # optional stable node id; generated from host/pid when blank
+    "cluster_failure_domain": "",       # explicit rack/AZ/site identity for R63 HA readiness
+    "cluster_stale_seconds": 90,         # heartbeat freshness budget for HA membership
+    "distributed_task_lease_seconds": 60, # bounded PH-6/R63 worker ownership lease
     "if_history_enabled": False,       # persist long interface throughput history
     "if_history_hours": 24,            # retention / default history window (hours)
     "if_history_bucket_seconds": 60,   # downsample bucket for 24h history reads
@@ -76,6 +82,11 @@ DEFAULT_SETTINGS = {
     "pg_dbname": "",
     "pg_user": "",
     "pg_sslmode": "prefer",            # disable|allow|prefer|require|verify-ca|verify-full
+    "if_history_pg_host": "",
+    "if_history_pg_port": 5432,
+    "if_history_pg_dbname": "",
+    "if_history_pg_user": "",
+    "if_history_pg_sslmode": "prefer",
     "if_history_dsn": "",
     "backup_keep": 5,                  # config copies kept per device by the weekly backup
     "netflow_enabled": False,          # run the NetFlow collector in the console

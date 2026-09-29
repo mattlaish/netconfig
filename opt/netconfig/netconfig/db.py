@@ -12,8 +12,57 @@ losing devices or history. Every module (Inventory, Users, Automation, Workflow,
 Compliance) takes this shared connection.
 """
 
+import hashlib
+import json
 import sqlite3
 import threading
+
+
+
+def operational_alert_correlation_key(event):
+    """Return the stable MC-4 alert-condition identity for one event.
+
+    Kept in the DB layer so additive migrations and the runtime alert lifecycle
+    use exactly the same derivation. Sensor-backed events correlate by durable
+    Sensor key; all other events use a conservative normalized event identity.
+    """
+    event = event or {}
+    raw_meta = event.get("metadata")
+    if isinstance(raw_meta, dict):
+        meta = dict(raw_meta)
+    else:
+        try:
+            parsed = json.loads(raw_meta or "{}")
+        except Exception:
+            parsed = {}
+        meta = parsed if isinstance(parsed, dict) else {}
+    sensor_key = str(meta.get("sensor_key") or "").strip()
+    if sensor_key:
+        return "sensor:" + sensor_key[:900]
+    basis = "\x1f".join([
+        str(event.get("domain") or ""), str(event.get("source_type") or ""),
+        str(event.get("device") or ""), str(event.get("entity_type") or ""),
+        str(event.get("entity_id") or ""), str(event.get("resource") or ""),
+        str(event.get("event_type") or ""),
+    ])
+    return "event:" + hashlib.sha256(basis.encode("utf-8", "replace")).hexdigest()
+
+
+def backfill_operational_alert_correlation_keys(conn):
+    """Backfill R51/early-R52 alerts without changing alert lifecycle state."""
+    rows = conn.execute(
+        "SELECT a.id AS alert_id,e.* FROM operational_alerts a "
+        "JOIN operational_events e ON e.id=a.event_id "
+        "WHERE a.correlation_key IS NULL OR a.correlation_key=''"
+    ).fetchall()
+    for row in rows:
+        event = dict(row)
+        key = operational_alert_correlation_key(event)
+        if key:
+            conn.execute(
+                "UPDATE operational_alerts SET correlation_key=? WHERE id=?",
+                (key, int(event["alert_id"])))
+    return len(rows)
 
 _SCHEMA = """
 -- ---- devices (v1) ----------------------------------------------------------
@@ -26,6 +75,7 @@ CREATE TABLE IF NOT EXISTS devices (
     netflow     INTEGER NOT NULL DEFAULT 0,
     monitor_ports TEXT NOT NULL DEFAULT '',
     monitor_urls TEXT NOT NULL DEFAULT '',
+    config_collect_command TEXT NOT NULL DEFAULT '',
     secret_ref  TEXT,
     enable_ref  TEXT,
     use_key     INTEGER NOT NULL DEFAULT 0,
@@ -397,6 +447,7 @@ CREATE INDEX IF NOT EXISTS idx_operational_suppression_root ON operational_suppr
 -- ---- Network Intelligence NI-4: operational alert/report lifecycle --------
 CREATE TABLE IF NOT EXISTS operational_alerts (
     id INTEGER PRIMARY KEY AUTOINCREMENT, event_id INTEGER NOT NULL UNIQUE,
+    correlation_key TEXT NOT NULL DEFAULT '', last_event_id INTEGER,
     state TEXT NOT NULL DEFAULT 'OPEN', severity TEXT NOT NULL DEFAULT 'WARNING',
     device TEXT NOT NULL DEFAULT '', event_type TEXT NOT NULL DEFAULT '', message TEXT NOT NULL DEFAULT '',
     first_ts REAL NOT NULL, last_ts REAL NOT NULL, event_count INTEGER NOT NULL DEFAULT 1,
@@ -480,6 +531,9 @@ CREATE TABLE IF NOT EXISTS incident_evidence_links (
     source_ref TEXT NOT NULL,
     linked_by TEXT NOT NULL DEFAULT '',
     linked_ts REAL NOT NULL,
+    source_ts REAL NOT NULL DEFAULT 0,
+    received_ts REAL NOT NULL DEFAULT 0,
+    source_clock_json TEXT NOT NULL DEFAULT '{}',
     note TEXT NOT NULL DEFAULT '',
     UNIQUE(incident_id, source_type, source_ref)
 );
@@ -487,6 +541,102 @@ CREATE INDEX IF NOT EXISTS idx_incident_evidence_incident
     ON incident_evidence_links(incident_id, linked_ts);
 CREATE INDEX IF NOT EXISTS idx_incident_evidence_source
     ON incident_evidence_links(source_type, source_ref);
+
+-- ---- MC-5 durable cross-domain evidence -----------------------------------
+CREATE TABLE IF NOT EXISTS change_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    request_id INTEGER,
+    event_type TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT '',
+    actor TEXT NOT NULL DEFAULT '',
+    summary TEXT NOT NULL DEFAULT '',
+    source_ts REAL NOT NULL,
+    received_ts REAL NOT NULL,
+    metadata_json TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS idx_change_events_request_time
+    ON change_events(request_id, source_ts, id);
+CREATE INDEX IF NOT EXISTS idx_change_events_type_time
+    ON change_events(event_type, source_ts, id);
+CREATE TABLE IF NOT EXISTS external_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_system TEXT NOT NULL,
+    source_event_id TEXT NOT NULL,
+    domain TEXT NOT NULL DEFAULT 'EXTERNAL',
+    event_type TEXT NOT NULL,
+    severity TEXT NOT NULL DEFAULT 'INFO',
+    entity_type TEXT NOT NULL DEFAULT 'unknown',
+    entity_id TEXT NOT NULL DEFAULT '',
+    summary TEXT NOT NULL DEFAULT '',
+    source_ts REAL NOT NULL,
+    received_ts REAL NOT NULL,
+    source_clock_json TEXT NOT NULL DEFAULT '{}',
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    tenant_id TEXT NOT NULL DEFAULT 'default',
+    source_key TEXT NOT NULL DEFAULT '',
+    idempotency_key TEXT NOT NULL DEFAULT '',
+    schema_version TEXT NOT NULL DEFAULT '1',
+    payload_sha256 TEXT NOT NULL DEFAULT '',
+    payload_json TEXT NOT NULL DEFAULT '{}',
+    ingest_principal TEXT NOT NULL DEFAULT '',
+    ingest_result TEXT NOT NULL DEFAULT '',
+    connector_type TEXT NOT NULL DEFAULT '',
+    UNIQUE(source_system, source_event_id)
+);
+CREATE INDEX IF NOT EXISTS idx_external_events_source_time
+    ON external_events(source_system, source_ts, id);
+CREATE INDEX IF NOT EXISTS idx_external_events_domain_time
+    ON external_events(domain, source_ts, id);
+CREATE TABLE IF NOT EXISTS external_sources (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id TEXT NOT NULL DEFAULT 'default',
+    source_key TEXT NOT NULL,
+    source_type TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    ingest_token_id INTEGER REFERENCES api_tokens(id) ON DELETE SET NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    auth_mode TEXT NOT NULL DEFAULT 'BEARER',
+    schema_version TEXT NOT NULL DEFAULT '1',
+    max_payload_bytes INTEGER NOT NULL DEFAULT 65536,
+    rate_limit_per_minute INTEGER NOT NULL DEFAULT 120,
+    created_by TEXT NOT NULL DEFAULT '',
+    created_ts REAL NOT NULL,
+    updated_by TEXT NOT NULL DEFAULT '',
+    updated_ts REAL NOT NULL,
+    status TEXT NOT NULL DEFAULT 'CONFIGURED',
+    auth_state TEXT NOT NULL DEFAULT 'UNVERIFIED',
+    last_event_ts REAL NOT NULL DEFAULT 0,
+    last_received_ts REAL NOT NULL DEFAULT 0,
+    last_rejected_ts REAL NOT NULL DEFAULT 0,
+    last_auth_failure_ts REAL NOT NULL DEFAULT 0,
+    last_rate_limited_ts REAL NOT NULL DEFAULT 0,
+    received_count INTEGER NOT NULL DEFAULT 0,
+    rejected_count INTEGER NOT NULL DEFAULT 0,
+    duplicate_count INTEGER NOT NULL DEFAULT 0,
+    auth_failure_count INTEGER NOT NULL DEFAULT 0,
+    rate_limited_count INTEGER NOT NULL DEFAULT 0,
+    schema_rejection_count INTEGER NOT NULL DEFAULT 0,
+    last_error_class TEXT NOT NULL DEFAULT '',
+    last_error TEXT NOT NULL DEFAULT '',
+    UNIQUE(tenant_id, source_key),
+    UNIQUE(tenant_id, ingest_token_id)
+);
+CREATE INDEX IF NOT EXISTS idx_external_sources_type_status
+    ON external_sources(tenant_id, source_type, status);
+CREATE TABLE IF NOT EXISTS external_ingest_receipts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id TEXT NOT NULL DEFAULT 'default',
+    source_id INTEGER NOT NULL REFERENCES external_sources(id) ON DELETE CASCADE,
+    idempotency_key TEXT NOT NULL,
+    source_event_id TEXT NOT NULL,
+    event_id INTEGER NOT NULL REFERENCES external_events(id) ON DELETE CASCADE,
+    payload_sha256 TEXT NOT NULL,
+    received_ts REAL NOT NULL,
+    result TEXT NOT NULL,
+    UNIQUE(tenant_id, source_id, idempotency_key)
+);
+CREATE INDEX IF NOT EXISTS idx_external_ingest_receipts_event
+    ON external_ingest_receipts(event_id);
 
 -- ---- D.5/4C support-case exports ------------------------------------------
 CREATE TABLE IF NOT EXISTS incident_case_exports (
@@ -564,7 +714,8 @@ CREATE TABLE IF NOT EXISTS storage_meta (
 CREATE TABLE IF NOT EXISTS cluster_nodes (
     node_id TEXT PRIMARY KEY, hostname TEXT NOT NULL DEFAULT '', pid INTEGER NOT NULL DEFAULT 0,
     started_ts REAL NOT NULL, last_heartbeat_ts REAL NOT NULL, role TEXT NOT NULL DEFAULT 'control-plane',
-    state TEXT NOT NULL DEFAULT 'ACTIVE', drain_reason TEXT NOT NULL DEFAULT ''
+    state TEXT NOT NULL DEFAULT 'ACTIVE', drain_reason TEXT NOT NULL DEFAULT '',
+    failure_domain TEXT NOT NULL DEFAULT '', instance_id TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_cluster_nodes_heartbeat ON cluster_nodes(last_heartbeat_ts);
 CREATE TABLE IF NOT EXISTS distributed_tasks (
@@ -572,7 +723,9 @@ CREATE TABLE IF NOT EXISTS distributed_tasks (
     kind TEXT NOT NULL, payload TEXT NOT NULL DEFAULT '{}', state TEXT NOT NULL DEFAULT 'PENDING',
     available_ts REAL NOT NULL, claimed_by TEXT NOT NULL DEFAULT '', claim_ts REAL, lease_until REAL,
     attempts INTEGER NOT NULL DEFAULT 0, result TEXT NOT NULL DEFAULT '', error TEXT NOT NULL DEFAULT '',
-    created_ts REAL NOT NULL, updated_ts REAL NOT NULL
+    claim_generation INTEGER NOT NULL DEFAULT 0, claim_token TEXT NOT NULL DEFAULT '',
+    claimed_instance TEXT NOT NULL DEFAULT '', replay_safe INTEGER NOT NULL DEFAULT 0,
+    recovery_reason TEXT NOT NULL DEFAULT '', created_ts REAL NOT NULL, updated_ts REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_distributed_tasks_claim
     ON distributed_tasks(queue, state, available_ts, lease_until, id);
@@ -725,15 +878,207 @@ CREATE TABLE IF NOT EXISTS l3_route_observations (
     protocol TEXT NOT NULL DEFAULT '', next_hop TEXT NOT NULL DEFAULT '',
     outgoing_interface TEXT NOT NULL DEFAULT '', next_device TEXT NOT NULL DEFAULT '',
     metric INTEGER NOT NULL DEFAULT 0, terminal INTEGER NOT NULL DEFAULT 0,
-    evidence_ref TEXT NOT NULL DEFAULT '', actor TEXT NOT NULL DEFAULT '', observed_ts REAL NOT NULL
+    evidence_ref TEXT NOT NULL DEFAULT '', actor TEXT NOT NULL DEFAULT '', observed_ts REAL NOT NULL,
+    received_ts REAL NOT NULL DEFAULT 0, max_age_seconds INTEGER NOT NULL DEFAULT 0,
+    source_kind TEXT NOT NULL DEFAULT 'MANUAL', collection_id TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_l3_route_lookup
     ON l3_route_observations(device, vrf, destination_prefix, observed_ts);
 CREATE INDEX IF NOT EXISTS idx_l3_route_next_device
     ON l3_route_observations(next_device, vrf, destination_prefix, observed_ts);
+CREATE INDEX IF NOT EXISTS idx_l3_route_collection
+    ON l3_route_observations(device, source_kind, collection_id);
+CREATE TABLE IF NOT EXISTS l3_interface_observations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, tenant_id TEXT NOT NULL DEFAULT 'default',
+    device TEXT NOT NULL, vrf TEXT NOT NULL DEFAULT 'default', interface TEXT NOT NULL,
+    ip_address TEXT NOT NULL, prefix_length INTEGER NOT NULL DEFAULT 0,
+    network_prefix TEXT NOT NULL DEFAULT '', source_kind TEXT NOT NULL DEFAULT 'CLI_COLLECTION',
+    collection_id TEXT NOT NULL DEFAULT '', evidence_ref TEXT NOT NULL DEFAULT '',
+    observed_ts REAL NOT NULL, received_ts REAL NOT NULL DEFAULT 0,
+    max_age_seconds INTEGER NOT NULL DEFAULT 3600
+);
+CREATE INDEX IF NOT EXISTS idx_l3_interface_device
+    ON l3_interface_observations(device, vrf, interface, observed_ts);
+CREATE INDEX IF NOT EXISTS idx_l3_interface_ip
+    ON l3_interface_observations(vrf, ip_address, observed_ts);
+CREATE INDEX IF NOT EXISTS idx_l3_interface_collection
+    ON l3_interface_observations(device, source_kind, collection_id);
+CREATE TABLE IF NOT EXISTS l3_collection_state (
+    device TEXT PRIMARY KEY, collection_id TEXT NOT NULL DEFAULT '', platform TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'UNKNOWN', route_count INTEGER NOT NULL DEFAULT 0,
+    interface_count INTEGER NOT NULL DEFAULT 0, observed_ts REAL NOT NULL DEFAULT 0,
+    received_ts REAL NOT NULL DEFAULT 0, error TEXT NOT NULL DEFAULT ''
+);
+
+-- ---- MC-6 service & dependency graph ------------------------------------
+CREATE TABLE IF NOT EXISTS service_entities (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, tenant_id TEXT NOT NULL DEFAULT 'default',
+    entity_key TEXT NOT NULL, entity_type TEXT NOT NULL, name TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '', metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_by TEXT NOT NULL DEFAULT '', created_ts REAL NOT NULL, updated_ts REAL NOT NULL,
+    UNIQUE(tenant_id, entity_key)
+);
+CREATE INDEX IF NOT EXISTS idx_service_entities_type
+    ON service_entities(tenant_id, entity_type, name);
+CREATE TABLE IF NOT EXISTS service_dependencies (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, tenant_id TEXT NOT NULL DEFAULT 'default',
+    source_key TEXT NOT NULL, target_key TEXT NOT NULL, relationship TEXT NOT NULL,
+    evidence_state TEXT NOT NULL, provenance TEXT NOT NULL, evidence_ref TEXT NOT NULL DEFAULT '',
+    vrf TEXT NOT NULL DEFAULT '', destination_prefix TEXT NOT NULL DEFAULT '',
+    max_age_seconds INTEGER NOT NULL DEFAULT 0, observed_ts REAL NOT NULL DEFAULT 0,
+    received_ts REAL NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1,
+    metadata_json TEXT NOT NULL DEFAULT '{}', fingerprint TEXT NOT NULL UNIQUE,
+    created_by TEXT NOT NULL DEFAULT '', created_ts REAL NOT NULL, updated_ts REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_service_dependencies_source
+    ON service_dependencies(tenant_id, source_key, active, relationship);
+CREATE INDEX IF NOT EXISTS idx_service_dependencies_target
+    ON service_dependencies(tenant_id, target_key, active, relationship);
+CREATE INDEX IF NOT EXISTS idx_service_dependencies_evidence
+    ON service_dependencies(tenant_id, evidence_state, observed_ts);
+
+-- ---- MC-7 deterministic correlation hypotheses ----------------------------
+CREATE TABLE IF NOT EXISTS correlation_hypotheses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, tenant_id TEXT NOT NULL DEFAULT 'default',
+    incident_id INTEGER NOT NULL REFERENCES incidents(id) ON DELETE CASCADE,
+    hypothesis_key TEXT NOT NULL UNIQUE, hypothesis_type TEXT NOT NULL,
+    summary TEXT NOT NULL DEFAULT '', confidence INTEGER NOT NULL DEFAULT 0,
+    confidence_label TEXT NOT NULL DEFAULT 'LOW',
+    initiating_source_type TEXT NOT NULL DEFAULT '', initiating_source_ref TEXT NOT NULL DEFAULT '',
+    first_evidence_at REAL NOT NULL DEFAULT 0, last_evidence_at REAL NOT NULL DEFAULT 0,
+    supporting_json TEXT NOT NULL DEFAULT '[]', contradicting_json TEXT NOT NULL DEFAULT '[]',
+    affected_entities_json TEXT NOT NULL DEFAULT '[]',
+    rule_id TEXT NOT NULL, rule_version TEXT NOT NULL, evidence_fingerprint TEXT NOT NULL,
+    score_breakdown_json TEXT NOT NULL DEFAULT '{}', active INTEGER NOT NULL DEFAULT 1,
+    created_at REAL NOT NULL, updated_at REAL NOT NULL,
+    UNIQUE(incident_id, rule_id, rule_version, hypothesis_key)
+);
+CREATE INDEX IF NOT EXISTS idx_correlation_hypotheses_incident
+    ON correlation_hypotheses(incident_id, active, confidence DESC, hypothesis_type);
+CREATE INDEX IF NOT EXISTS idx_correlation_hypotheses_rule
+    ON correlation_hypotheses(rule_version, rule_id, active);
+
+-- ---- MC-11 topology-aware change planning --------------------------------
+CREATE TABLE IF NOT EXISTS change_planning_evidence (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, tenant_id TEXT NOT NULL DEFAULT 'default',
+    device TEXT NOT NULL, evidence_kind TEXT NOT NULL, direction TEXT NOT NULL,
+    vrf TEXT NOT NULL DEFAULT 'default', source_selector TEXT NOT NULL DEFAULT '*',
+    destination_selector TEXT NOT NULL DEFAULT '*', service TEXT NOT NULL DEFAULT 'any',
+    state TEXT NOT NULL, evidence_ref TEXT NOT NULL, metadata_json TEXT NOT NULL DEFAULT '{}',
+    fingerprint TEXT NOT NULL UNIQUE, observed_ts REAL NOT NULL, max_age_seconds INTEGER NOT NULL DEFAULT 0,
+    created_by TEXT NOT NULL DEFAULT '', created_ts REAL NOT NULL, updated_ts REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_change_planning_evidence_scope
+    ON change_planning_evidence(device, direction, vrf, evidence_kind, state);
+CREATE TABLE IF NOT EXISTS change_plans (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, tenant_id TEXT NOT NULL DEFAULT 'default',
+    plan_key TEXT NOT NULL UNIQUE, source_selector TEXT NOT NULL, destination_selector TEXT NOT NULL,
+    vrf TEXT NOT NULL DEFAULT 'default', destination_prefix TEXT NOT NULL DEFAULT '',
+    source_prefix TEXT NOT NULL DEFAULT '', service TEXT NOT NULL DEFAULT 'any',
+    planning_status TEXT NOT NULL, input_json TEXT NOT NULL DEFAULT '{}', result_json TEXT NOT NULL DEFAULT '{}',
+    created_by TEXT NOT NULL DEFAULT '', created_ts REAL NOT NULL, updated_ts REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_change_plans_scope
+    ON change_plans(vrf, source_selector, destination_selector, updated_ts);
+
+-- ---- MC-10 correlation production hardening -------------------------------
+CREATE TABLE IF NOT EXISTS correlation_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, tenant_id TEXT NOT NULL DEFAULT 'default',
+    incident_id INTEGER NOT NULL REFERENCES incidents(id) ON DELETE CASCADE,
+    run_key TEXT NOT NULL UNIQUE, mode TEXT NOT NULL DEFAULT 'CORRELATE',
+    rule_version TEXT NOT NULL, input_fingerprint TEXT NOT NULL,
+    result_fingerprint TEXT NOT NULL DEFAULT '', state TEXT NOT NULL DEFAULT 'RUNNING',
+    replay_of_id INTEGER REFERENCES correlation_runs(id) ON DELETE SET NULL,
+    deterministic_match INTEGER NOT NULL DEFAULT 1,
+    facts_considered INTEGER NOT NULL DEFAULT 0, hypotheses_count INTEGER NOT NULL DEFAULT 0,
+    late_evidence_count INTEGER NOT NULL DEFAULT 0, future_skew_count INTEGER NOT NULL DEFAULT 0,
+    out_of_order_count INTEGER NOT NULL DEFAULT 0, dependency_truncated INTEGER NOT NULL DEFAULT 0,
+    facts_truncated INTEGER NOT NULL DEFAULT 0, range_start_ts REAL NOT NULL DEFAULT 0,
+    range_end_ts REAL NOT NULL DEFAULT 0, queued_ts REAL NOT NULL, started_ts REAL NOT NULL,
+    finished_ts REAL NOT NULL DEFAULT 0, duration_ms REAL NOT NULL DEFAULT 0,
+    error TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_correlation_runs_incident
+    ON correlation_runs(incident_id, started_ts DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_correlation_runs_fingerprint
+    ON correlation_runs(incident_id, mode, rule_version, input_fingerprint, state, finished_ts DESC);
+CREATE INDEX IF NOT EXISTS idx_correlation_runs_state
+    ON correlation_runs(state, started_ts);
 """
 
 # Additive column migrations: (table, column, coldef). Applied only if absent.
+
+def _split_sql_script(script):
+    """Split our DDL on semicolons outside strings/comments.
+
+    sqlite3.executescript handles this natively, but PostgreSQL bootstrap needs
+    individual statements and the schema contains semicolons inside -- comments.
+    """
+    out, buf = [], []
+    quote = None
+    line_comment = False
+    i = 0
+    while i < len(script):
+        ch = script[i]
+        nxt = script[i + 1] if i + 1 < len(script) else ""
+        if line_comment:
+            if ch == "\n":
+                line_comment = False
+                buf.append(ch)
+            i += 1
+            continue
+        if quote:
+            buf.append(ch)
+            if ch == quote:
+                if nxt == quote:
+                    buf.append(nxt)
+                    i += 2
+                    continue
+                quote = None
+            i += 1
+            continue
+        if ch == "-" and nxt == "-":
+            line_comment = True
+            i += 2
+            continue
+        if ch in ("'", '"'):
+            quote = ch
+            buf.append(ch)
+            i += 1
+            continue
+        if ch == ";":
+            stmt = "".join(buf).strip()
+            if stmt:
+                out.append(stmt)
+            buf = []
+            i += 1
+            continue
+        buf.append(ch)
+        i += 1
+    tail = "".join(buf).strip()
+    if tail:
+        out.append(tail)
+    return out
+
+
+def _schema_statements(*, indexes=None):
+    """Return schema statements split into base DDL and indexes.
+
+    Existing databases may need additive columns before indexes that reference
+    those columns can be created. Callers bootstrap tables first, apply
+    _MIGRATIONS, then create indexes.
+    """
+    base, idx = [], []
+    for stmt in _split_sql_script(_SCHEMA):
+        target = idx if stmt.lstrip().upper().startswith("CREATE INDEX") else base
+        target.append(stmt)
+    if indexes is True:
+        return idx
+    if indexes is False:
+        return base
+    return base + idx
+
+
 _MIGRATIONS = [
     ("devices", "snmp_version", "TEXT NOT NULL DEFAULT ''"),   # '', v2c, v3
     ("devices", "snmp_ref", "TEXT"),                            # vault entry
@@ -741,6 +1086,7 @@ _MIGRATIONS = [
     ("devices", "netflow", "INTEGER NOT NULL DEFAULT 0"),      # collect NetFlow (network devices)
     ("devices", "monitor_ports", "TEXT NOT NULL DEFAULT ''"),  # tcp/udp ports (system devices)
     ("devices", "monitor_urls", "TEXT NOT NULL DEFAULT ''"),   # http(s) endpoints (application devices)
+    ("devices", "config_collect_command", "TEXT NOT NULL DEFAULT ''"), # bounded read-only CLI config collection override
     ("api_tokens", "role", "TEXT NOT NULL DEFAULT 'viewer'"),
     ("incident_case_exports", "signature_state", "TEXT NOT NULL DEFAULT 'UNSIGNED'"),
     ("incident_case_exports", "signature_algorithm", "TEXT NOT NULL DEFAULT ''"),
@@ -760,6 +1106,11 @@ _MIGRATIONS = [
     ("operational_events", "status", "TEXT NOT NULL DEFAULT 'OBSERVED'"),
     ("operational_events", "observed_at", "REAL NOT NULL DEFAULT 0"),
     ("operational_events", "evidence_ref", "TEXT NOT NULL DEFAULT ''"),
+    ("operational_alerts", "correlation_key", "TEXT NOT NULL DEFAULT ''"),
+    ("operational_alerts", "last_event_id", "INTEGER"),
+    ("incident_evidence_links", "source_ts", "REAL NOT NULL DEFAULT 0"),
+    ("incident_evidence_links", "received_ts", "REAL NOT NULL DEFAULT 0"),
+    ("incident_evidence_links", "source_clock_json", "TEXT NOT NULL DEFAULT '{}'"),
     ("structured_change_transactions", "approval_ref", "TEXT NOT NULL DEFAULT ''"),
     ("structured_change_transactions", "idempotency_key", "TEXT NOT NULL DEFAULT ''"),
     ("structured_change_transactions", "changed", "INTEGER NOT NULL DEFAULT 0"),
@@ -792,6 +1143,26 @@ _MIGRATIONS = [
     ("recovery_drills", "verification_ref", "TEXT NOT NULL DEFAULT ''"),
     ("cluster_nodes", "state", "TEXT NOT NULL DEFAULT 'ACTIVE'"),
     ("cluster_nodes", "drain_reason", "TEXT NOT NULL DEFAULT ''"),
+    ("cluster_nodes", "failure_domain", "TEXT NOT NULL DEFAULT ''"),
+    ("cluster_nodes", "instance_id", "TEXT NOT NULL DEFAULT ''"),
+    ("distributed_tasks", "claim_generation", "INTEGER NOT NULL DEFAULT 0"),
+    ("distributed_tasks", "claim_token", "TEXT NOT NULL DEFAULT ''"),
+    ("distributed_tasks", "claimed_instance", "TEXT NOT NULL DEFAULT ''"),
+    ("distributed_tasks", "replay_safe", "INTEGER NOT NULL DEFAULT 0"),
+    ("distributed_tasks", "recovery_reason", "TEXT NOT NULL DEFAULT ''"),
+    ("l3_route_observations", "received_ts", "REAL NOT NULL DEFAULT 0"),
+    ("l3_route_observations", "max_age_seconds", "INTEGER NOT NULL DEFAULT 0"),
+    ("l3_route_observations", "source_kind", "TEXT NOT NULL DEFAULT 'MANUAL'"),
+    ("l3_route_observations", "collection_id", "TEXT NOT NULL DEFAULT ''"),
+    ("external_events", "tenant_id", "TEXT NOT NULL DEFAULT 'default'"),
+    ("external_events", "source_key", "TEXT NOT NULL DEFAULT ''"),
+    ("external_events", "idempotency_key", "TEXT NOT NULL DEFAULT ''"),
+    ("external_events", "schema_version", "TEXT NOT NULL DEFAULT '1'"),
+    ("external_events", "payload_sha256", "TEXT NOT NULL DEFAULT ''"),
+    ("external_events", "payload_json", "TEXT NOT NULL DEFAULT '{}'"),
+    ("external_events", "ingest_principal", "TEXT NOT NULL DEFAULT ''"),
+    ("external_events", "ingest_result", "TEXT NOT NULL DEFAULT ''"),
+    ("external_events", "connector_type", "TEXT NOT NULL DEFAULT ''"),
 ]
 
 
@@ -858,7 +1229,7 @@ class _LockedConn:
 class Database:
     dialect = "sqlite"
     distributed_capable = False
-    schema_revision = "mc3-operational-evidence-1"
+    schema_revision = "mc11-topology-change-planning-1"
 
     def __init__(self, path):
         self.path = path
@@ -867,10 +1238,15 @@ class Database:
         raw.execute("PRAGMA journal_mode=WAL")
         raw.execute("PRAGMA foreign_keys=ON")
         raw.execute("PRAGMA busy_timeout=5000")
-        raw.executescript(_SCHEMA)
+        # Bootstrap tables first. Existing databases may be missing additive
+        # columns referenced by newer indexes, so indexes must come after migrate.
+        base_schema = ";\n".join(_schema_statements(indexes=False)) + ";"
+        raw.executescript(base_schema)
         self._lock = threading.RLock()
         self.conn = _LockedConn(raw, self._lock)
         self._migrate()
+        index_schema = ";\n".join(_schema_statements(indexes=True)) + ";"
+        self.conn.executescript(index_schema)
         self.conn.commit()
         self._stamp_schema_revision()
 
@@ -891,6 +1267,92 @@ class Database:
         self.conn.execute("CREATE INDEX IF NOT EXISTS idx_operational_events_domain_time ON operational_events(domain, observed_at DESC)")
         self.conn.execute("CREATE INDEX IF NOT EXISTS idx_operational_events_entity_time ON operational_events(entity_type, entity_id, observed_at DESC)")
         self.conn.execute("CREATE INDEX IF NOT EXISTS idx_operational_events_evidence_ref ON operational_events(evidence_ref)")
+        self.conn.execute("UPDATE operational_alerts SET last_event_id=event_id WHERE last_event_id IS NULL")
+        backfill_operational_alert_correlation_keys(self.conn)
+        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_operational_alert_correlation ON operational_alerts(correlation_key, state, last_ts DESC)")
+        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_external_events_tenant_source_time ON external_events(tenant_id, source_key, received_ts, id)")
+        self._backfill_incident_evidence_timing()
+
+    def _backfill_incident_evidence_timing(self):
+        sources = {
+            "audit": ("audit", "ts"),
+            "syslog": ("syslog_events", "ts"),
+            "collection": ("runs", "ts"),
+            "compliance": ("compliance_runs", "ts"),
+            "protocol_trace": ("protocol_trace_sessions", "created_ts"),
+            "sensor_transition": ("sensor_transitions", "observed_at"),
+            "operational_event": ("operational_events", "observed_at"),
+            "operational_alert": ("operational_alerts", "first_ts"),
+            "change_event": ("change_events", "source_ts"),
+            "analytics_insight": ("network_insights", "first_seen_ts"),
+            "external_event": ("external_events", "source_ts"),
+        }
+        for source_type, (table, column) in sources.items():
+            self.conn.execute(
+                f"UPDATE incident_evidence_links SET source_ts=COALESCE("
+                f"(SELECT {column} FROM {table} WHERE CAST({table}.id AS TEXT)=incident_evidence_links.source_ref),"
+                "linked_ts) WHERE source_type=? AND source_ts=0",
+                (source_type,),
+            )
+        self.conn.execute(
+            "UPDATE incident_evidence_links SET source_ts=linked_ts "
+            "WHERE source_type='drift' AND source_ts=0"
+        )
+        self.conn.execute(
+            "UPDATE incident_evidence_links SET received_ts=linked_ts WHERE received_ts=0"
+        )
+
+    def record_change_event(self, request_id, event_type, status, actor, summary="",
+                            metadata=None, source_ts=None, received_ts=None):
+        import time
+        source_ts = time.time() if source_ts is None else float(source_ts)
+        received_ts = time.time() if received_ts is None else float(received_ts)
+        event_type = str(event_type or "").strip().upper()[:64]
+        if not event_type:
+            raise ValueError("change event type is required")
+        payload = json.dumps(metadata or {}, sort_keys=True, separators=(",", ":"))
+        if len(payload.encode("utf-8")) > 8192:
+            raise ValueError("change event metadata exceeds 8192 bytes")
+        cur = self.conn.execute(
+            "INSERT INTO change_events(request_id,event_type,status,actor,summary,source_ts,received_ts,metadata_json) "
+            "VALUES(?,?,?,?,?,?,?,?)",
+            (None if request_id is None else int(request_id), event_type,
+             str(status or "")[:64], str(actor or "")[:128],
+             str(summary or "").replace("\x00", "")[:1000], source_ts, received_ts, payload),
+        )
+        self.conn.commit()
+        return dict(self.conn.execute("SELECT * FROM change_events WHERE id=?", (cur.lastrowid,)).fetchone())
+
+    def record_external_event(self, source_system, source_event_id, event_type, *, domain="EXTERNAL",
+                              severity="INFO", entity_type="unknown", entity_id="", summary="",
+                              source_ts=None, received_ts=None, source_clock=None, metadata=None):
+        import time
+        source_system = str(source_system or "").strip()[:128]
+        source_event_id = str(source_event_id or "").strip()[:256]
+        event_type = str(event_type or "").strip()[:128]
+        if not source_system or not source_event_id or not event_type:
+            raise ValueError("external event source, source_event_id and event_type are required")
+        source_ts = time.time() if source_ts is None else float(source_ts)
+        received_ts = time.time() if received_ts is None else float(received_ts)
+        clock_json = json.dumps(source_clock or {}, sort_keys=True, separators=(",", ":"))
+        metadata_json = json.dumps(metadata or {}, sort_keys=True, separators=(",", ":"))
+        if len(clock_json.encode("utf-8")) > 4096 or len(metadata_json.encode("utf-8")) > 8192:
+            raise ValueError("external event metadata exceeds limit")
+        self.conn.execute(
+            "INSERT OR IGNORE INTO external_events(source_system,source_event_id,domain,event_type,severity,"
+            "entity_type,entity_id,summary,source_ts,received_ts,source_clock_json,metadata_json) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+            (source_system, source_event_id, str(domain or "EXTERNAL").upper()[:64], event_type,
+             str(severity or "INFO").upper()[:32], str(entity_type or "unknown")[:64],
+             str(entity_id or "")[:255], str(summary or "").replace("\x00", "")[:1000],
+             source_ts, received_ts, clock_json, metadata_json),
+        )
+        self.conn.commit()
+        row = self.conn.execute(
+            "SELECT * FROM external_events WHERE source_system=? AND source_event_id=?",
+            (source_system, source_event_id),
+        ).fetchone()
+        return dict(row)
 
     def audit(self, actor, action, target="", detail=""):
         import time
@@ -1295,17 +1757,56 @@ class Database:
         row=self.conn.execute("SELECT * FROM operational_alerts WHERE event_id=?",(int(event_id),)).fetchone()
         return dict(row) if row else None
 
-    def create_operational_alert(self, event):
+    def create_operational_alert(self, event, correlation_key="", opened_ts=None):
+        event_last = float(event.get("last_ts") or event.get("first_ts") or 0)
+        alert_last = max(event_last, float(opened_ts)) if opened_ts is not None else event_last
         cur=self.conn.execute(
-            "INSERT INTO operational_alerts(event_id,state,severity,device,event_type,message,first_ts,last_ts,event_count) VALUES(?, 'OPEN', ?,?,?,?,?,?,?)",
-            (int(event["id"]), event.get("severity") or "WARNING", event.get("device") or "",
-             event.get("event_type") or "", event.get("message") or "", float(event.get("first_ts") or event.get("last_ts") or 0),
-             float(event.get("last_ts") or event.get("first_ts") or 0), int(event.get("event_count") or 1)))
+            "INSERT INTO operational_alerts(event_id,correlation_key,last_event_id,state,severity,device,event_type,message,first_ts,last_ts,event_count) VALUES(?,?,?, 'OPEN', ?,?,?,?,?,?,?)",
+            (int(event["id"]), str(correlation_key or ""), int(event["id"]),
+             event.get("severity") or "WARNING", event.get("device") or "",
+             event.get("event_type") or "", event.get("message") or "",
+             float(event.get("first_ts") or event.get("last_ts") or 0),
+             alert_last, int(event.get("event_count") or 1)))
         self.conn.commit(); return self.get_operational_alert(cur.lastrowid)
 
+    def active_operational_alert_for_correlation(self, correlation_key):
+        if not correlation_key:
+            return None
+        row=self.conn.execute(
+            "SELECT * FROM operational_alerts WHERE correlation_key=? AND state IN ('OPEN','ACKNOWLEDGED') ORDER BY id DESC LIMIT 1",
+            (str(correlation_key),)).fetchone()
+        return dict(row) if row else None
+
+    def latest_operational_alert_for_correlation(self, correlation_key):
+        if not correlation_key:
+            return None
+        row=self.conn.execute(
+            "SELECT * FROM operational_alerts WHERE correlation_key=? ORDER BY id DESC LIMIT 1",
+            (str(correlation_key),)).fetchone()
+        return dict(row) if row else None
+
+    def reopen_operational_alert(self, alert_id, now):
+        self.conn.execute(
+            "UPDATE operational_alerts SET state='OPEN', last_ts=?, "
+            "acknowledged_by='', acknowledged_ts=NULL, acknowledge_note='', "
+            "resolved_by='', resolved_ts=NULL, resolution_note='' WHERE id=?",
+            (float(now), int(alert_id)))
+        self.conn.commit(); return self.get_operational_alert(alert_id)
+
     def touch_operational_alert(self, alert_id, event):
-        self.conn.execute("UPDATE operational_alerts SET last_ts=?, event_count=? WHERE id=?",
-                          (float(event.get("last_ts") or 0), int(event.get("event_count") or 1), int(alert_id)))
+        self.conn.execute(
+            "UPDATE operational_alerts SET last_ts=?, event_count=CASE WHEN last_event_id=? THEN ? ELSE event_count+? END, last_event_id=?, severity=?, event_type=?, message=? WHERE id=?",
+            (float(event.get("last_ts") or 0), int(event.get("id") or 0),
+             max(1, int(event.get("event_count") or 1)), max(1, int(event.get("event_count") or 1)),
+             int(event.get("id") or 0), event.get("severity") or "WARNING",
+             event.get("event_type") or "", event.get("message") or "", int(alert_id)))
+        self.conn.commit(); return self.get_operational_alert(alert_id)
+
+    def touch_operational_alert_recovery(self, alert_id, event):
+        self.conn.execute(
+            "UPDATE operational_alerts SET last_ts=?, last_event_id=?, event_count=event_count+1 WHERE id=?",
+            (float(event.get("last_ts") or event.get("observed_at") or 0),
+             int(event.get("id") or 0), int(alert_id)))
         self.conn.commit(); return self.get_operational_alert(alert_id)
 
     def get_operational_alert(self, alert_id):
@@ -1438,10 +1939,11 @@ class Database:
                     "schema_revision": "", "configured_revision": self.schema_revision,
                     "reachable": False, "ok": False, "error": str(exc)[:300]}
 
-    def register_cluster_node(self, node_id, hostname, pid, now, role="control-plane"):
-        # delete+insert is deliberately portable across SQLite/PostgreSQL. A
-        # configured stable node id preserves an explicit drain state across a
-        # process restart so maintenance cannot be bypassed by restarting it.
+    def register_cluster_node(self, node_id, hostname, pid, now, role="control-plane",
+                              failure_domain="", instance_id=""):
+        # A stable node id preserves explicit drain state across restart. R63 also
+        # records a process-instance id and an operator-declared failure domain;
+        # PostgreSQL node-identity fencing is enforced by HAService/Manager.
         previous = self.conn.execute(
             "SELECT state,drain_reason FROM cluster_nodes WHERE node_id=?", (node_id,)
         ).fetchone()
@@ -1450,27 +1952,29 @@ class Database:
         self.conn.execute("DELETE FROM cluster_nodes WHERE node_id=?", (node_id,))
         self.conn.execute(
             "INSERT INTO cluster_nodes"
-            "(node_id,hostname,pid,started_ts,last_heartbeat_ts,role,state,drain_reason) "
-            "VALUES(?,?,?,?,?,?,?,?)",
+            "(node_id,hostname,pid,started_ts,last_heartbeat_ts,role,state,drain_reason,failure_domain,instance_id) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?)",
             (
-                node_id,
-                hostname or "",
-                int(pid),
-                float(now),
-                float(now),
-                role or "control-plane",
-                state,
-                reason,
+                node_id, hostname or "", int(pid), float(now), float(now),
+                role or "control-plane", state, reason,
+                str(failure_domain or "")[:256], str(instance_id or "")[:128],
             ),
         )
         self.conn.commit()
 
-    def heartbeat_cluster_node(self, node_id, now):
-        self.conn.execute(
-            "UPDATE cluster_nodes SET last_heartbeat_ts=? WHERE node_id=?",
-            (float(now), node_id),
-        )
+    def heartbeat_cluster_node(self, node_id, now, instance_id=None):
+        if instance_id:
+            cur = self.conn.execute(
+                "UPDATE cluster_nodes SET last_heartbeat_ts=? WHERE node_id=? AND instance_id=?",
+                (float(now), node_id, str(instance_id)),
+            )
+        else:
+            cur = self.conn.execute(
+                "UPDATE cluster_nodes SET last_heartbeat_ts=? WHERE node_id=?",
+                (float(now), node_id),
+            )
         self.conn.commit()
+        return bool(cur.rowcount)
 
     def list_cluster_nodes(self, since_ts=0):
         rows = self.conn.execute(
@@ -1499,46 +2003,107 @@ class Database:
             raise ValueError("unknown cluster node")
         return self.get_cluster_node(node_id)
 
-    def enqueue_distributed_task(self, queue, kind, payload, now, available_ts=None):
+    def enqueue_distributed_task(self, queue, kind, payload, now, available_ts=None, replay_safe=False):
         available = float(now if available_ts is None else available_ts)
         cur = self.conn.execute(
-            "INSERT INTO distributed_tasks(queue,kind,payload,state,available_ts,created_ts,updated_ts) "
-            "VALUES(?,?,?,'PENDING',?,?,?)",
-            (queue or "default", kind, payload or "{}", available, float(now), float(now)))
+            "INSERT INTO distributed_tasks(queue,kind,payload,state,available_ts,replay_safe,created_ts,updated_ts) "
+            "VALUES(?,?,?,'PENDING',?,?,?,?)",
+            (queue or "default", kind, payload or "{}", available, int(bool(replay_safe)),
+             float(now), float(now)))
         self.conn.commit()
         return dict(self.conn.execute("SELECT * FROM distributed_tasks WHERE id=?",
                                       (cur.lastrowid,)).fetchone())
 
-    def claim_distributed_task(self, queue, worker_id, now, lease_seconds=60):
-        # SQLite remains a single-node development backend. This process-local
-        # lock makes claims atomic among its threads; PostgreSQL overrides this
-        # with SELECT ... FOR UPDATE SKIP LOCKED for real multi-node workers.
+    @staticmethod
+    def _claim_token():
+        import secrets
+        return secrets.token_hex(24)
+
+    def claim_distributed_task(self, queue, worker_id, now, lease_seconds=60, instance_id=""):
+        # R63 never silently replays an expired claim. Expired/partial work must
+        # first transition to RECOVERY_REQUIRED and be explicitly reconciled.
         lease_until = float(now) + max(5, int(lease_seconds))
         with self._lock:
             row = self.conn.execute(
-                "SELECT * FROM distributed_tasks WHERE queue=? AND available_ts<=? "
-                "AND (state='PENDING' OR (state='CLAIMED' AND lease_until<?)) "
-                "ORDER BY id LIMIT 1", (queue or "default", float(now), float(now))).fetchone()
+                "SELECT * FROM distributed_tasks WHERE queue=? AND available_ts<=? AND state='PENDING' "
+                "ORDER BY id LIMIT 1", (queue or "default", float(now))).fetchone()
             if not row:
                 return None
             attempts = int(row["attempts"] or 0) + 1
+            generation = int(row["claim_generation"] or 0) + 1
+            token = self._claim_token()
             self.conn.execute(
-                "UPDATE distributed_tasks SET state='CLAIMED',claimed_by=?,claim_ts=?,lease_until=?,"
-                "attempts=?,updated_ts=? WHERE id=?",
-                (worker_id, float(now), lease_until, attempts, float(now), int(row["id"])))
+                "UPDATE distributed_tasks SET state='CLAIMED',claimed_by=?,claimed_instance=?,claim_ts=?,"
+                "lease_until=?,attempts=?,claim_generation=?,claim_token=?,recovery_reason='',updated_ts=? "
+                "WHERE id=? AND state='PENDING'",
+                (worker_id, str(instance_id or "")[:128], float(now), lease_until, attempts, generation,
+                 token, float(now), int(row["id"])))
             self.conn.commit()
             return dict(self.conn.execute("SELECT * FROM distributed_tasks WHERE id=?",
                                           (int(row["id"]),)).fetchone())
 
-    def finish_distributed_task(self, task_id, worker_id, now, ok=True, result="", error=""):
-        state = "DONE" if ok else "FAILED"
-        self.conn.execute(
-            "UPDATE distributed_tasks SET state=?,result=?,error=?,lease_until=NULL,updated_ts=? "
-            "WHERE id=? AND claimed_by=?",
-            (state, result or "", error or "", float(now), int(task_id), worker_id))
+    def renew_distributed_task(self, task_id, worker_id, claim_token, claim_generation, now, lease_seconds=60):
+        lease_until = float(now) + max(5, int(lease_seconds))
+        cur = self.conn.execute(
+            "UPDATE distributed_tasks SET lease_until=?,updated_ts=? WHERE id=? AND state='CLAIMED' "
+            "AND claimed_by=? AND claim_token=? AND claim_generation=? AND lease_until>=?",
+            (lease_until, float(now), int(task_id), str(worker_id), str(claim_token),
+             int(claim_generation), float(now)))
         self.conn.commit()
+        if not cur.rowcount:
+            raise ValueError("distributed task lease is stale or no longer owned by this worker")
+        return dict(self.conn.execute("SELECT * FROM distributed_tasks WHERE id=?", (int(task_id),)).fetchone())
+
+    def finish_distributed_task(self, task_id, worker_id, now, ok=True, result="", error="",
+                                claim_token=None, claim_generation=None):
+        if not claim_token or claim_generation is None:
+            raise ValueError("claim_token and claim_generation are required to finish a distributed task")
+        state = "DONE" if ok else "FAILED"
+        cur = self.conn.execute(
+            "UPDATE distributed_tasks SET state=?,result=?,error=?,lease_until=NULL,updated_ts=? "
+            "WHERE id=? AND state='CLAIMED' AND claimed_by=? AND claim_token=? "
+            "AND claim_generation=? AND lease_until>=?",
+            (state, result or "", error or "", float(now), int(task_id), str(worker_id),
+             str(claim_token), int(claim_generation), float(now)))
+        self.conn.commit()
+        if not cur.rowcount:
+            raise ValueError("distributed task finish rejected: stale/expired fencing token")
         row = self.conn.execute("SELECT * FROM distributed_tasks WHERE id=?", (int(task_id),)).fetchone()
         return dict(row) if row else None
+
+    def recover_expired_distributed_tasks(self, now, limit=100):
+        limit = min(5000, max(1, int(limit)))
+        with self._lock:
+            rows = self.conn.execute(
+                "SELECT id FROM distributed_tasks WHERE state='CLAIMED' AND lease_until<? ORDER BY id LIMIT ?",
+                (float(now), limit)).fetchall()
+            ids = [int(r["id"]) for r in rows]
+            for task_id in ids:
+                self.conn.execute(
+                    "UPDATE distributed_tasks SET state='RECOVERY_REQUIRED',lease_until=NULL,"
+                    "recovery_reason=?,updated_ts=? WHERE id=? AND state='CLAIMED' AND lease_until<?",
+                    ("worker lease expired; automatic replay disabled", float(now), task_id, float(now)))
+            self.conn.commit()
+        return [dict(self.conn.execute("SELECT * FROM distributed_tasks WHERE id=?", (i,)).fetchone())
+                for i in ids]
+
+    def requeue_distributed_task(self, task_id, now, reason=""):
+        row = self.conn.execute("SELECT * FROM distributed_tasks WHERE id=?", (int(task_id),)).fetchone()
+        if not row:
+            raise ValueError("unknown distributed task")
+        if str(row["state"]) != "RECOVERY_REQUIRED":
+            raise ValueError("only RECOVERY_REQUIRED distributed tasks can be requeued")
+        if not bool(row["replay_safe"]):
+            raise ValueError("distributed task is not declared replay-safe; manual recovery is required")
+        cur = self.conn.execute(
+            "UPDATE distributed_tasks SET state='PENDING',claimed_by='',claimed_instance='',claim_ts=NULL,"
+            "lease_until=NULL,claim_token='',available_ts=?,recovery_reason=?,updated_ts=? "
+            "WHERE id=? AND state='RECOVERY_REQUIRED'",
+            (float(now), str(reason or "explicit replay approved")[:500], float(now), int(task_id)))
+        self.conn.commit()
+        if not cur.rowcount:
+            raise ValueError("distributed task recovery state changed concurrently")
+        return dict(self.conn.execute("SELECT * FROM distributed_tasks WHERE id=?", (int(task_id),)).fetchone())
 
     def list_distributed_tasks(self, queue=None, limit=100):
         if queue:

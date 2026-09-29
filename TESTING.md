@@ -1,11 +1,124 @@
+# R67.1 corrective RC — current testing truth
+
+> **Canonical project state — 2026-09-25:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) on top of the frozen R67 candidate. MC-1 through MC-11 remain implemented; **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice and schema revision remains `mc11-topology-change-planning-1`; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included. R67.2 repairs fresh login, additive migration/index ordering, fail-closed Core PostgreSQL preflight, Core/History PostgreSQL configuration separation, and fresh PostgreSQL Core bootstrap without adding network-write authority. **All network mutation remains approval-gated; local/offline qualification does not establish RC or production release readiness; all required `LIVE_RC` gates remain mandatory. Do not create MC-12.** R68 must be rerun against the exact R67.2 candidate after mandatory live qualification.
+
+R67.1 requires focused authority/UI tests, retained MC-11/R64/R63 regressions, full bounded repository regression, clean-extract reproduction, deterministic RPM, artifact integrity and a fresh exact-candidate LIVE_RC matrix. No R67 live evidence may be reused after these byte changes.
+
+## Historical ledger
+
+## R60 qualification closeout — 2026-09-24
+
+**R60 local/offline and clean-extract qualification (2026-09-24):** repository regression is **418 collected / 410 passed / 8 skipped / 0 failed**; R60 focused lifecycle/qualification coverage is **24/24 PASS** and retained MC-11 authority coverage is **12/12 PASS**. `compileall`, launcher/Q2/R60 `py_compile`, packaging/tool shell syntax, and legacy selftest are PASS. The dependency-free helper RPM contains **99 payload files**; two source-tree builds and two clean-extract builds are byte-identical and independently verified, SHA-256 `901142aab3041272d0929360bee1d555f5e5600fa428fd771bcbdceff75469ad`. The initial R60 campaign on the current non-AlmaLinux runner records **3 LOCAL_REGRESSION PASS / 0 FAIL / 0 BLOCKED_ENVIRONMENT / 10 NOT_RUN / 0 LIVE_PRODUCTION PASS** because destructive appliance hooks were not authorized/executed in this runner. These results do not promote R60 beyond `IMPLEMENTED_TESTING_DEFERRED`; live AlmaLinux R59→R60 upgrade/rollback, systemd/SELinux/reboot/crash/disk-pressure and PostgreSQL rollback-database gates remain separate live evidence.
+
+## R60 qualification plan and current truth
+
+R60 adds focused lifecycle and qualification regression plus a separate live qualification matrix. Local/offline evidence can prove snapshot integrity, restore semantics, package identity, deterministic helper-RPM construction, MC-11 authority preservation and qualification-runner behavior; it cannot prove AlmaLinux upgrade/rollback, systemd/reboot, SELinux, PostgreSQL recovery, or disk-pressure behavior. Those live gates use only `PASS / FAIL / BLOCKED_ENVIRONMENT / NOT_RUN`.
+
+The core live release criterion is: an injected/real failed R59→R60 upgrade must return to the prior R59 package and prior local working state, or stop as `RECOVERY_REQUIRED`; PostgreSQL deployments additionally require a checksummed pre-upgrade dump restored and validated in a separate rollback database before destructive upgrade testing.
+
+## Q2 qualification-harness artifact closeout
+
+The complete Q2 qualification-tooling source tree and clean system-unzip extract both pass **394 collected / 386 passed / 8 skipped / 0 failed**. Q2 focused harness coverage is **14/14 PASS**; MC-11 focused authority coverage is **12/12 PASS**. `compileall`, launcher/Q2 `py_compile`, shell syntax and legacy selftest are PASS. Clean-extract helper RPM rebuilds are byte-identical to each other and to the frozen R59 helper RPM, and the independent RPM verifier passes. Product runtime payload remains byte-identical to the frozen R59 runtime.
+
+The Q2 harness source artifact remains qualification tooling over R59, not a new product release. Live production gates remain deferred according to the initial campaign matrix; project state remains `IMPLEMENTED_TESTING_DEFERRED`.
+
+## Q2 local qualification closeout for this environment
+
+The implemented Q2 harness was exercised on the current non-AlmaLinux runner. Repository regression after the Q2 tooling changes is **394 collected / 386 passed / 8 skipped / 0 failed**. Q2 focused harness tests are **14/14 PASS** and MC-11 focused authority tests are **12/12 PASS**. `compileall`, launcher/Q2 `py_compile`, packaging/tool shell syntax and legacy selftest are PASS. Product runtime payload is byte-identical to frozen R59, and two helper-RPM rebuilds remain byte-identical to the frozen R59 RPM (`af001a110e0d1eb6f3013f1608e1cf9159fecc2b590fccc2516738dc32a2d2a9`).
+
+The first formal Q2 matrix selected 25 gates (the full-repository gate was recorded separately to avoid duplicating the bounded regression run): **3 LOCAL_REGRESSION PASS / 0 FAIL / 16 BLOCKED_ENVIRONMENT / 6 NOT_RUN / 0 LIVE_PRODUCTION PASS**. This is correct deferred truth for the current environment and does not promote the product. The evidence bundle is `netconfig-2.0.0-59-Q2-initial-qualification-evidence.zip`, SHA-256 `8feb30d7c57112321b21c0f6ad7ce712454a6a079712c11ebbedbd5cfc30181e`.
+
+## Q2 Production Qualification Campaign
+
+The Q2 harness is implemented and has focused regression under `tests/test_q2_production_qualification.py`. Machine-readable gate definitions are in `Q2_GATE_CATALOG.json`; execution is via `packaging/q2-qualify.sh`. Evidence bundles contain per-gate JSON/logs plus campaign summary and SHA-256 coverage.
+
+Mandatory truth rule: a live gate may only be `PASS`, `FAIL`, `BLOCKED_ENVIRONMENT`, or `NOT_RUN`. `LOCAL_REGRESSION` PASS is never transformed into `LIVE_PRODUCTION` PASS. Missing OS/tool/module/credential/target/hook prerequisites are `BLOCKED_ENVIRONMENT`. Destructive gates that are not explicitly authorized are `NOT_RUN`.
+
+Q2 live scope: AlmaLinux clean install/upgrade/rollback, systemd restart/reboot, SELinux enforcing, PostgreSQL migration/backup/restore/concurrency, real SNMP/SSH/syslog/trap/NetFlow-IPFIX, real external evidence, restart/recovery/timing/replay/retention and representative API/WebUI latency. Current runner infrastructure does not satisfy these live prerequisites; do not promote them based on source tests.
+
 # NetConfig Testing
+
+
+## Release 59 / MC-11 qualification plan and truth
+
+MC-11 source coverage must prove forward/return path planning, unique endpoint attachment and ambiguous fail-closed behavior, all five policy evidence classes (ACL/FIREWALL/NAT/PBR/ROUTING_POLICY), service/dependency context, configuration gaps, exact change points/`Why here?`, candidate what-if non-mutation, deterministic plan identity, REST authorization/readback, and the absence of calls into collection or Structured Change execution. Source tests and helper-RPM tests never promote live environment gates.
+
+Final R59 freeze requires: full repository regression; MC-11 focused regression; selected compatibility regression; compileall/launcher/shell/selftest; clean-extract byte+mode parity; CRC/duplicate/unsafe-path/symlink checks; source payload manifest verification; deterministic two-build helper RPM plus independent verification. Canonical AlmaLinux 10 `rpmbuild`/DNF install-upgrade/rollback, SELinux/systemd/reboot, live PostgreSQL, real SNMP/SSH/syslog/trap/NetFlow/IPFIX/external connectors, restart/clock-skew/out-of-order/replay/retention, scale/latency, security abuse and HA remain `BLOCKED_ENVIRONMENT` or `NOT_RUN` until Q2/R60–R68 executes them.
+
+**Release 59 source-tree qualification:** **372 passed / 8 skipped / 0 failed** across **380 collected tests**. MC-11 focused is **12/12 PASS**. Selected compatibility coverage across MC-3→MC-11 plus NI-7 and ImpactSimulator is **112/112 PASS**. The eight skips are three live PostgreSQL tests, one PostgreSQL backup/restore test, three protocol-service integration tests, and the expected archive Git-index executable-mode gate. `compileall`, launcher `py_compile`, packaging/tool shell syntax, and legacy selftest are PASS. The dependency-free helper RPM rebuild is deterministic and independently verified; canonical AlmaLinux 10 `rpmbuild`/DNF/systemd/SELinux qualification is `BLOCKED_ENVIRONMENT` on the current Debian 13 runner (qualification script exit 20), not PASS. Final clean-extract and frozen-artifact evidence is recorded in `ARTIFACT_MANIFEST.json` and the external artifact-gate evidence.
+
+
+## Release 58 / MC-10 verification
+
+Focused MC-10 automated coverage is **11/11 PASS**. It covers SQLite/PostgreSQL schema surface and hard bounds, deterministic repeated correlation/replay lineage without hypothesis timestamp churn, late/out-of-order/future-clock-skew diagnostics, bounded read-only replay preview, restart interruption recovery, run-metadata-only retention, 510→500 fact fan-in truncation, health/qualification truth, same-incident serialization, API scope enforcement, and viewer read-only console behavior. Selected MC-3 through MC-10 compatibility is **83/83 PASS**.
+
+**Release 58 source-tree qualification:** **360 passed / 8 skipped / 0 failed** across **368 collected tests**, executed as five mutually exclusive non-live groups plus the explicit live-integration inventory. MC-10 focused is **11/11 PASS**; the earlier selected MC-3→MC-10 compatibility run is **83/83 PASS**. The eight skips are three live PostgreSQL tests, one PostgreSQL backup/restore test, three protocol-service integration tests, and the expected archive Git-index executable-mode gate. `compileall`, launcher `py_compile`, packaging/tool shell syntax, and legacy selftest are PASS. A real R57→R58 SQLite additive upgrade preserved the seeded Incident, External Event, and two MC-7 hypotheses while advancing the schema to `mc10-correlation-hardening-1` and creating `correlation_runs`. This is SQLite migration evidence only, not live PostgreSQL qualification. The unsigned offline helper RPM is `netconfig-2.0.0-58.el10.noarch.rpm`, SHA-256 `29ba4491d19cfe48aaf9601d6eb196f29e29b3daed3aa47f3421116f0e81a9ae`, with **97 payload files**; two independent source-tree builds are byte-identical and the independent verifier passes. Canonical AlmaLinux `rpmbuild`/DNF/systemd/SELinux and the MC-10 live PostgreSQL/external-product/production-scale/clock-skew/HA gates remain `NOT_RUN / DEFERRED`.
+
+**Release 58 clean-extract artifact qualification:** provisional clean-extract verification completed with **360 passed / 8 skipped / 0 failed** across **368 collected tests**, MC-10 focused included in the full run, **226 ZIP entries**, **0 duplicates**, **0 unsafe paths**, **0 symlinks**, **226/226 source↔ZIP↔system-unzip extract byte+mode parity**, **211/211 source payload manifest**, **225/225 SHA256SUMS**, and **12/12 required executable modes = 0755**. `compileall`, launcher `py_compile`, packaging/tool shell syntax, and legacy selftest pass from the extracted artifact. Two helper-RPM rebuilds from that clean extract are byte-identical to each other and to the source-tree helper RPM and pass the independent verifier. These results are re-run once more against the frozen final ZIP before delivery; the ZIP is not promoted to `TESTED` or `RELEASED`.
+
+Release-blocking live qualification remains `NOT_RUN / DEFERRED` until actually executed: live PostgreSQL concurrency; PostgreSQL backup/restore; canonical AlmaLinux rpmbuild/DNF install+upgrade; systemd/SELinux; representative live device/protocol polling; live external-product ingestion; production-scale correlation/large-topology/timeline/evidence fan-in and API/Web latency; production clock-skew/out-of-order behavior; restart/recovery under service supervision; retention at production volume; and HA/failover when supported. Local qualification output is evidence, not release approval.
+
+## Release 57 / MC-9 required coverage
+
+MC-9 regression covers empty/no-correlation rendering, correlated incident/service/change summaries, UNKNOWN/STALE dependency truth, global traffic windows/trend/exporters, viewer read-only behavior, untrusted content escaping, Alerts→Incidents and legacy-route compatibility, current-hypothesis supporting/contradicting evidence, and large Incident timelines. Live scale/browser/PostgreSQL/AlmaLinux qualification remains MC-10/deferred.
+
+**Release 57 source-tree qualification:** **349 passed / 8 skipped / 0 failed** across **357 collected tests**, including **8/8 MC-9 focused PASS** and **83/83 MC-4 through MC-9 / Incident / Web / CSS compatibility PASS**. The eight skips are seven explicit PostgreSQL/backup/protocol-service live prerequisites plus the expected archive Git-index executable-mode gate. `compileall`, launcher `py_compile`, packaging/tool shell syntax, and legacy selftest are PASS. The unsigned offline helper RPM is `netconfig-2.0.0-57.el10.noarch.rpm`, SHA-256 `92eb370f9d0a5b47043c526df9960e2520dee16a454ececdff0fbd0cdf53e98e`, with **96 payload files**; two independent source-tree builds are byte-identical and the independent offline verifier passes. Canonical AlmaLinux `rpmbuild`/DNF/systemd/SELinux, live PostgreSQL/protocol services, representative browser/load qualification, and production-scale correlation/traffic qualification remain `NOT_RUN / DEFERRED`.
+
+**Release 57 clean-extract artifact qualification:** **349 passed / 8 skipped / 0 failed** across **357 collected tests**, with MC-9 focused **8/8 PASS**. ZIP structural verification is **223 entries**, **0 duplicates**, **0 unsafe paths**, **0 symlinks**, **223/223 source↔ZIP↔system-unzip extract byte+mode parity**, **209/209 source payload manifest**, **222/222 SHA256SUMS**, and **12/12 required executable modes = 0755**. `compileall`, launcher `py_compile`, packaging/tool shell syntax, and legacy selftest pass from the extracted artifact. Two helper-RPM rebuilds from the clean extract are byte-identical to each other and to the source-tree RPM and pass the independent RPM verifier.
 
 
 ## Release 46 regression
 
 Runtime/UI source changed in Release 46 and was requalified on the Release 46 source workspace. Four bounded non-live groups total **222 passed / 1 skipped / 0 failed**, and the service-backed integration inventory contributes **7 skipped** explicit live prerequisites, for an effective **222 passed / 8 skipped / 0 failed**. The archive-only skip is the Git-index executable-mode check because `.git` is absent. Focused Web Console/structural coverage is **13 passed**. Legacy selftest is **ALL PASS**; compileall, launcher `py_compile`, and packaging/tool shell syntax are **PASS**. The offline RPM was built twice byte-identically and independently verified. Ruff `0.16.7`, mypy, canonical AlmaLinux `rpmbuild`/DNF/systemd/SELinux, PostgreSQL live, and vendor-device live qualification remain `NOT_RUN` unless separately executed.
 
-> **Canonical project state — 2026-09-23:** **CURRENT IMPLEMENTATION BASELINE** = **Release 51 / MC-3 Normalized Operational Evidence** (`2.0.0-51`, `IMPLEMENTED_TESTING_DEFERRED`). MC-1 Sensor Integration Unification and MC-2 Sensor History & State Transitions remain implemented. Release 51 adds a normalized cross-domain operational-evidence envelope, durable Sensor-transition → Event bridging, recovery/`UNKNOWN` semantics, additive event-schema migration/backfill/indexes, filtered/detail Event API reads, and an Event detail UI with current related Sensor state. NI-1 through **NI-7 L3/VRF Path & Route Dependency Intelligence** remain implemented. Formal RPM qualification remains deferred until the monitoring/correlation roadmap is complete; any ad-hoc RPM remains development evidence only.
+> **Canonical project state — 2026-09-25:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) on top of the frozen R67 candidate. MC-1 through MC-11 remain implemented; **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice and schema revision remains `mc11-topology-change-planning-1`; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included. R67.2 repairs fresh login, additive migration/index ordering, fail-closed Core PostgreSQL preflight, Core/History PostgreSQL configuration separation, and fresh PostgreSQL Core bootstrap without adding network-write authority. **All network mutation remains approval-gated; local/offline qualification does not establish RC or production release readiness; all required `LIVE_RC` gates remain mandatory. Do not create MC-12.** R68 must be rerun against the exact R67.2 candidate after mandatory live qualification.
+
+## Release 55 / MC-7 current validation — 2026-09-23
+
+Current source-tree truth after MC-7 implementation and release-identity synchronization:
+
+- repository collection: **337 tests**;
+- result: **329 passed / 8 skipped / 0 failed**;
+- MC-7 focused: **8/8 PASS**;
+- skips: seven explicit PostgreSQL/backup/protocol-service live prerequisites plus one expected Git-index executable-mode skip because the archive-derived workspace has no `.git`;
+- `python -m compileall` over runtime/selftest: **PASS**;
+- launcher `py_compile`: **PASS**;
+- packaging/tool `bash -n`: **PASS**;
+- legacy selftest: **ALL PASS**;
+- unsigned offline helper RPM `netconfig-2.0.0-55.el10.noarch.rpm`: **PASS**, two builds byte-identical, independent verifier PASS, 92 payload files, SHA-256 `f52b87b73c41051a5db60cf9f0efa3b524de27490afae048efc6b0ed55fdff0e`.
+
+MC-7 regression explicitly covers deterministic replay/idempotency, same-evidence/same-rule confidence stability, no time-only correlation, trusted dependency-aware cross-entity correlation, contradicting healthy evidence lowering confidence, INFERRED dependency exclusion, non-causal wording, schema portability, and REST read/write authorization. Live PostgreSQL, backup/restore, protocol-service, AlmaLinux/DNF/systemd/SELinux, representative vendor/device, and production-scale/late-event correlation behavior remain `NOT_RUN / DEFERRED` until actually executed.
+
+Final clean-extract artifact truth matches the source tree: **329 passed / 8 skipped / 0 failed** across **337 collected tests**, focused MC-7 **8/8 PASS**. Structure/integrity: **215 entries**, zero duplicate/unsafe/symlink paths, **215/215** source↔ZIP↔extract byte+mode parity, **203/203** source payload manifest, **214/214** SHA256SUMS, and **12/12** required executable modes at 0755. Extracted compileall, launcher compile, shell syntax, legacy selftest, and independent RPM verification pass; the extracted RPM rebuild is byte-identical to the source-tree RPM.
+
+
+## Release 54.1 / MC-6 L3 Routing Topology follow-up qualification record
+
+Full source-tree collection is **329 tests**. Five mutually exclusive non-live groups completed as **54 + 62 + 87 + 66 + 52 = 321 passed**, with **1 expected Git-index executable-mode skip** in the final group. The explicit integration inventory contributes **7 skipped** for PostgreSQL, backup/restore, and protocol-service prerequisites. Aggregate source truth is therefore **321 passed / 8 skipped / 0 failed**. L3 follow-up focused coverage is **9 passed / 0 failed**. `python -m compileall -q opt/netconfig/netconfig opt/netconfig/selftest.py`, launcher `py_compile`, packaging/tool `bash -n`, and legacy selftest are PASS. The helper RPM was built twice byte-identically and independently verified; canonical AlmaLinux/DNF/systemd/SELinux and live vendor route-output qualification remain deferred.
+
+**Release 54.1 clean-extract artifact qualification:** **321 passed / 8 skipped / 0 failed** across **329 collected tests**, with L3 follow-up focused **9/9 PASS**. ZIP structural verification is **212 entries**, **0 duplicates**, **0 unsafe paths**, **0 symlinks**, **212/212 source↔ZIP↔extract byte+mode parity**, **201/201 source payload manifest**, **211/211 SHA256SUMS**, and **12/12 required executable modes = 0755**. `compileall`, launcher `py_compile`, packaging/tool shell syntax, and legacy selftest pass from the extracted artifact. Rebuilding the helper RPM from the clean extract is byte-identical to the source-tree build and passes the independent RPM verifier.
+
+## Release 54 / MC-6 qualification record
+
+MC-6 focused regression covers: additive SQLite/PostgreSQL schema generation; all required entity and relationship types; configured/discovered/inferred/unknown evidence semantics; provenance/evidence-reference validation; stale dependency exclusion; unknown-as-insufficient-evidence behavior; inferred opt-in; bounded depth/node traversal; cycle safety; ImpactSimulator reuse with service entity types; NI-7 VRF scope; ambiguous-path fail-closed behavior; next-hop-IP non-invention; default-tenant isolation; REST read/write authorization; and Web viewer read-only behavior. Existing NI-7, impact, topology, and Network Intelligence regressions are run alongside MC-6 to prove integration rather than replacement.
+
+Final R54 source-tree bounded regression is **312 passed / 8 skipped / 0 failed** from **320 collected tests**. The five non-live groups are **65 + 62 + 91 + 56 + 38 = 312 passed**, with one expected Git-index executable-mode skip in the fourth group; the integration inventory contributes **7 skipped** for explicit PostgreSQL/backup/protocol-service prerequisites. MC-6 focused: **9 passed / 0 failed**. `python -m compileall -q opt/netconfig/netconfig`, launcher `py_compile`, packaging/tool `bash -n`, and legacy selftest are PASS. Live PostgreSQL service-backed migration/concurrency, AlmaLinux 10 canonical `rpmbuild`/DNF install-upgrade/systemd/SELinux, representative vendor/device topology/route collection, and production-scale dependency graphs remain `NOT_RUN / DEFERRED`; source tests do not promote those gates to PASS.
+
+## Release 53 / MC-5 qualification record
+
+MC-5 focused regressions cover schema/timing migration, all six new typed evidence classes, invalid-reference fail-closed behavior, source-clock metadata, late-arriving evidence, deterministic equal-timestamp ordering, evidence-retention/missing markers, summary-only change events, investigation API scope/no-RCA semantics, legacy evidence timing backfill, and Web investigation sections. Source-tree regression after the MC-5 implementation is tracked below; live PostgreSQL/backup/protocol/vendor/AlmaLinux package gates remain `NOT_RUN / DEFERRED` unless explicitly executed.
+
+Final R53 source-tree bounded regression: **303 passed / 8 skipped / 0 failed** from **311 collected tests**. Non-live groups: **58 + 83 + 56 + 89 + 17 = 303 passed**, with one expected Git-index mode skip in the fourth group; integration inventory is **7 skipped** for explicit PostgreSQL/backup/protocol-service prerequisites. MC-5 focused: **8 passed / 0 failed**. `python -m compileall -q opt/netconfig/netconfig`, launcher `py_compile`, packaging/tool `bash -n`, and legacy selftest are PASS. The skipped/live prerequisites remain `NOT_RUN`, not PASS.
+
+
+## Release 52 / MC-4 correctness-repair verification — 2026-09-23
+
+Focused MC-4: **17 passed / 0 failed**. Repository regression was executed in four bounded non-live groups: **59 passed**, **90 passed**, **71 passed**, **75 passed / 1 skipped** = **295 passed / 1 skipped / 0 failed**. The source skip is the expected Git-index executable-mode test because `.git` is absent. Integration tier: **7 skipped** for explicit PostgreSQL/backup/protocol-service prerequisites. Overall recorded source truth: **295 passed / 8 skipped / 0 failed**.
+
+New correctness coverage explicitly proves: R51/early-R52 active-alert `correlation_key` backfill before escalation; persistent firing Sensor lifecycle reopening after manual resolve; maintenance-expiry re-evaluation without a new Sensor transition; FortiGate CLI error output fails collection and is not archived; native FortiGate driver/alias behavior; exact-only RouterOS `/export` override safety; and stale ARP/IP-neighbor evidence downgrading combined endpoint confidence. Existing MC-4, R51-HF1, Sensor/Event, Network Intelligence, Web structural, security, and repository-hygiene regressions remain included.
+
+Live/deferred gates remain authoritative: real FortiGate SNMPv3 AES256 and config collection, real ARP/FDB endpoint resolution, real NetFlow exporter/browser UX, PostgreSQL and backup/restore, protocol services, AlmaLinux/systemd/SELinux, and representative vendor/device qualification. No live gate is promoted by source tests.
+
 ## Release 48 — Sensor Model & Evidence Normalization
 
 Release 48 promotes the sensor work from UI-only health cards into a reusable persisted normalization layer. `SensorEngine` stores `sensor_type`, `device`, `resource`, `value`, `unit`, `status`, `message`, `threshold`, `source`, and `updated_at`, with the status contract limited to `OK`, `WARNING`, `CRITICAL`, and `UNKNOWN`. It reads existing NetConfig persistence only and does **not** initiate SNMP/NETCONF/RESTCONF/gNMI/SSH device I/O or change polling frequency.
@@ -19,7 +132,7 @@ The generator now derives: device reachability/polling; endpoint FDB/MAC and ARP
 **Release 46 source qualification:** repository regression executed in bounded groups totals **222 passed / 8 skipped / 0 failed**; the eight skips are seven explicit live/service prerequisites plus the expected Git-index mode skip because `.git` is absent. Focused Web Console/structural coverage is **13 passed**. Legacy selftest is **ALL PASS**; compileall, launcher `py_compile`, and packaging/tool shell syntax are **PASS**. Ruff `0.16.7` and mypy `2.3.1` remain **NOT_RUN** because the executables are unavailable. The dependency-free offline builder emitted `netconfig-2.0.0-46.el10.noarch.rpm` twice byte-identically; independent verification passed and SHA-256 is `5b26c9ae73ac4248171196ee3637f51bd238fed090c4ce3fa820419842f510cd`. Canonical AlmaLinux 10 `rpmbuild`/DNF install-upgrade/systemd/SELinux and other Q-1 live/device gates remain **NOT_RUN / DEFERRED**.
 
 
-> **Roadmap disposition — 2026-09-23:** The monitoring/correlation roadmap is active. MC-1 through MC-3 are implemented in source as `IMPLEMENTED_TESTING_DEFERRED`; the next planned slice is **MC-4 / Release 52 — Unified Alert Plane**. NI-7 remains implemented and Q-1 remains an open production/service qualification track. Do not invent NI-8/Q-2 or skip the defined MC sequence without an explicit roadmap decision.
+> **Roadmap disposition — 2026-09-24:** **R59 / MC-11 is the final Monitoring & Correlation functional slice.** Do not create MC-12. After R59, stop feature expansion and use the Release / Qualification track: **Q2 Production Qualification Campaign → R60 Appliance Reliability & Lifecycle Hardening → R61 Scale & Performance Qualification → R62 PostgreSQL / Concurrency / Recovery Hardening → R63 HA / Failure-Domain Engineering → R64 Security Hardening & Independent Abuse Testing → R65 Operator Workflow Completion → R66 Observability / Supportability → R67 Release Candidate / Full Artifact Qualification → R68 v2 Production Release Decision**. Simulation never counts as live PASS; mandatory gates use `PASS / FAIL / BLOCKED_ENVIRONMENT / NOT_RUN`.
 ## Historical 2026-09-18 Release 45 documentation-only design sync
 
 This documentation sync records future site-resilience/distributed-collector and operator-UX decisions only. No runtime, schema, API, packaging script, or RPM identity is changed. Therefore the last executed Release 45 runtime evidence remains **221 passed / 8 skipped / 0 failed** with legacy selftest/compileall/package-shell evidence as previously recorded; Ruff `0.16.7`, mypy, and Q-1 live gates remain `NOT_RUN`/deferred where applicable. This docs-only sync must not be interpreted as new runtime qualification.
@@ -104,7 +217,7 @@ Release 33 adds focused coverage in `tests/test_automation_expansion.py` for PH-
 
 Ruff/mypy may be marked only `PASS` when the actual tools execute successfully. Tool absence is `NOT_RUN`, never PASS. Q-1 real PostgreSQL/AlmaLinux/systemd/OpenSSH/Net-SNMP/vendor/live SMTP gates remain separate and must not be inferred from offline tests.
 
-> **Current continuation pointer:** use **Release 51 / MC-3 Normalized Operational Evidence** (`2.0.0-51`) as the active full-source baseline. Preserve `IMPLEMENTED_TESTING_DEFERRED`. MC-1 through MC-3 are implemented in source; the next roadmap slice is **MC-4 / Release 52 — Unified Alert Plane**. Sensor generation/history and Sensor→Event normalization must not add device I/O; unchanged Sensor refreshes create no event, and missing evidence remains `UNKNOWN` rather than an automatic critical verdict. Formal RPM qualification remains deferred until the roadmap is complete.
+> **Current continuation pointer:** use **Release 59 / MC-11 Topology-Aware Change Planning** (`2.0.0-59`) as the active full-source baseline once the final artifact gate below is frozen. Preserve `IMPLEMENTED_TESTING_DEFERRED`; do not promote to `TESTED` or `RELEASED` based on source simulation. MC-11 is the final functional slice and does not add direct execution authority. The immediate next track after artifact freeze is **Q2 Production Qualification Campaign**, not MC-12.
 
 ## Historical Q-1 baseline qualification summary
 
@@ -826,3 +939,115 @@ Additional topology/Web/PH-1/legacy focused execution is **40 passed / 0 failed*
 
 Required live/deferred evidence remains: FortiGate SNMPv3 SHA1+AES256 validation using the repaired client, real vendor LLDP/FDB identity behavior, PostgreSQL/backup/protocol-service integration, and formal roadmap-completion RPM qualification. None is counted as PASS.
 
+
+## R54.1 / MC-6 L3 Routing Topology follow-up test scope
+
+Focused regression covers parser normalization, same-session configuration+L3 collection, generation publication/failure preservation, unique same-VRF managed next-hop resolution, cross-VRF/ambiguous/stale fail-closed behavior, topology API scope enforcement, config-success/L3-failure isolation, and DB-only Web rendering. Source-tree qualification is **321 passed / 8 skipped / 0 failed across 329 collected tests**; L3 follow-up focused is **9/9 PASS**. Clean-extract artifact qualification is **321 passed / 8 skipped / 0 failed across 329 collected tests**, with **9/9** focused L3 tests and full structural/hash/mode parity PASS. Live vendor CLI output, AlmaLinux/systemd/SELinux, PostgreSQL production concurrency, and production-scale topology remain deferred until actually run.
+
+## Release 56 / MC-8 source-tree qualification
+
+Final source-tree regression before artifact freeze is **341 passed / 8 skipped / 0 failed** across **349 collected tests**. MC-8 focused is **12/12 PASS**. The eight skips are seven explicit live PostgreSQL/backup/protocol-service prerequisites and one archive-without-`.git` executable-mode check. R55→R56 additive SQLite migration preserved legacy external events and created the MC-8 source/receipt tables. `compileall`, launcher `py_compile`, packaging/tool shell syntax and legacy selftest pass. The unsigned offline helper RPM has **94 payload files**, SHA-256 `0fa3f4e877d5a6c69d56d1138341c32834f977e741ab492b63b76750611d3242`, two-build byte identity and independent verifier PASS. Live PostgreSQL, canonical AlmaLinux RPM/DNF/systemd/SELinux, real external products and production-scale ingestion remain `NOT_RUN / DEFERRED`.
+
+## Release 56 / MC-8 clean-extract artifact qualification
+
+Clean extraction reproduces the source-tree truth: **341 passed / 8 skipped / 0 failed** across **349 collected tests**, MC-8 focused **12/12 PASS**, compileall/launcher/shell/selftest PASS. ZIP integrity: **219 entries**, 0 duplicates/unsafe paths/symlinks, **219/219** source↔ZIP↔extract byte+mode parity, **206/206** source payload manifest, **218/218** SHA256SUMS and **12/12** required executables mode 0755. A helper RPM rebuilt from the clean extract is byte-identical to the source-tree RPM and independently verifies.
+
+## R61 Scale & Performance Qualification
+
+Required local gates: R61 focused regression, full bounded repository regression, MC-11 authority regression, compile/syntax/selftest, isolated synthetic capacity benchmark, MC-10 overload truncation proof, deterministic helper-RPM rebuild, and clean-extract artifact gate.
+
+Required production gates remain separate: device/endpoint capacity, topology/routes, syslog/trap/external evidence sustained and burst ingest, NetFlow and IPFIX, incident/timeline fan-in, correlation runs/minute, concurrent operators, API/WebUI p50/p95/p99, CPU/RAM/database growth, ingest lag and bounded overload on AlmaLinux/PostgreSQL. Status values are only PASS, FAIL, BLOCKED_ENVIRONMENT and NOT_RUN. Local SQLite/synthetic evidence never counts as live production PASS.
+
+**R61 clean-extract qualification (2026-09-24):** the provisional source artifact was extracted with system `unzip` and reproduced **435 collected / 427 passed / 8 skipped / 0 failed** across the deterministic five-way bounded partition; R61 focused coverage is **17/17 PASS** and retained MC-11 authority coverage is **12/12 PASS**. `compileall`, launcher/R61 `py_compile`, packaging/tool shell syntax, and legacy selftest are PASS. The clean extract rebuilt the offline helper RPM twice byte-identically; both builds are byte-identical to the source-tree RPM and pass the independent verifier. RPM SHA-256 remains `c1458d97a19ce0390f0c6f42384c652eed1704c47f57f41e11f0c95a11d2ed5b`. This is local/offline artifact evidence only and does not establish production capacity.
+
+## R62 qualification matrix
+
+R62 requires real PostgreSQL evidence for migration/MC-11 persistence, concurrent collectors, external evidence idempotency, MC-10 advisory locking, Structured Change/operator concurrency, rollback atomicity, deadlock/serialization retry, connection-budget exhaustion, database restart, network interruption, backup/restore, and concurrent persisted-data API operators. Gate states are only `PASS`, `FAIL`, `BLOCKED_ENVIRONMENT`, or `NOT_RUN`. Local/fake-driver tests prove logic only and are not live PostgreSQL evidence.
+
+### R62 source/offline qualification truth — 2026-09-24
+
+- Repository: **453 collected / 442 PASS / 11 SKIP / 0 FAIL**.
+- R62 focused: **15/15 PASS**. MC-11 authority regression: **12/12 PASS**.
+- Compileall, launcher/R62 py_compile, packaging/hook shell syntax, and legacy selftest: **PASS**.
+- Initial R62 campaign on this runner: **3 LOCAL_REGRESSION PASS / 0 FAIL / 12 BLOCKED_ENVIRONMENT / 0 NOT_RUN / 0 LIVE_POSTGRESQL PASS**. Production PostgreSQL claim remains false.
+- Offline helper RPM: **99 payload files**, two source-tree rebuilds byte-identical, independent verifier PASS, SHA-256 `c47c4a7a1a8e2c26e86d7f5135965df3beced8fa38e593c7de8df457721edc1b`. This is not canonical live PostgreSQL/AlmaLinux evidence.
+- Initial evidence bundle SHA-256: `b723e441bc309bdee8a142071f5e13271ce39c50cfd739728b7e2dccd2e60f4a`.
+
+### R62 verified clean-extract truth
+
+Provisional system-unzip clean extraction reproduced **453 collected / 442 PASS / 11 SKIP / 0 FAIL**; R62 focused **15/15 PASS**, MC-11 focused **12/12 PASS**, compileall/py_compile/shell/selftest PASS. Two clean-extract helper RPM rebuilds were byte-identical to the source-tree helper RPM and independently verified. Final frozen-artifact revalidation is performed after this documentation sync.
+
+
+## Release 62.1 security/package regression
+
+Required regression includes a live local redirect server proving the redirect target receives zero requests, hostile-looking SSH target argv checks, full executable-mode patch coverage, reviewed dead-code checks, PH-3 compatibility, full repository regression, clean-extract repetition, deterministic RPM rebuild, and artifact mode/checksum gates. Git-index `100755` remains a separate fresh-clone gate when `.git` metadata is available.
+
+### R62.1 validation closeout
+
+- Security/compatibility focused: **82 passed / 1 skipped / 0 failed**; the skip is the expected Git-index check because the source archive contains no `.git`.
+- Full bounded repository regression: **458 collected / 447 passed / 11 skipped / 0 failed**. The 11 skips remain 4 existing PostgreSQL/backup live prerequisites, 3 protocol-service prerequisites, 3 R62 live-PostgreSQL prerequisites, and 1 source-archive Git-index check.
+- Redirect regression uses a real local HTTP redirect server and proves the redirect target receives **0 requests**.
+- compileall / launcher+qualification py_compile / packaging shell syntax / legacy selftest: **PASS**.
+- Offline helper RPM `2.0.0-62.1`: two source-tree builds byte-identical; independent verifier **PASS**; SHA-256 `84caef15419b339e10f3b22a8c22c9ae80b25da910bbeceea4389b566043d042`; payload files **99**. This is offline artifact evidence, not canonical AlmaLinux/rpmbuild qualification.
+- External/upstream Git-index mode repair is **not claimed complete** by the source archive. `UPSTREAM_GIT_MODE_FIX.patch` covers all **24** required operational entry points; a real upstream commit plus fresh clone is still required for Git-index `100755` PASS.
+
+### R62.1 clean-extract qualification
+
+The provisional clean extraction reproduced **458 collected / 447 passed / 11 skipped / 0 failed**. compileall, py_compile, packaging/tool shell syntax, and legacy selftest passed. The provisional archive structural gate recorded **329 entries / 0 duplicates / 0 unsafe paths / 0 symlinks / CRC PASS / 329/329 source-to-extract byte+mode parity / 327/327 R62.1 source manifest / 328/328 whole-tree SHA256SUMS / 24/24 required executable modes at 0755**. Two clean-extract helper RPM rebuilds were byte-identical to each other and to the source-tree `2.0.0-62.1` RPM; independent verification passed with SHA-256 `84caef15419b339e10f3b22a8c22c9ae80b25da910bbeceea4389b566043d042`. This still does not establish external Git-index `100755`.
+
+## R63 qualification status — 2026-09-24
+
+Source regression: **477 collected / 463 passed / 14 skipped / 0 failed**. R63 focused and compatibility coverage validates DB-session generation, stale advisory ownership rejection/reacquisition, node identity fencing, distinct failure-domain readiness, per-pass scheduler leadership, standby takeover eligibility, token/generation/lease task fencing, renewal, explicit replay-safe requeue, and `RECOVERY_REQUIRED` transition. Initial campaign: **3 LOCAL_REGRESSION PASS / 0 FAIL / 12 BLOCKED_ENVIRONMENT / 0 NOT_RUN / 0 LIVE_HA PASS**. The live blocked gates cover multi-domain membership, scheduler/node failover, worker fencing, partial-job/replay recovery, database failover/network partition, stale-lock/split-brain, restart/rejoin, and drain/failover.
+
+## R63 verified clean-extract truth — 2026-09-24
+
+The provisional source archive was extracted with system `unzip` and reproduced **477 collected / 463 passed / 14 skipped / 0 failed**. R63 focused coverage is **16/16 PASS** and retained MC-11 authority coverage is **12/12 PASS**. `compileall`, launcher/qualification `py_compile`, packaging/qualification/tool shell syntax, and legacy selftest are PASS. The provisional structural gate is **348 entries / 0 duplicates / 0 unsafe paths / 0 symlinks / CRC PASS / 348/348 byte+mode parity / 346/346 R63 source manifest / 347/347 whole-tree SHA256SUMS / 26/26 executable modes**. Two clean-extract helper RPM rebuilds are byte-identical to each other and to the source-tree RPM; independent verification passes. RPM SHA-256 is `1e2a40476c212d2ffe410d51ef1cd9b2fac3051fc96bf30789539be5bca4b60d`. This is local/offline artifact evidence only; live HA remains deferred.
+
+## R64 qualification matrix
+
+R64 adds `qualification/r64_runner.py`, `R64_GATE_CATALOG.json`, and fixed-name assessor hook templates. Gate states remain `PASS`, `FAIL`, `BLOCKED_ENVIRONMENT`, and `NOT_RUN`. Evidence classes are `LOCAL_REGRESSION`, `LOCAL_ABUSE`, and `LIVE_ABUSE`; local results never satisfy production-security gates. The live matrix covers authz/object boundaries, CSRF/session revocation, API-token scope/revoke/replay, hostile external evidence, RESTCONF/SSH/OAuth egress abuse, XSS/CSP/request framing/body exhaustion, archive/parser bombs and special files, secret leakage/redaction, MC-11 non-execution, OS/RPM/SELinux/service-account confinement, resource exhaustion/slow clients, and independent assessor sign-off.
+
+## R64 current verification truth
+
+Source-tree regression: **498 collected / 484 PASS / 14 SKIP / 0 FAIL**. R64 focused: **21/21 PASS**. MC-11 focused: **12/12 PASS**. Security/compatibility focused set: **102 PASS / 1 expected no-.git SKIP / 0 FAIL**. Initial selected R64 campaign: **6 local PASS / 0 FAIL / 12 BLOCKED_ENVIRONMENT / 0 NOT_RUN / 0 LIVE_ABUSE PASS**; `production_security_claim=false`. The runner all-local nested full-regression invocation exceeded the surrounding execution envelope, so the full regression was executed separately with the same deterministic five-group partition and recorded in the evidence bundle; this does not change its `LOCAL_REGRESSION` class.
+
+## R65 operator-workflow qualification
+
+R65 adds focused persisted-journey tests and `qualification/r65_runner.py`. Evidence classes are `LOCAL_REGRESSION`, `LOCAL_WORKFLOW`, and `LIVE_OPERATOR`; fixed live hooks cover browser continuity, path/proposal continuity, role separation, snapshot revalidation, exact verification, recovery, rollback, restart continuity, concurrent-operator isolation, and independent acceptance. Local evidence never establishes production operator acceptance.
+
+### R65 current evidence
+
+- Full deterministic repository regression: **508 collected / 494 PASS / 14 SKIP / 0 FAIL**.
+- R65 focused: **10/10 PASS**; retained MC-11: **12/12 PASS**.
+- Initial qualification campaign: **4 local PASS / 0 FAIL / 10 BLOCKED_ENVIRONMENT / 0 NOT_RUN / 0 LIVE_OPERATOR PASS**; `production_operator_workflow_claim=false`.
+- compileall / R65 py_compile / shell syntax / legacy selftest: **PASS**.
+- Final source structural gate: **385 entries / 0 duplicate / 0 unsafe / 0 symlink / CRC PASS / 385/385 byte+mode parity / 383/383 source manifest / 384/384 SHA256SUMS / 30/30 executable modes**.
+- Local workflow evidence does not satisfy any required `LIVE_OPERATOR` gate.
+
+## R66 qualification
+
+R66 adds focused tests for read-only supportability, queue/lag/recovery visibility, collector drop/error redaction, sanitized support-bundle contents, API scope enforcement, request IDs, aggregate metrics, release identity and qualification-runner fail-closed behavior. `qualification/r66_runner.py` defines local evidence separately from ten fixed `LIVE_SUPPORT` hooks. Unrun live service/PostgreSQL/collector/failure-injection drills remain `BLOCKED_ENVIRONMENT` or `NOT_RUN` and cannot establish `production_supportability_claim=true`.
+
+## R67 release-candidate qualification
+
+R67 evidence classes are `LOCAL_REGRESSION`, `LOCAL_ARTIFACT`, and `LIVE_RC`. Local gates cover release/schema/freeze identity, focused R67 tests, full bounded regression, MC-11 authority, synchronized release manifest/SPDX SBOM, offline RPM reproducibility/verification, and repository/package hygiene. Twelve fixed `LIVE_RC` hooks cover independent clean checkout/CI, AlmaLinux RPM/systemd/SELinux, R66→R67 upgrade, backup/restore/rollback, PostgreSQL, multi-node HA, real protocol/vendor devices, production scale, independent security, browser/operator acceptance, supportability, and MC-11 end-to-end approved change/verification/rollback.
+
+`release_candidate_qualified=true` requires all twelve required live gates selected and PASS against the exact same candidate fingerprint. Any source/package change invalidates prior RC evidence. R67 never sets a production-release claim and never promotes `RELEASED`.
+
+### R67 source-tree qualification truth — 2026-09-24
+
+- Complete deterministic five-group repository regression: **530 collected / 516 PASS / 14 SKIP / 0 FAIL**. The 14 skips are unchanged environment prerequisites: 4 PostgreSQL/backup, 3 protocol services, 3 R62 live PostgreSQL, 3 R63 HA PostgreSQL, and 1 archive-without-`.git` Git-index mode check.
+- R67 focused: **11/11 PASS**; retained MC-11: **12/12 PASS**; R60–R67 transition + MC-11 focused set: **142/142 PASS**.
+- compileall / qualification and release-metadata py_compile / shell syntax / legacy selftest: **PASS**.
+- Initial selected R67 campaign before final freeze: **6 local PASS / 0 FAIL / 12 BLOCKED_ENVIRONMENT / 0 NOT_RUN / 0 LIVE_RC PASS**; `release_candidate_qualified=false`, `production_release_claim=false`. Final evidence is rerun against the frozen source-manifest fingerprint.
+- Offline helper RPM `2.0.0-67`: **103 payload files / 1,932,895 bytes**, payload SHA-256 `b5a26189c64c06c9fe60735fa3d50c546a47c3056221adc36d27f44faac1c761`; source-tree rebuilds byte-identical; independent verifier PASS; RPM SHA-256 `1baf1412875aa66ad01c6e0fddc7d17bf11e57306e1d0f9bc93e7c65438fdc91`. This is local artifact evidence only.
+
+## R67.2 local corrective validation — 2026-09-25
+
+- R67.2 focused fresh login/migration/Core-PostgreSQL/History split/bootstrap tests: **9 PASS / 0 FAIL**.
+- Selected R67.2 + inherited platform/PostgreSQL/security/credential regression: **71 PASS / 0 FAIL**.
+- Full repository inventory executed as 12 bounded mutually exclusive file groups: **548 collected / 534 PASS / 14 SKIP / 0 FAIL**. The 14 skips are explicit live PostgreSQL/protocol-service prerequisites plus the expected no-`.git` executable-mode check.
+- Single-process `pytest -q`: outer execution timed out at about 37% with no failure output; **not counted as PASS**.
+- `compileall`, selected `py_compile`, all packaging/qualification/tool `bash -n`, Node JavaScript syntax and legacy selftest: **PASS**.
+- Offline helper RPM deterministic A/B rebuild and independent verifier: **PASS**. This is not canonical AlmaLinux `rpmbuild`/DNF/systemd/SELinux evidence.
+- Real fresh PostgreSQL Core bootstrap, PostgreSQL upgrade/concurrency/outage/recovery, AlmaLinux 10 install, browser/operator, HA, scale, independent security, vendor/protocol, supportability and MC-11 live E2E remain **NOT_RUN / BLOCKED_ENVIRONMENT**. No release promotion claim is made.

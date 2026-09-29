@@ -32,6 +32,7 @@ class ImpactSimulator:
                  max_depth: int = 5) -> list[ImpactObservation]:
         if max_depth < 0:
             raise ValueError("max_depth must be non-negative")
+        links = list(links)
         graph: dict[str, set[str]] = {}
         for link in links:
             # Direction is intentional: operational impact is downstream traversal,
@@ -59,15 +60,21 @@ class ImpactSimulator:
                     continue
                 seen.add(child)
                 queue.append((child, depth + 1))
+                link_meta = next((dict(item) for item in links
+                                  if str(item.get("source", item.get("device", ""))) == node
+                                  and str(item.get("target", item.get("neighbor_device", ""))) == child), {})
+                relationship = str(link_meta.get("relationship") or "TOPOLOGY_DOWNSTREAM")
+                target_type = str(link_meta.get("target_type") or "DEVICE").upper()
+                evidence_ref = str(link_meta.get("evidence_ref") or f"topology:{node}->{child}")
                 result.append(ImpactObservation(
                     tenant_id=tenant_id,
                     source_object=source_object,
                     affected_object=child,
-                    object_type="DEVICE",
-                    relationship="TOPOLOGY_DOWNSTREAM",
+                    object_type=target_type,
+                    relationship=relationship,
                     depth=depth + 1,
                     confidence=0.9,
-                    evidence_refs=(f"topology:{node}->{child}",),
+                    evidence_refs=(evidence_ref,),
                     observed_at=now,
                 ))
 

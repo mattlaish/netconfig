@@ -71,6 +71,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:18px;ba
 .who b{color:var(--navy)}
 .role{background:var(--navy10);color:var(--navy);border-radius:999px;padding:2px 8px;font-size:11px;font-weight:700;text-transform:uppercase}
 .inline-form{display:inline;margin:0}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 18px}.tab{display:inline-block;padding:8px 12px;border:1px solid var(--border);border-radius:999px;background:var(--surface);font-weight:700}.tab.active{background:var(--solid);color:#fff;border-color:var(--solid)}progress{width:110px;max-width:100%;accent-color:var(--cg-green)}
 /* app shell */
 .app-shell{display:grid;grid-template-columns:260px minmax(0,1fr);min-height:calc(100vh - 72px)}
 .sidebar{background:var(--surface);border-right:1px solid var(--border);padding:18px 16px;position:sticky;top:69px;height:calc(100vh - 69px);overflow:auto}
@@ -909,7 +910,114 @@ def render_snmp_health_summary(handler, device, dev, fx):
 
     return health_panel + history_panel
 
+def _topology_view_tabs(active):
+    items = []
+    for key, label in (("physical", "Physical"), ("l3", "Layer 3"), ("combined", "Combined")):
+        cls = "badge b-ok" if active == key else "badge b-dim"
+        items.append(f'<a class="{cls}" href="/topology?view={key}">{label}</a>')
+    return '<div class="panel"><b>Topology view</b> · ' + ' '.join(items) + '</div>'
+
+
+def _render_l3_topology_page(handler, q, sess, view):
+    include_stale = str((q.get("include_stale") or [""])[0]).lower() in {"1", "true", "yes", "on"}
+    graph = (handler.manager.combined_topology_graph(include_stale=include_stale)
+             if view == "combined" else handler.manager.l3_topology_graph(include_stale=include_stale))
+    nodes = graph.get("nodes", [])
+    edges = graph.get("edges", [])
+    summary = graph.get("summary", {})
+    import math
+    positions = {}
+    count = max(1, len(nodes))
+    for i, node in enumerate(nodes):
+        angle = (2 * math.pi * i / count) - math.pi / 2
+        positions[node["id"]] = (500 + 340 * math.cos(angle), 310 + 225 * math.sin(angle))
+    svg = ['<div class="topology-shell"><svg id="topology-canvas" viewBox="0 0 1000 620" role="img" aria-label="Layer 3 routing topology"><g id="topology-viewport">']
+    for edge in edges:
+        src, dst = edge.get("from", ""), edge.get("to", "")
+        if src not in positions or dst not in positions:
+            continue
+        x1, y1 = positions[src]; x2, y2 = positions[dst]
+        kind = str(edge.get("kind") or "UNKNOWN")
+        css = "observed" if kind in {"DIRECTLY_CONNECTED", "PHYSICAL_ADJACENCY"} else "inferred"
+        title = (f'{kind} · VRF {edge.get("vrf") or "-"} · next-hop {edge.get("next_hop") or "-"} · '
+                 f'{edge.get("resolution_state") or "-"} · {edge.get("evidence_ref") or ""}')
+        svg.append(
+            f'<line class="topology-edge {css}" data-from="{html.escape(src, quote=True)}" '
+            f'data-to="{html.escape(dst, quote=True)}" x1="{x1:.1f}" y1="{y1:.1f}" '
+            f'x2="{x2:.1f}" y2="{y2:.1f}"><title>{html.escape(title)}</title></line>')
+    for node in nodes:
+        node_id = node.get("id", ""); x, y = positions[node_id]
+        label = str(node.get("label") or node.get("device") or node_id)
+        sub = str(node.get("vrf") or node.get("host") or node.get("kind") or "")
+        state = "ok" if node.get("kind") == "DEVICE" else "unknown"
+        svg.append(
+            f'<g class="topology-node state-{state}" tabindex="0" data-node="{html.escape(node_id, quote=True)}" '
+            f'data-default-x="{x:.1f}" data-default-y="{y:.1f}" data-x="{x:.1f}" data-y="{y:.1f}" '
+            f'transform="translate({x:.1f} {y:.1f})"><title>{html.escape(label)} · {html.escape(sub)}</title>'
+            f'<circle r="48"></circle><text class="topology-node-name" text-anchor="middle" y="-3">{html.escape(label[:28])}</text>'
+            f'<text class="topology-node-sub" text-anchor="middle" y="16">{html.escape(sub[:28])}</text></g>')
+    svg.append('</g></svg></div>')
+
+    edge_rows = ''
+    for edge in edges:
+        edge_rows += (
+            f'<tr><td>{html.escape(str(edge.get("kind") or ""))}</td>'
+            f'<td>{html.escape(str(edge.get("from") or "").replace("device:", ""))}</td>'
+            f'<td>{html.escape(str(edge.get("to") or "").replace("device:", ""))}</td>'
+            f'<td>{html.escape(str(edge.get("vrf") or "-"))}</td>'
+            f'<td>{html.escape(str(edge.get("next_hop") or "-"))}</td>'
+            f'<td>{html.escape(str(edge.get("outgoing_interface") or "-"))}</td>'
+            f'<td>{html.escape(str(edge.get("evidence_state") or ""))}</td>'
+            f'<td>{html.escape(str(edge.get("resolution_state") or ""))}</td>'
+            f'<td>{int(edge.get("route_count") or 0)}</td></tr>')
+
+    status_rows = ''
+    for row in graph.get("collection_status", []):
+        state = str(row.get("status") or "UNKNOWN")
+        badge = "b-ok" if state == "OK" else ("b-bad" if state == "ERROR" else "b-dim")
+        status_rows += (
+            f'<tr><td>{html.escape(str(row.get("device") or ""))}</td><td><span class="badge {badge}">{html.escape(state)}</span></td>'
+            f'<td>{html.escape(str(row.get("platform") or ""))}</td><td>{int(row.get("interface_count") or 0)}</td>'
+            f'<td>{int(row.get("route_count") or 0)}</td><td>{_fmt_ts(row.get("observed_ts"))}</td>'
+            f'<td class="muted">{html.escape(str(row.get("error") or ""))}</td></tr>')
+
+    issue_rows = ''
+    for row in graph.get("ambiguous_next_hops", []):
+        issue_rows += (f'<tr><td><span class="badge b-bad">AMBIGUOUS</span></td><td>{html.escape(row.get("device", ""))}</td>'
+                       f'<td>{html.escape(row.get("vrf", ""))}</td><td>{html.escape(row.get("destination_prefix", ""))}</td>'
+                       f'<td>{html.escape(row.get("next_hop", ""))}</td><td>{html.escape(", ".join(row.get("candidates") or []))}</td></tr>')
+    for row in graph.get("unresolved_next_hops", []):
+        issue_rows += (f'<tr><td><span class="badge b-dim">UNKNOWN</span></td><td>{html.escape(row.get("device", ""))}</td>'
+                       f'<td>{html.escape(row.get("vrf", ""))}</td><td>{html.escape(row.get("destination_prefix", ""))}</td>'
+                       f'<td>{html.escape(row.get("next_hop", ""))}</td><td>no unique managed-interface match</td></tr>')
+
+    stale_link = f'/topology?view={view}&include_stale=' + ('0' if include_stale else '1')
+    toolbar = (
+        f'<div class="topology-toolbar"><div><b>{int(summary.get("managed_devices", 0))}</b> managed devices · '
+        f'<b>{int(summary.get("subnets", 0))}</b> connected subnets · <b>{int(summary.get("next_hop_edges", 0))}</b> resolved next-hop edges · '
+        f'<b>{int(summary.get("unresolved_next_hops", 0))}</b> unknown · <b>{int(summary.get("ambiguous_next_hops", 0))}</b> ambiguous</div>'
+        f'<div class="topology-actions"><a class="badge b-dim" href="{stale_link}">{"Hide" if include_stale else "Show"} stale evidence</a> '
+        f'<button type="button" class="ghost" id="topology-fit">Reset view</button><button type="button" class="ghost" id="topology-reset">Reset layout</button></div></div>')
+    note = ('<div class="topology-legend"><span><i class="topology-swatch"></i>DIRECT / PHYSICAL</span>'
+            '<span><i class="topology-swatch inferred"></i>ROUTING / INFERRED PATH</span>'
+            '<span><i class="topology-swatch unknown"></i>Subnet / unknown evidence</span></div>'
+            '<p class="topology-note">This view is built only from persisted evidence. Rendering never polls a device. '
+            'A next-hop IP becomes a managed-device edge only when it uniquely matches fresh interface evidence in the same VRF.</p>')
+    return (_topology_view_tabs(view) + f'<div class="panel">{toolbar}{note}{"".join(svg)}</div>{_TOPOLOGY_JS}'
+            f'<div class="panel"><h3>L3 evidence</h3><table><tr><th>Kind</th><th>From</th><th>To</th><th>VRF</th><th>Next hop</th><th>Interface</th><th>Evidence</th><th>Resolution</th><th>Routes</th></tr>'
+            f'{edge_rows or "<tr><td colspan=9 class=muted>No fresh L3 graph evidence yet. Run normal configuration collection on supported Layer-3 devices.</td></tr>"}</table></div>'
+            f'<div class="panel"><h3>L3 collection status</h3><table><tr><th>Device</th><th>Status</th><th>Platform</th><th>Interfaces</th><th>Routes</th><th>Observed</th><th>Error</th></tr>'
+            f'{status_rows or "<tr><td colspan=7 class=muted>No L3 collection has completed yet.</td></tr>"}</table></div>'
+            f'<div class="panel"><h3>Unresolved / ambiguous next hops</h3><table><tr><th>State</th><th>Device</th><th>VRF</th><th>Destination</th><th>Next hop</th><th>Evidence</th></tr>'
+            f'{issue_rows or "<tr><td colspan=6 class=muted>No unresolved or ambiguous next-hop evidence.</td></tr>"}</table></div>')
+
+
 def render_topology_page(handler, q, sess):
+    view = str((q.get("view") or ["physical"])[0] or "physical").lower()
+    if view not in {"physical", "l3", "combined"}:
+        view = "physical"
+    if view in {"l3", "combined"}:
+        return _render_l3_topology_page(handler, q, sess, view)
     rows = handler.manager.db.get_neighbors()
     identities = handler.manager.topology_identities()
     graph = handler.manager.topology_graph()
@@ -1026,7 +1134,7 @@ def render_topology_page(handler, q, sess):
              f'<details class="panel"><summary>Raw LLDP/CDP observations · {len(rows)} rows · {len(unmanaged)} unmanaged · {len(ambiguous)} ambiguous</summary>'
              f'<table><tr><th>Device</th><th>Local port</th><th>Neighbour</th><th>Remote port</th><th>Protocol</th><th>State</th><th>Resolution evidence</th></tr>'
              f'{raw_rows or "<tr><td colspan=7 class=muted>No LLDP/CDP neighbours collected yet.</td></tr>"}</table></details>')
-    return inner
+    return _topology_view_tabs("physical") + inner
 
 
 
@@ -1088,12 +1196,80 @@ def render_events_page(handler, q, sess):
 
         suppressions = handler.manager.events.suppressions(True)
         sup_rows = ''.join(f'<tr><td>{html.escape(x.get("root_device", ""))}:{html.escape(x.get("root_port", ""))}</td><td>{html.escape(x.get("target_device", ""))}</td><td>{_fmt_ts(x.get("expires_ts"))}</td><td>{html.escape(x.get("reason", ""))}</td></tr>' for x in suppressions)
-        inner = (detail +
+        tabs = handler._correlation_workspace_tabs("events") if hasattr(handler, "_correlation_workspace_tabs") else ""
+        inner = (tabs + detail +
                  f'<div class="panel"><h2>Operational Events</h2><p class="muted">MC-3 normalized cross-domain operational evidence. Sensor refreshes create events only for durable state transitions; UNKNOWN remains missing evidence rather than an automatic critical verdict.</p>'
                  f'<form method=get action="/events"><div class="row"><select name=device>{options}</select><select name=domain>{domain_options}</select><button class=ghost>Filter</button></div></form>'
                  f'<div class="table-wrap"><table><tr><th>Observed</th><th>Domain</th><th>Severity</th><th>Event</th><th>Entity</th><th>Resource</th><th>Status</th><th>Count</th><th>State</th></tr>{body_rows or "<tr><td colspan=9 class=muted>No operational events.</td></tr>"}</table></div></div>'
                  f'<div class="panel"><h3>Active dependency suppressions</h3><div class="table-wrap"><table><tr><th>Upstream</th><th>Suppressed device</th><th>Expires</th><th>Reason</th></tr>{sup_rows or "<tr><td colspan=4 class=muted>None.</td></tr>"}</table></div></div>')
         return handler._send(handler._page("Events", inner, sess))
+
+
+def render_netflow_section(handler, dev, collector):
+    from . import netflow as _nf
+    m = handler.manager
+    port = m.settings.get("netflow_port", 2055)
+    col = collector
+    if not m.settings.get("netflow_enabled"):
+        status = ('<span class="badge b-dim">collector off</span> — turn it on in '
+                  'Settings → NetFlow.')
+    elif not col:
+        status = '<span class="badge b-bad">collector not running</span>'
+    else:
+        st = col.status()
+        status = (f'<span class="badge b-ok">listening udp/{st["port"]}</span> · '
+                  f'{col.packet_count(dev["host"])} packet(s) received from this device')
+
+    flows = col.flows_for(dev["host"], limit=max(50, int(m.settings.get("netflow_max_flows", 500)))) if col else []
+    summary = _nf.summarize_flows(flows, limit=8)
+    cards = (
+        '<div class="sensor-grid">'
+        f'<div class="sensor-card ok"><div class="sensor-head"><span class="sensor-dot"></span>Recent flows</div><div class="sensor-value">{summary["flow_count"]}</div><div class="sensor-detail">bounded in-memory records</div></div>'
+        f'<div class="sensor-card ok"><div class="sensor-head"><span class="sensor-dot"></span>Observed bytes</div><div class="sensor-value">{handler._human_bytes(summary["total_bytes"])}</div><div class="sensor-detail">{summary["total_packets"]} packets</div></div>'
+        f'<div class="sensor-card ok"><div class="sensor-head"><span class="sensor-dot"></span>Sources</div><div class="sensor-value">{summary["unique_sources"]}</div><div class="sensor-detail">unique source IPs</div></div>'
+        f'<div class="sensor-card ok"><div class="sensor-head"><span class="sensor-dot"></span>Destinations</div><div class="sensor-value">{summary["unique_destinations"]}</div><div class="sensor-detail">unique destination IPs</div></div>'
+        '</div>')
+
+    def ranked(title, rows):
+        body = []
+        for row in rows:
+            pct = row.get("byte_share", 0) * 100
+            body.append(
+                f'<tr><td><b>{html.escape(str(row.get("label") or "-"))}</b></td>'
+                f'<td class=right>{handler._human_bytes(row.get("bytes"))}</td>'
+                f'<td class=right>{row.get("packets",0)}</td><td class=right>{pct:.0f}%</td>'
+                f'<td><progress max="100" value="{max(0,min(100,pct)):.1f}"></progress></td></tr>')
+        return (f'<div><h3>{html.escape(title)}</h3><div class="table-wrap"><table>'
+                f'<tr><th>Item</th><th>Bytes</th><th>Packets</th><th>Share</th><th></th></tr>'
+                f'{"".join(body) or "<tr><td colspan=5 class=muted>No data.</td></tr>"}</table></div></div>')
+
+    insight_rows = ''.join(f'<li>{html.escape(x)}</li>' for x in summary["insights"])
+    analysis = (f'<div class="panel"><h3>Traffic analysis</h3><ul>{insight_rows}</ul>'
+                '<p class="muted">Deterministic summary of the recent flow ring; it does not infer attack intent or causation.</p></div>')
+    overview = ('<div class="panel"><h3>Traffic overview</h3><div class="row">'
+                + ranked("Top sources", summary["top_sources"])
+                + ranked("Top destinations", summary["top_destinations"])
+                + '</div><div class="row">'
+                + ranked("Protocols", summary["protocols"])
+                + ranked("Destination ports", summary["top_ports"])
+                + '</div></div>')
+    conv_rows = ''.join(
+        f'<tr><td>{html.escape(str(r.get("label") or ""))}</td><td class=right>{handler._human_bytes(r.get("bytes"))}</td><td class=right>{r.get("packets",0)}</td><td class=right>{r.get("flows",0)}</td></tr>'
+        for r in summary["conversations"])
+    conversations = (f'<div class="panel"><h3>Top conversations</h3><div class="table-wrap"><table><tr><th>Conversation</th><th>Bytes</th><th>Packets</th><th>Flows</th></tr>{conv_rows or "<tr><td colspan=4 class=muted>No data.</td></tr>"}</table></div></div>')
+
+    raw_rows = ''.join(
+        f'<tr><td class=muted>{time.strftime("%H:%M:%S", time.localtime(fl["ts"]))}</td>'
+        f'<td>{html.escape(fl["src"])}:{fl["sport"]}</td><td>{html.escape(fl["dst"])}:{fl["dport"]}</td>'
+        f'<td>{html.escape(str(fl["proto"]))}</td><td class=right>{fl["packets"]}</td><td class=right>{fl["bytes"]}</td></tr>'
+        for fl in flows[:100])
+    raw = (f'<div class="panel"><details><summary><b>Advanced: raw recent flow records</b></summary>'
+           f'<div class="table-wrap"><table><tr><th>Time</th><th>Source</th><th>Destination</th><th>Proto</th><th>Packets</th><th>Bytes</th></tr>{raw_rows or "<tr><td colspan=6 class=muted>No flow records.</td></tr>"}</table></div></details></div>')
+    offnote = ("" if dev.get("netflow") else
+               '<p class="muted">NetFlow is not enabled for this device — edit it and tick "collect NetFlow from this device".</p>')
+    empty = (f'<p class="muted">No flows received yet. Configure this device to export NetFlow to this server on <code>udp/{port}</code>.</p>' if not flows else "")
+    return (f'<div class="panel"><h2>NetFlow traffic view</h2><p class="muted">FortiView-style summaries from flows already received from <b>{html.escape(dev["host"])}</b>. {status}</p>{offnote}{empty}{cards}</div>'
+            + analysis + overview + conversations + raw)
 
 
 def render_protocols_page(handler, sess, q=None):
@@ -1155,3 +1331,146 @@ def render_protocols_page(handler, sess, q=None):
     )
     return intro + table + advanced
 
+
+
+def render_incident_investigation(investigation):
+    """Render incident evidence plus MC-7 non-causal hypotheses without side effects."""
+    hypotheses = investigation.get("hypotheses") or []
+    hypothesis_rows = []
+    for item in hypotheses:
+        supporting = item.get("supporting_evidence") or []
+        contradicting = item.get("contradicting_evidence") or []
+        hypothesis_rows.append(
+            f'<tr><td>{html.escape(item.get("hypothesis_type") or "")}</td>'
+            f'<td><b>{int(item.get("confidence") or 0)}%</b> '
+            f'<span class="badge b-dim">{html.escape(item.get("confidence_label") or "")}</span></td>'
+            f'<td>{html.escape(item.get("summary") or "")}</td>'
+            f'<td>{len(supporting)} / {len(contradicting)}</td>'
+            f'<td><code>{html.escape(item.get("rule_version") or "")}</code></td></tr>'
+        )
+    current = hypotheses[0] if hypotheses else None
+    current_detail = ""
+    if current:
+        def evidence_list(title, items, css):
+            rows = []
+            for item in items or []:
+                if isinstance(item, dict):
+                    source = item.get("source_type") or item.get("type") or "evidence"
+                    ref = item.get("source_ref") or item.get("source_id") or item.get("ref") or ""
+                    summary = item.get("summary") or item.get("message") or item.get("event_type") or ""
+                    rows.append(f'<li><span class="badge {css}">{html.escape(str(source))}</span> <code>{html.escape(str(ref))}</code> {html.escape(str(summary))}</li>')
+                else:
+                    rows.append(f'<li>{html.escape(str(item))}</li>')
+            return f'<div><h3>{html.escape(title)} · {len(items or [])}</h3><ul>{"".join(rows) or "<li class=muted>None.</li>"}</ul></div>'
+        current_detail = (
+            '<div class="panel"><h2>Current hypothesis evidence</h2>'
+            '<p class=muted>Supporting and contradicting evidence remain independently visible. This is not a confirmed root cause.</p>'
+            f'<p><b>{html.escape(str(current.get("hypothesis_type") or ""))}</b> · {int(current.get("confidence") or 0)}% · {html.escape(str(current.get("summary") or ""))}</p>'
+            '<div class=row>'
+            + evidence_list("Supporting evidence", current.get("supporting_evidence") or [], "b-ok")
+            + evidence_list("Contradicting evidence", current.get("contradicting_evidence") or [], "b-chg")
+            + '</div></div>')
+    hypothesis_panel = (
+        current_detail + f'<div class="panel"><h2>Current hypotheses · {len(hypotheses)}</h2>'
+        '<p class=muted>Deterministic evidence correlation only. Correlation does not confirm causation or root cause.</p>'
+        '<table><tr><th>Hypothesis</th><th>Confidence</th><th>Summary</th><th>Support / contradict</th><th>Rule</th></tr>'
+        f'{"".join(hypothesis_rows) or "<tr><td colspan=5 class=muted>No active hypothesis. Run correlation after linking relevant evidence.</td></tr>"}</table></div>'
+    )
+    correlation_runs = investigation.get("correlation_runs") or []
+    run_rows = []
+    for run in correlation_runs[:20]:
+        state = str(run.get("state") or "")
+        css = "b-ok" if state == "COMPLETED" else ("b-bad" if state in {"FAILED", "NON_DETERMINISTIC"} else "b-chg")
+        run_rows.append(
+            f'<tr><td>{html.escape(_fmt_ts(run.get("started_ts")))}</td>'
+            f'<td><span class="badge {css}">{html.escape(state)}</span></td>'
+            f'<td>{html.escape(str(run.get("mode") or ""))}</td>'
+            f'<td>{int(run.get("facts_considered") or 0)}</td>'
+            f'<td>{int(run.get("hypotheses_count") or 0)}</td>'
+            f'<td>{float(run.get("duration_ms") or 0):.1f} ms</td>'
+            f'<td>{int(run.get("late_evidence_count") or 0)} / {int(run.get("out_of_order_count") or 0)}</td>'
+            f'<td>{"yes" if run.get("replay_of_id") else "no"}</td></tr>')
+    run_panel = (
+        f'<div class="panel"><h2>Correlation run evidence · {len(correlation_runs)}</h2>'
+        '<p class=muted>MC-10 runtime evidence records determinism, latency, replay, late/out-of-order evidence and bounded truncation. It does not establish causation.</p>'
+        '<div class="table-wrap"><table><tr><th>Started</th><th>State</th><th>Mode</th><th>Facts</th><th>Hypotheses</th><th>Latency</th><th>Late / OOO</th><th>Replay</th></tr>'
+        f'{"".join(run_rows) or "<tr><td colspan=8 class=muted>No correlation run evidence yet.</td></tr>"}</table></div></div>'
+    )
+    timeline = investigation.get("timeline") or []
+    rows = []
+    for item in timeline:
+        available = item.get("available", True)
+        source_ts = float(item.get("source_ts") or item.get("ts") or 0)
+        received_ts = float(item.get("received_ts") or 0)
+        late = received_ts > source_ts + 1
+        rows.append(
+            f'<tr><td>{html.escape(_fmt_ts(source_ts))}</td>'
+            f'<td>{html.escape(item.get("source_type") or item.get("kind") or "")}</td>'
+            f'<td>{html.escape(item.get("actor") or item.get("source_system") or "")}</td>'
+            f'<td>{html.escape(item.get("summary") or "")}{" <span class=muted>(late arrival)</span>" if late else ""}</td>'
+            f'<td><span class="badge {"b-ok" if available else "b-bad"}">{"available" if available else "missing"}</span></td></tr>'
+        )
+    timeline_panel = (
+        f'<div class="panel"><h2>Incident timeline · Unified · {len(timeline)}</h2>'
+        '<p class=muted>Ordered by source time; receive time is retained for late-arriving evidence. '
+        'Equal timestamps use deterministic evidence ordering.</p>'
+        '<table><tr><th>Source time</th><th>Source</th><th>Actor / system</th><th>Summary</th><th>Evidence</th></tr>'
+        f'{"".join(rows) or "<tr><td colspan=5 class=muted>No timeline entries.</td></tr>"}</table></div>'
+    )
+    impact = investigation.get("impact") or {}
+    affected = impact.get("affected_entities") or []
+    impact_panel = (
+        '<div class="panel"><h2>Impact</h2>'
+        '<p class=muted>Observed entities only; MC-5 does not infer root cause or service dependency.</p>'
+        f'<p><b>{len(affected)}</b> affected/related entities from <b>{impact.get("evidence_count", 0)}</b> timeline entries.</p>'
+        f'<p>{html.escape(", ".join(affected[:30])) if affected else "No affected entity can be established from linked evidence."}</p></div>'
+    )
+
+    def group(title, items):
+        group_rows = [
+            f'<tr><td>{html.escape(_fmt_ts(item.get("source_ts") or item.get("ts")))}</td>'
+            f'<td>{html.escape(item.get("source_type") or "")}</td>'
+            f'<td>{html.escape(item.get("summary") or "")}</td></tr>'
+            for item in items
+        ]
+        return (
+            f'<div class="panel"><h2>{html.escape(title)} · {len(items)}</h2>'
+            '<table><tr><th>Time</th><th>Type</th><th>Evidence summary</th></tr>'
+            f'{"".join(group_rows) or "<tr><td colspan=3 class=muted>No linked evidence in this category.</td></tr>"}</table></div>'
+        )
+
+    groups = (
+        group("Related alerts", investigation.get("related_alerts") or [])
+        + group("Related changes", investigation.get("related_changes") or [])
+        + group("Network evidence", investigation.get("network_evidence") or [])
+        + group("Security evidence", investigation.get("security_evidence") or [])
+        + group("Infrastructure evidence", investigation.get("infrastructure_evidence") or [])
+        + group("Raw / advanced evidence", investigation.get("advanced_evidence") or [])
+    )
+    return hypothesis_panel + run_panel + impact_panel + timeline_panel + groups
+
+
+def render_incident_correlation(handler, incident_key, can_write, investigation):
+    """Enrich one Incident page with persisted MC-7 hypotheses and controls."""
+    hypotheses = handler.manager.correlation.list(incident_key, active_only=True, limit=100)
+    investigation["hypotheses"] = hypotheses
+    investigation["current_hypothesis"] = hypotheses[0] if hypotheses else None
+    investigation["root_cause"] = None
+    investigation["root_cause_state"] = "NOT_CONFIRMED" if hypotheses else "NOT_EVALUATED"
+    investigation["correlation_runs"] = handler.manager.correlation_hardening.runs(
+        incident_key, limit=20)
+    controls = (
+        '<div class="panel"><h2>Operator journey</h2>'
+        '<p class=muted>Continue this persisted investigation through MC-11 path analysis, frozen approval, Structured Change verification and post-change evidence without page-triggered polling.</p>'
+        f'<a class="btn ghost" href="/operations?tab=workflow&incident={_q(incident_key)}">Open R65 Operator Journey</a></div>'
+    )
+    if can_write:
+        controls += (
+            '<div class="panel"><h2>Correlation</h2>'
+            '<p class=muted>Re-evaluate linked evidence using deterministic MC-7 rules. '
+            'This does not execute device actions or confirm root cause.</p>'
+            f'<form method=post action="/incident-correlate">{handler._csrf_field()}'
+            f'<input type=hidden name=ref value="{html.escape(incident_key)}">'
+            '<button>Run correlation</button></form></div>'
+        )
+    return controls + render_incident_investigation(investigation)

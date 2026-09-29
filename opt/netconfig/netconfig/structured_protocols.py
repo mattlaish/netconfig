@@ -61,6 +61,28 @@ class StructuredProtocolError(RuntimeError):
     """Fail-closed structured-adapter error with secret-safe messages."""
 
 
+class _RestconfNoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Reject every RESTCONF redirect before a second network request occurs."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise urllib.error.HTTPError(
+            req.full_url, code, "RESTCONF redirects are forbidden", headers, fp
+        )
+
+
+def _restconf_opener(context):
+    """Build a per-request opener that keeps TLS policy and refuses redirects."""
+    return urllib.request.build_opener(
+        _RestconfNoRedirectHandler(),
+        urllib.request.HTTPSHandler(context=context),
+    )
+
+
+def _restconf_open(req, *, timeout, context):
+    """Open one RESTCONF request with redirects disabled."""
+    return _restconf_opener(context).open(req, timeout=timeout)
+
+
 @dataclass(frozen=True)
 class GnmiPathElem:
     name: str
@@ -1022,7 +1044,9 @@ class StructuredCollector:
             headers["If-Match"] = str(if_match)
         req = urllib.request.Request(url, data=data, method=method, headers=headers)
         try:
-            with urllib.request.urlopen(req, timeout=self.manager.settings["command_timeout"], context=context) as res:
+            with _restconf_open(
+                req, timeout=self.manager.settings["command_timeout"], context=context
+            ) as res:
                 raw = res.read(MAX_PAYLOAD_BYTES + 1)
                 if len(raw) > MAX_PAYLOAD_BYTES:
                     raise StructuredProtocolError("RESTCONF response exceeds 16 MiB limit")
@@ -1030,6 +1054,10 @@ class StructuredCollector:
                 etag = str(res.headers.get("ETag") or "")
                 status = int(getattr(res, "status", 200) or 200)
         except urllib.error.HTTPError as exc:
+            if 300 <= int(exc.code) < 400:
+                raise StructuredProtocolError(
+                    f"RESTCONF {method} redirect refused: HTTP {exc.code}"
+                ) from exc
             detail = f"HTTP {exc.code}"
             raise StructuredProtocolError(f"RESTCONF {method} failed: {detail}") from exc
         return raw, ctype, {"path": safe_path, "tls_verify": verify, "mtls": mtls,

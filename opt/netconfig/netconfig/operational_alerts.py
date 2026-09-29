@@ -11,6 +11,7 @@ import json
 import time
 
 from . import mailer
+from .db import operational_alert_correlation_key
 
 _ALERT_STATES = {"OPEN", "ACKNOWLEDGED", "RESOLVED"}
 _SEVERITY_RANK = {
@@ -21,6 +22,28 @@ _SEVERITY_RANK = {
 
 def _clean(value, limit=1024):
     return str(value or "").replace("\x00", "")[:limit]
+
+
+def _event_metadata(event):
+    raw = event.get("metadata") if event else None
+    if isinstance(raw, dict):
+        return dict(raw)
+    try:
+        value = json.loads(raw or "{}")
+    except Exception:
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def _correlation_key(event):
+    return operational_alert_correlation_key(event)
+
+
+def _is_recovery(event):
+    meta = _event_metadata(event)
+    if str(event.get("source_type") or "").lower() == "sensor_transition":
+        return str(meta.get("new_status") or event.get("status") or "").upper() == "OK"
+    return str(event.get("status") or "").upper() in {"RECOVERED", "RESOLVED"}
 
 
 class OperationalAlertLifecycle:
@@ -41,12 +64,76 @@ class OperationalAlertLifecycle:
         now = time.time() if now is None else float(now)
         return self.db.active_maintenance_window(_clean(device, 255), now)
 
-    def observe_event(self, event, now=None):
-        """Attach NI-4 lifecycle state to one durable NI-3 event.
+    def reconcile_sensor_conditions(self, device=None, now=None):
+        """Reconcile persistent firing Sensors without inventing transitions.
 
-        Deduplicated NI-3 observations touch the same alert.  A matching active
-        maintenance window prevents alert creation but retains a durable reference
-        on the event so operators can explain why it did not page.
+        Manual resolution of a still-firing Sensor reopens the same alert
+        lifecycle on the next Sensor refresh. Events observed during maintenance
+        are re-evaluated after maintenance ends. The method is DB-only and does
+        not poll devices.
+        """
+        now = time.time() if now is None else float(now)
+        sensors = self.manager.sensors.list(device=device, limit=2000)
+        firing = [s for s in sensors if str(s.get("status") or "").upper() in {"WARNING", "CRITICAL"}]
+        if not firing:
+            return []
+
+        # Build one bounded latest-event map once; do not execute one query per
+        # Sensor. Sensor events carry the durable sensor_key in metadata.
+        events = self.db.operational_events(
+            limit=5000, device=device, include_suppressed=True, source_type="sensor_transition")
+        latest_event = {}
+        for event in events:
+            meta = _event_metadata(event)
+            sensor_key = str(meta.get("sensor_key") or "")
+            if sensor_key and sensor_key not in latest_event:
+                latest_event[sensor_key] = event
+
+        changed = []
+        for sensor in firing:
+            sensor_key = self.manager.sensors.sensor_key(
+                sensor.get("sensor_type") or "", sensor.get("device") or "",
+                sensor.get("resource") or "")
+            correlation_key = "sensor:" + sensor_key[:900]
+            if self.db.active_operational_alert_for_correlation(correlation_key):
+                continue
+            sensor_device = str(sensor.get("device") or "")
+            if self.active_maintenance(sensor_device, now):
+                continue
+            if self.db.active_operational_suppressions(sensor_device, now):
+                continue
+
+            previous = self.db.latest_operational_alert_for_correlation(correlation_key)
+            if (previous and previous.get("state") == "RESOLVED" and
+                    str(previous.get("resolved_by") or "") != "sensor-recovery"):
+                row = self.db.reopen_operational_alert(previous["id"], now)
+                self.db.audit("sensor-reconcile", "operational_alert_reopen", str(row["id"]),
+                              f'{row.get("device","")} persistent Sensor condition')
+                if self._alert_notifications_enabled():
+                    self.db.enqueue_notification("ALERT_OPEN", now, alert_id=row["id"])
+                changed.append(row)
+                continue
+
+            # A transition/initial-bad event that occurred during maintenance has
+            # durable evidence but no alert. Re-evaluate that same event after the
+            # window ends rather than manufacturing a fake Sensor transition.
+            event = latest_event.get(sensor_key)
+            if not event or int(event.get("suppressed") or 0):
+                continue
+            if str(event.get("status") or "").upper() not in {"WARNING", "CRITICAL"}:
+                continue
+            row = self.observe_event(event, now=now)
+            if row and not row.get("maintenance_suppressed"):
+                changed.append(row)
+        return changed
+
+    def observe_event(self, event, now=None):
+        """Attach the canonical MC-4 alert lifecycle to normalized evidence.
+
+        One Sensor condition owns at most one active alert. Severity escalation
+        touches that alert; an OK recovery transition resolves it automatically.
+        Maintenance/dependency suppression still prevents alert creation while
+        preserving the event evidence.
         """
         if not event or not event.get("id"):
             return None
@@ -56,19 +143,46 @@ class OperationalAlertLifecycle:
             row = self.db.touch_operational_alert(existing["id"], event)
             self.db.set_operational_event_lifecycle_refs(event["id"], alert_id=row["id"])
             return row
+
+        key = _correlation_key(event)
+        active = self.db.active_operational_alert_for_correlation(key)
+        if _is_recovery(event):
+            if not active:
+                return None
+            self.db.touch_operational_alert_recovery(active["id"], event)
+            row = self.db.update_operational_alert_state(
+                active["id"], "RESOLVED", "sensor-recovery",
+                _clean(event.get("message") or "automatic recovery", 1024), now)
+            self.db.set_operational_event_lifecycle_refs(event["id"], alert_id=row["id"])
+            self.db.audit("sensor-recovery", "operational_alert_auto_resolve", str(row["id"]),
+                          f'{row.get("device","")} {event.get("event_type","")}')
+            if self._alert_notifications_enabled():
+                self.db.enqueue_notification("ALERT_RESOLVED", now, alert_id=row["id"])
+            return row
+
+        if active:
+            row = self.db.touch_operational_alert(active["id"], event)
+            self.db.set_operational_event_lifecycle_refs(event["id"], alert_id=row["id"])
+            return row
         if not self._qualifies(event):
             return None
         maint = self.active_maintenance(event.get("device") or "", now)
         if maint:
             self.db.set_operational_event_lifecycle_refs(event["id"], maintenance_window_id=maint["id"])
             return {"maintenance_suppressed": True, "maintenance_window_id": maint["id"]}
-        alert = self.db.create_operational_alert(event)
+        alert = self.db.create_operational_alert(event, correlation_key=key, opened_ts=now)
         self.db.set_operational_event_lifecycle_refs(event["id"], alert_id=alert["id"])
         self.db.audit("operational-events", "operational_alert_open", str(alert["id"]),
                       f'{alert.get("device","")} {alert.get("event_type","")}')
-        if self.manager.settings.get("operational_notifications_enabled"):
+        if self._alert_notifications_enabled():
             self.db.enqueue_notification("ALERT_OPEN", now, alert_id=alert["id"])
         return alert
+
+    def _alert_notifications_enabled(self):
+        # MC-4 preserves the old monitor SMTP behaviour while the dedicated
+        # operational-notification toggle remains available.
+        return bool(self.manager.settings.get("operational_notifications_enabled")
+                    or self.manager.settings.get("smtp_enabled"))
 
     def get(self, alert_id):
         return self.db.get_operational_alert(int(alert_id))
@@ -102,7 +216,7 @@ class OperationalAlertLifecycle:
             return row
         out = self.db.update_operational_alert_state(alert_id, "RESOLVED", _clean(actor,128), _clean(note,1024), now)
         self.db.audit(actor, "operational_alert_resolve", str(alert_id), _clean(note,500))
-        if self.manager.settings.get("operational_notifications_enabled"):
+        if self._alert_notifications_enabled():
             self.db.enqueue_notification("ALERT_RESOLVED", now, alert_id=int(alert_id))
         return out
 
@@ -132,6 +246,7 @@ class OperationalAlertLifecycle:
         if not row:
             raise ValueError("maintenance window not found")
         self.db.audit(actor, "maintenance_window_cancel", str(window_id), row.get("name") or "")
+        self.reconcile_sensor_conditions(device=(row.get("device") or None), now=now)
         return row
 
     def add_report_schedule(self, name, actor, *, interval_seconds=86400, lookback_hours=24,
@@ -280,7 +395,7 @@ def poller(manager, interval, stop):
     interval = max(30, int(interval))
     while not stop.is_set():
         try:
-            if manager.ha.accepts_automation_work():
+            if manager.scheduler_leader("operational-lifecycle"):
                 manager.alert_lifecycle.tick()
         except Exception as exc:
             manager.db.audit("scheduler", "operational_lifecycle_failed", "ni4", str(exc)[:500])

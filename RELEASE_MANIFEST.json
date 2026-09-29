@@ -1,36 +1,59 @@
 {
+  "authority_boundary": "R67.2 repairs fresh login, additive schema/index ordering, fail-closed Core PostgreSQL preflight, Core/History PostgreSQL separation, and fresh PostgreSQL bootstrap; network mutation authority is unchanged and remains exclusively approval-gated.",
+  "base_track": "R67.2 corrective RC on frozen R67",
+  "current_package": "2.0.0-67.2",
+  "current_release": "67.2",
+  "current_slice": "R67.2 Fresh Database Bootstrap Hardening Corrective RC",
+  "deferred": [
+    "all 12 required LIVE_RC gates",
+    "external/upstream Git-index 100755 fresh-clone verification",
+    "live AlmaLinux 10 RPM/systemd/SELinux install and upgrade",
+    "live PostgreSQL/backup/restore/concurrency/recovery",
+    "live multi-node HA/failure-domain failover/fencing",
+    "real protocol/vendor device qualification",
+    "production scale/performance",
+    "independent security/operator/supportability/MC-11 end-to-end acceptance"
+  ],
+  "feature_freeze": true,
+  "mc12_defined": false,
+  "monitoring_correlation_lineage": "CLOSED at R59/MC-11; do not create MC-12",
   "name": "NetConfig",
-  "version": "2.0.0",
-  "current_release": 51,
-  "current_package": "2.0.0-51",
-  "status": "IMPLEMENTED_TESTING_DEFERRED",
-  "current_slice": "MC-3 Normalized Operational Evidence + R51-HF1 pre-MC4 compatibility hotfix",
-  "mc1": "IMPLEMENTED_TESTING_DEFERRED",
-  "mc2": "IMPLEMENTED_TESTING_DEFERRED",
-  "mc3": "IMPLEMENTED_TESTING_DEFERRED",
-  "mc4": "PLANNED",
-  "feature_baseline": "NI-7 L3/VRF Path & Route Dependency Intelligence",
-  "release51_change": "MC-3 normalized operational evidence plus pre-MC4 SNMPv3 AES privacy compatibility and inventory-complete interactive topology graph",
-  "hotfix": "R51-HF1 pre-MC4 SNMPv3 + Topology compatibility hotfix",
-  "schema_revision": "mc3-operational-evidence-1",
-  "history_retention": {
-    "sensor_observations_days": 30,
-    "sensor_transitions_days": 180
+  "next_track": "R68 v2 Production Release Decision rerun after R67.2 live qualification",
+  "offline_rpm": {
+    "artifact": "netconfig-2.0.0-67.2.el10.noarch.rpm",
+    "boundary": "offline helper RPM; not live AlmaLinux/rpmbuild/systemd/SELinux qualification",
+    "deterministic_rebuild": "PASS",
+    "independent_verifier": "PASS",
+    "payload_files": 106,
+    "payload_sha256": "a2bcab1a23a90eaf9bd27a13f4b88cdfeab4669010b2f1d98a97a2a148fd026e",
+    "payload_size": 1966675,
+    "sha256": "289caa0e57137ed3c2e5a3a3fb55b197c3c58d8094b682c4b5e5f6861ecbb118"
   },
-  "rpm_policy": "formal RPM qualification deferred until monitoring/correlation roadmap completion; no formal R51-HF1 RPM is claimed",
-  "source_manifest_sha256": "de239cd2767a7a8e0a2bc420094d81ffb6e2361d80f6a92024ef80d5f945d820",
-  "required_executables": [
-    "usr/bin/netconfig",
-    "packaging/build-rpm.sh",
-    "packaging/install-rpm.sh",
-    "packaging/inspect-rpm.sh",
-    "packaging/q1-qualify-almalinux.sh",
-    "packaging/q1-qualify-postgres.sh",
-    "packaging/q1-source-gates.sh",
-    "packaging/smoke-installed.sh",
-    "tools/rpm-builder/build.sh",
-    "tools/rpm-builder/verify.sh",
-    "tools/rpm-builder/rpm_builder.py",
-    "tools/rpm-builder/verify_rpm.py"
-  ]
+  "production_release_claim": false,
+  "qualification": {
+    "initial_campaign": "external candidate-bound evidence; not embedded in source metadata",
+    "mc11_focused": "12/12 PASS",
+    "production_release_claim": false,
+    "r67_2_focused": "9/9 PASS",
+    "release_candidate_qualified": false,
+    "single_process_full_pytest": "TIMED_OUT around 37 percent with no failure output; not counted as PASS",
+    "source_tree": "548 collected / 534 passed / 14 skipped / 0 failed (12 bounded groups)",
+    "transition_focused": "71/71 PASS"
+  },
+  "release_candidate_policy": {
+    "all_required_live_rc_gates_required": true,
+    "candidate_evidence_bound_to_exact_fingerprint": true,
+    "changes_invalidate_prior_rc_evidence": true,
+    "r67_2_cannot_promote_released": true
+  },
+  "release_promotion": "NOT_PERFORMED",
+  "sbom": {
+    "artifact": "SBOM.spdx.json",
+    "files_analyzed": 453,
+    "format": "SPDX-2.3",
+    "package_verification_code": "c06ac7e0e78b34019400ce036437e7108a56c4c5"
+  },
+  "schema_revision": "mc11-topology-change-planning-1",
+  "status": "IMPLEMENTED_TESTING_DEFERRED",
+  "version": "2.0.0"
 }

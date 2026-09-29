@@ -8,6 +8,8 @@ from __future__ import annotations
 import re
 import time
 
+from . import topology as _topology
+
 _MAC = re.compile(r"^[0-9a-f]{2}(?::[0-9a-f]{2}){5}$")
 
 
@@ -50,7 +52,7 @@ def _neighbor_port_keys(row):
     return keys
 
 
-def correlate(db, device=None, *, max_age=1800, now=None):
+def correlate(db, device=None, *, inventory=None, max_age=1800, now=None):
     """Return endpoint attachment records with explicit confidence/provenance.
 
     Fresh FDB observations on ports with LLDP/CDP neighbours are treated as
@@ -60,9 +62,12 @@ def correlate(db, device=None, *, max_age=1800, now=None):
     """
     now = time.time() if now is None else float(now)
     max_age = max(1, int(max_age))
-    ip_rows = db.get_ip_neighbors(device)
-    fdb_rows = db.get_vlan_fdb(device)
-    topo = db.get_neighbors(device)
+    # Correlate globally first. ARP/IP-neighbour evidence often lives on an L3
+    # gateway while FDB evidence lives on access/distribution switches. Filtering
+    # either table by device before the MAC join breaks the IP -> MAC -> port chain.
+    ip_rows = db.get_ip_neighbors()
+    fdb_rows = db.get_vlan_fdb()
+    topo = db.get_neighbors()
 
     neighbor_ports = {}
     downstream = {}
@@ -76,6 +81,29 @@ def correlate(db, device=None, *, max_age=1800, now=None):
                 "managed": bool(n.get("managed_neighbor")),
                 "protocol": n.get("protocol", ""),
                 "remote_port": n.get("port_id", ""),
+            })
+
+    # R51-HF1 FDB-derived managed-device path evidence can identify additional
+    # transit-facing ports when LLDP/CDP is absent (for example firewalls that do
+    # not expose LLDP-MIB). It is supplementary only and never becomes a direct
+    # adjacency assertion.
+    if inventory:
+        try:
+            inferred = _topology.infer_fdb_edges(
+                fdb_rows, inventory, db.get_topology_device_identities(),
+                db.get_topology_interfaces())
+        except Exception:
+            inferred = []
+        for edge in inferred:
+            dev = str(edge.get("from") or "")
+            port = str(edge.get("local_port") or "").strip().lower()
+            if not dev or not port:
+                continue
+            neighbor_ports.setdefault(dev, set()).add(port)
+            downstream.setdefault((dev, port), []).append({
+                "neighbor": edge.get("to") or "", "managed": True,
+                "protocol": "fdb-inferred", "remote_port": edge.get("remote_port") or "",
+                "evidence_kind": "INFERRED",
             })
 
     by_mac_ip = {}
@@ -109,13 +137,15 @@ def correlate(db, device=None, *, max_age=1800, now=None):
         fdb = by_mac_fdb.get(mac, [])
         fresh = [r for r in fdb if r.get("fresh")]
         direct = [r for r in fresh if not r.get("neighbor_facing")]
+        fresh_ip = [r for r in ips if r.get("fresh")]
+        stale_ip_mapping = bool(ips) and not fresh_ip
         status = "UNRESOLVED"
         confidence = "NONE"
         attachment = None
         if len(direct) == 1:
             attachment = direct[0]
             if str(attachment.get("vlan_id", "")):
-                status, confidence = "ATTACHED", "HIGH"
+                status, confidence = "ATTACHED", ("PARTIAL" if stale_ip_mapping else "HIGH")
             else:
                 status, confidence = "ATTACHED", "PARTIAL"
         elif len(direct) > 1:
@@ -127,6 +157,7 @@ def correlate(db, device=None, *, max_age=1800, now=None):
 
         ipv4 = sorted({r.get("ip", "") for r in ips if r.get("address_family") == "ipv4" and r.get("ip")})
         ipv6 = sorted({r.get("ip", "") for r in ips if r.get("address_family") == "ipv6" and r.get("ip")})
+        transit = [r for r in fresh if r.get("neighbor_facing")]
         record = {
             "mac": mac,
             "ipv4": ipv4,
@@ -135,9 +166,23 @@ def correlate(db, device=None, *, max_age=1800, now=None):
             "confidence": confidence,
             "attachment": None,
             "candidates": direct,
-            "transit_observations": [r for r in fresh if r.get("neighbor_facing")],
+            "transit_observations": transit,
             "neighbor_observations": ips,
             "max_age_seconds": max_age,
+            "ip_mapping_fresh": bool(fresh_ip) if ips else None,
+            "evidence_chain": {
+                "ip_neighbors": [{
+                    "device": r.get("device", ""), "ip": r.get("ip", ""),
+                    "ifdescr": r.get("ifdescr", ""), "ifindex": r.get("ifindex", ""),
+                    "source": r.get("source", ""), "fresh": bool(r.get("fresh")),
+                } for r in ips],
+                "fdb_candidates": [{
+                    "device": r.get("device", ""), "ifdescr": r.get("ifdescr", ""),
+                    "ifindex": r.get("ifindex", ""), "bridge_port": r.get("bridge_port", ""),
+                    "vlan_id": r.get("vlan_id", ""), "source": r.get("source", ""),
+                    "fresh": bool(r.get("fresh")), "transit": bool(r.get("neighbor_facing")),
+                } for r in fdb],
+            },
         }
         if attachment:
             record["attachment"] = {
@@ -150,8 +195,29 @@ def correlate(db, device=None, *, max_age=1800, now=None):
                 "source": attachment.get("source", ""),
                 "ts": attachment.get("ts"),
             }
+        if device:
+            observed_devices = {str(r.get("device") or "") for r in ips + fdb}
+            if str(device) not in observed_devices:
+                continue
         out.append(record)
     return out
+
+
+def endpoint_matches(row, needle):
+    needle = str(needle or "").strip().lower()
+    if not needle:
+        return True
+    values = [row.get("mac", ""), row.get("status", ""), row.get("confidence", "")]
+    values.extend(row.get("ipv4") or [])
+    values.extend(row.get("ipv6") or [])
+    attachment = row.get("attachment") or {}
+    values.extend([attachment.get("device", ""), attachment.get("ifdescr", ""),
+                   attachment.get("ifindex", ""), attachment.get("bridge_port", ""),
+                   attachment.get("vlan_id", "")])
+    for item in (row.get("candidates") or []) + (row.get("transit_observations") or []):
+        values.extend([item.get("device", ""), item.get("ifdescr", ""),
+                       item.get("ifindex", ""), item.get("bridge_port", "")])
+    return any(needle in str(value or "").lower() for value in values)
 
 
 def summary(rows):

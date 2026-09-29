@@ -1,0 +1,30 @@
+{
+  "track": "Q2 Production Qualification Campaign",
+  "product_baseline": "2.0.0-59",
+  "schema_revision": "mc11-topology-aware-change-planning-1",
+  "product_status": "IMPLEMENTED_TESTING_DEFERRED",
+  "campaign_selection": "25 gates; Q2-BASE-003 full repository regression intentionally recorded separately",
+  "campaign_counts": {
+    "PASS": 3,
+    "FAIL": 0,
+    "BLOCKED_ENVIRONMENT": 16,
+    "NOT_RUN": 6
+  },
+  "pass_evidence_class": "LOCAL_REGRESSION only",
+  "live_pass_count": 0,
+  "repository_regression": {
+    "collected": 394,
+    "passed": 386,
+    "skipped": 8,
+    "failed": 0
+  },
+  "q2_focused": "14/14 PASS",
+  "mc11_focused": "12/12 PASS",
+  "runtime_checks": "compileall PASS; launcher/q2 py_compile PASS; shell syntax PASS; legacy selftest ALL PASS",
+  "product_runtime_payload_unchanged": true,
+  "offline_rpm_sha256": "af001a110e0d1eb6f3013f1608e1cf9159fecc2b590fccc2516738dc32a2d2a9",
+  "offline_rpm_byte_identical_to_frozen_r59": true,
+  "initial_evidence_bundle": "netconfig-2.0.0-59-Q2-initial-qualification-evidence.zip",
+  "initial_evidence_bundle_sha256": "8feb30d7c57112321b21c0f6ad7ce712454a6a079712c11ebbedbd5cfc30181e",
+  "release_promotion_performed": false
+}

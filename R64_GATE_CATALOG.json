@@ -1,0 +1,206 @@
+[
+  {
+    "area": "baseline",
+    "builtin": "baseline",
+    "evidence_class": "LOCAL_REGRESSION",
+    "gate_id": "R64-BASE-001",
+    "hook_name": "",
+    "required_tools": [],
+    "timeout": 30,
+    "title": "R64 release/schema/authority identity"
+  },
+  {
+    "area": "baseline",
+    "builtin": "focused",
+    "evidence_class": "LOCAL_REGRESSION",
+    "gate_id": "R64-BASE-002",
+    "hook_name": "",
+    "required_tools": [
+      "pytest"
+    ],
+    "timeout": 300,
+    "title": "R64 focused security abuse regression"
+  },
+  {
+    "area": "baseline",
+    "builtin": "full",
+    "evidence_class": "LOCAL_REGRESSION",
+    "gate_id": "R64-BASE-003",
+    "hook_name": "",
+    "required_tools": [
+      "pytest"
+    ],
+    "timeout": 900,
+    "title": "Full bounded repository regression"
+  },
+  {
+    "area": "baseline",
+    "builtin": "mc11",
+    "evidence_class": "LOCAL_REGRESSION",
+    "gate_id": "R64-BASE-004",
+    "hook_name": "",
+    "required_tools": [
+      "pytest"
+    ],
+    "timeout": 180,
+    "title": "MC-11 authority regression retained"
+  },
+  {
+    "area": "web",
+    "builtin": "web",
+    "evidence_class": "LOCAL_ABUSE",
+    "gate_id": "R64-LOCAL-001",
+    "hook_name": "",
+    "required_tools": [
+      "pytest"
+    ],
+    "timeout": 180,
+    "title": "Session RBAC CSRF and request-framing abuse suite"
+  },
+  {
+    "area": "egress",
+    "builtin": "oauth",
+    "evidence_class": "LOCAL_ABUSE",
+    "gate_id": "R64-LOCAL-002",
+    "hook_name": "",
+    "required_tools": [
+      "pytest"
+    ],
+    "timeout": 180,
+    "title": "OAuth redirect SSRF and endpoint validation abuse suite"
+  },
+  {
+    "area": "parser",
+    "builtin": "archive",
+    "evidence_class": "LOCAL_ABUSE",
+    "gate_id": "R64-LOCAL-003",
+    "hook_name": "",
+    "required_tools": [
+      "pytest"
+    ],
+    "timeout": 180,
+    "title": "Hostile archive evidence and parser abuse suite"
+  },
+  {
+    "area": "authz",
+    "builtin": "hook",
+    "evidence_class": "LIVE_ABUSE",
+    "gate_id": "R64-ABUSE-001",
+    "hook_name": "authz-object-boundary",
+    "required_tools": [],
+    "timeout": 600,
+    "title": "Unauthenticated RBAC and object-boundary abuse"
+  },
+  {
+    "area": "session",
+    "builtin": "hook",
+    "evidence_class": "LIVE_ABUSE",
+    "gate_id": "R64-ABUSE-002",
+    "hook_name": "session-csrf-revocation",
+    "required_tools": [],
+    "timeout": 600,
+    "title": "CSRF session revocation and secure-cookie abuse"
+  },
+  {
+    "area": "token",
+    "builtin": "hook",
+    "evidence_class": "LIVE_ABUSE",
+    "gate_id": "R64-ABUSE-003",
+    "hook_name": "api-token-boundary",
+    "required_tools": [],
+    "timeout": 600,
+    "title": "API-token scope revoke and replay abuse"
+  },
+  {
+    "area": "evidence",
+    "builtin": "hook",
+    "evidence_class": "LIVE_ABUSE",
+    "gate_id": "R64-ABUSE-004",
+    "hook_name": "external-evidence-abuse",
+    "required_tools": [],
+    "timeout": 600,
+    "title": "Hostile external-evidence oversize and rate corpus"
+  },
+  {
+    "area": "egress",
+    "builtin": "hook",
+    "evidence_class": "LIVE_ABUSE",
+    "gate_id": "R64-ABUSE-005",
+    "hook_name": "egress-transport-abuse",
+    "required_tools": [],
+    "timeout": 600,
+    "title": "RESTCONF SSH OAuth SSRF injection and egress abuse"
+  },
+  {
+    "area": "web",
+    "builtin": "hook",
+    "evidence_class": "LIVE_ABUSE",
+    "gate_id": "R64-ABUSE-006",
+    "hook_name": "web-input-exhaustion",
+    "required_tools": [],
+    "timeout": 600,
+    "title": "XSS CSP headers request-smuggling and body exhaustion"
+  },
+  {
+    "area": "parser",
+    "builtin": "hook",
+    "evidence_class": "LIVE_ABUSE",
+    "gate_id": "R64-ABUSE-007",
+    "hook_name": "archive-parser-abuse",
+    "required_tools": [],
+    "timeout": 600,
+    "title": "Archive parser bomb special-file and traversal corpus"
+  },
+  {
+    "area": "secrets",
+    "builtin": "hook",
+    "evidence_class": "LIVE_ABUSE",
+    "gate_id": "R64-ABUSE-008",
+    "hook_name": "secret-leakage-redaction",
+    "required_tools": [],
+    "timeout": 600,
+    "title": "Evidence support-bundle secret leakage and redaction"
+  },
+  {
+    "area": "mc11",
+    "builtin": "hook",
+    "evidence_class": "LIVE_ABUSE",
+    "gate_id": "R64-ABUSE-009",
+    "hook_name": "mc11-nonexecution-abuse",
+    "required_tools": [],
+    "timeout": 600,
+    "title": "MC-11 arbitrary-command proposal and what-if nonexecution abuse"
+  },
+  {
+    "area": "os",
+    "builtin": "hook",
+    "evidence_class": "LIVE_ABUSE",
+    "gate_id": "R64-ABUSE-010",
+    "hook_name": "os-rpm-confinement",
+    "required_tools": [
+      "systemctl"
+    ],
+    "timeout": 600,
+    "title": "RPM permissions SELinux and service-account abuse"
+  },
+  {
+    "area": "resource",
+    "builtin": "hook",
+    "evidence_class": "LIVE_ABUSE",
+    "gate_id": "R64-ABUSE-011",
+    "hook_name": "resource-exhaustion-abuse",
+    "required_tools": [],
+    "timeout": 600,
+    "title": "Concurrency resource exhaustion and slow-client abuse"
+  },
+  {
+    "area": "independent",
+    "builtin": "hook",
+    "evidence_class": "LIVE_ABUSE",
+    "gate_id": "R64-ABUSE-012",
+    "hook_name": "independent-abuse-signoff",
+    "required_tools": [],
+    "timeout": 600,
+    "title": "Independent assessor consolidated abuse sign-off"
+  }
+]

@@ -1,0 +1,36 @@
+{
+  "smoke": {
+    "api_requests": 40,
+    "concurrent_operators": 8,
+    "correlation_runs": 40,
+    "devices": 50,
+    "endpoints": 250,
+    "external_evidence": 120,
+    "fan_in_links": 200,
+    "incidents": 30,
+    "netflow_records": 3000,
+    "overload_links": 2100,
+    "routes": 300,
+    "syslog_events": 350,
+    "topology_edges": 150,
+    "trap_events": 250,
+    "webui_requests": 20
+  },
+  "standard": {
+    "api_requests": 1000,
+    "concurrent_operators": 32,
+    "correlation_runs": 1000,
+    "devices": 500,
+    "endpoints": 5000,
+    "external_evidence": 3000,
+    "fan_in_links": 500,
+    "incidents": 500,
+    "netflow_records": 100000,
+    "overload_links": 2500,
+    "routes": 5000,
+    "syslog_events": 10000,
+    "topology_edges": 2500,
+    "trap_events": 5000,
+    "webui_requests": 500
+  }
+}

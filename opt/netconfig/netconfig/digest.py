@@ -36,7 +36,7 @@ def run(manager):
 
 def poller(manager, interval, stop):
     while not stop.wait(interval):
-        if not manager.ha.accepts_automation_work():
+        if not manager.scheduler_leader("compliance-digest"):
             continue
         try:
             run(manager)

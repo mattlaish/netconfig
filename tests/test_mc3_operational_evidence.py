@@ -66,7 +66,7 @@ def test_mc3_schema_has_normalized_operational_evidence_fields_and_indexes(tmp_p
         "idx_operational_events_entity_time",
         "idx_operational_events_evidence_ref",
     } <= indexes
-    assert m.db.storage_status()["schema_revision"] == "mc3-operational-evidence-1"
+    assert m.db.storage_status()["schema_revision"] == "mc11-topology-change-planning-1"
     m.db.close()
 
 
@@ -98,7 +98,7 @@ def test_mc3_additive_migration_upgrades_legacy_operational_events(tmp_path):
     assert row["entity_type"] == "interface" and row["entity_id"] == "Gi1"
     assert row["resource"] == "Gi1"
     assert row["observed_at"] == 123
-    assert db.storage_status()["schema_revision"] == "mc3-operational-evidence-1"
+    assert db.storage_status()["schema_revision"] == "mc11-topology-change-planning-1"
     db.close()
 
 def test_manager_bridges_only_new_durable_sensor_transitions(tmp_path):

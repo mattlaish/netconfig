@@ -7,6 +7,8 @@ from pathlib import Path
 from .apitokens import ApiTokens
 from .debug import DebugBundle
 from .evidence_signing import signing_status
+from .external_evidence import ExternalEvidenceError
+from .correlation_hardening import CorrelationBusyError
 
 
 class WebApiMixin:
@@ -42,6 +44,192 @@ class WebApiMixin:
                 "campaign_wave": "campaign:write",
             }.get(kind, "automation:write")
 
+        if path == "/api/v1/external-sources":
+            if "external:manage" not in token["scopes"] or token.get("role") != "admin":
+                self._api_json({"error": "insufficient_scope", "required": "external:manage+admin"}, 403); return True
+            try:
+                value = self.manager.external_evidence.register_source(
+                    (form.get("source_key") or [""])[0],
+                    (form.get("source_type") or [""])[0],
+                    (form.get("display_name") or [""])[0],
+                    ingest_token_id=(form.get("ingest_token_id") or [""])[0],
+                    max_payload_bytes=int((form.get("max_payload_bytes") or ["65536"])[0] or 65536),
+                    rate_limit_per_minute=int((form.get("rate_limit_per_minute") or ["120"])[0] or 120),
+                    enabled=str((form.get("enabled") or ["1"])[0]).lower() not in {"0", "false", "no", "off"},
+                    actor=actor)
+            except (ExternalEvidenceError, TypeError, ValueError) as exc:
+                code = exc.status if isinstance(exc, ExternalEvidenceError) else 400
+                self._api_json({"error": getattr(exc, "code", "external_source_rejected"), "detail": str(exc)}, code); return True
+            self._api_json(value, 201); return True
+        if path.startswith("/api/v1/external-sources/") and path.endswith("/state"):
+            if "external:manage" not in token["scopes"] or token.get("role") != "admin":
+                self._api_json({"error": "insufficient_scope", "required": "external:manage+admin"}, 403); return True
+            source_key = urllib.parse.unquote(path[len("/api/v1/external-sources/"):-len("/state")].strip("/"))
+            try:
+                enabled = str((form.get("enabled") or [""])[0]).lower() in {"1", "true", "yes", "on"}
+                value = self.manager.external_evidence.set_enabled(source_key, enabled, actor=actor)
+            except ExternalEvidenceError as exc:
+                self._api_json({"error": exc.code, "detail": str(exc)}, exc.status); return True
+            self._api_json(value); return True
+        if path.startswith("/api/v1/external-evidence/") and path.endswith("/events"):
+            source_key = urllib.parse.unquote(path[len("/api/v1/external-evidence/"):-len("/events")].strip("/"))
+            try:
+                envelope = {
+                    "schema_version": (form.get("schema_version") or ["1"])[0],
+                    "source_event_id": (form.get("source_event_id") or [""])[0],
+                    "idempotency_key": (form.get("idempotency_key") or [""])[0],
+                    "event_type": (form.get("event_type") or [""])[0],
+                    "source_ts": (form.get("source_ts") or [""])[0],
+                    "severity": (form.get("severity") or ["INFO"])[0],
+                    "domain": (form.get("domain") or [""])[0],
+                    "entity_type": (form.get("entity_type") or ["unknown"])[0],
+                    "entity_id": (form.get("entity_id") or [""])[0],
+                    "summary": (form.get("summary") or [""])[0],
+                    "metadata": _form_json("metadata", {}) or {},
+                    "payload": _form_json("payload", {}) or {},
+                    "source_clock": _form_json("source_clock", {}) or {},
+                }
+                value = self.manager.external_evidence.ingest(
+                    source_key, envelope, token,
+                    request_bytes=int(self.headers.get("Content-Length", 0) or 0))
+            except ExternalEvidenceError as exc:
+                self._api_json({"error": exc.code, "detail": str(exc)}, exc.status); return True
+            except (TypeError, ValueError, json.JSONDecodeError) as exc:
+                self._api_json({"error": "SCHEMA_REJECTED", "detail": str(exc)}, 400); return True
+            self._api_json(value, 200 if value.get("duplicate") else 201); return True
+        if path.startswith("/api/v1/incidents/") and path.endswith("/correlate"):
+            if "incident:write" not in token["scopes"] or token.get("role") not in {"operator", "approver", "admin"}:
+                self._api_json({"error": "insufficient_scope", "required": "incident:write+operator"}, 403); return True
+            ref = urllib.parse.unquote(path[len("/api/v1/incidents/"):-len("/correlate")].strip("/"))
+            if not ref or "/" in ref:
+                return False
+            try:
+                value = self.manager.correlation.correlate(ref, actor=actor)
+            except CorrelationBusyError as exc:
+                self._api_json({"error": "correlation_busy", "detail": str(exc)}, 409); return True
+            except ValueError as exc:
+                self._api_json({"error": "incident_correlation_failed", "detail": str(exc)}, 400); return True
+            except RuntimeError as exc:
+                self._api_json({"error": "correlation_integrity_failed", "detail": str(exc)}, 409); return True
+            self._api_json(value, 201); return True
+        if path.startswith("/api/v1/incidents/") and path.endswith("/correlation-replay"):
+            if "incident:write" not in token["scopes"] or token.get("role") not in {"operator", "approver", "admin"}:
+                self._api_json({"error": "insufficient_scope", "required": "incident:write+operator"}, 403); return True
+            ref = urllib.parse.unquote(path[len("/api/v1/incidents/"):-len("/correlation-replay")].strip("/"))
+            if not ref or "/" in ref:
+                return False
+            try:
+                value = self.manager.correlation_hardening.replay_preview(
+                    ref, float((form.get("start_ts") or ["0"])[0]),
+                    float((form.get("end_ts") or ["0"])[0]), actor=actor)
+            except CorrelationBusyError as exc:
+                self._api_json({"error": "correlation_busy", "detail": str(exc)}, 409); return True
+            except (TypeError, ValueError) as exc:
+                self._api_json({"error": "correlation_replay_rejected", "detail": str(exc)}, 400); return True
+            except RuntimeError as exc:
+                self._api_json({"error": "correlation_integrity_failed", "detail": str(exc)}, 409); return True
+            self._api_json(value, 200); return True
+        if path == "/api/v1/operations/correlation/retention":
+            if "analytics:write" not in token["scopes"] or token.get("role") not in {"operator", "approver", "admin"}:
+                self._api_json({"error": "insufficient_scope", "required": "analytics:write+operator"}, 403); return True
+            try:
+                value = self.manager.correlation_hardening.prune_runs(
+                    int((form.get("retention_days") or ["30"])[0] or 30), actor=actor)
+            except (TypeError, ValueError) as exc:
+                self._api_json({"error": "correlation_retention_rejected", "detail": str(exc)}, 400); return True
+            self._api_json(value); return True
+        if path == "/api/v1/dependencies/entities":
+            if "analytics:write" not in token["scopes"] or token.get("role") not in {"operator", "approver", "admin"}:
+                self._api_json({"error": "insufficient_scope", "required": "analytics:write+operator"}, 403); return True
+            try:
+                value = self.manager.dependencies.put_entity(
+                    (form.get("entity_key") or [""])[0],
+                    (form.get("entity_type") or [""])[0],
+                    (form.get("name") or [""])[0],
+                    description=(form.get("description") or [""])[0],
+                    metadata=_form_json("metadata", {}) or {}, actor=actor)
+            except Exception as exc:
+                self._api_json({"error": "dependency_entity_failed", "detail": str(exc)}, 400); return True
+            self._api_json(value, 201); return True
+        if path == "/api/v1/dependencies/edges":
+            if "analytics:write" not in token["scopes"] or token.get("role") not in {"operator", "approver", "admin"}:
+                self._api_json({"error": "insufficient_scope", "required": "analytics:write+operator"}, 403); return True
+            try:
+                raw_age = (form.get("max_age_seconds") or [""])[0]
+                raw_observed = (form.get("observed_ts") or [""])[0]
+                value = self.manager.dependencies.put_dependency(
+                    (form.get("source_key") or [""])[0],
+                    (form.get("target_key") or [""])[0],
+                    (form.get("relationship") or [""])[0],
+                    evidence_state=(form.get("evidence_state") or [""])[0],
+                    provenance=(form.get("provenance") or [""])[0],
+                    evidence_ref=(form.get("evidence_ref") or [""])[0],
+                    observed_ts=(None if raw_observed in (None, "") else float(raw_observed)),
+                    max_age_seconds=(None if raw_age in (None, "") else int(raw_age)),
+                    vrf=(form.get("vrf") or [""])[0],
+                    destination_prefix=(form.get("destination_prefix") or [""])[0],
+                    metadata=_form_json("metadata", {}) or {}, actor=actor)
+            except Exception as exc:
+                self._api_json({"error": "dependency_edge_failed", "detail": str(exc)}, 400); return True
+            self._api_json(value, 201); return True
+        if path.startswith("/api/v1/dependencies/edges/") and path.endswith("/state"):
+            if "analytics:write" not in token["scopes"] or token.get("role") not in {"operator", "approver", "admin"}:
+                self._api_json({"error": "insufficient_scope", "required": "analytics:write+operator"}, 403); return True
+            try:
+                edge_id = int(path.split("/")[-2])
+                active = str((form.get("active") or [""])[0]).lower() in {"1", "true", "yes", "on"}
+                value = self.manager.dependencies.set_active(edge_id, active, actor=actor)
+            except Exception as exc:
+                self._api_json({"error": "dependency_edge_state_failed", "detail": str(exc)}, 400); return True
+            self._api_json(value); return True
+        if path == "/api/v1/change-planning/evidence":
+            if "analytics:write" not in token["scopes"] or token.get("role") not in {"operator", "approver", "admin"}:
+                self._api_json({"error": "insufficient_scope", "required": "analytics:write+operator"}, 403); return True
+            try:
+                value = self.manager.change_planning.observe_policy_evidence(
+                    device=(form.get("device") or [""])[0],
+                    evidence_kind=(form.get("evidence_kind") or [""])[0],
+                    direction=(form.get("direction") or ["BOTH"])[0],
+                    vrf=(form.get("vrf") or ["default"])[0],
+                    source_selector=(form.get("source_selector") or ["*"])[0],
+                    destination_selector=(form.get("destination_selector") or ["*"])[0],
+                    service=(form.get("service") or ["any"])[0],
+                    state=(form.get("state") or ["UNKNOWN"])[0],
+                    evidence_ref=(form.get("evidence_ref") or [""])[0],
+                    metadata=_form_json("metadata", {}) or {},
+                    max_age_seconds=int((form.get("max_age_seconds") or ["0"])[0] or 0),
+                    actor=actor)
+            except Exception as exc:
+                self._api_json({"error": "change_planning_evidence_failed", "detail": str(exc)}, 400); return True
+            self._api_json(value, 201); return True
+        if path == "/api/v1/change-planning/plans":
+            if "analytics:write" not in token["scopes"] or token.get("role") not in {"operator", "approver", "admin"}:
+                self._api_json({"error": "insufficient_scope", "required": "analytics:write+operator"}, 403); return True
+            try:
+                value = self.manager.change_planning.plan(
+                    source=(form.get("source") or [""])[0],
+                    destination=(form.get("destination") or [""])[0],
+                    vrf=(form.get("vrf") or ["default"])[0],
+                    destination_prefix=(form.get("destination_prefix") or [""])[0],
+                    source_prefix=(form.get("source_prefix") or [""])[0],
+                    service=(form.get("service") or ["any"])[0],
+                    max_hops=int((form.get("max_hops") or ["16"])[0] or 16), actor=actor,
+                    incident_ref=(form.get("incident_ref") or [""])[0])
+            except Exception as exc:
+                self._api_json({"error": "change_planning_failed", "detail": str(exc)}, 400); return True
+            self._api_json(value, 201); return True
+        if path.startswith("/api/v1/change-planning/plans/") and path.endswith("/what-if"):
+            if "analytics:write" not in token["scopes"] or token.get("role") not in {"operator", "approver", "admin"}:
+                self._api_json({"error": "insufficient_scope", "required": "analytics:write+operator"}, 403); return True
+            rest = path[len("/api/v1/change-planning/plans/"):-len("/what-if")].strip("/")
+            if not rest.isdigit():
+                return False
+            try:
+                value = self.manager.change_planning.what_if(
+                    int(rest), _form_json("candidate_changes", []) or [], actor=actor)
+            except Exception as exc:
+                self._api_json({"error": "change_planning_what_if_failed", "detail": str(exc)}, 400); return True
+            self._api_json(value); return True
         if path == "/api/v1/analytics/l3/routes":
             if "analytics:write" not in token["scopes"] or token.get("role") not in {"operator", "approver", "admin"}:
                 self._api_json({"error": "insufficient_scope", "required": "analytics:write+operator"}, 403); return True
@@ -139,6 +327,7 @@ class WebApiMixin:
                 rid = self.wf.submit_automation(
                     title=(form.get("title") or [""])[0] or f"Automation {kind}",
                     intent=intent, requested_by=actor,
+                    context=_form_json("context", {}) or None,
                 )
                 item = self.wf.get(rid)
             except Exception as exc:
@@ -620,10 +809,11 @@ class WebApiMixin:
             except ValueError as exc:
                 self._api_json({"error": "trace_stop_failed", "detail": str(exc)}, 404); return True
             self._api_json(item); return True
-        if path.startswith("/api/v1/operational-alerts/"):
+        if path.startswith("/api/v1/operational-alerts/") or path.startswith("/api/v1/alerts/"):
             if "alerts:write" not in token["scopes"] or token.get("role") not in {"operator","approver","admin"}:
                 self._api_json({"error":"insufficient_scope","required":"alerts:write"},403); return True
-            rest=path[len("/api/v1/operational-alerts/"):].strip("/")
+            prefix = "/api/v1/alerts/" if path.startswith("/api/v1/alerts/") else "/api/v1/operational-alerts/"
+            rest=path[len(prefix):].strip("/")
             try:
                 aid_s, action = rest.split("/",1); aid=int(aid_s)
                 if action=="ack":
@@ -746,6 +936,52 @@ class WebApiMixin:
         if not token:
             self._api_json({"error": "invalid_or_missing_bearer_token"}, 401); return True
         scopes = token["scopes"]
+        if path == "/api/v1/supportability":
+            if "debug:read" not in scopes:
+                self._api_json({"error": "insufficient_scope", "required": "debug:read"}, 403)
+                return True
+            value = self.manager.supportability.snapshot()
+            self.manager.db.audit("api:" + token["name"], "api_read", path, "r66-supportability")
+            self._api_json(value)
+            return True
+        if path.startswith("/api/v1/operator-workflows/"):
+            required = {"incident:read", "analytics:read", "automation:read"}
+            if not required.issubset(scopes):
+                self._api_json({"error": "insufficient_scope", "required": "+".join(sorted(required))}, 403)
+                return True
+            ref = urllib.parse.unquote(path[len("/api/v1/operator-workflows/"):].strip("/"))
+            if not ref or "/" in ref:
+                return False
+            try:
+                def _qid(name):
+                    raw = str((query.get(name) or [""])[0] or "").strip()
+                    return int(raw) if raw else None
+                value = self.manager.operator_workflow.view(
+                    ref, plan_id=_qid("plan_id"), request_id=_qid("request_id"),
+                    transaction_id=_qid("transaction_id"))
+            except ValueError as exc:
+                self._api_json({"error": "operator_workflow_not_found", "detail": str(exc)}, 404)
+                return True
+            self.manager.db.audit("api:" + token["name"], "api_read", path, "r65-operator-workflow")
+            self._api_json(value)
+            return True
+
+        if path == "/api/v1/operations/correlation/health":
+            if "analytics:read" not in scopes:
+                self._api_json({"error": "insufficient_scope", "required": "analytics:read"}, 403); return True
+            try:
+                window = min(max(int((query.get("window_seconds") or ["900"])[0] or 900), 60), 86400)
+            except (TypeError, ValueError):
+                self._api_json({"error": "invalid_window_seconds"}, 400); return True
+            value = self.manager.correlation_hardening.health(window_seconds=window)
+            self.manager.db.audit("api:" + token["name"], "api_read", path, "analytics:read")
+            self._api_json(value); return True
+        if path == "/api/v1/operations/qualification/correlation":
+            if "analytics:read" not in scopes:
+                self._api_json({"error": "insufficient_scope", "required": "analytics:read"}, 403); return True
+            value = self.manager.correlation_hardening.qualification_report()
+            self.manager.db.audit("api:" + token["name"], "api_read", path, "analytics:read")
+            self._api_json(value); return True
         if path == "/api/v1/sensor-history":
             if "analytics:read" not in scopes and "inventory:read" not in scopes:
                 self._api_json({"error":"insufficient_scope","required":"analytics:read or inventory:read"},403); return True
@@ -792,6 +1028,106 @@ class WebApiMixin:
                     limit=int((query.get("limit") or [200])[0]))
             except Exception as exc:
                 self._api_json({"error":"sensor_query_failed","detail":str(exc)},400); return True
+            self._api_json(value); return True
+        if path == "/api/v1/dependencies/entities":
+            if "analytics:read" not in scopes:
+                self._api_json({"error":"insufficient_scope","required":"analytics:read"},403); return True
+            try:
+                value = self.manager.dependencies.entities(
+                    entity_type=(query.get("type") or [""])[0],
+                    search=(query.get("q") or [""])[0],
+                    limit=int((query.get("limit") or [250])[0]))
+            except Exception as exc:
+                self._api_json({"error":"dependency_entity_query_failed","detail":str(exc)},400); return True
+            self.manager.db.audit("api:"+token["name"],"api_read",path,"analytics:read")
+            self._api_json(value); return True
+        if path == "/api/v1/dependencies/edges":
+            if "analytics:read" not in scopes:
+                self._api_json({"error":"insufficient_scope","required":"analytics:read"},403); return True
+            try:
+                value = self.manager.dependencies.dependencies(
+                    source_key=(query.get("source") or [""])[0],
+                    target_key=(query.get("target") or [""])[0],
+                    relationship=(query.get("relationship") or [""])[0],
+                    evidence_state=(query.get("state") or [""])[0],
+                    include_inactive=str((query.get("include_inactive") or [""])[0]).lower() in {"1","true","yes","on"},
+                    limit=int((query.get("limit") or [500])[0]))
+            except Exception as exc:
+                self._api_json({"error":"dependency_edge_query_failed","detail":str(exc)},400); return True
+            self.manager.db.audit("api:"+token["name"],"api_read",path,"analytics:read")
+            self._api_json(value); return True
+        if path.startswith("/api/v1/dependencies/graph/"):
+            if "analytics:read" not in scopes:
+                self._api_json({"error":"insufficient_scope","required":"analytics:read"},403); return True
+            root = urllib.parse.unquote(path[len("/api/v1/dependencies/graph/"):].strip("/"))
+            if not root:
+                return False
+            try:
+                value = self.manager.dependencies.graph(
+                    root, max_depth=int((query.get("max_depth") or [4])[0]),
+                    max_nodes=int((query.get("max_nodes") or [100])[0]),
+                    include_inferred=str((query.get("include_inferred") or [""])[0]).lower() in {"1","true","yes","on"},
+                    include_stale=str((query.get("include_stale") or [""])[0]).lower() in {"1","true","yes","on"})
+            except Exception as exc:
+                self._api_json({"error":"dependency_graph_failed","detail":str(exc)},400); return True
+            self.manager.db.audit("api:"+token["name"],"api_read",path,"analytics:read")
+            self._api_json(value); return True
+        if path.startswith("/api/v1/dependencies/impact/"):
+            if "analytics:read" not in scopes:
+                self._api_json({"error":"insufficient_scope","required":"analytics:read"},403); return True
+            root = urllib.parse.unquote(path[len("/api/v1/dependencies/impact/"):].strip("/"))
+            if not root:
+                return False
+            try:
+                value = self.manager.dependencies.impact(
+                    root, max_depth=int((query.get("max_depth") or [5])[0]),
+                    max_nodes=int((query.get("max_nodes") or [100])[0]),
+                    include_inferred=str((query.get("include_inferred") or [""])[0]).lower() in {"1","true","yes","on"})
+            except Exception as exc:
+                self._api_json({"error":"dependency_impact_failed","detail":str(exc)},400); return True
+            self.manager.db.audit("api:"+token["name"],"api_read",path,"analytics:read")
+            self._api_json(value); return True
+        if path.startswith("/api/v1/dependencies/network-overlay/"):
+            if "analytics:read" not in scopes:
+                self._api_json({"error":"insufficient_scope","required":"analytics:read"},403); return True
+            root = urllib.parse.unquote(path[len("/api/v1/dependencies/network-overlay/"):].strip("/"))
+            if not root:
+                return False
+            try:
+                value = self.manager.dependencies.network_overlay(
+                    root, (query.get("source_device") or [""])[0],
+                    (query.get("vrf") or ["default"])[0],
+                    (query.get("destination_prefix") or [""])[0],
+                    max_hops=int((query.get("max_hops") or [16])[0]))
+            except Exception as exc:
+                self._api_json({"error":"dependency_network_overlay_failed","detail":str(exc)},400); return True
+            self.manager.db.audit("api:"+token["name"],"api_read",path,"analytics:read")
+            self._api_json(value); return True
+        if path == "/api/v1/change-planning/evidence":
+            if "analytics:read" not in scopes:
+                self._api_json({"error":"insufficient_scope","required":"analytics:read"},403); return True
+            try:
+                value = self.manager.change_planning.evidence(
+                    device=(query.get("device") or [""])[0],
+                    direction=(query.get("direction") or [""])[0],
+                    vrf=(query.get("vrf") or [""])[0],
+                    limit=int((query.get("limit") or [250])[0]))
+            except Exception as exc:
+                self._api_json({"error":"change_planning_evidence_query_failed","detail":str(exc)},400); return True
+            self._api_json(value); return True
+        if path == "/api/v1/change-planning/plans":
+            if "analytics:read" not in scopes:
+                self._api_json({"error":"insufficient_scope","required":"analytics:read"},403); return True
+            self._api_json(self.manager.change_planning.plans(int((query.get("limit") or [100])[0]))); return True
+        if path.startswith("/api/v1/change-planning/plans/"):
+            if "analytics:read" not in scopes:
+                self._api_json({"error":"insufficient_scope","required":"analytics:read"},403); return True
+            rest = path[len("/api/v1/change-planning/plans/"):].strip("/")
+            if not rest.isdigit():
+                return False
+            value = self.manager.change_planning.get_plan(int(rest))
+            if not value:
+                self._api_json({"error":"change_plan_not_found"},404); return True
             self._api_json(value); return True
         if path == "/api/v1/analytics/l3/routes":
             if "analytics:read" not in scopes:
@@ -1117,11 +1453,73 @@ class WebApiMixin:
                 return True
             self._api_json(self.manager.ha.drills())
             return True
+        if path == "/api/v1/topology/l3":
+            if "topology:read" not in scopes:
+                self._api_json({"error": "insufficient_scope", "required": "topology:read"}, 403); return True
+            include_stale = str((query.get("include_stale") or [""])[0]).lower() in {"1","true","yes","on"}
+            value = self.manager.l3_topology_graph(include_stale=include_stale)
+            self.manager.db.audit("api:" + token["name"], "api_read", path, "topology:read")
+            self._api_json(value); return True
+        if path == "/api/v1/topology/combined":
+            if "topology:read" not in scopes:
+                self._api_json({"error": "insufficient_scope", "required": "topology:read"}, 403); return True
+            include_stale = str((query.get("include_stale") or [""])[0]).lower() in {"1","true","yes","on"}
+            value = self.manager.combined_topology_graph(include_stale=include_stale)
+            self.manager.db.audit("api:" + token["name"], "api_read", path, "topology:read")
+            self._api_json(value); return True
+        if path == "/api/v1/topology/l3/status":
+            if "topology:read" not in scopes:
+                self._api_json({"error": "insufficient_scope", "required": "topology:read"}, 403); return True
+            device = (query.get("device") or [""])[0]
+            self._api_json(self.manager.l3_collection_status(device or None)); return True
+        if path == "/api/v1/topology/l3/interfaces":
+            if "topology:read" not in scopes:
+                self._api_json({"error": "insufficient_scope", "required": "topology:read"}, 403); return True
+            device = (query.get("device") or [""])[0]
+            self._api_json(self.manager.l3_topology.interfaces(device=device or None)); return True
         if path == "/api/v1/topology/graph":
             if "topology:read" not in scopes:
                 self._api_json({"error": "insufficient_scope", "required": "topology:read"}, 403); return True
             value = self.manager.topology_graph()
             self.manager.db.audit("api:" + token["name"], "api_read", path, "topology:read")
+            self._api_json(value); return True
+        if path == "/api/v1/external-sources":
+            if "external:read" not in scopes:
+                self._api_json({"error": "insufficient_scope", "required": "external:read"}, 403); return True
+            value = self.manager.external_evidence.sources(limit=min(int((query.get("limit") or ["500"])[0] or 500), 1000))
+            self.manager.db.audit("api:" + token["name"], "api_read", path, "external:read")
+            self._api_json(value); return True
+        if path.startswith("/api/v1/external-sources/"):
+            if "external:read" not in scopes:
+                self._api_json({"error": "insufficient_scope", "required": "external:read"}, 403); return True
+            rest = urllib.parse.unquote(path[len("/api/v1/external-sources/"):].strip("/"))
+            try:
+                if rest.endswith("/events"):
+                    source_key = rest[:-7].rstrip("/")
+                    value = self.manager.external_evidence.events(
+                        source_key, limit=min(int((query.get("limit") or ["200"])[0] or 200), 1000),
+                        include_payload=(query.get("include_payload") or [""])[0] in {"1", "true", "yes"})
+                elif rest and "/" not in rest:
+                    value = self.manager.external_evidence.get_source(rest)
+                    if not value:
+                        self._api_json({"error": "SOURCE_NOT_FOUND"}, 404); return True
+                else:
+                    return False
+            except (ExternalEvidenceError, TypeError, ValueError) as exc:
+                status = exc.status if isinstance(exc, ExternalEvidenceError) else 400
+                self._api_json({"error": getattr(exc, "code", "external_source_query_failed"), "detail": str(exc)}, status); return True
+            self.manager.db.audit("api:" + token["name"], "api_read", path, "external:read")
+            self._api_json(value); return True
+        if path.startswith("/api/v1/external-evidence/"):
+            if "external:read" not in scopes:
+                self._api_json({"error": "insufficient_scope", "required": "external:read"}, 403); return True
+            tail = path[len("/api/v1/external-evidence/"):].strip("/")
+            if not tail.isdigit():
+                return False
+            value = self.manager.external_evidence.event(int(tail), include_payload=True)
+            if not value:
+                self._api_json({"error": "EXTERNAL_EVENT_NOT_FOUND"}, 404); return True
+            self.manager.db.audit("api:" + token["name"], "api_read", path, "external:read")
             self._api_json(value); return True
         if path == "/api/v1/topology/identities":
             if "topology:read" not in scopes:
@@ -1207,7 +1605,22 @@ class WebApiMixin:
             if "incident:read" not in scopes:
                 self._api_json({"error": "insufficient_scope", "required": "incident:read"}, 403); return True
             try:
-                if rest.endswith("/timeline"):
+                if rest.endswith("/investigation"):
+                    ref = rest[:-14].rstrip("/")
+                    value = self.manager.incidents.investigation_view(ref, 500)
+                    hypotheses = self.manager.correlation.list(ref, active_only=True, limit=100)
+                    value["hypotheses"] = hypotheses
+                    value["current_hypothesis"] = hypotheses[0] if hypotheses else None
+                    value["root_cause"] = None
+                    value["root_cause_state"] = "NOT_CONFIRMED" if hypotheses else "NOT_EVALUATED"
+                    value["correlation_runs"] = self.manager.correlation_hardening.runs(ref, limit=20)
+                elif rest.endswith("/hypotheses"):
+                    ref = rest[:-11].rstrip("/")
+                    value = self.manager.correlation.list(ref, active_only=True, limit=100)
+                elif rest.endswith("/correlation-runs"):
+                    ref = rest[:-17].rstrip("/")
+                    value = self.manager.correlation_hardening.runs(ref, limit=200)
+                elif rest.endswith("/timeline"):
                     ref = rest[:-9].rstrip("/")
                     value = self.manager.incidents.timeline(ref, 500)
                 elif rest.endswith("/evidence"):
@@ -1285,11 +1698,18 @@ class WebApiMixin:
                 self._api_json({"error":"event_not_found"},404); return True
             self.manager.db.audit("api:"+token["name"],"api_read",path,"events:read")
             self._api_json({"event":event,"related_sensor":self.manager.events.related_sensor(event)}); return True
-        if path == "/api/v1/operational-alerts":
+        if path in {"/api/v1/operational-alerts", "/api/v1/alerts"}:
             if "alerts:read" not in scopes:
                 self._api_json({"error":"insufficient_scope","required":"alerts:read"},403); return True
+            try:
+                state=(query.get("state") or [None])[0]
+                device=(query.get("device") or [None])[0]
+                limit=int((query.get("limit") or [500])[0])
+                alerts=self.manager.alert_lifecycle.list(state=state,device=device,limit=max(1,min(limit,2000)))
+            except (ValueError,TypeError) as exc:
+                self._api_json({"error":"alert_query_failed","detail":str(exc)},400); return True
             self.manager.db.audit("api:"+token["name"],"api_read",path,"alerts:read")
-            self._api_json({"alerts":self.manager.alert_lifecycle.list(limit=500),"maintenance":self.manager.alert_lifecycle.maintenance(active_only=True),"deliveries":self.manager.alert_lifecycle.notifications(100)}); return True
+            self._api_json({"alerts":alerts,"maintenance":self.manager.alert_lifecycle.maintenance(active_only=True),"deliveries":self.manager.alert_lifecycle.notifications(100),"authoritative":"operational_alerts"}); return True
         if path == "/api/v1/maintenance-windows":
             if "alerts:read" not in scopes:
                 self._api_json({"error":"insufficient_scope","required":"alerts:read"},403); return True
@@ -1300,10 +1720,18 @@ class WebApiMixin:
                 self._api_json({"error":"insufficient_scope","required":"reports:read"},403); return True
             self.manager.db.audit("api:"+token["name"],"api_read",path,"reports:read")
             self._api_json({"schedules":self.manager.alert_lifecycle.report_schedules(),"runs":self.manager.alert_lifecycle.report_runs(100)}); return True
+        if path == "/api/v1/endpoints":
+            if "endpoint:read" not in scopes:
+                self._api_json({"error":"insufficient_scope","required":"endpoint:read"},403); return True
+            device=(query.get("device") or [None])[0]
+            search=(query.get("q") or [None])[0]
+            rows=self.manager.endpoint_inventory(device=device,query=search)
+            from . import network_intelligence as _ni
+            self.manager.db.audit("api:"+token["name"],"api_read",path,"endpoint:read")
+            self._api_json({"summary":_ni.summary(rows),"endpoints":rows}); return True
         routes = {
             "/api/v1/inventory": ("inventory:read", lambda: self.manager.inv.all()),
             "/api/v1/topology": ("topology:read", lambda: self.manager.db.get_neighbors()),
-            "/api/v1/endpoints": ("endpoint:read", lambda: {"summary": self.manager.endpoint_summary(), "endpoints": self.manager.endpoint_inventory()}),
             "/api/v1/drift": ("drift:read", lambda: [dict(device=d["name"], **self.manager.store.drift(d["name"])) for d in self.manager.inv.all()]),
             "/api/v1/compliance/latest": ("compliance:read", lambda: self.manager.db.conn.execute("SELECT * FROM compliance_runs ORDER BY id DESC LIMIT 1").fetchone()),
             "/api/v1/audit": ("audit:read", lambda: self.manager.db.recent_audit(200)),

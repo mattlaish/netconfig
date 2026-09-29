@@ -1,6 +1,19 @@
+Release 62.1 uses RPM identity `netconfig-2.0.0-62.1`. It is a security/packaging hotfix on R62: RESTCONF redirects are refused, the OpenSSH target is placed after `--`, and the upstream executable-mode repair patch covers every required operational entry point. R62 PostgreSQL concurrency/recovery and `packaging/r62-qualify.sh` remain unchanged in authority; live production claims still require `LIVE_POSTGRESQL` evidence. R61 scale/performance and R60 lifecycle tooling remain available as historical qualification tracks.
+
+Release 60 uses RPM identity `netconfig-2.0.0-60`. `packaging/r60-lifecycle-upgrade.sh` is the supported R59→R60 lifecycle wrapper for qualification/runbook use: it snapshots local state, masks services during the DNF transaction, verifies package/unit/preservation state, and performs an explicit release-59 downgrade plus state restore on failure. PostgreSQL requires a separately restored and validated rollback database before destructive upgrade execution. `packaging/r60-qualify.sh` runs the dedicated R60 evidence runner.
+
+## Q2 qualification tooling
+
+Q2 production qualification executes against the frozen R59 product with `packaging/q2-qualify.sh`. The Q2 harness is not packaged as product runtime and does not replace canonical AlmaLinux `rpmbuild`/DNF/systemd/SELinux evidence. Destructive gates require explicit authorization; missing qualification infrastructure is `BLOCKED_ENVIRONMENT`, never PASS.
+
 # NetConfig RPM build and installation (AlmaLinux 10)
 
-> **Canonical project state — 2026-09-23:** **CURRENT IMPLEMENTATION BASELINE** = **Release 51 / MC-3 Normalized Operational Evidence** (`2.0.0-51`, `IMPLEMENTED_TESTING_DEFERRED`). MC-1 Sensor Integration Unification and MC-2 Sensor History & State Transitions remain implemented. Release 51 adds a normalized cross-domain operational-evidence envelope, durable Sensor-transition → Event bridging, recovery/`UNKNOWN` semantics, additive event-schema migration/backfill/indexes, filtered/detail Event API reads, and an Event detail UI with current related Sensor state. NI-1 through **NI-7 L3/VRF Path & Route Dependency Intelligence** remain implemented. Formal RPM qualification remains deferred until the monitoring/correlation roadmap is complete; any ad-hoc RPM remains development evidence only.
+
+## Release 58 package identity
+
+The current helper/development package identity is `2.0.0-58`. The source package includes MC-10 correlation production hardening and qualification truth. This helper RPM remains unsigned and does not substitute for the deferred canonical AlmaLinux rpmbuild/DNF/systemd/SELinux qualification path.
+
+> **Canonical project state — 2026-09-25:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) on top of the frozen R67 candidate. MC-1 through MC-11 remain implemented; **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice and schema revision remains `mc11-topology-change-planning-1`; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included. R67.2 repairs fresh login, additive migration/index ordering, fail-closed Core PostgreSQL preflight, Core/History PostgreSQL configuration separation, and fresh PostgreSQL Core bootstrap without adding network-write authority. **All network mutation remains approval-gated; local/offline qualification does not establish RC or production release readiness; all required `LIVE_RC` gates remain mandatory. Do not create MC-12.** R68 must be rerun against the exact R67.2 candidate after mandatory live qualification.
 ## Release 48 — Sensor Model & Evidence Normalization
 
 Release 48 promotes the sensor work from UI-only health cards into a reusable persisted normalization layer. `SensorEngine` stores `sensor_type`, `device`, `resource`, `value`, `unit`, `status`, `message`, `threshold`, `source`, and `updated_at`, with the status contract limited to `OK`, `WARNING`, `CRITICAL`, and `UNKNOWN`. It reads existing NetConfig persistence only and does **not** initiate SNMP/NETCONF/RESTCONF/gNMI/SSH device I/O or change polling frequency.
@@ -24,7 +37,7 @@ The previously documented Central Controller + read-only Site Edge/Collector con
 **Release 46 source qualification:** repository regression executed in bounded groups totals **222 passed / 8 skipped / 0 failed**; the eight skips are seven explicit live/service prerequisites plus the expected Git-index mode skip because `.git` is absent. Focused Web Console/structural coverage is **13 passed**. Legacy selftest is **ALL PASS**; compileall, launcher `py_compile`, and packaging/tool shell syntax are **PASS**. Ruff `0.16.7` and mypy `2.3.1` remain **NOT_RUN** because the executables are unavailable. The dependency-free offline builder emitted `netconfig-2.0.0-46.el10.noarch.rpm` twice byte-identically; independent verification passed and SHA-256 is `5b26c9ae73ac4248171196ee3637f51bd238fed090c4ce3fa820419842f510cd`. Canonical AlmaLinux 10 `rpmbuild`/DNF install-upgrade/systemd/SELinux and other Q-1 live/device gates remain **NOT_RUN / DEFERRED**.
 
 
-> **Roadmap disposition — 2026-09-23:** The monitoring/correlation roadmap is active. MC-1 through MC-3 are implemented in source as `IMPLEMENTED_TESTING_DEFERRED`; the next planned slice is **MC-4 / Release 52 — Unified Alert Plane**. NI-7 remains implemented and Q-1 remains an open production/service qualification track. Do not invent NI-8/Q-2 or skip the defined MC sequence without an explicit roadmap decision.
+> **Roadmap disposition — 2026-09-24:** **R59 / MC-11 is the final Monitoring & Correlation functional slice.** Do not create MC-12. After R59, stop feature expansion and use the Release / Qualification track: **Q2 Production Qualification Campaign → R60 Appliance Reliability & Lifecycle Hardening → R61 Scale & Performance Qualification → R62 PostgreSQL / Concurrency / Recovery Hardening → R63 HA / Failure-Domain Engineering → R64 Security Hardening & Independent Abuse Testing → R65 Operator Workflow Completion → R66 Observability / Supportability → R67 Release Candidate / Full Artifact Qualification → R68 v2 Production Release Decision**. Simulation never counts as live PASS; mandatory gates use `PASS / FAIL / BLOCKED_ENVIRONMENT / NOT_RUN`.
 
 ## Release 45 — Operator UX Simplification
 
@@ -63,27 +76,27 @@ chmod 0755 packaging/*.sh
 
 Expected outputs in the project root:
 
-- `netconfig-2.0.0-48.el10.noarch.rpm`
-- `netconfig-2.0.0-48.el10.src.rpm`
+- `netconfig-2.0.0-57.el10.noarch.rpm`
+- `netconfig-2.0.0-57.el10.src.rpm`
 
 Inspect the binary RPM before installation:
 
 ```bash
-./packaging/inspect-rpm.sh ./netconfig-2.0.0-48.el10.noarch.rpm
+./packaging/inspect-rpm.sh ./netconfig-2.0.0-57.el10.noarch.rpm
 ```
 
 ## Install / upgrade
 
-The guarded helper validates AlmaLinux 10 and Release 48 package identity:
+The guarded helper validates AlmaLinux 10 and Release 54 package identity:
 
 ```bash
-sudo ./packaging/install-rpm.sh ./netconfig-2.0.0-48.el10.noarch.rpm
+sudo ./packaging/install-rpm.sh ./netconfig-2.0.0-57.el10.noarch.rpm
 ```
 
 Equivalent manual package command:
 
 ```bash
-sudo dnf install ./netconfig-2.0.0-48.el10.noarch.rpm
+sudo dnf install ./netconfig-2.0.0-57.el10.noarch.rpm
 sudo systemctl daemon-reload
 ```
 
@@ -121,11 +134,11 @@ systemd unit hardening, selftest, and configuration-aware runtime qualification.
 ## Transfer bundle
 
 `packaging/prepare-transfer.ps1` creates the Windows-to-AlmaLinux transfer bundle
-using the Release number read from `netconfig.spec`. For this Release 48 baseline its default
+using the Release number read from `netconfig.spec`. For this Release 54 baseline its default
 name is:
 
 ```text
-netconfig-netconfig-2.0.0-48-rpm-build-source.zip
+netconfig-netconfig-2.0.0-57-rpm-build-source.zip
 ```
 
 A source change intended for a later distributable package must increment the RPM
@@ -159,3 +172,7 @@ Q-1 adds three fail-closed qualification entry points. They report an unavailabl
 `q1-source-gates.sh` requires Python 3.12+, pytest, Ruff, mypy and a psycopg-capable development environment, then runs lint/type/compile/focused/full/selftest/shell/line-ending gates. `q1-qualify-postgres.sh` requires a real PostgreSQL service plus `pg_dump`, `pg_restore`, psycopg and an explicitly supplied `NETCONFIG_TEST_PG_PASSWORD`; it executes the real concurrency, advisory-lock/session-loss, migration/sequence and backup/restore drill tests. `q1-qualify-almalinux.sh` requires AlmaLinux 10 and RPM build tooling; package installation is not performed unless both `--install` and `NETCONFIG_Q1_ALLOW_INSTALL=1` are supplied.
 
 Current spec metadata is **Version 2.0.0 / Release 39**. A later source change intended for distribution must increment Release before creating another RPM.
+
+## R63 package qualification
+
+Current package identity is `2.0.0-67.2`. `packaging/r67_2-qualify.sh` invokes the fixed-contract R67.2 corrective-RC qualification runner; historical `r67-qualify.sh` and `r67_1-qualify.sh` remain frozen for evidence drift detection. Archive executable mode is required for all 37 operational entry points; external Git-index `100755` still requires the supplied mode-only patch to be committed and verified from a fresh clone.

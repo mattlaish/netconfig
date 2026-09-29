@@ -1,8 +1,28 @@
+## R60 active development baseline — 2026-09-24
+
+Use Release 60 / `2.0.0-60` as the active full-source baseline. R60 is a production-readiness/lifecycle hardening release, not MC-12. Product schema remains `mc11-topology-change-planning-1`. The supported transactional lifecycle upgrade source is R59; R60 qualification evidence is produced separately from historical Q2 evidence.
+
+## Q2 active qualification baseline — 2026-09-24
+
+Product/runtime baseline remains Release 59 / MC-11 `2.0.0-59`; Q2 adds qualification tooling and evidence only. Use `qualification/q2_runner.py`, `Q2_GATE_CATALOG.json`, and `Q2_PRODUCTION_QUALIFICATION.md` for current continuation. Do not create MC-12. Current product status remains `IMPLEMENTED_TESTING_DEFERRED`; only real `LIVE_PRODUCTION` evidence can close production gates.
+
 # NetConfig development baseline
 
-> **Canonical project state — 2026-09-23:** **CURRENT IMPLEMENTATION BASELINE** = **Release 51 / MC-3 Normalized Operational Evidence** (`2.0.0-51`, `IMPLEMENTED_TESTING_DEFERRED`). MC-1 Sensor Integration Unification and MC-2 Sensor History & State Transitions remain implemented. Release 51 adds a normalized cross-domain operational-evidence envelope, durable Sensor-transition → Event bridging, recovery/`UNKNOWN` semantics, additive event-schema migration/backfill/indexes, filtered/detail Event API reads, and an Event detail UI with current related Sensor state. NI-1 through **NI-7 L3/VRF Path & Route Dependency Intelligence** remain implemented. Formal RPM qualification remains deferred until the monitoring/correlation roadmap is complete; any ad-hoc RPM remains development evidence only.
+> **Canonical project state — 2026-09-25:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) on top of the frozen R67 candidate. MC-1 through MC-11 remain implemented; **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice and schema revision remains `mc11-topology-change-planning-1`; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included. R67.2 repairs fresh login, additive migration/index ordering, fail-closed Core PostgreSQL preflight, Core/History PostgreSQL configuration separation, and fresh PostgreSQL Core bootstrap without adding network-write authority. **All network mutation remains approval-gated; local/offline qualification does not establish RC or production release readiness; all required `LIVE_RC` gates remain mandatory. Do not create MC-12.** R68 must be rerun against the exact R67.2 candidate after mandatory live qualification.
 
-> **Roadmap disposition — 2026-09-23:** The monitoring/correlation roadmap is active. MC-1 through MC-3 are implemented in source as `IMPLEMENTED_TESTING_DEFERRED`; the next planned slice is **MC-4 / Release 52 — Unified Alert Plane**. NI-7 remains implemented and Q-1 remains an open production/service qualification track. Do not invent NI-8/Q-2 or skip the defined MC sequence without an explicit roadmap decision.
+> **Roadmap disposition — 2026-09-24:** **R59 / MC-11 is the final Monitoring & Correlation functional slice.** Do not create MC-12. After R59, stop feature expansion and use the Release / Qualification track: **Q2 Production Qualification Campaign → R60 Appliance Reliability & Lifecycle Hardening → R61 Scale & Performance Qualification → R62 PostgreSQL / Concurrency / Recovery Hardening → R63 HA / Failure-Domain Engineering → R64 Security Hardening & Independent Abuse Testing → R65 Operator Workflow Completion → R66 Observability / Supportability → R67 Release Candidate / Full Artifact Qualification → R68 v2 Production Release Decision**. Simulation never counts as live PASS; mandatory gates use `PASS / FAIL / BLOCKED_ENVIRONMENT / NOT_RUN`.
+
+## Current Release 53 baseline identity
+
+- Parent implementation baseline: repaired Release 52 / MC-4.
+- Application version: `2.0.0`; RPM Release: `53`.
+- Current slice: MC-5 Incident Evidence & Unified Timeline.
+- Schema revision: `mc5-incident-evidence-timeline-1`.
+- Status: `IMPLEMENTED_TESTING_DEFERRED`.
+- Source regression: **303 passed / 8 skipped / 0 failed** across 311 tests; MC-5 focused **8/8 PASS**.
+- Next slice: MC-6 / Release 54 Service & Dependency Graph.
+- Live AlmaLinux/RPM/systemd/SELinux, PostgreSQL service-backed, protocol-service, and vendor/device qualification remain deferred.
+
 
 ## Release 44 — Intent Automation Operations Repair
 
@@ -42,7 +62,7 @@ Application/project Version: `2.0.0`. RPM source Release: `33`. Database schema 
 
 Source includes PH-4 structured transactions, NI-5 telemetry/time-series foundation, VM-1 vendor model packs, NA-1 desired state, NA-2 fleet campaigns and HA-1 control-plane recovery/drain foundation. All are `IMPLEMENTED_TESTING_DEFERRED`; Q-1 real-service/RPM qualification remains outstanding. The source tree is the authoritative modifiable baseline; no claim is made that Release 33 RPM or real network devices have been qualified until corresponding evidence exists.
 
-> **Current continuation pointer:** use **Release 51 / MC-3 Normalized Operational Evidence** (`2.0.0-51`) as the active full-source baseline. Preserve `IMPLEMENTED_TESTING_DEFERRED`. MC-1 through MC-3 are implemented in source; the next roadmap slice is **MC-4 / Release 52 — Unified Alert Plane**. Sensor generation/history and Sensor→Event normalization must not add device I/O; unchanged Sensor refreshes create no event, and missing evidence remains `UNKNOWN` rather than an automatic critical verdict. Formal RPM qualification remains deferred until the roadmap is complete.
+> **Current continuation pointer:** use **Release 59 / MC-11 Topology-Aware Change Planning** (`2.0.0-59`) as the active full-source baseline once the final artifact gate below is frozen. Preserve `IMPLEMENTED_TESTING_DEFERRED`; do not promote to `TESTED` or `RELEASED` based on source simulation. MC-11 is the final functional slice and does not add direct execution authority. The immediate next track after artifact freeze is **Q2 Production Qualification Campaign**, not MC-12.
 
 ## Historical Q-1 baseline note
 
@@ -163,3 +183,21 @@ Clean candidate `netconfig_platform_hardening_ph3_candidate_completed_2026-09-12
 Live NETCONF/RESTCONF/gNMI devices, vendor behavior, TLS/mTLS interoperability, production credential rotation, packaged `gnmic`, real PostgreSQL multi-node/HA/PITR/backup-restore, AlmaLinux RPM/systemd, Ruff/mypy, SMTP/O365 and scale/failure qualification are not run and remain release/qualification debt.
 
 No next numbered implementation phase is assigned. Perform the roadmap / qualification review before opening another phase.
+
+## R61 baseline
+
+Release `2.0.0-61` / Scale & Performance Qualification is the active implementation baseline. Schema remains `mc11-topology-change-planning-1`; MC-11 remains the final MC slice. Local synthetic scale numbers are non-production comparative evidence only. Current source regression: 435 collected / 427 PASS / 8 SKIP / 0 FAIL; R61 focused 17/17; MC-11 focused 12/12. Production scale remains deferred.
+
+## R63 baseline
+
+Baseline identity: `2.0.0-63`, `IMPLEMENTED_TESTING_DEFERRED`, schema `mc11-topology-change-planning-1`. R63 is HA/failure-domain hardening only; it does not create MC-12 or a second change-execution authority. Production HA remains unqualified until real multi-node/failure-domain gates pass.
+
+
+## R65 baseline
+
+Release 65 (`2.0.0-65`) implements Operator Workflow Completion on top of R64. The persisted-data-first journey binds Incident → MC-11 plan → exact persisted proposal → existing Automation Request/approval → Structured Change → verification/recovery/rollback → Incident-linked post-change evidence. It adds no MC-12, no parallel write authority, no page-triggered polling, and no schema migration. Status remains `IMPLEMENTED_TESTING_DEFERRED`; `LIVE_OPERATOR` evidence is still required for production operator-workflow claims. Next approved track is R66 Observability / Supportability and is not started.
+
+
+## R67 baseline
+
+Active implementation baseline: Release 67 / `2.0.0-67`, `IMPLEMENTED_TESTING_DEFERRED`, schema `mc11-topology-change-planning-1`. R67 is qualification/release-engineering only and feature-frozen.

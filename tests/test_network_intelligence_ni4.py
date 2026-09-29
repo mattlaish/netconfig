@@ -128,13 +128,13 @@ def test_viewer_web_is_read_only_and_operator_can_ack(tmp_path):
     aid=m.alert_lifecycle.list()[0]["id"]
     server,t,token,csrf=_start_web(m,"viewer")
     try:
-        st,_h,data=_web_request(server,token,"GET","/op-alerts"); text=data.decode(); assert st==200 and "Operational alerts" in text and "Acknowledge" not in text
+        st,_h,data=_web_request(server,token,"GET","/alerts?view=active"); text=data.decode(); assert st==200 and "Active Alerts" in text and "Acknowledge" not in text
         st,_h,_d=_web_request(server,token,"POST","/op-alert-action",{"csrf":csrf,"id":str(aid),"action":"ack"}); assert st==403 and m.alert_lifecycle.get(aid)["state"]=="OPEN"
     finally:
         server.shutdown(); server.server_close(); t.join(timeout=5); web._SESSIONS.clear()
     server,t,token,csrf=_start_web(m,"operator")
     try:
-        st,h,_d=_web_request(server,token,"POST","/op-alert-action",{"csrf":csrf,"id":str(aid),"action":"ack"}); assert st==303 and h["Location"]=="/op-alerts" and m.alert_lifecycle.get(aid)["state"]=="ACKNOWLEDGED"
+        st,h,_d=_web_request(server,token,"POST","/op-alert-action",{"csrf":csrf,"id":str(aid),"action":"ack"}); assert st==303 and h["Location"]=="/alerts?view=active" and m.alert_lifecycle.get(aid)["state"]=="ACKNOWLEDGED"
     finally:
         server.shutdown(); server.server_close(); t.join(timeout=5); web._SESSIONS.clear(); m.db.close()
 

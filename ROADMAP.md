@@ -1,6 +1,85 @@
 # Roadmap
 
-> **Canonical project state — 2026-09-23:** **CURRENT IMPLEMENTATION BASELINE** = **Release 51 / MC-3 Normalized Operational Evidence + R51-HF1 pre-MC4 compatibility hotfix** (`2.0.0-51`, `IMPLEMENTED_TESTING_DEFERRED`). MC-1 Sensor Integration Unification and MC-2 Sensor History & State Transitions remain implemented. Release 51 adds a normalized cross-domain operational-evidence envelope, durable Sensor-transition → Event bridging, recovery/`UNKNOWN` semantics, additive event-schema migration/backfill/indexes, filtered/detail Event API reads, and an Event detail UI with current related Sensor state. NI-1 through **NI-7 L3/VRF Path & Route Dependency Intelligence** remain implemented. Formal RPM qualification remains deferred until the monitoring/correlation roadmap is complete; any ad-hoc RPM remains development evidence only.
+## Current baseline — R67.2 corrective RC
+
+> **Canonical project state — 2026-09-25:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) on top of the frozen R67 candidate. MC-1 through MC-11 remain implemented; **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice and schema revision remains `mc11-topology-change-planning-1`; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included. R67.2 repairs fresh login, additive migration/index ordering, fail-closed Core PostgreSQL preflight, Core/History PostgreSQL configuration separation, and fresh PostgreSQL Core bootstrap without adding network-write authority. **All network mutation remains approval-gated; local/offline qualification does not establish RC or production release readiness; all required `LIVE_RC` gates remain mandatory. Do not create MC-12.** R68 must be rerun against the exact R67.2 candidate after mandatory live qualification.
+
+Status: `IMPLEMENTED_TESTING_DEFERRED`. R67.2 is the active corrective RC after live-rescue and fresh-install database/bootstrap findings. It repairs fresh login, additive migration ordering, Core PostgreSQL preflight, Core/History database separation, and fresh PostgreSQL bootstrap without adding new feature or network-write authority. Prior R67/R67.1 candidate-bound evidence is invalidated by these source changes; R67.2 requires a fresh exact-candidate RC campaign. R68 remains the explicit production release decision and must be rerun only against the frozen R67.2 candidate.
+
+## R59 / MC-11 — Topology-Aware Change Planning
+
+Status: `IMPLEMENTED_TESTING_DEFERRED`. Functional scope is closed: Source→Destination forward and return paths; VRF/route/interface evidence; endpoint attachment; service/dependency context; ACL/firewall/NAT/PBR/routing-policy evidence; configuration gaps; exact change points; `Why here?`; candidate-state what-if; and proposed Structured Change. Analysis can propose but never directly configure. **MC-11 is the final Monitoring & Correlation functional slice; do not create MC-12.**
+
+## Qualification / Release track after R59
+
+- **Q2 — Production Qualification Campaign:** qualification harness/evidence-bundle implementation is complete; operator confirmed live execution was usable for progression. Detailed live gate results are not synthesized into this tree. Covers AlmaLinux/RPM/systemd/SELinux, PostgreSQL, real protocols/connectors, recovery/timing/retention and API/Web latency. Gate states: `PASS / FAIL / BLOCKED_ENVIRONMENT / NOT_RUN`; `LOCAL_REGRESSION` never counts as `LIVE_PRODUCTION` PASS.
+- **R60 — Appliance Reliability & Lifecycle Hardening — `IMPLEMENTED_TESTING_DEFERRED`:** install/upgrade/rollback, migrations, backup/restore, secrets/cert preservation, dependency ordering, disk-full/log retention, crash/shutdown/reboot recovery.
+- **R61 — Scale & Performance Qualification:** formal capacity matrix for devices/endpoints/topology/routes/flows/logs/traps/external evidence/incidents/correlation/operators with CPU/RAM/DB/lag/p50/p95/p99/render evidence.
+- **R62 — PostgreSQL / Concurrency / Recovery Hardening:** production PostgreSQL parallelism, advisory locks, planning persistence, rollback/deadlock/retry/pool exhaustion/restart/network interruption.
+- **R63 — HA / Failure-Domain Engineering — `IMPLEMENTED_TESTING_DEFERRED`:** session-generation advisory fencing, failure-domain readiness, standby scheduler takeover, node identity fencing, lease/token/generation task fencing, explicit partial-job recovery and replay-safe-only requeue. Live multi-node HA qualification remains required before any production HA claim.
+- **R64 — Security Hardening & Independent Abuse Testing — `IMPLEMENTED_TESTING_DEFERRED`:** RBAC/token/object boundaries, CSRF/OIDC/secrets/XSS/hostile evidence/parser/oversize/archive safety plus explicit MC-11 arbitrary-command/proposal/what-if non-execution abuse gates.
+- **R65 — Operator Workflow Completion — IMPLEMENTED_TESTING_DEFERRED:** persisted-data-first Dashboard→Incident→Hypothesis→Evidence→Topology→Path Analysis→Proposed Change→Approval→Structured Change→Validation→post-change evidence journey. The implementation reuses existing MC-11 planning and Automation/Structured Change authorities; production operator acceptance remains deferred until required `LIVE_OPERATOR` gates pass.
+- **R66 — Observability / Supportability — `IMPLEMENTED_TESTING_DEFERRED`:** bounded read-only health/readiness/lag/queue/DB/ingest/correlation/collector/drop/retention/disk/restart/last-success telemetry, request correlation IDs, Prometheus export and sanitized support bundles. Live supportability qualification remains required.
+- **R67 — Release Candidate / Full Artifact Qualification — ACTIVE / `IMPLEMENTED_TESTING_DEFERRED`:** feature freeze; clean checkout builds; full regression, clean-extract, RPM install/upgrade, backup/restore, OS/database/protocol/security/scale and MC-11 end-to-end gates; RC1 evidence cannot reuse invalidated results after fixes.
+- **R68 — v2 Production Release Decision:** explicit release matrix and independent decision. Code-complete is not release; mandatory FAIL or unacceptable NOT_RUN/BLOCKED_ENVIRONMENT keeps the product deferred/RC.
+
+After GA, v2.x enhancements are evidence-driven and separately chartered. MC-4→MC-11 / R52→R59 remains a closed, traceable Monitoring/Correlation/Change-Planning lineage.
+
+## Release 58 — MC-10 Correlation Production Hardening & Qualification
+
+Status: `IMPLEMENTED_TESTING_DEFERRED`. Implements durable correlation-run telemetry/replay lineage, bounded replay preview, late/out-of-order/clock-skew diagnostics, restart recovery, run-metadata retention, same-incident serialization with PostgreSQL advisory-lock support, explicit execution limits, self-monitoring, and local qualification truth. This slice does not claim deferred live qualification and does not add MC-11 path planning or configuration execution authority. R59/MC-11 is the next and final defined slice.
+
+## Release 57 — MC-9 Operations Correlation Console
+
+Status: `IMPLEMENTED_TESTING_DEFERRED`. Implements the operator console defined by MC-9: Dashboard summaries, converged Alerts/Events/Incidents/Maintenance navigation, explicit current-hypothesis support/contradiction presentation, service/dependency and connector-health context, and global FortiView-style traffic analytics over already-collected flow evidence. UI rendering remains side-effect free and does not trigger network polling or configuration actions. MC-10 production hardening/qualification remains next; MC-11 change planning remains final.
+
+> **Canonical project state — 2026-09-25:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) on top of the frozen R67 candidate. MC-1 through MC-11 remain implemented; **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice and schema revision remains `mc11-topology-change-planning-1`; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included. R67.2 repairs fresh login, additive migration/index ordering, fail-closed Core PostgreSQL preflight, Core/History PostgreSQL configuration separation, and fresh PostgreSQL Core bootstrap without adding network-write authority. **All network mutation remains approval-gated; local/offline qualification does not establish RC or production release readiness; all required `LIVE_RC` gates remain mandatory. Do not create MC-12.** R68 must be rerun against the exact R67.2 candidate after mandatory live qualification.
+
+## Current monitoring/correlation milestone
+
+- **R52 / MC-4 — Unified Alert Plane:** `IMPLEMENTED_TESTING_DEFERRED` (including the field-feedback correctness repair).
+- **R53 / MC-5 — Incident Evidence & Unified Timeline:** `IMPLEMENTED_TESTING_DEFERRED`. Typed durable references, source/receive-time ordering, late-arrival/retention handling, normalized change/external evidence stores, investigation API/CLI/Web presentation, and no automatic root-cause verdict are implemented.
+- **R54 / MC-6 — Service & Dependency Graph:** `IMPLEMENTED_TESTING_DEFERRED`. Typed service entities/dependencies, provenance/freshness states, bounded cycle-safe traversal, ImpactSimulator reuse, NI-7 read-only network overlays, REST/WebUI surfaces, and fail-closed UNKNOWN/stale/inferred semantics are implemented.
+- **R54.1 / MC-6 — L3 Routing Topology follow-up:** `IMPLEMENTED_TESTING_DEFERRED`. Normal CLI config collection reuses the authenticated session for fixed read-only route/interface commands; fresh unique same-VRF managed next-hop resolution powers Physical / Layer 3 / Combined topology views without page-triggered polling.
+- **R55 / MC-7 — Deterministic Correlation & Hypothesis Engine:** `IMPLEMENTED_TESTING_DEFERRED`. Deterministic versioned rules, durable supporting/contradicting evidence, dependency-aware entity correlation, replay idempotency, REST/Web investigation surfaces, and non-causal hypothesis wording are implemented.
+- **R56 / MC-8 — External Evidence Ingestion & Connectors:** `IMPLEMENTED_TESTING_DEFERRED`. Source-bound bearer-token ingestion, normalized schema v1, deterministic idempotency/replay conflict handling, bounded payload/rate controls, secret redaction, connector health, API scopes, Incident Advanced evidence, and Settings/Integrations are implemented. Vendor-specific live connectors/products remain deferred.
+- **R57 / MC-9 — Operations Correlation Console:** `IMPLEMENTED_TESTING_DEFERRED`.
+- **R58 / MC-10 — Correlation Production Hardening & Qualification:** `IMPLEMENTED_TESTING_DEFERRED`.
+- **R59 / MC-11 — Topology-Aware Change Planning:** `IMPLEMENTED_TESTING_DEFERRED`. Source→destination forward/return planning, evidence-backed gaps/change points, `Why here?`, candidate what-if and schema-bounded Structured Change proposals are implemented; execution remains behind existing approval/audit authority. This is the final Monitoring & Correlation functional slice.
+
+MC-5 deliberately stores only normalized external evidence primitives; external connector authentication/ingestion health belongs to MC-8. MC-6 owns explicit service/dependency claims with provenance/freshness and fail-closed evidence semantics. MC-7 now consumes those durable layers to produce deterministic non-causal hypotheses. Connector authentication/ingestion health and external-source operations remain MC-8.
+
+## Release 56 — MC-8 External Evidence Ingestion & Connectors
+
+Status: `IMPLEMENTED_TESTING_DEFERRED`. Release 56 turns the MC-5 external-event evidence primitive into an authenticated source registry and normalized inbound evidence plane. Each source is bound to one hashed bearer API token with `external:ingest`; admin management uses `external:manage`, and viewers use `external:read`. Normalized schema v1 records source identity/event ID, idempotency key, source and receive timestamps/clock skew, severity/domain/entity context, sanitized metadata/payload, connector type and evidence hash. Duplicate replay is idempotent; same-key or same-source-event content conflicts fail closed. Payload/rate/schema/auth failures update visible connector health.
+
+MC-8 remains evidence-only: no WAF/SIEM/EDR/APM/database/storage/cloud/device reconfiguration, response execution, arbitrary commands, or Structured Change bypass is introduced. Initial vendor-specific live connector qualification remains `NOT_RUN / DEFERRED`; the implemented transport is the normalized inbound push plane on which adapters can be added incrementally.
+
+## Release 55 — MC-7 Deterministic Correlation & Hypothesis Engine
+
+Status: `IMPLEMENTED_TESTING_DEFERRED`. Release 55 consumes durable MC-5 Incident evidence plus trusted MC-6 dependency/L3 context and emits deterministic, versioned, evidence-backed hypotheses. Time proximity alone is insufficient; cross-entity reasoning requires exact identity or a bounded active CONFIGURED/fresh DISCOVERED dependency path. Supporting and contradicting evidence are both retained, healthy/recovery evidence lowers confidence, and identical evidence replay is idempotent.
+
+Implemented rule families are `RECENT_CONFIGURATION_CHANGE`, `NETWORK_PATH_DEGRADATION`, and `RELATED_ENTITY_DEGRADATION` under rule set `mc7-r55-v1`. Hard bounds are 500 facts, 25 hypotheses/run, dependency depth 4, 250 dependency nodes, and 1,000 dependency edges. Incident REST/Web surfaces expose hypotheses and allow authorized correlation runs. Root cause remains unconfirmed and no device polling, remediation, connector action, or configuration execution authority is added.
+
+Schema revision: `mc7-deterministic-correlation-1`. Package identity: `2.0.0-55`. Source-tree qualification is **329 passed / 8 skipped / 0 failed** across **337 collected tests**, focused MC-7 **8/8 PASS**. Live PostgreSQL/services, AlmaLinux/systemd/SELinux, representative vendor/device, and production-scale correlation qualification remain deferred. Next formal slice: R56/MC-8.
+
+## Release 54.1 — MC-6 L3 Routing Topology follow-up
+
+Status: `IMPLEMENTED_TESTING_DEFERRED`. This additive follow-up does not advance to MC-7. Supported CLI network drivers declare fixed read-only interface and route commands. Normal configuration collection reuses the same authenticated session, parses normalized interface/route evidence, and publishes evidence by generation so a failed refresh preserves the last successful graph truth.
+
+Layer-3 topology resolution is VRF-aware and freshness-aware. A next-hop IP is not a device identity; it becomes a managed edge only after a unique fresh same-VRF managed-interface address match. Stale, cross-VRF, unresolved, or ambiguous evidence remains explicit and fails closed. `/topology` provides Physical, Layer 3, and Combined views, all rendered from persistence with no device I/O on GET.
+
+Schema revision: `mc6-service-dependency-graph-2`. Package identity: `2.0.0-54.1`. Live vendor CLI/output, PostgreSQL production, AlmaLinux/systemd/SELinux, and production-scale topology qualification remain deferred.
+
+
+## Release 52 — MC-4 Unified Alert Plane + field-feedback correctness repair
+
+Status: `IMPLEMENTED_TESTING_DEFERRED`. MC-4 converges new service/application alert writes on `Sensor -> Operational Event -> operational_alerts`; legacy `alert_rules` remain threshold inputs and legacy `alerts` rows remain readable history. Stable Sensor correlation prevents duplicate active alerts across escalation and auto-resolves the same alert on recovery. `/alerts` is the consolidated operator navigation surface, with `/events`, `/op-alerts`, and `/api/v1/operational-alerts` retained for compatibility and `/api/v1/alerts` added as the canonical alias. No destructive migration is performed.
+
+Release 52 also closes three field-observation gaps before MC-5: Add/Edit Device shows the effective configuration collection command and permits one bounded read-only alternative command; endpoint lookup correlates gateway/firewall ARP/IP-neighbor evidence with switch FDB/MAC evidence across devices before filtering and shows the evidence chain; NetFlow is summarized into operator-oriented top talkers/destinations/protocols/ports/conversations with deterministic analysis while raw flows move under Advanced. These UI/correlation changes reuse already-collected evidence and add no polling/device I/O. Formal RPM qualification remains deferred by roadmap decision.
+
+MC-4 correctness repair is part of the same Release 52 baseline, not a new roadmap slice: legacy alert correlation keys are backfilled during SQLite/PostgreSQL migration; persistent firing Sensors cannot remain silently resolved after manual resolve or maintenance; CLI command-error output cannot be archived as config truth; FortiGate/FortiOS has a native read-only config collector profile; RouterOS argument-bearing `/export` overrides are rejected; and stale IP-neighbor evidence downgrades endpoint combined confidence. Schema revision is `mc4-unified-alert-plane-2`. NetFlow scope is unchanged by this repair.
+
 ## Release 48 — Sensor Model & Evidence Normalization
 
 Release 48 promotes the sensor work from UI-only health cards into a reusable persisted normalization layer. `SensorEngine` stores `sensor_type`, `device`, `resource`, `value`, `unit`, `status`, `message`, `threshold`, `source`, and `updated_at`, with the status contract limited to `OK`, `WARNING`, `CRITICAL`, and `UNKNOWN`. It reads existing NetConfig persistence only and does **not** initiate SNMP/NETCONF/RESTCONF/gNMI/SSH device I/O or change polling frequency.
@@ -29,7 +108,7 @@ The SNMP device page now derives operator-facing health cards from **already-col
 The previously documented Central Controller + read-only Site Edge/Collector concept remains a **future architecture item only**. No distributed collector, local site-alert engine, store-and-forward transport, secondary WAN/LTE/SMS path, or distributed execution node is implemented in Release 46.
 
 
-> **Roadmap disposition — 2026-09-23:** The monitoring/correlation roadmap is active. MC-1 through MC-3 are implemented in source as `IMPLEMENTED_TESTING_DEFERRED`; the next planned slice is **MC-4 / Release 52 — Unified Alert Plane**. NI-7 remains implemented and Q-1 remains an open production/service qualification track. Do not invent NI-8/Q-2 or skip the defined MC sequence without an explicit roadmap decision.
+> **Roadmap disposition — 2026-09-24:** **R59 / MC-11 is the final Monitoring & Correlation functional slice.** Do not create MC-12. After R59, stop feature expansion and use the Release / Qualification track: **Q2 Production Qualification Campaign → R60 Appliance Reliability & Lifecycle Hardening → R61 Scale & Performance Qualification → R62 PostgreSQL / Concurrency / Recovery Hardening → R63 HA / Failure-Domain Engineering → R64 Security Hardening & Independent Abuse Testing → R65 Operator Workflow Completion → R66 Observability / Supportability → R67 Release Candidate / Full Artifact Qualification → R68 v2 Production Release Decision**. Simulation never counts as live PASS; mandatory gates use `PASS / FAIL / BLOCKED_ENVIRONMENT / NOT_RUN`.
 ## Recorded future architecture / UX candidates — NOT ASSIGNED
 
 The following decisions are recorded for a future roadmap selection but are **not** an assigned implementation phase:
@@ -134,7 +213,7 @@ The following development phases are now implemented in source. All remain `IMPL
 
 **Historical NEXT (Release 33):** rebuild and independently verify the formal Release 33 FULL ZIP, then execute the available Q-1 live gates and perform another roadmap/qualification review.
 
-> **Current continuation pointer:** use **Release 51 / MC-3 Normalized Operational Evidence** (`2.0.0-51`) as the active full-source baseline. Preserve `IMPLEMENTED_TESTING_DEFERRED`. MC-1 through MC-3 are implemented in source; the next roadmap slice is **MC-4 / Release 52 — Unified Alert Plane**. Sensor generation/history and Sensor→Event normalization must not add device I/O; unchanged Sensor refreshes create no event, and missing evidence remains `UNKNOWN` rather than an automatic critical verdict. Formal RPM qualification remains deferred until the roadmap is complete.
+> **Current continuation pointer:** use **Release 59 / MC-11 Topology-Aware Change Planning** (`2.0.0-59`) as the active full-source baseline once the final artifact gate below is frozen. Preserve `IMPLEMENTED_TESTING_DEFERRED`; do not promote to `TESTED` or `RELEASED` based on source simulation. MC-11 is the final functional slice and does not add direct execution authority. The immediate next track after artifact freeze is **Q2 Production Qualification Campaign**, not MC-12.
 
 Status vocabulary for new work: `PLANNED`, `IMPLEMENTED_TESTING_DEFERRED`, `TESTED`, `RELEASED`. Older `IMPLEMENTED` labels predate this vocabulary and should not be interpreted as live-environment qualification.
 
@@ -145,7 +224,9 @@ Only the status vocabulary `PLANNED`, `IMPLEMENTED_TESTING_DEFERRED`, `TESTED`, 
 - **Monitoring Correlation MC-1 / Release 49 — Sensor Integration Unification:** `IMPLEMENTED_TESTING_DEFERRED` — canonical Sensor snapshot drives API/WebUI health without request-time device I/O.
 - **Monitoring Correlation MC-2 / Release 50 — Sensor History & State Transitions:** `IMPLEMENTED_TESTING_DEFERRED` — durable observations/transitions, threshold-aware state changes, UNKNOWN evidence semantics, restart-safe transition suppression, 30-day observation/180-day transition retention, read-only history APIs, and device transition timeline implemented in source.
 - **Monitoring Correlation MC-3 / Release 51 — Normalized Operational Evidence:** `IMPLEMENTED_TESTING_DEFERRED` — normalized cross-domain event envelope, additive event-schema migration/backfill, durable Sensor-transition → Event bridge, recovery/UNKNOWN semantics, filtered/detail Event APIs, and Event detail UI with related Sensor state implemented in source.
-- **Monitoring Correlation MC-4 / Release 52 — Unified Alert Plane:** `PLANNED`.
+- **Monitoring Correlation MC-4 / Release 52 — Unified Alert Plane:** `IMPLEMENTED_TESTING_DEFERRED`.
+- **Monitoring Correlation MC-5 / Release 53 — Incident Evidence & Unified Timeline:** `IMPLEMENTED_TESTING_DEFERRED` — typed validated Incident references, deterministic source/receive-time timeline, normalized change/external evidence stores, retention-safe missing markers, and investigation API/CLI/Web views implemented without root-cause inference.
+- **Monitoring Correlation MC-6 / Release 54 — Service & Dependency Graph:** `IMPLEMENTED_TESTING_DEFERRED` — explicit service entities and typed dependency evidence with provenance/freshness, bounded traversal, impact reuse, and VRF-scoped network overlay are implemented without causal inference or configuration authority.
 - **Diagnostics D.5:** `IMPLEMENTED_TESTING_DEFERRED` — feature-complete in source.
 - **Network Intelligence NI-1 through NI-4:** `IMPLEMENTED_TESTING_DEFERRED` — complete in source; representative live-device/service qualification remains outstanding.
 - **Platform Hardening PH-1:** `IMPLEMENTED_TESTING_DEFERRED` — Web-console structural hardening complete in source.
@@ -722,6 +803,51 @@ At the historical Release 37 checkpoint, the package identity was `2.0.0-37`, al
 
 ## 2026-09-23 — R51-HF1 pre-MC4 compatibility overlay
 
-Status remains `IMPLEMENTED_TESTING_DEFERRED`. This overlay does not advance the roadmap release: MC-4 / Release 52 remains `PLANNED`.
+Historical R51-HF1 status was `IMPLEMENTED_TESTING_DEFERRED` and did not itself advance the roadmap. That statement is superseded by Release 52, where MC-4 is now implemented as `IMPLEMENTED_TESTING_DEFERRED`.
 
 Implemented before MC-4: Net-SNMP-compatible standard SNMPv3 AES-192/AES-256 key extension with explicit Cisco/Reeder compatibility modes; same-process Vault unlock for topology discovery; topology graph nodes for every managed inventory device even without LLDP/CDP; persisted FDB/MAC evidence as non-authoritative `INFERRED` paths; and an interactive drag/pan/zoom Topology Web canvas whose layout is browser-local presentation state only. Graph/API/UI reuse persisted evidence and add no device I/O. Live FortiGate/vendor qualification remains deferred.
+
+## Release 61 — Scale & Performance Qualification
+
+Status: `IMPLEMENTED_TESTING_DEFERRED`
+
+R61 implements the approved production-readiness scale/performance framework. It measures the existing product rather than adding features. Production capacity requires live evidence; local synthetic benchmarks are comparative only. MC-10 hard bounds must remain enforced under overload. MC-11 remains the final MC slice. After R61 closeout, the next approved roadmap item is R62 PostgreSQL / Concurrency / Recovery Hardening; R62 is not part of R61.
+
+**R61 clean-extract qualification (2026-09-24):** the provisional source artifact was extracted with system `unzip` and reproduced **435 collected / 427 passed / 8 skipped / 0 failed** across the deterministic five-way bounded partition; R61 focused coverage is **17/17 PASS** and retained MC-11 authority coverage is **12/12 PASS**. `compileall`, launcher/R61 `py_compile`, packaging/tool shell syntax, and legacy selftest are PASS. The clean extract rebuilt the offline helper RPM twice byte-identically; both builds are byte-identical to the source-tree RPM and pass the independent verifier. RPM SHA-256 remains `c1458d97a19ce0390f0c6f42384c652eed1704c47f57f41e11f0c95a11d2ed5b`. This is local/offline artifact evidence only and does not establish production capacity.
+
+## R62 — PostgreSQL / Concurrency / Recovery Hardening
+
+Status: `IMPLEMENTED_TESTING_DEFERRED`
+
+R62 hardens PostgreSQL transaction concurrency, retry/rollback boundaries, connection-loss recovery, MC-10 advisory locking qualification, MC-11 planning persistence concurrency, external-evidence idempotency concurrency, Structured Change/operator concurrency, and database restart/network interruption qualification. SQLite remains development/small-lab support. Live PostgreSQL qualification remains distinct from local regression. Next approved track: R63 HA / Failure-Domain Engineering.
+
+### R62 source/offline qualification truth — 2026-09-24
+
+- Repository: **453 collected / 442 PASS / 11 SKIP / 0 FAIL**.
+- R62 focused: **15/15 PASS**. MC-11 authority regression: **12/12 PASS**.
+- Compileall, launcher/R62 py_compile, packaging/hook shell syntax, and legacy selftest: **PASS**.
+- Initial R62 campaign on this runner: **3 LOCAL_REGRESSION PASS / 0 FAIL / 12 BLOCKED_ENVIRONMENT / 0 NOT_RUN / 0 LIVE_POSTGRESQL PASS**. Production PostgreSQL claim remains false.
+- Offline helper RPM: **99 payload files**, two source-tree rebuilds byte-identical, independent verifier PASS, SHA-256 `c47c4a7a1a8e2c26e86d7f5135965df3beced8fa38e593c7de8df457721edc1b`. This is not canonical live PostgreSQL/AlmaLinux evidence.
+- Initial evidence bundle SHA-256: `b723e441bc309bdee8a142071f5e13271ce39c50cfd739728b7e2dccd2e60f4a`.
+
+### R62 verified clean-extract truth
+
+Provisional system-unzip clean extraction reproduced **453 collected / 442 PASS / 11 SKIP / 0 FAIL**; R62 focused **15/15 PASS**, MC-11 focused **12/12 PASS**, compileall/py_compile/shell/selftest PASS. Two clean-extract helper RPM rebuilds were byte-identical to the source-tree helper RPM and independently verified. Final frozen-artifact revalidation is performed after this documentation sync.
+
+
+## R62.1 corrective hotfix
+
+R62.1 is an in-track corrective hotfix, not a new roadmap slice. Its security fixes remain retained under the now-active R63 baseline. The hotfix did not change MC-11 or PostgreSQL authority boundaries.
+
+
+## R63 — HA / Failure-Domain Engineering
+
+Status: `IMPLEMENTED_TESTING_DEFERRED`. R63 implements HA-capable coordination and failure-domain safety while keeping production HA claims gated on real multi-node evidence. PostgreSQL advisory ownership is session-generation-aware, every singleton scheduler revalidates leadership per pass, node identity is fenced, and distributed work uses claim token/generation/lease fencing with `RECOVERY_REQUIRED` on expiry. Only replay-safe tasks can be explicitly requeued; unknown device/network side effects are never automatically replayed. PostgreSQL primary failover remains external/operator-managed. The next approved track is R64 Security Hardening & Independent Abuse Testing and is not started by R63.
+
+## R63 verified clean-extract truth — 2026-09-24
+
+The provisional source archive was extracted with system `unzip` and reproduced **477 collected / 463 passed / 14 skipped / 0 failed**. R63 focused coverage is **16/16 PASS** and retained MC-11 authority coverage is **12/12 PASS**. `compileall`, launcher/qualification `py_compile`, packaging/qualification/tool shell syntax, and legacy selftest are PASS. The provisional structural gate is **348 entries / 0 duplicates / 0 unsafe paths / 0 symlinks / CRC PASS / 348/348 byte+mode parity / 346/346 R63 source manifest / 347/347 whole-tree SHA256SUMS / 26/26 executable modes**. Two clean-extract helper RPM rebuilds are byte-identical to each other and to the source-tree RPM; independent verification passes. RPM SHA-256 is `1e2a40476c212d2ffe410d51ef1cd9b2fac3051fc96bf30789539be5bca4b60d`. This is local/offline artifact evidence only; live HA remains deferred.
+
+## R67 implementation boundary — 2026-09-24
+
+Status: `IMPLEMENTED_TESTING_DEFERRED`. R67 is feature-frozen release engineering. It adds exact-candidate qualification, synchronized release metadata, SPDX 2.3 source SBOM, local full-artifact gates and twelve mandatory `LIVE_RC` gates. R67 cannot promote `RELEASED`; R68 remains the explicit v2 production release decision. Any candidate change invalidates prior R67 live evidence.

@@ -277,23 +277,27 @@ def verify_signed_archive(archive_path, trusted_fingerprints=None) -> dict:
     trusted = configured_trusted_fingerprints(extra=trusted_fingerprints)
 
     with tarfile.open(archive, "r:gz") as tar:
-        members = tar.getmembers()
-        if not members:
-            raise EvidenceSigningError("empty evidence archive")
-        if len(members) > MAX_ARCHIVE_MEMBERS:
-            raise EvidenceSigningError("evidence archive has too many members")
         files = {}
         roots = set()
-        for member in members:
+        member_count = 0
+        # Iterate instead of getmembers(): stop parsing attacker-controlled TAR
+        # headers as soon as the member budget is crossed rather than materializing
+        # an arbitrarily large member list first.
+        for member in tar:
+            member_count += 1
+            if member_count > MAX_ARCHIVE_MEMBERS:
+                raise EvidenceSigningError("evidence archive has too many members")
             p = _safe_member_path(member.name)
             roots.add(p.parts[0])
-            if member.issym() or member.islnk() or member.isdev():
-                raise EvidenceSigningError("links/devices are not allowed in evidence archives")
+            if not (member.isfile() or member.isdir()):
+                raise EvidenceSigningError("only regular files/directories are allowed in evidence archives")
             if member.isfile():
                 key = str(p)
                 if key in files:
                     raise EvidenceSigningError("duplicate file path in evidence archive")
                 files[key] = member
+        if member_count == 0:
+            raise EvidenceSigningError("empty evidence archive")
         if len(roots) != 1:
             raise EvidenceSigningError("evidence archive must have one top-level directory")
         root = next(iter(roots))

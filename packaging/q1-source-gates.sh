@@ -69,6 +69,20 @@ required_executables=(
     packaging/q1-qualify-almalinux.sh
     packaging/q1-qualify-postgres.sh
     packaging/q1-source-gates.sh
+    packaging/q2-qualify.sh
+    packaging/q2-source-gates.sh
+    packaging/r60-qualify.sh
+    packaging/r60-lifecycle-upgrade.sh
+    packaging/r61-qualify.sh
+    packaging/r62-qualify.sh
+    packaging/r63-qualify.sh
+    qualification/q2_runner.py
+    qualification/r60_runner.py
+    qualification/r61_runner.py
+    qualification/r61_benchmark.py
+    qualification/r62_runner.py
+    qualification/r63_runner.py
+    qualification/run_bounded_regression.py
     packaging/smoke-installed.sh
 )
 for executable in "${required_executables[@]}"; do

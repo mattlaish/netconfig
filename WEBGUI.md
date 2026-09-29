@@ -1,6 +1,36 @@
 # NetConfig Web Console — Operations and UI
 
-> **Canonical project state — 2026-09-23:** **CURRENT IMPLEMENTATION BASELINE** = **Release 51 / MC-3 Normalized Operational Evidence** (`2.0.0-51`, `IMPLEMENTED_TESTING_DEFERRED`). MC-1 Sensor Integration Unification and MC-2 Sensor History & State Transitions remain implemented. Release 51 adds a normalized cross-domain operational-evidence envelope, durable Sensor-transition → Event bridging, recovery/`UNKNOWN` semantics, additive event-schema migration/backfill/indexes, filtered/detail Event API reads, and an Event detail UI with current related Sensor state. NI-1 through **NI-7 L3/VRF Path & Route Dependency Intelligence** remain implemented. Formal RPM qualification remains deferred until the monitoring/correlation roadmap is complete; any ad-hoc RPM remains development evidence only.
+
+## Release 58 / MC-10 Web Console hardening
+
+The MC-9 Dashboard now includes a read-only **Correlation production health** panel showing bounded run/latency/skew/queue information and hard-limit context from persisted/runtime metadata only. Incident investigation includes recent correlation-run evidence (state, mode, facts, hypotheses, latency, skew/out-of-order and replay lineage). Viewer sessions receive no replay/retention mutation controls. The UI states that local qualification does not replace deferred PostgreSQL/AlmaLinux/systemd/SELinux/external-product/scale/clock-skew/HA gates.
+
+> **Canonical project state — 2026-09-25:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) on top of the frozen R67 candidate. MC-1 through MC-11 remain implemented; **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice and schema revision remains `mc11-topology-change-planning-1`; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included. R67.2 repairs fresh login, additive migration/index ordering, fail-closed Core PostgreSQL preflight, Core/History PostgreSQL configuration separation, and fresh PostgreSQL Core bootstrap without adding network-write authority. **All network mutation remains approval-gated; local/offline qualification does not establish RC or production release readiness; all required `LIVE_RC` gates remain mandatory. Do not create MC-12.** R68 must be rerun against the exact R67.2 candidate after mandatory live qualification.
+
+## Release 55 / MC-7 Incident hypothesis presentation
+
+Incident detail now includes a **Current hypotheses** section backed only by persisted MC-7 hypothesis records. Each hypothesis shows confidence, supporting/contradicting evidence counts, and rule version while retaining the existing Incident evidence/timeline presentation. Authorized operator-or-higher sessions may invoke **Run correlation**; viewer/read-only sessions can inspect results but cannot run the mutation.
+
+The page explicitly states that correlation does not confirm causation or root cause. Rendering the page or reading hypotheses does not trigger device polling, topology discovery, route collection, connector work, or remediation.
+
+
+## Release 54 / MC-6 Dependencies UI
+
+The main sidebar adds **Dependencies**. `/dependencies` is a persisted-evidence view: opening or filtering it does not poll any device. Operators can choose a root service entity, bound traversal depth, and explicitly opt into INFERRED candidates. Evidence rows visibly distinguish CONFIGURED, DISCOVERED, INFERRED, and UNKNOWN plus CONFIGURED/FRESH/STALE/UNKNOWN freshness. Excluded evidence states remain visible with the reason they were not traversed.
+
+The page can overlay an NI-7 network path when the operator supplies a managed source device, VRF, and destination prefix. That overlay is computed from existing route evidence only and displays managed-device hops separately from next-hop IP evidence. Ambiguous/incomplete paths stay explicit rather than being guessed. Operator-or-higher sessions can maintain NetConfig service/dependency metadata; viewers receive no mutation forms. These forms do not configure infrastructure.
+
+## Release 53 / MC-5 Incident investigation UI
+
+The Incident detail experience now provides Impact, a Unified Timeline, Related Alerts, Related Changes, Network Evidence, Security Evidence, Infrastructure Evidence, and Raw/Advanced Evidence. Late-arriving evidence is positioned by source time and remains distinguishable from receive time; missing retained evidence is shown as unavailable rather than silently removed or reconstructed. The UI reads durable evidence only and does not increase polling. It intentionally does not label a probable/confirmed root cause in MC-5; dependency context and deterministic hypotheses arrive in MC-6/MC-7.
+
+
+## Release 52 — Alerts, endpoint lookup, config collection and NetFlow UX
+
+The sidebar now exposes one top-level **Alerts** destination rather than separate Events/Ops Alerts entries. `/alerts` provides Overview, Active Alerts, Events, Maintenance and legacy-history access; `/events` and `/op-alerts` remain compatibility URLs. Active alert actions continue to use the existing role/CSRF controls.
+
+Add/Edit Device now shows the platform's default configuration collection command and an optional read-only alternative command; device detail shows the effective command/source. `/endpoints` adds direct IP/MAC/switch/port search and an evidence-chain column explaining `IP -> ARP/IP-neighbor device -> MAC -> FDB candidate -> likely switch/port`, preserving ambiguous/transit/stale outcomes. NetFlow device presentation now starts with flow/byte/source/destination cards, deterministic traffic observations, top sources/destinations/protocols/destination ports and conversations; raw flow rows are retained under **Advanced**. No UI-only refresh adds device I/O.
+
 ## Release 48 — Sensor Model & Evidence Normalization
 
 Release 48 promotes the sensor work from UI-only health cards into a reusable persisted normalization layer. `SensorEngine` stores `sensor_type`, `device`, `resource`, `value`, `unit`, `status`, `message`, `threshold`, `source`, and `updated_at`, with the status contract limited to `OK`, `WARNING`, `CRITICAL`, and `UNKNOWN`. It reads existing NetConfig persistence only and does **not** initiate SNMP/NETCONF/RESTCONF/gNMI/SSH device I/O or change polling frequency.
@@ -29,7 +59,7 @@ The previously documented Central Controller + read-only Site Edge/Collector con
 
 > UI-1 is an operator presentation layer over existing services. It does not create a direct device-write path.
 
-> **Roadmap disposition — 2026-09-23:** The monitoring/correlation roadmap is active. MC-1 through MC-3 are implemented in source as `IMPLEMENTED_TESTING_DEFERRED`; the next planned slice is **MC-4 / Release 52 — Unified Alert Plane**. NI-7 remains implemented and Q-1 remains an open production/service qualification track. Do not invent NI-8/Q-2 or skip the defined MC sequence without an explicit roadmap decision.
+> **Roadmap disposition — 2026-09-24:** **R59 / MC-11 is the final Monitoring & Correlation functional slice.** Do not create MC-12. After R59, stop feature expansion and use the Release / Qualification track: **Q2 Production Qualification Campaign → R60 Appliance Reliability & Lifecycle Hardening → R61 Scale & Performance Qualification → R62 PostgreSQL / Concurrency / Recovery Hardening → R63 HA / Failure-Domain Engineering → R64 Security Hardening & Independent Abuse Testing → R65 Operator Workflow Completion → R66 Observability / Supportability → R67 Release Candidate / Full Artifact Qualification → R68 v2 Production Release Decision**. Simulation never counts as live PASS; mandatory gates use `PASS / FAIL / BLOCKED_ENVIRONMENT / NOT_RUN`.
 ## Recorded UX direction — baselines, MIB sensor summaries, and collection
 
 Future user-facing wording should describe `Configuration Baselines` as **Configuration Baselines / Templates & Drift**. The intent is to make clear that a baseline can act as a reusable configuration template and that the system can compare observed/current state against that baseline for drift before any remediation is considered.
@@ -133,3 +163,31 @@ The Events page now presents normalized domain, severity, event type, affected e
 
 Operators can drag nodes, pan the background, zoom with the mouse wheel, reset the viewport, and clear the saved layout. Layout coordinates are stored only in browser `localStorage` under `netconfig-topology-layout-v1`; moving a node never asserts or modifies a network relationship. The page also retains evidence and identity tables and keeps downstream impact limited to observed direct topology evidence.
 
+
+## R54.1 Topology views
+
+`/topology` now has three operator views: **Physical**, **Layer 3**, and **Combined**. Layer 3 shows directly connected subnets, resolved managed next-hop edges, VRF, interface, evidence state, collection health, and unresolved/ambiguous next-hop evidence. Combined overlays physical LLDP/CDP/FDB evidence with the L3 graph. Page rendering is read-only and does not poll devices; L3 evidence is refreshed by normal configuration collection.
+
+## R56 / MC-8 Settings / Integrations
+
+Settings now includes **Integrations**, showing configured external evidence sources with Status, Last event, Received, Rejected and Authentication state. Admins may register/update a source, bind an existing enabled `external:ingest` token and enable/disable the source. The page never displays bearer-token plaintext and does not provide external-system action controls. Sanitized raw external evidence remains under Incident Advanced evidence rather than the primary operator summary.
+
+## R63 database/HA settings
+
+The database settings surface includes `cluster_failure_domain`, `cluster_stale_seconds`, and `distributed_task_lease_seconds`. Failure domain is an operator declaration such as rack/AZ/site and is required, with at least two distinct fresh values, before multi-node HA readiness can be true. These settings do not configure PostgreSQL replication or promotion.
+
+## R65 Operator Journey
+
+The Operations Console now includes **Operator Journey**, linking Dashboard/Incident investigation to persisted topology/path analysis, exact MC-11 proposal, existing approval, Structured Change execution, verification/recovery, and post-change evidence. Viewer access is read-only. Operators may create an incident-linked plan and submit only the persisted proposal; approver/admin roles retain approval/execution authority and admin retains recovery reconciliation. Rendering the page never polls devices.
+
+## R66 Diagnostics
+
+Diagnostics now renders a read-only Runtime Supportability snapshot before support-bundle controls. Loading the page does not poll devices. Request responses include `X-Request-ID` so operator-visible failures can be correlated with JSON access/server-error logs.
+
+## R67 Web UI status
+
+R67 adds no Web UI feature or authority. The R65 operator journey and R66 diagnostics/supportability surfaces are frozen; independent browser/operator acceptance is a required `LIVE_RC` gate.
+
+## R67.2 Database settings split
+
+Settings → Database now has two independent panels. **Core Database** controls SQLite/PostgreSQL control-plane storage and refuses to persist a PostgreSQL backend selection unless the protected Core credential, psycopg 3 driver, connectivity, schema bootstrap/migrations and schema revision all pass. **Interface History Store** uses dedicated `if_history_pg_*` fields plus the vault-backed History password. Existing upgrades fall back to legacy shared `pg_*` values only until dedicated History fields are saved. `Test & bootstrap Core PostgreSQL` and `Test History PostgreSQL` are separate actions; the legacy `/db-test` route remains a History-test compatibility alias.

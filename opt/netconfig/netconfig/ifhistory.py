@@ -162,21 +162,28 @@ class PgHistory:
 
 
 def _params_from_settings(settings, password=None):
-    """Build a libpq keyword dict from the discrete Settings -> Database fields.
-    Returns None when the minimum (host + dbname) is not configured."""
-    host = (settings.get("pg_host") or "").strip()
-    dbname = (settings.get("pg_dbname") or "").strip()
+    """Build history-store libpq parameters.
+
+    R67.2 gives Interface History its own connection keys. For upgrade
+    compatibility, installations that have never saved the new history fields
+    fall back to the legacy shared pg_* fields.
+    """
+    dedicated = bool((settings.get("if_history_pg_host") or "").strip() or
+                     (settings.get("if_history_pg_dbname") or "").strip())
+    prefix = "if_history_pg_" if dedicated else "pg_"
+    host = (settings.get(prefix + "host") or "").strip()
+    dbname = (settings.get(prefix + "dbname") or "").strip()
     if not host or not dbname:
         return None
     params = {"host": host, "dbname": dbname}
     try:
-        params["port"] = int(settings.get("pg_port") or 5432)
+        params["port"] = int(settings.get(prefix + "port") or 5432)
     except (TypeError, ValueError):
         params["port"] = 5432
-    user = (settings.get("pg_user") or "").strip()
+    user = (settings.get(prefix + "user") or "").strip()
     if user:
         params["user"] = user
-    sslmode = (settings.get("pg_sslmode") or "").strip()
+    sslmode = (settings.get(prefix + "sslmode") or "").strip()
     if sslmode:
         params["sslmode"] = sslmode
     if password:

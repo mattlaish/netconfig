@@ -138,10 +138,11 @@ class SSHTransport:
         for opt in self.extra_ssh_options:
             argv += ["-o", opt]
         argv += ["-p", str(self.port)]
+        target = f"{self.username}@{self.host}"
         if self.subsystem:
-            argv += ["-s", f"{self.username}@{self.host}", self.subsystem]
+            argv += ["-s", "--", target, self.subsystem]
         else:
-            argv += [f"{self.username}@{self.host}"]
+            argv += ["--", target]
         return argv
 
     def _spawn(self):

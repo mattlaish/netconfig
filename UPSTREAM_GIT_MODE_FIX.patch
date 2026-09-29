@@ -4,10 +4,10 @@ new mode 100755
 diff --git a/packaging/build-rpm.sh b/packaging/build-rpm.sh
 old mode 100644
 new mode 100755
-diff --git a/packaging/inspect-rpm.sh b/packaging/inspect-rpm.sh
+diff --git a/packaging/install-rpm.sh b/packaging/install-rpm.sh
 old mode 100644
 new mode 100755
-diff --git a/packaging/install-rpm.sh b/packaging/install-rpm.sh
+diff --git a/packaging/inspect-rpm.sh b/packaging/inspect-rpm.sh
 old mode 100644
 new mode 100755
 diff --git a/packaging/q1-qualify-almalinux.sh b/packaging/q1-qualify-almalinux.sh
@@ -19,6 +19,93 @@ new mode 100755
 diff --git a/packaging/q1-source-gates.sh b/packaging/q1-source-gates.sh
 old mode 100644
 new mode 100755
+diff --git a/packaging/q2-qualify.sh b/packaging/q2-qualify.sh
+old mode 100644
+new mode 100755
+diff --git a/packaging/q2-source-gates.sh b/packaging/q2-source-gates.sh
+old mode 100644
+new mode 100755
+diff --git a/packaging/r60-qualify.sh b/packaging/r60-qualify.sh
+old mode 100644
+new mode 100755
+diff --git a/packaging/r60-lifecycle-upgrade.sh b/packaging/r60-lifecycle-upgrade.sh
+old mode 100644
+new mode 100755
+diff --git a/packaging/r61-qualify.sh b/packaging/r61-qualify.sh
+old mode 100644
+new mode 100755
+diff --git a/packaging/r62-qualify.sh b/packaging/r62-qualify.sh
+old mode 100644
+new mode 100755
+diff --git a/packaging/r63-qualify.sh b/packaging/r63-qualify.sh
+old mode 100644
+new mode 100755
+diff --git a/packaging/r64-qualify.sh b/packaging/r64-qualify.sh
+old mode 100644
+new mode 100755
+diff --git a/packaging/r65-qualify.sh b/packaging/r65-qualify.sh
+old mode 100644
+new mode 100755
+diff --git a/packaging/r66-qualify.sh b/packaging/r66-qualify.sh
+old mode 100644
+new mode 100755
+diff --git a/packaging/r67-qualify.sh b/packaging/r67-qualify.sh
+old mode 100644
+new mode 100755
+diff --git a/qualification/q2_runner.py b/qualification/q2_runner.py
+old mode 100644
+new mode 100755
+diff --git a/qualification/r60_runner.py b/qualification/r60_runner.py
+old mode 100644
+new mode 100755
+diff --git a/qualification/r61_runner.py b/qualification/r61_runner.py
+old mode 100644
+new mode 100755
+diff --git a/qualification/r61_benchmark.py b/qualification/r61_benchmark.py
+old mode 100644
+new mode 100755
+diff --git a/qualification/r62_runner.py b/qualification/r62_runner.py
+old mode 100644
+new mode 100755
+diff --git a/qualification/r63_runner.py b/qualification/r63_runner.py
+old mode 100644
+new mode 100755
+diff --git a/qualification/r64_runner.py b/qualification/r64_runner.py
+old mode 100644
+new mode 100755
+diff --git a/qualification/r65_runner.py b/qualification/r65_runner.py
+old mode 100644
+new mode 100755
+diff --git a/qualification/r66_runner.py b/qualification/r66_runner.py
+old mode 100644
+new mode 100755
+diff --git a/qualification/r67_runner.py b/qualification/r67_runner.py
+old mode 100644
+new mode 100755
+diff --git a/qualification/run_bounded_regression.py b/qualification/run_bounded_regression.py
+old mode 100644
+new mode 100755
 diff --git a/packaging/smoke-installed.sh b/packaging/smoke-installed.sh
+old mode 100644
+new mode 100755
+diff --git a/tools/rpm-builder/build.sh b/tools/rpm-builder/build.sh
+old mode 100644
+new mode 100755
+diff --git a/tools/rpm-builder/verify.sh b/tools/rpm-builder/verify.sh
+old mode 100644
+new mode 100755
+diff --git a/tools/rpm-builder/rpm_builder.py b/tools/rpm-builder/rpm_builder.py
+old mode 100644
+new mode 100755
+diff --git a/tools/rpm-builder/verify_rpm.py b/tools/rpm-builder/verify_rpm.py
+old mode 100644
+new mode 100755
+diff --git a/tools/release_metadata.py b/tools/release_metadata.py
+old mode 100644
+new mode 100755
+diff --git a/packaging/r67_1-qualify.sh b/packaging/r67_1-qualify.sh
+old mode 100644
+new mode 100755
+diff --git a/qualification/r67_1_runner.py b/qualification/r67_1_runner.py
 old mode 100644
 new mode 100755

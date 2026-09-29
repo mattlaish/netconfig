@@ -10,6 +10,7 @@ VALID_SCOPES = {
     "desired:read", "desired:write", "campaign:read", "campaign:write",
     "model:read", "model:write", "ha:read", "ha:write",
     "analytics:read", "analytics:write",
+    "external:read", "external:ingest", "external:manage",
 }
 
 _SCOPE_MIN_ROLE = {
@@ -26,6 +27,8 @@ _SCOPE_MIN_ROLE = {
     "model:write": "admin",
     "ha:write": "operator",
     "analytics:write": "operator",
+    "external:ingest": "operator",
+    "external:manage": "admin",
 }
 _ROLE_LEVEL = {"viewer": 0, "operator": 1, "approver": 2, "admin": 3}
 

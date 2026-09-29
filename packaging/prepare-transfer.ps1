@@ -37,7 +37,8 @@ $bundleRoot = Join-Path $stage $bundleName
 try {
     New-Item -ItemType Directory -Path $bundleRoot | Out-Null
 
-    foreach ($directory in @("opt", "usr", "etc", "packaging", "tests", ".github")) {
+    foreach ($directory in @("opt", "usr", "etc", "packaging", "tests",
+    "qualification", ".github")) {
         $source = Join-Path $projectRoot $directory
         if (-not (Test-Path -LiteralPath $source -PathType Container)) {
             throw "Required directory is missing: $source"

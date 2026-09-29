@@ -1,5 +1,10 @@
 # NetConfig Monitoring / SOC + NOC Correlation Implementation Slices
 
+
+## R58 / MC-10 — Correlation Production Hardening & Qualification
+
+Implemented in source with status `IMPLEMENTED_TESTING_DEFERRED`: durable correlation-run telemetry, deterministic replay lineage and read-only preview, bounded skew/out-of-order/truncation diagnostics, restart recovery, run-metadata retention, per-incident serialization plus PostgreSQL advisory-lock path, hard limits, self-monitoring, and explicit qualification truth. No live gate is promoted without execution evidence. MC-11/R59 remains the final topology-aware change-planning slice.
+
 **Baseline:** NetConfig Release 48 (`2.0.0-48`)\
 **Baseline status:** `IMPLEMENTED_TESTING_DEFERRED`\
 **Baseline source:**
@@ -578,6 +583,13 @@ Cover:
 
 ------------------------------------------------------------------------
 
+
+## Release 52 implementation note — 2026-09-23
+
+MC-4 is implemented in source as `IMPLEMENTED_TESTING_DEFERRED`. Service/application monitor observations now normalize into `service.port_state`, `application.http_status`, `application.response_time`, `application.tls_valid`, and `application.tls_expiry` Sensors. Durable Sensor transitions feed normalized Operational Events and the existing `operational_alerts` lifecycle is authoritative for new alert state. A stable Sensor correlation key prevents duplicate active alerts across severity escalation and resolves the same lifecycle on recovery. Legacy `alert_rules` remain threshold inputs; existing legacy `alerts` rows remain readable but the monitor poller no longer writes a second alert lifecycle. `/alerts` is the consolidated operator surface; `/events`, `/op-alerts`, and `/api/v1/operational-alerts` remain compatibility paths. Canonical API alias `GET /api/v1/alerts` and write aliases under `/api/v1/alerts/{id}/...` are added.
+
+The same Release 52 slice incorporates field feedback without changing alert authority: device Add/Edit exposes the effective config collection command and an optional bounded read-only alternative (`show`, `display`, `get`, or `/export` only); endpoint correlation joins L3 ARP/IP-neighbor evidence to switch FDB/MAC evidence globally before device filtering and exposes IP/MAC search plus the evidence chain; NetFlow device presentation aggregates existing in-memory flow records into top sources/destinations/protocols/ports/conversations and deterministic observations while retaining raw rows under Advanced. These presentation/correlation changes add no device I/O.
+
 # MC-5 / Release 53 --- Incident Evidence & Unified Timeline
 
 **Goal:** Make Incident the durable cross-domain investigation object.
@@ -663,6 +675,8 @@ Cover:
 ------------------------------------------------------------------------
 
 # MC-6 / Release 54 --- Service & Dependency Graph
+
+> **Implementation status — 2026-09-23:** `IMPLEMENTED_TESTING_DEFERRED` in Release 54.1 (`2.0.0-54.1`). Release 54 implements the typed service/dependency graph; the additive MC-6 L3 Routing Topology follow-up reuses normal CLI configuration-collection sessions to collect driver-declared read-only interface/route evidence, resolves managed next hops only through fresh unique same-VRF interface evidence, and adds Physical / Layer 3 / Combined topology views. Ambiguous/stale/unresolved evidence fails closed. Live production/vendor qualification remains deferred.
 
 **Goal:** Extend network topology knowledge into explicit service
 dependency knowledge.
@@ -1278,14 +1292,16 @@ configuration authority.
 R48  Sensor Model / Evidence Normalization
 R49  MC-1 Sensor Integration Unification
 R50  MC-2 Sensor History & State Transitions
-R51  MC-3 Normalized Operational Evidence                CURRENT BASELINE
+R51  MC-3 Normalized Operational Evidence
 R52  MC-4 Unified Alert Plane
 R53  MC-5 Incident Evidence & Unified Timeline
 R54  MC-6 Service & Dependency Graph
+R54.1 MC-6 L3 Routing Topology follow-up
 R55  MC-7 Deterministic Correlation Engine
-R56  MC-8 External Evidence Ingestion & Connectors
+R56  MC-8 External Evidence Ingestion & Connectors          CURRENT BASELINE
 R57  MC-9 Operations Correlation Console
 R58  MC-10 Production Hardening & Qualification
+R59  MC-11 Topology-Aware Change Planning
 ```
 
 The order is intentional: **normalize truth first, preserve history
@@ -1298,11 +1314,29 @@ correlation.**
 - MC-1 / Release 49 — `IMPLEMENTED_TESTING_DEFERRED`
 - MC-2 / Release 50 — `IMPLEMENTED_TESTING_DEFERRED`
 - MC-3 / Release 51 — `IMPLEMENTED_TESTING_DEFERRED`
-- MC-4 / Release 52 and later — `PLANNED`
+- MC-4 / Release 52 — `IMPLEMENTED_TESTING_DEFERRED`
+- MC-5 / Release 53 — `IMPLEMENTED_TESTING_DEFERRED`
+- MC-6 / Release 54 + Release 54.1 L3 follow-up — `IMPLEMENTED_TESTING_DEFERRED`
+- MC-7 / Release 55 — `IMPLEMENTED_TESTING_DEFERRED`
+- MC-8 / Release 56 — `IMPLEMENTED_TESTING_DEFERRED`
+- MC-9 / Release 57 — `IMPLEMENTED_TESTING_DEFERRED`
+- MC-10 / Release 58 — `PLANNED`
+- MC-11 / Release 59 — `PLANNED`
 
-Release 51 implements the MC-3 normalized operational-evidence schema, Sensor-transition bridge, additive migration/backfill, read-only Event filters/detail API, and Event detail UI described below. Release 50 remains the completed MC-2 history/state-transition baseline underneath it.
+Release 57 is the current MC-9 implementation baseline. The next formal slice is MC-10 / Release 58. MC-11 remains appended after MC-10 and owns topology-aware change planning; it may propose Structured Changes but never bypass the existing approval/audit execution plane.
 
 ## Release 51 pre-MC4 compatibility overlay — 2026-09-23
 
-Before entering MC-4, Release 51 receives an implementation-preserving hotfix overlay: standard SNMPv3 AES-192/AES-256 privacy uses the Net-SNMP-compatible Blumenthal extension, topology discovery unlocks Vault credentials in-process, every managed inventory device is represented in the topology graph even without LLDP/CDP, and persisted FDB/MAC correlation may contribute only clearly-labelled non-authoritative `INFERRED` topology evidence. The `/topology` UI is now an interactive drag/pan/zoom canvas with browser-local layout state only. These changes do not advance MC-4, do not add device I/O, and keep MC-4 / Release 52 `PLANNED`.
+Before entering MC-4, Release 51 receives an implementation-preserving hotfix overlay: standard SNMPv3 AES-192/AES-256 privacy uses the Net-SNMP-compatible Blumenthal extension, topology discovery unlocks Vault credentials in-process, every managed inventory device is represented in the topology graph even without LLDP/CDP, and persisted FDB/MAC correlation may contribute only clearly-labelled non-authoritative `INFERRED` topology evidence. The `/topology` UI is now an interactive drag/pan/zoom canvas with browser-local layout state only. These changes were the precondition for MC-4 and remain part of the Release 52 source baseline.
 
+
+
+------------------------------------------------------------------------
+
+# MC-11 / Release 59 --- Topology-Aware Change Planning
+
+Status: `PLANNED`
+
+**Goal:** combine L2/L3 topology, endpoint attachment, service/dependency context, route/VRF/interface evidence, and ACL/firewall/NAT/PBR/routing-policy evidence so an operator can select source → destination, analyze forward and return paths, identify exact configuration gaps/change points, ask “why here?” with evidence, generate a proposed Structured Change with validation/rollback/approval, and run candidate-state/what-if impact simulation.
+
+Authority separation is mandatory: topology/path analysis may suggest changes but never executes arbitrary device configuration. Execution remains exclusively through the existing Structured Changes / Desired State / Campaign approval and audit path.

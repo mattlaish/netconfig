@@ -588,7 +588,7 @@ def poller(manager, interval, stop_event):
     """Singleton NI-5 scheduler loop; node drain is honored on every iteration."""
     interval = max(5, int(interval))
     while not stop_event.wait(interval):
-        if not manager.ha.accepts_automation_work():
+        if not manager.scheduler_leader("telemetry-lifecycle"):
             continue
         try:
             manager.telemetry.run_due(actor="scheduler")
