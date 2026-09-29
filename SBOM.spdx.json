@@ -7,7 +7,7 @@
     ]
   },
   "dataLicense": "CC0-1.0",
-  "documentNamespace": "https://netconfig.local/spdx/2.0.0-67.2/c06ac7e0e78b34019400ce036437e7108a56c4c5",
+  "documentNamespace": "https://netconfig.local/spdx/2.0.0-67.2/18859187accbbf92c8a6bd01d2db7842275b5d3c",
   "files": [
     {
       "SPDXID": "SPDXRef-File-618cd5b83d62060ba3d027e3",
@@ -58,6 +58,134 @@
       "licenseConcluded": "NOASSERTION"
     },
     {
+      "SPDXID": "SPDXRef-File-a9b3f2f93163f3bf742b244b",
+      "checksums": [
+        {
+          "algorithm": "SHA1",
+          "checksumValue": "aeb40107cf378115a0a443b6ddcc4e0606d52ff6"
+        },
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "9e3a60f1e6ec4ae60215c11d54b171392745ec25e9dded433d5bd921363af316"
+        }
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileName": "./.ruff_cache/.gitignore",
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-File-082d2daba539b2122ff6a4bb",
+      "checksums": [
+        {
+          "algorithm": "SHA1",
+          "checksumValue": "0517a87eeaa9daf57c7b310832f9bb40cdb5dd9c"
+        },
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "91a231b7b8c5abe098d970cba84cdcf03fe1171df774ce23e4475140f58d4ee8"
+        }
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileName": "./.ruff_cache/0.15.8/10200524229761075100",
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-File-3c04248c09135222f74b9872",
+      "checksums": [
+        {
+          "algorithm": "SHA1",
+          "checksumValue": "48d604f4a00dcb5fee92af7d149f63ac56b560d8"
+        },
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "50d10e87bfacb47fba23106d7749d21889a57eafc4d935422a8f8fd502a7575a"
+        }
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileName": "./.ruff_cache/0.15.8/18444417586800219854",
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-File-81b69aac9e00f3067dcc3318",
+      "checksums": [
+        {
+          "algorithm": "SHA1",
+          "checksumValue": "59496e1a338508a4f57803bbfa1ba2781d956c74"
+        },
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "dd6b9695ffba7570bc663cf7864ff5c9550fc9572807740db0be3feec12a3c8f"
+        }
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileName": "./.ruff_cache/0.15.8/4556432510978420605",
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-File-dab7237984e9e79b61498360",
+      "checksums": [
+        {
+          "algorithm": "SHA1",
+          "checksumValue": "38078e2de59c2305cd9a887816b3acb0a0e904a0"
+        },
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "38a981d12f17b5d2e92abd9021ca1b62dfd6f7a753a4e0128423e21802e727d7"
+        }
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileName": "./.ruff_cache/0.15.8/4674330636255358535",
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-File-6fb9215dc36dfd2aef6b4a8a",
+      "checksums": [
+        {
+          "algorithm": "SHA1",
+          "checksumValue": "599e3ad6a814736aca2500d89e5725559e33b420"
+        },
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "b17a5cd4b5565933daa96e6cfb06143bbb1afc04718f22a610a6f30543968824"
+        }
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileName": "./.ruff_cache/0.15.8/6003241800126698027",
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-File-034abb4a1c0c13c04646ad83",
+      "checksums": [
+        {
+          "algorithm": "SHA1",
+          "checksumValue": "51b997376809fd89ff76108d616a5c11f7fb68bc"
+        },
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "e46ea662a010cb5b628c97ca1e76fcc391a063e91d78335bd55b036a30ba968d"
+        }
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileName": "./.ruff_cache/0.16.9/5686762825963441742",
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-File-2e790b201f31e62ec999cbe0",
+      "checksums": [
+        {
+          "algorithm": "SHA1",
+          "checksumValue": "a841ba867b077ea911fad5dd6d94abda6f10b22c"
+        },
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "5953156d7e0c564a427251316eaf26f8870e6483ae2197f916b630e4f93e31ae"
+        }
+      ],
+      "copyrightText": "NOASSERTION",
+      "fileName": "./.ruff_cache/CACHEDIR.TAG",
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
       "SPDXID": "SPDXRef-File-63340f849297b0e21cd784e5",
       "checksums": [
         {
@@ -94,11 +222,11 @@
       "checksums": [
         {
           "algorithm": "SHA1",
-          "checksumValue": "0e75c55353179923900d3a43481a385307951dbc"
+          "checksumValue": "5d5a4be7b9016c99524c3dfe43e2dcbab8fb3eec"
         },
         {
           "algorithm": "SHA256",
-          "checksumValue": "b88452484eb53ebb520934934bda000d0060e9c9bfc80c2513fe9e1719b791e2"
+          "checksumValue": "d6fce7fcb962a7752e0c8fcecc60851ff5f7963b672bf00da275a35651c7bf50"
         }
       ],
       "copyrightText": "NOASSERTION",
@@ -2014,11 +2142,11 @@
       "checksums": [
         {
           "algorithm": "SHA1",
-          "checksumValue": "43a464f4e47c4ac717062cb899d9e80685e503c6"
+          "checksumValue": "8ee90afc80c5a108382f345462c2be65e6f262c2"
         },
         {
           "algorithm": "SHA256",
-          "checksumValue": "b66f0cc06c0bbf56978305944b0ff27e0ecf40719ae4d9b6ba33381509fd3cc2"
+          "checksumValue": "1f619fc9587e10687fbdef30daec1b3e0a2e44de0ec5edb8c7e8b38ad1131987"
         }
       ],
       "copyrightText": "NOASSERTION",
@@ -2078,11 +2206,11 @@
       "checksums": [
         {
           "algorithm": "SHA1",
-          "checksumValue": "ba1bc036c42fe32a37d3b075489943a58ec8ed8f"
+          "checksumValue": "a4c23016cdb4f79b4adbd212b5f2f4f2214453da"
         },
         {
           "algorithm": "SHA256",
-          "checksumValue": "37a8915ebf8d90f6f6d5fcb0cc3b7964997c855efbbf52174c6301eae02f786c"
+          "checksumValue": "2bdd21e01ce1e8be1125e1869c284269ecf001f9a760f0223e9400293df95b35"
         }
       ],
       "copyrightText": "NOASSERTION",
@@ -3294,11 +3422,11 @@
       "checksums": [
         {
           "algorithm": "SHA1",
-          "checksumValue": "cd9c189ede183688ed12ccb242767e79bc85b0a2"
+          "checksumValue": "8a7f18720a32b36ced9b6a2078d8cf39a43026bf"
         },
         {
           "algorithm": "SHA256",
-          "checksumValue": "abad627528d27239eadbdf521ed340f6b397411d3f0088923e381dff874832ab"
+          "checksumValue": "18333a156c7c1cdb8dfdd54756bbb4f03170d585a4e817fa159e4d729b570dbe"
         }
       ],
       "copyrightText": "NOASSERTION",
@@ -7276,7 +7404,7 @@
       "licenseDeclared": "LicenseRef-Proprietary",
       "name": "netconfig",
       "packageVerificationCode": {
-        "packageVerificationCodeValue": "c06ac7e0e78b34019400ce036437e7108a56c4c5"
+        "packageVerificationCodeValue": "18859187accbbf92c8a6bd01d2db7842275b5d3c"
       },
       "versionInfo": "2.0.0-67.2"
     }
@@ -7299,6 +7427,46 @@
     },
     {
       "relatedSpdxElement": "SPDXRef-File-bc37d034bad564583790a46f",
+      "relationshipType": "CONTAINS",
+      "spdxElementId": "SPDXRef-Package-NetConfig"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-File-a9b3f2f93163f3bf742b244b",
+      "relationshipType": "CONTAINS",
+      "spdxElementId": "SPDXRef-Package-NetConfig"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-File-082d2daba539b2122ff6a4bb",
+      "relationshipType": "CONTAINS",
+      "spdxElementId": "SPDXRef-Package-NetConfig"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-File-3c04248c09135222f74b9872",
+      "relationshipType": "CONTAINS",
+      "spdxElementId": "SPDXRef-Package-NetConfig"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-File-81b69aac9e00f3067dcc3318",
+      "relationshipType": "CONTAINS",
+      "spdxElementId": "SPDXRef-Package-NetConfig"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-File-dab7237984e9e79b61498360",
+      "relationshipType": "CONTAINS",
+      "spdxElementId": "SPDXRef-Package-NetConfig"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-File-6fb9215dc36dfd2aef6b4a8a",
+      "relationshipType": "CONTAINS",
+      "spdxElementId": "SPDXRef-Package-NetConfig"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-File-034abb4a1c0c13c04646ad83",
+      "relationshipType": "CONTAINS",
+      "spdxElementId": "SPDXRef-Package-NetConfig"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-File-2e790b201f31e62ec999cbe0",
       "relationshipType": "CONTAINS",
       "spdxElementId": "SPDXRef-Package-NetConfig"
     },

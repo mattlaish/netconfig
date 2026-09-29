@@ -4,6 +4,15 @@
 
 Continue only from the complete R67.2 full-source baseline once frozen. Preserve: no MC-12; all network mutation approval-gated; legacy ad-hoc/device CLI read-only; Alerts is the canonical NI-4 alert/report surface; API-token lifecycle in Settings/Integrations; read-only Supportability for authenticated Console users with admin-only bundles; R63 replay-safe-only distributed-task recovery; and exact-candidate LIVE_RC evidence separation. R68 is not a source-development track and must be rerun only after the exact R67.2 candidate completes mandatory live gates.
 
+## Repository hygiene & hot-path performance corrective — 2026-09-29
+
+Corrective maintenance only; no feature, schema (`mc11-topology-change-planning-1` preserved), or public REST contract change, and no new network-write authority. All mutation remains approval-gated and all `LIVE_RC` gates remain mandatory.
+
+- Restaged the 40 `REQUIRED_EXECUTABLES` from git index mode `100644` to `100755`, which is why a fresh clone previously failed 13 hygiene/mode-contract tests; a clean clone now passes them.
+- Removed two real hot-path performance flaws: the topology-render N+1 (`manager.topology_identities` / `topology_graph` / neighbor analysis now share one bulk `inv.all_facts()` join via `_inventory_with_sysname()`), and the per-packet full-table scan in `manager.device_by_host()` (now a single indexed `Inventory.get_by_host()` lookup used by syslog/trap ingestion).
+- Regenerated `SBOM.spdx.json` / `RELEASE_MANIFEST.json` / `RELEASE_MANIFEST_SHA256.txt` to clear post-edit drift.
+- Validation: `compileall` PASS, full suite **535 passed / 13 skipped / 0 failed**, `ruff` clean on edited modules, `release_metadata.py --check` PASS. Status remains `IMPLEMENTED_TESTING_DEFERRED`; live qualification unchanged.
+
 ## Historical handoff ledger
 
 ## R60 qualification closeout — 2026-09-24

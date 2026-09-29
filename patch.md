@@ -1,3 +1,13 @@
+## Repository hygiene & hot-path performance corrective — 2026-09-29
+
+Corrective maintenance on the R67.2 baseline; no product feature, schema, or public REST contract change, and no new network-write authority.
+
+- **Git index executable modes:** the 40 launcher / packaging / qualification / tool entry points listed in `tests/test_repo_hygiene.py::REQUIRED_EXECUTABLES` were committed with git index mode `100644`, so a clean clone failed 13 hygiene/mode-contract tests (`test_repo_hygiene` ×2 plus the q2/r60/r61/r62.1/r64/r65/r66/r67 mode gates). Restaged all 40 to `100755` (`git update-index --chmod=+x`); filesystem and index modes now agree.
+- **Topology N+1 query flaw:** `manager.topology_identities`, `manager.topology_graph`, and the neighbor-analysis path each looped `inv.get_facts()` once per device while rendering. Replaced the three identical blocks with a single `_inventory_with_sysname()` helper that does one bulk `inv.all_facts()` and joins in memory.
+- **Per-packet device lookup flaw:** `manager.device_by_host()` (called once per syslog line / SNMP trap on the ingestion hot path) re-scanned and re-parsed the whole device table. Added `Inventory.get_by_host()`, a single indexed case-insensitive `WHERE LOWER(host)=LOWER(?)` lookup, and pointed `device_by_host` at it.
+- **Release metadata regeneration:** regenerated `SBOM.spdx.json`, `RELEASE_MANIFEST.json`, and `RELEASE_MANIFEST_SHA256.txt` via `tools/release_metadata.py` (460 SPDX source files) so the drift check passes after the source edits.
+- **Validation:** `python3.12 -m compileall` PASS; full suite **535 passed / 13 skipped / 0 failed** (13 skips are live-PostgreSQL/protocol integration gates, environment-gated as designed); `ruff check` clean on the edited modules; `release_metadata.py --check` PASS. Live RC gates remain mandatory and unaffected; status stays `IMPLEMENTED_TESTING_DEFERRED`.
+
 ## R60 Appliance Reliability & Lifecycle Hardening — 2026-09-24
 
 Added release-60 appliance lifecycle hardening: offline-safe checksummed local-state snapshot/verify/restore, external secret/certificate preservation fingerprints, explicit PostgreSQL rollback DB switching, R59→R60 fail-closed upgrade/downgrade wrapper with runtime service masking and service-state restoration, disk-space preflight, lifecycle retention candidates, fixed-name live qualification hooks, and an R60 evidence runner. No MC-12 or new device execution authority is introduced.

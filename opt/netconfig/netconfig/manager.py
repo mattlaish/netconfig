@@ -239,22 +239,25 @@ class Manager:
         return password, key_path, key_pass, enable_pw
 
     def device_by_host(self, host):
-        needle = str(host or "").strip().lower()
-        for dev in self.inv.all():
-            if str(dev.get("host", "")).strip().lower() == needle:
-                return dev
-        return None
+        return self.inv.get_by_host(host)
+
+    def _inventory_with_sysname(self):
+        """Inventory rows enriched with each device's SNMP sysName, using a single
+        bulk facts query instead of one get_facts() call per device (avoids N+1
+        on topology/graph rendering)."""
+        facts_by = self.inv.all_facts()
+        out = []
+        for item in self.inv.all():
+            enriched = dict(item)
+            enriched["sysname"] = (facts_by.get(item["name"]) or {}).get("sysname", "")
+            out.append(enriched)
+        return out
 
     def topology(self):
         return self.db.get_neighbors()
 
     def topology_identities(self):
-        inventory = []
-        for item in self.inv.all():
-            enriched = dict(item)
-            facts = self.inv.get_facts(item["name"]) or {}
-            enriched["sysname"] = facts.get("sysname", "")
-            inventory.append(enriched)
+        inventory = self._inventory_with_sysname()
         return _topology.identity_view(
             inventory, self.db.get_topology_device_identities(),
             self.db.get_topology_interfaces())
@@ -266,12 +269,7 @@ class Manager:
         FDB matches against managed interface/chassis MACs are INFERRED path
         evidence only.  Every managed inventory device is represented.
         """
-        inventory = []
-        for item in self.inv.all():
-            enriched = dict(item)
-            facts = self.inv.get_facts(item["name"]) or {}
-            enriched["sysname"] = facts.get("sysname", "")
-            inventory.append(enriched)
+        inventory = self._inventory_with_sysname()
         fdb_rows = list(self.db.get_vlan_fdb())
         seen = {(r.get("device", ""), str(r.get("mac", "")).lower(),
                  str(r.get("ifindex", "")), str(r.get("bridge_port", ""))) for r in fdb_rows}
@@ -398,12 +396,7 @@ class Manager:
             finally:
                 if tp is not None:
                     tp.close()
-        inventory = []
-        for item in self.inv.all():
-            enriched = dict(item)
-            facts = self.inv.get_facts(item["name"]) or {}
-            enriched["sysname"] = facts.get("sysname", "")
-            inventory.append(enriched)
+        inventory = self._inventory_with_sysname()
         entries = _topology.analyze(
             entries, inventory, self.db.get_topology_device_identities())
         self.db.set_neighbors(device_name, entries)
