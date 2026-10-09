@@ -1,5 +1,8 @@
 # Deployment
 
+
+> **2026-09-29 development update — SNMP Vendor Profile framework:** this working tree adds a data-only, hot-reloadable SNMP Vendor Profile engine on top of the refrozen R67.2 source line. This is a runtime/package payload change, so the previously frozen R67.2 exact-candidate fingerprint and candidate-bound `LIVE_RC` evidence do **not** qualify this working tree. The release identity has intentionally **not** been advanced; that remains an explicit user decision. Project state remains `IMPLEMENTED_TESTING_DEFERRED`; MC-11 remains the final Monitoring / Correlation / Change-Planning feature slice; no MC-12 and no new network-write authority are introduced. Profiles are JSON data, validated fail-closed, bounded to declared numeric OID roots, and cannot execute Python, shell, commands, URLs, or arbitrary expressions.
+
 > **Canonical project state — 2026-09-25:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) on top of the frozen R67 candidate. MC-1 through MC-11 remain implemented; **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice and schema revision remains `mc11-topology-change-planning-1`; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included. R67.2 repairs fresh login, additive migration/index ordering, fail-closed Core PostgreSQL preflight, Core/History PostgreSQL configuration separation, and fresh PostgreSQL Core bootstrap without adding network-write authority. **All network mutation remains approval-gated; local/offline qualification does not establish RC or production release readiness; all required `LIVE_RC` gates remain mandatory. Do not create MC-12.** R68 must be rerun against the exact R67.2 candidate after mandatory live qualification.
 
 ## R61 qualification deployment
@@ -26,4 +29,4 @@ R65 adds no new daemon, listener, database migration, or external service. The O
 
 ## R67 deployment qualification
 
-The package identity is `2.0.0-67`. R67 requires live AlmaLinux 10 RPM/systemd/SELinux fresh-install and R66→R67 upgrade/state-preservation gates before RC qualification. Offline RPM reproducibility is artifact evidence only and does not replace those live deployment gates.
+The package identity is `2.0.0-67.2`. R67.2 requires live AlmaLinux 10 RPM/systemd/SELinux fresh-install plus the supported prior-installed-state → R67.2 upgrade/state-preservation gates before RC qualification. Offline RPM reproducibility is artifact evidence only and does not replace those live deployment gates.

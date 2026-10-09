@@ -1,5 +1,8 @@
 ## R60 lifecycle management surface
 
+
+> **2026-09-29 development update — SNMP Vendor Profile framework:** this working tree adds a data-only, hot-reloadable SNMP Vendor Profile engine on top of the refrozen R67.2 source line. This is a runtime/package payload change, so the previously frozen R67.2 exact-candidate fingerprint and candidate-bound `LIVE_RC` evidence do **not** qualify this working tree. The release identity has intentionally **not** been advanced; that remains an explicit user decision. Project state remains `IMPLEMENTED_TESTING_DEFERRED`; MC-11 remains the final Monitoring / Correlation / Change-Planning feature slice; no MC-12 and no new network-write authority are introduced. Profiles are JSON data, validated fail-closed, bounded to declared numeric OID roots, and cannot execute Python, shell, commands, URLs, or arbitrary expressions.
+
 R60 adds no public REST mutation API. Appliance lifecycle authority remains local/operator controlled through the CLI and packaging runbook: `netconfig lifecycle snapshot`, `verify`, `verify-live`, `restore-local`, `retention-candidates`, and `switch-postgres-rollback`. These commands do not add network-device configuration authority and do not bypass Automation Request / Structured Change approval.
 
 ## Q2 qualification API impact

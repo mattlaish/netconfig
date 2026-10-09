@@ -680,9 +680,19 @@ def render_sidebar_nav(links, current_path=""):
             return path_only.startswith("/vault")
         return path_only == (urllib.parse.urlsplit(url).path or "/")
 
-    items = [f'<a{" class=\"active\"" if active(url) else ""} href="{url}">{html.escape(label)}</a>'
-             for url, label in links]
-    return '<div class="sidebar-section-title">Navigation</div><nav class="nav-sidebar">' + "".join(items) + "</nav>"
+    # Backward compatible: flat [(url,label)] or grouped [(title,[(url,label),...])].
+    grouped = bool(links and isinstance(links[0][1], (list, tuple)) and
+                   (not links[0][1] or isinstance(links[0][1][0], (list, tuple))))
+    groups = links if grouped else [("Navigation", links)]
+    out = []
+    for title, group_links in groups:
+        if not group_links:
+            continue
+        items = [f'<a{" class=\"active\"" if active(url) else ""} href="{url}">{html.escape(label)}</a>'
+                 for url, label in group_links]
+        out.append(f'<div class="sidebar-section-title">{html.escape(title)}</div>'
+                   '<nav class="nav-sidebar">' + "".join(items) + '</nav>')
+    return "".join(out)
 
 
 def _sensor_card(title, state, value, detail):

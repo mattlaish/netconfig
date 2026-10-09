@@ -1,8 +1,17 @@
-# R67.1 corrective RC — current testing truth
+# R67.2 corrective RC — current testing truth
+
+
+> **2026-09-29 development update — SNMP Vendor Profile framework:** this working tree adds a data-only, hot-reloadable SNMP Vendor Profile engine on top of the refrozen R67.2 source line. This is a runtime/package payload change, so the previously frozen R67.2 exact-candidate fingerprint and candidate-bound `LIVE_RC` evidence do **not** qualify this working tree. The release identity has intentionally **not** been advanced; that remains an explicit user decision. Project state remains `IMPLEMENTED_TESTING_DEFERRED`; MC-11 remains the final Monitoring / Correlation / Change-Planning feature slice; no MC-12 and no new network-write authority are introduced. Profiles are JSON data, validated fail-closed, bounded to declared numeric OID roots, and cannot execute Python, shell, commands, URLs, or arbitrary expressions.
+
+**Current vendor-profile source evidence:** **556 collected / 542 PASS / 14 SKIP / 0 FAIL** across 12 bounded groups; focused Vendor Profile framework coverage is **8 PASS / 0 FAIL**; `compileall`, actual launcher `py_compile`, packaging/tool/qualification shell syntax, release-metadata check, and legacy selftest are PASS. The 14 skips remain explicit live PostgreSQL/protocol-service prerequisites plus the expected source-archive Git-metadata prerequisite. These are local/source gates only and do not promote the working tree beyond `IMPLEMENTED_TESTING_DEFERRED`.
 
 > **Canonical project state — 2026-09-25:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) on top of the frozen R67 candidate. MC-1 through MC-11 remain implemented; **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice and schema revision remains `mc11-topology-change-planning-1`; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included. R67.2 repairs fresh login, additive migration/index ordering, fail-closed Core PostgreSQL preflight, Core/History PostgreSQL configuration separation, and fresh PostgreSQL Core bootstrap without adding network-write authority. **All network mutation remains approval-gated; local/offline qualification does not establish RC or production release readiness; all required `LIVE_RC` gates remain mandatory. Do not create MC-12.** R68 must be rerun against the exact R67.2 candidate after mandatory live qualification.
 
-R67.1 requires focused authority/UI tests, retained MC-11/R64/R63 regressions, full bounded repository regression, clean-extract reproduction, deterministic RPM, artifact integrity and a fresh exact-candidate LIVE_RC matrix. No R67 live evidence may be reused after these byte changes.
+R67.2 requires focused fresh-database/bootstrap tests, retained MC-11 authority regression, full bounded repository regression, clean-extract reproduction, deterministic RPM, artifact integrity and a fresh exact-candidate LIVE_RC matrix. No R67/R67.1 candidate-bound live evidence may be reused after these byte changes.
+
+## R67.2 exact-candidate refreeze gate — 2026-09-26
+
+The refreeze is documentation/manifest-only and does not alter runtime/API/schema/package identity. Qualification must nevertheless bind to the new exact candidate bytes. Required local refreeze evidence includes compatibility `source-manifest.sha256`, `R67_2_SOURCE_MANIFEST.json`, `SHA256SUMS`, deterministic release metadata/SBOM, POSIX-unzip byte/mode parity, archive CRC/path/symlink safety, deterministic offline helper-RPM rebuild/verification, focused R67.2 and MC-11 authority regression, and the bounded repository regression. These remain local/artifact evidence only; `LIVE_RC` stays 0/12 until executed in the required environments.
 
 ## Historical ledger
 

@@ -194,12 +194,14 @@ class Manager:
         self._ifhist = None
         self._ifhist_key = None
         from . import mib as _mib
+        from .vendor_profiles import VendorProfileRegistry
         self.mibindex = _mib.MibIndex(os.path.join(str(self.paths.home), "mibs"))
         if not self.mibindex.load():
             try:
                 self.mibindex.rebuild()
             except Exception:
                 pass
+        self.vendor_profiles = VendorProfileRegistry(str(self.paths.home))
 
     def rebuild_mibindex(self):
         try:
@@ -239,25 +241,22 @@ class Manager:
         return password, key_path, key_pass, enable_pw
 
     def device_by_host(self, host):
-        return self.inv.get_by_host(host)
-
-    def _inventory_with_sysname(self):
-        """Inventory rows enriched with each device's SNMP sysName, using a single
-        bulk facts query instead of one get_facts() call per device (avoids N+1
-        on topology/graph rendering)."""
-        facts_by = self.inv.all_facts()
-        out = []
-        for item in self.inv.all():
-            enriched = dict(item)
-            enriched["sysname"] = (facts_by.get(item["name"]) or {}).get("sysname", "")
-            out.append(enriched)
-        return out
+        needle = str(host or "").strip().lower()
+        for dev in self.inv.all():
+            if str(dev.get("host", "")).strip().lower() == needle:
+                return dev
+        return None
 
     def topology(self):
         return self.db.get_neighbors()
 
     def topology_identities(self):
-        inventory = self._inventory_with_sysname()
+        inventory = []
+        for item in self.inv.all():
+            enriched = dict(item)
+            facts = self.inv.get_facts(item["name"]) or {}
+            enriched["sysname"] = facts.get("sysname", "")
+            inventory.append(enriched)
         return _topology.identity_view(
             inventory, self.db.get_topology_device_identities(),
             self.db.get_topology_interfaces())
@@ -269,7 +268,12 @@ class Manager:
         FDB matches against managed interface/chassis MACs are INFERRED path
         evidence only.  Every managed inventory device is represented.
         """
-        inventory = self._inventory_with_sysname()
+        inventory = []
+        for item in self.inv.all():
+            enriched = dict(item)
+            facts = self.inv.get_facts(item["name"]) or {}
+            enriched["sysname"] = facts.get("sysname", "")
+            inventory.append(enriched)
         fdb_rows = list(self.db.get_vlan_fdb())
         seen = {(r.get("device", ""), str(r.get("mac", "")).lower(),
                  str(r.get("ifindex", "")), str(r.get("bridge_port", ""))) for r in fdb_rows}
@@ -396,7 +400,12 @@ class Manager:
             finally:
                 if tp is not None:
                     tp.close()
-        inventory = self._inventory_with_sysname()
+        inventory = []
+        for item in self.inv.all():
+            enriched = dict(item)
+            facts = self.inv.get_facts(item["name"]) or {}
+            enriched["sysname"] = facts.get("sysname", "")
+            inventory.append(enriched)
         entries = _topology.analyze(
             entries, inventory, self.db.get_topology_device_identities())
         self.db.set_neighbors(device_name, entries)
@@ -836,41 +845,38 @@ class Manager:
                         "mib_source": mapped["source"], "mapped": mapped["mapped"]})
         return out
 
-    def _poll_vendor_mibs(self, device_name, dev, facts, version, community, v3, port,
-                          force=False):
-        """Collect uploaded-MIB OBJECT-TYPE values with strict load limits."""
-        roots = self.mibindex.collection_roots(facts.get("sysobjectid", ""), max_roots=12)
+    def _poll_vendor_mibs(self, device_name, dev, facts, version, community, v3, port, force=False):
+        from .vendor_profiles import collection_specs, is_excluded
+        profile=self.vendor_profiles.match(facts.get("sysobjectid", ""))
+        roots=collection_specs(profile) if profile else self.mibindex.collection_roots(facts.get("sysobjectid", ""), max_roots=12)
         if not roots:
             self.db.set_mib_values(device_name, [], roots=0)
-            return {"objects": 0, "roots": 0, "skipped": "no matching vendor MIB objects"}
+            return {"objects": 0, "roots": 0, "skipped": "no matching vendor profile or MIB objects"}
         previous = self.db.get_mib_poll_status(device_name)
         min_interval = max(300, int(self.settings.get("snmp_poll_interval", 0) or 0) * 10)
-        if (not force and previous and
-                time.time() - float(previous.get("ts") or 0) < min_interval):
-            return {"objects": previous.get("objects", 0),
-                    "roots": previous.get("roots", 0), "skipped": "not due"}
-
-        found = {}
-        errors = []
-        total_limit = 400
+        if not force and previous and time.time()-float(previous.get("ts") or 0)<min_interval:
+            return {"objects":previous.get("objects",0),"roots":previous.get("roots",0),"skipped":"not due","profile":profile.id if profile else ""}
+        found={}; errors=[]; total_limit=profile.total_limit if profile else 400
         for spec in roots:
-            remaining = total_limit - len(found)
+            remaining=total_limit-len(found)
             if remaining <= 0:
                 break
             try:
-                pairs = _snmp.walk_subtree(
-                    dev["host"], spec["root"], version=version, community=community,
-                    v3=v3, port=port, timeout=self.settings.get("snmp_timeout", 2.0),
-                    max_vars=min(80, remaining))
-                for oid, value in pairs:
+                pairs=_snmp.walk_subtree(dev["host"],spec["root"],version=version,community=community,v3=v3,port=port,timeout=self.settings.get("snmp_timeout",2.0),max_vars=min(int(spec.get("max_values",80)) if profile else 80,remaining))
+                root=str(spec["root"]).lstrip(".")
+                for oid,value in pairs:
+                    oid=str(oid or "").lstrip(".")
+                    if profile and (is_excluded(profile, oid) or not (oid == root or oid.startswith(root + "."))):
+                        continue
                     detail = self.mibindex.resolve_detail(oid)
-                    found[oid] = {"oid": oid, "name": detail["name"], "value": value,
-                                  "mib_source": detail["source"] or spec["source"]}
+                    source = detail["source"] or (
+                        f"Vendor Profile {profile.id}:{spec['id']}" if profile
+                        else spec.get("source", "Uploaded MIB"))
+                    found[oid]={"oid":oid,"name":detail["name"],"value":value,"mib_source":source}
             except Exception as exc:
-                errors.append(f'{spec["source"]} {spec["root"]}: {exc}')
-        error = "; ".join(errors[:5])
-        self.db.set_mib_values(device_name, list(found.values()), roots=len(roots), error=error)
-        return {"objects": len(found), "roots": len(roots), "error": error}
+                errors.append(f"{spec.get('id') or spec.get('source')} {spec['root']}: {exc}")
+        error='; '.join(errors[:5]); self.db.set_mib_values(device_name,list(found.values()),roots=len(roots),error=error)
+        return {"objects":len(found),"roots":len(roots),"error":error,"profile":profile.id if profile else ""}
 
     def storage_status(self):
         try:
@@ -931,6 +937,8 @@ class Manager:
         refreshes from generating MC-3 operational events.
         """
         before_id = self.sensors.latest_transition_id()
+        facts=self.inv.get_facts(device_name) or {}
+        self.sensors.refresh_vendor_profile(device_name, self.vendor_profiles.match(facts.get("sysobjectid", "")))
         self.sensors.refresh_inventory_health(self.inv)
         bridged = []
         for transition in self.sensors.transitions_after_id(before_id, device=device_name):

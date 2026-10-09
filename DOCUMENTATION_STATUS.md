@@ -1,8 +1,13 @@
 # NetConfig Documentation Status
 
+
+> **2026-09-29 development update — SNMP Vendor Profile framework:** this working tree adds a data-only, hot-reloadable SNMP Vendor Profile engine on top of the refrozen R67.2 source line. This is a runtime/package payload change, so the previously frozen R67.2 exact-candidate fingerprint and candidate-bound `LIVE_RC` evidence do **not** qualify this working tree. The release identity has intentionally **not** been advanced; that remains an explicit user decision. Project state remains `IMPLEMENTED_TESTING_DEFERRED`; MC-11 remains the final Monitoring / Correlation / Change-Planning feature slice; no MC-12 and no new network-write authority are introduced. Profiles are JSON data, validated fail-closed, bounded to declared numeric OID roots, and cannot execute Python, shell, commands, URLs, or arbitrary expressions.
+
+**Current vendor-profile source evidence:** **556 collected / 542 PASS / 14 SKIP / 0 FAIL** across 12 bounded groups; focused Vendor Profile framework coverage is **8 PASS / 0 FAIL**; `compileall`, actual launcher `py_compile`, packaging/tool/qualification shell syntax, release-metadata check, and legacy selftest are PASS. The 14 skips remain explicit live PostgreSQL/protocol-service prerequisites plus the expected source-archive Git-metadata prerequisite. These are local/source gates only and do not promote the working tree beyond `IMPLEMENTED_TESTING_DEFERRED`.
+
 > **Canonical project state — 2026-09-25:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) on top of the frozen R67 candidate. MC-1 through MC-11 remain implemented; **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice and schema revision remains `mc11-topology-change-planning-1`; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included. R67.2 repairs fresh login, additive migration/index ordering, fail-closed Core PostgreSQL preflight, Core/History PostgreSQL configuration separation, and fresh PostgreSQL Core bootstrap without adding network-write authority. **All network mutation remains approval-gated; local/offline qualification does not establish RC or production release readiness; all required `LIVE_RC` gates remain mandatory. Do not create MC-12.** R68 must be rerun against the exact R67.2 candidate after mandatory live qualification.
 
-## Release 53 documentation sync — 2026-09-23
+## Historical Release 53 documentation sync — 2026-09-23
 
 Canonical docs describe MC-5 as `IMPLEMENTED_TESTING_DEFERRED`, Release `2.0.0-53`, schema revision `mc5-incident-evidence-timeline-1`, typed validated Incident references, deterministic source/receive-time timeline semantics, normalized change/external evidence stores, retention-safe unavailable markers, and read-only investigation API/CLI/Web presentation without automatic root-cause claims. R52/MC-4 remains historical predecessor evidence. The next roadmap slice is MC-6 / Release 54. Formal AlmaLinux/RPM/PostgreSQL/vendor qualification remains deferred.
 
@@ -40,7 +45,7 @@ The previously documented Central Controller + read-only Site Edge/Collector con
 **Release 46 source qualification:** repository regression executed in bounded groups totals **222 passed / 8 skipped / 0 failed**; the eight skips are seven explicit live/service prerequisites plus the expected Git-index mode skip because `.git` is absent. Focused Web Console/structural coverage is **13 passed**. Legacy selftest is **ALL PASS**; compileall, launcher `py_compile`, and packaging/tool shell syntax are **PASS**. Ruff `0.16.7` and mypy `2.3.1` remain **NOT_RUN** because the executables are unavailable. The dependency-free offline builder emitted `netconfig-2.0.0-46.el10.noarch.rpm` twice byte-identically; independent verification passed and SHA-256 is `5b26c9ae73ac4248171196ee3637f51bd238fed090c4ce3fa820419842f510cd`. Canonical AlmaLinux 10 `rpmbuild`/DNF install-upgrade/systemd/SELinux and other Q-1 live/device gates remain **NOT_RUN / DEFERRED**.
 
 
-> **Roadmap disposition — 2026-09-24:** The monitoring/correlation roadmap is active. MC-1 through MC-9 are implemented in source as `IMPLEMENTED_TESTING_DEFERRED`; the next formal slice is **MC-10 / Release 58 — Correlation Production Hardening & Qualification**. NI-7 remains implemented and Q-1 remains an open production/service qualification track. MC-11 / Release 59 remains the final Topology-Aware Change Planning slice. Do not invent NI-8/Q-2 or skip the defined MC sequence without an explicit roadmap decision.
+> **Historical roadmap checkpoint — 2026-09-24:** MC-10 and MC-11 were still sequenced at this point. This is chronology only; the current assigned track is R67.2 exact-candidate qualification and the fixed 12-gate `LIVE_RC` campaign. Do not create MC-12.
 
 
 ## 2026-09-18 documentation-only decision sync
@@ -49,7 +54,7 @@ Canonical design documentation now records the future Site Edge/Collector surviv
 
 ## Purpose
 
-This file is the documentation truth map. Historical release records retain their original measured counts and decisions; they do not override the current Release 53 / MC-5 state above.
+This file is the documentation truth map. Historical release records retain their original measured counts and decisions; they do not override the current R67.2 / `2.0.0-67.2` / `mc11-topology-change-planning-1` state declared at the top.
 
 ## Complete Markdown inventory
 
@@ -99,14 +104,14 @@ This file is the documentation truth map. Historical release records retain thei
 ## Roadmap disposition
 
 - Post-NI-7 roadmap review: **COMPLETE** as of 2026-09-18.
-- Current feature baseline: **NI-7 — L3/VRF Path & Route Dependency Intelligence**.
-- Next development phase: **none assigned**. Q-1 is an open qualification track, not a new feature phase.
-- Future NI-8/Q-2 or any new development track requires an explicit roadmap decision; historical `NEXT`/`PLANNED` text is provenance only.
+- Current product baseline: **R67.2 / `2.0.0-67.2` / `IMPLEMENTED_TESTING_DEFERRED`**; NI-7 remains included and MC-11 remains the final Monitoring/Correlation functional slice.
+- Current assigned track: **R67.2 exact-candidate qualification and the fixed 12-gate `LIVE_RC` campaign**; this is qualification/release work, not a new feature phase.
+- Future NI/MC feature work or any new development track requires an explicit roadmap decision; historical `NEXT`/`PLANNED` text is provenance only. **Do not create MC-12.**
 - Documentation ownership after this sync: **28 CURRENT / MAINTAINED**, **12 HISTORICAL EVIDENCE**, **40 total Markdown files**.
 
-## Release 46 current delivery evidence
+## Historical Release 46 delivery evidence
 
-- Current runtime/package source identity: **Release 46 / `2.0.0-46`**.
+- Historical runtime/package source identity at that checkpoint: **Release 46 / `2.0.0-46`**.
 - Repository regression: **222 passed / 8 skipped / 0 failed** on the archive-derived source workspace; seven skips are live/service prerequisites and one is the expected Git-index mode skip.
 - Focused Web Console/structural regression: **13 passed**.
 - Legacy selftest: **ALL PASS**; compileall, launcher `py_compile`, and packaging/tool shell syntax: **PASS**.

@@ -1,36 +1,26 @@
 {
-  "artifact": "netconfig-2.0.0-67.2-R67.2-fresh-database-bootstrap-hardening-source-baseline.zip",
+  "artifact": "netconfig-2.0.0-67.2-R67.2-snmp-vendor-profile-development-source-baseline.zip",
   "artifact_gate_boundary": "Local source/clean-extract/offline-helper-RPM integrity only; not live AlmaLinux/PostgreSQL/browser/device qualification",
+  "development_update": "Data-Driven SNMP Vendor Profile framework",
   "feature_freeze": true,
-  "git_mode_truth": "Source archive preserves required executable mode bits; external Git-index 100755 verification remains unavailable because this workspace has no .git metadata",
   "mc11_final_slice": true,
   "mc12_defined": false,
-  "next_track": "R68 v2 Production Release Decision rerun only after exact R67.2 candidate completes all mandatory LIVE_RC gates",
+  "next_track": "Freeze a newly identified exact candidate only after the user decides release identity; mandatory LIVE_RC gates remain required before R68",
   "offline_rpm": {
-    "artifact": "netconfig-2.0.0-67.2.el10.noarch.rpm",
-    "boundary": "offline helper RPM; not live AlmaLinux/rpmbuild/systemd/SELinux qualification",
-    "deterministic_rebuild": "PASS",
-    "independent_verifier": "PASS",
-    "payload_files": 106,
-    "payload_sha256": "a2bcab1a23a90eaf9bd27a13f4b88cdfeab4669010b2f1d98a97a2a148fd026e",
-    "payload_size": 1966675,
-    "sha256": "289caa0e57137ed3c2e5a3a3fb55b197c3c58d8094b682c4b5e5f6861ecbb118"
+    "artifact_evidence": "external artifact gate",
+    "boundary": "deterministic offline helper RPM; exact SHA-256 recorded in external artifact gate"
   },
+  "prior_candidate_bound_live_evidence_reusable": false,
   "qualification": {
-    "bounded_repository_regression": "548 collected / 534 PASS / 14 SKIP / 0 FAIL across 12 mutually exclusive groups",
-    "r67_2_focused": "9/9 PASS",
-    "selected_transition_regression": "71/71 PASS",
-    "mc11_focused": "12/12 PASS",
-    "compileall_pycompile_shell_js_selftest": "PASS",
-    "single_process_pytest": "TIMED_OUT around 37% with no failure output; not counted as PASS",
-    "local_runner_subset": "6 PASS / 0 FAIL; full bounded gate executed separately because of outer execution duration",
-    "live_rc": "0/12 PASS; all mandatory LIVE_RC gates remain release-blocking",
+    "bounded_repository_regression": "556 collected / 542 PASS / 14 SKIP / 0 FAIL across 12 mutually exclusive groups",
+    "compileall_pycompile_shell_selftest": "PASS",
+    "production_release_claim": false,
     "release_candidate_qualified": false,
-    "production_release_claim": false
+    "vendor_profile_focused": "8/8 PASS"
   },
   "release": "67.2",
+  "release_identity_change": false,
   "schema_revision": "mc11-topology-change-planning-1",
-  "slice": "R67.2 Fresh Database Bootstrap Hardening Corrective RC",
   "status": "IMPLEMENTED_TESTING_DEFERRED",
   "version": "2.0.0-67.2"
 }

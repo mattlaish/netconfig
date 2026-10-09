@@ -241,19 +241,6 @@ class Inventory:
         rows = self._conn.execute("SELECT * FROM device_facts").fetchall()
         return {r["device"]: dict(r) for r in rows}
 
-    def get_by_host(self, host):
-        """Look up a single device by host/IP (case-insensitive) with one query.
-
-        Used on the syslog/SNMP-trap ingestion hot path, so it must not scan and
-        re-parse the whole device table per packet."""
-        needle = str(host or "").strip()
-        if not needle:
-            return None
-        r = self._conn.execute(
-            "SELECT * FROM devices WHERE LOWER(host)=LOWER(?) ORDER BY name LIMIT 1",
-            (needle,)).fetchone()
-        return self._row(r) if r else None
-
     # ---- SNMP interface stats -------------------------------------------
     def set_interfaces(self, device, rows, history_seconds=1800):
         """Replace a device's interface samples. Computes in/out bit-rates from

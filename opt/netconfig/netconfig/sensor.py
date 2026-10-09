@@ -499,6 +499,31 @@ class SensorEngine:
             message=f"Unmanaged LLDP/CDP neighbors={unmanaged}", source="l2_neighbors")
         return self.list(device=device)
 
+    def refresh_vendor_profile(self, device, profile):
+        prefix="vendor-profile:%"
+        if profile is None:
+            self.conn.execute("DELETE FROM sensors WHERE device=? AND source LIKE ?", (device, prefix))
+            self.conn.commit()
+            return self.list(device=device)
+        from .vendor_profiles import normalize
+        rows=self._query("SELECT oid,name,value,mib_source,ts FROM mib_values WHERE device=? ORDER BY oid",(device,)) or []
+        normalized = normalize(profile, rows)
+        active = set()
+        for item in normalized:
+            self.upsert(
+                item["sensor_type"], device=device, resource=item.get("resource", ""),
+                value=item.get("value", ""), unit=item.get("unit", ""),
+                status=item.get("status", "UNKNOWN"), message=item.get("message", ""),
+                source=item.get("source", f"vendor-profile:{profile.id}"))
+            active.add((item["sensor_type"], item.get("resource", "")))
+        for row in self.conn.execute(
+                "SELECT id,sensor_type,resource FROM sensors WHERE device=? AND source LIKE ?",
+                (device, prefix)).fetchall():
+            if (str(row["sensor_type"]), str(row["resource"] or "")) not in active:
+                self.conn.execute("DELETE FROM sensors WHERE id=?", (row["id"],))
+        self.conn.commit()
+        return self.list(device=device)
+
     def refresh_mib_summary(self, device):
         """Map only known semantic MIB families; unknown raw OIDs stay raw/advanced."""
         rows = self._query(

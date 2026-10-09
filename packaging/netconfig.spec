@@ -52,6 +52,8 @@ install -D -m 0644 usr/lib/systemd/system/netconfig-backup.timer \
     "%{buildroot}%{_unitdir}/netconfig-backup.timer"
 install -D -m 0640 etc/default/netconfig "%{buildroot}%{_sysconfdir}/default/netconfig"
 install -D -m 0644 etc/profile.d/netconfig.sh "%{buildroot}%{_sysconfdir}/profile.d/netconfig.sh"
+install -d "%{buildroot}%{_datadir}/netconfig/snmp-profiles"
+install -m 0644 usr/share/netconfig/snmp-profiles/*.json "%{buildroot}%{_datadir}/netconfig/snmp-profiles/"
 install -d -m 0700 "%{buildroot}%{_localstatedir}/lib/netconfig"
 
 %pre
@@ -85,6 +87,9 @@ exit 0
 %{_unitdir}/netconfig-backup.timer
 %config(noreplace) %attr(0640,root,netconfig) %{_sysconfdir}/default/netconfig
 %{_sysconfdir}/profile.d/netconfig.sh
+%dir %{_datadir}/netconfig
+%dir %{_datadir}/netconfig/snmp-profiles
+%{_datadir}/netconfig/snmp-profiles/*.json
 %dir %attr(0700,netconfig,netconfig) %{_localstatedir}/lib/netconfig
 
 %changelog

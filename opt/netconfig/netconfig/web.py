@@ -140,21 +140,23 @@ class Console(WebDatabaseMixin, WebSupportabilityMixin, WebMC9Mixin, WebOpsMixin
 
     def _nav(self,sess,current_path=""):
         role=sess["role"]
-        links=[("/dashboard","Dashboard"), ("/","Devices"), ("/groups","Groups"), ("/automation","Automation"),
-               ("/operations","Operations"),
-               ("/requests","Change Requests"), ("/compliance","Compliance"), ("/alerts","Alerts"),
-               ("/snmp","SNMP"), ("/topology","Topology"),
-               ("/dependencies","Dependencies"), ("/endpoints","Endpoints"),
-               ("/traffic","Traffic"), ("/incidents","Incidents"), ("/diagnostics","Diagnostics")]
+        groups=[
+            ("Overview", [("/dashboard","Dashboard")]),
+            ("Monitor", [("/alerts","Alerts"),("/incidents","Incidents"),("/traffic","Traffic")]),
+            ("Inventory", [("/","Devices"),("/groups","Groups"),("/endpoints","Endpoints"),("/topology","Topology"),("/dependencies","Dependencies")]),
+            ("Operations", [("/operations","Operations"),("/automation","Automation"),("/requests","Change Requests"),("/compliance","Compliance")]),
+            ("Collection", [("/protocols","Device Collection"),("/snmp","SNMP"),("/runs","Run Log"),("/diagnostics","Diagnostics")]),
+        ]
+        admin=[]
         if _can(role,"manage_devices"):
-            links.append(("/vault","Vault"))
-        links += [("/runs","Run Log"), ("/audit","Audit")]
+            admin.append(("/vault","Vault"))
+        admin.append(("/audit","Audit"))
         if _can(role,"manage_users"):
-            links.append(("/users","Users"))
+            admin.append(("/users","Users"))
         if _can(role,"settings"):
-            links.append(("/settings","Settings"))
-        links += [("/mib","MIB Library"), ("/help","Help")]
-        return render_sidebar_nav(links,current_path)
+            admin.append(("/settings","Settings"))
+        groups += [("Administration",admin),("Advanced",[("/mib","MIB Library")]),("Help",[("/help","Help")])]
+        return render_sidebar_nav(groups,current_path)
 
     def _topright(self,sess):
         vault=('<span class="vault-open">● vault unlocked</span>' if self.manager.vault_ready()
@@ -2273,6 +2275,7 @@ The client secret is stored in the vault.</p>
             iftbl = self._interface_table(device) or '<p class="muted">No interface data yet \u2014 poll the device.</p>'
             graph = self._live_graph(device) if dev.get("snmp_version") else ""
             walk_panel = self._snmp_walk_panel(device, q) if dev.get("snmp_version") else ""
+            profile_panel = self._vendor_profile_section(device) if dev.get("snmp_version") else ""
             vendor_panel = self._vendor_mib_section(device) if dev.get("snmp_version") else ""
             health = render_snmp_health_summary(self, device, dev, fx)
             inner = (f'<div class="panel"><h2>{html.escape(device)} \u00b7 SNMP '
@@ -2283,7 +2286,7 @@ The client secret is stored in the vault.</p>
                      f'<div class="panel"><h2>Interfaces</h2>{iftbl}</div>')
             if "network" in _dtypes(dev):
                 inner += self._arp_section(dev) + self._mac_port_section(dev)
-            inner += walk_panel + vendor_panel
+            inner += profile_panel + walk_panel + vendor_panel
             return self._send(self._page(f"SNMP \u00b7 {device}", inner, sess))
 
         # fleet view
@@ -2693,6 +2696,28 @@ The client secret is stored in the vault.</p>
                  '<p class="muted">No ARP entries collected yet.</p>')
         return (f'<div class="panel"><h2>ARP table · {len(entries)} entries</h2>'
                 f'<p class="muted">Auto-collected from IP-MIB during SNMP polling.</p>{table}</div>')
+
+    def _vendor_profile_section(self, device):
+        facts=self.manager.inv.get_facts(device) or {}
+        profile=self.manager.vendor_profiles.match(facts.get("sysobjectid", ""))
+        if profile is None:
+            return ""
+        sensors=[r for r in self.manager.sensors.list(device=device,limit=2000) if str(r.get("source") or "").startswith(f"vendor-profile:{profile.id}")]
+        if not sensors:
+            return (f'<div class="panel"><h2>Vendor profile telemetry</h2><p><b>{html.escape(profile.vendor)} {html.escape(profile.product)}</b> '
+                    f'<span class="badge b-dim">{html.escape(profile.id)} {html.escape(profile.version)}</span></p>'
+                    '<p class="muted">Profile matched this device, but no canonical vendor Sensors are stored yet. Poll the device to collect the bounded profile branches.</p></div>')
+        rows=""
+        for item in sorted(sensors,key=lambda r:(str(r.get("sensor_type") or ""),str(r.get("resource") or ""))):
+            status=str(item.get("status") or "UNKNOWN").upper(); badge={"OK":"b-ok","WARNING":"b-chg","CRITICAL":"b-bad"}.get(status,"b-dim")
+            value=html.escape(str(item.get("value") or "")); unit=html.escape(str(item.get("unit") or ""))
+            rows += (f'<tr><td><b>{html.escape(str(item.get("sensor_type") or ""))}</b></td><td>{html.escape(str(item.get("resource") or "")) or "—"}</td>'
+                     f'<td>{value}{(" "+unit) if unit else ""}</td><td><span class="badge {badge}">{html.escape(status)}</span></td>'
+                     f'<td class="muted">{html.escape(str(item.get("message") or ""))}</td></tr>')
+        return (f'<div class="panel"><h2>Vendor profile telemetry</h2><p><b>{html.escape(profile.vendor)} {html.escape(profile.product)}</b> '
+                f'<span class="badge b-dim">{html.escape(profile.id)} {html.escape(profile.version)}</span> · {len(sensors)} canonical Sensor(s)</p>'
+                '<p class="muted">Derived only from the latest persisted bounded SNMP profile snapshot. Opening this page does not poll the device.</p>'
+                f'<table><tr><th>Sensor</th><th>Resource</th><th>Value</th><th>Status</th><th>Detail</th></tr>{rows}</table></div>')
 
     def _vendor_mib_section(self, device):
         values = self.manager.db.get_mib_values(device)

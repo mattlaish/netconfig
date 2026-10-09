@@ -1,0 +1,253 @@
+{
+  "schema_version": 1,
+  "id": "fortinet.fortigate",
+  "version": "1.0.0",
+  "vendor": "Fortinet",
+  "product": "FortiGate",
+  "match": {
+    "sysobject_prefixes": [
+      "1.3.6.1.4.1.12356.101"
+    ]
+  },
+  "collections": [
+    {
+      "id": "system",
+      "root": "1.3.6.1.4.1.12356.101.4.1",
+      "max_values": 64
+    },
+    {
+      "id": "security_db",
+      "root": "1.3.6.1.4.1.12356.101.4.2",
+      "max_values": 32
+    },
+    {
+      "id": "hardware",
+      "root": "1.3.6.1.4.1.12356.101.4.3",
+      "max_values": 128
+    },
+    {
+      "id": "processors",
+      "root": "1.3.6.1.4.1.12356.101.4.4",
+      "max_values": 192
+    },
+    {
+      "id": "vdom",
+      "root": "1.3.6.1.4.1.12356.101.3",
+      "max_values": 128
+    },
+    {
+      "id": "interfaces",
+      "root": "1.3.6.1.4.1.12356.101.7.2",
+      "max_values": 512
+    },
+    {
+      "id": "vpn",
+      "root": "1.3.6.1.4.1.12356.101.12",
+      "max_values": 512
+    }
+  ],
+  "exclude": [
+    "1.3.6.1.4.1.12356.101.5",
+    "1.3.6.1.4.1.12356.101.13"
+  ],
+  "metrics": [
+    {
+      "id": "firmware",
+      "oid": "1.3.6.1.4.1.12356.101.4.1.1.0",
+      "sensor_type": "vendor.fortigate.firmware",
+      "status": "OK"
+    },
+    {
+      "id": "cpu",
+      "oid": "1.3.6.1.4.1.12356.101.4.1.3.0",
+      "sensor_type": "vendor.fortigate.cpu",
+      "unit": "%",
+      "status": "OK"
+    },
+    {
+      "id": "memory",
+      "oid": "1.3.6.1.4.1.12356.101.4.1.4.0",
+      "sensor_type": "vendor.fortigate.memory",
+      "unit": "%",
+      "status": "OK"
+    },
+    {
+      "id": "sessions",
+      "oid": "1.3.6.1.4.1.12356.101.4.1.8.0",
+      "sensor_type": "vendor.fortigate.sessions",
+      "unit": "sessions",
+      "status": "OK"
+    },
+    {
+      "id": "vpn_up",
+      "oid": "1.3.6.1.4.1.12356.101.12.1.1.0",
+      "sensor_type": "vendor.fortigate.vpn_up",
+      "unit": "tunnels",
+      "status": "OK"
+    },
+    {
+      "id": "session_rate_1m",
+      "oid": "1.3.6.1.4.1.12356.101.4.1.11.0",
+      "sensor_type": "vendor.fortigate.session_rate",
+      "resource": "1m",
+      "unit": "sessions/s",
+      "status": "OK"
+    },
+    {
+      "id": "av_db",
+      "oid": "1.3.6.1.4.1.12356.101.4.2.1.0",
+      "sensor_type": "vendor.fortigate.security_db",
+      "resource": "av",
+      "status": "OK"
+    },
+    {
+      "id": "ips_db",
+      "oid": "1.3.6.1.4.1.12356.101.4.2.2.0",
+      "sensor_type": "vendor.fortigate.security_db",
+      "resource": "ips",
+      "status": "OK"
+    },
+    {
+      "id": "av_ext_db",
+      "oid": "1.3.6.1.4.1.12356.101.4.2.3.0",
+      "sensor_type": "vendor.fortigate.security_db",
+      "resource": "av-extended",
+      "status": "OK"
+    },
+    {
+      "id": "ips_ext_db",
+      "oid": "1.3.6.1.4.1.12356.101.4.2.4.0",
+      "sensor_type": "vendor.fortigate.security_db",
+      "resource": "ips-extended",
+      "status": "OK"
+    }
+  ],
+  "tables": [
+    {
+      "id": "hardware",
+      "columns": {
+        "name": "1.3.6.1.4.1.12356.101.4.3.2.1.2",
+        "reading": "1.3.6.1.4.1.12356.101.4.3.2.1.3",
+        "alarm": "1.3.6.1.4.1.12356.101.4.3.2.1.4"
+      },
+      "sensors": [
+        {
+          "sensor_type": "vendor.fortigate.hardware",
+          "resource": "{name}",
+          "value_from": "reading",
+          "status_from": "alarm",
+          "status_map": {
+            "0": "OK",
+            "1": "CRITICAL"
+          },
+          "required_fields": [
+            "name",
+            "reading",
+            "alarm"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "processors",
+      "columns": {
+        "processor_index": "1.3.6.1.4.1.12356.101.4.4.2.1.1",
+        "cpu": "1.3.6.1.4.1.12356.101.4.4.2.1.2"
+      },
+      "sensors": [
+        {
+          "sensor_type": "vendor.fortigate.processor_cpu",
+          "resource": "processor-{processor_index}",
+          "value_from": "cpu",
+          "unit": "%",
+          "status": "OK",
+          "required_fields": [
+            "processor_index",
+            "cpu"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vdom",
+      "columns": {
+        "name": "1.3.6.1.4.1.12356.101.3.2.1.1.2",
+        "cpu": "1.3.6.1.4.1.12356.101.3.2.1.1.5",
+        "memory": "1.3.6.1.4.1.12356.101.3.2.1.1.6",
+        "sessions": "1.3.6.1.4.1.12356.101.3.2.1.1.7"
+      },
+      "sensors": [
+        {
+          "sensor_type": "vendor.fortigate.vdom_cpu",
+          "resource": "{name}",
+          "value_from": "cpu",
+          "unit": "%",
+          "status": "OK",
+          "required_fields": [
+            "name",
+            "cpu"
+          ]
+        },
+        {
+          "sensor_type": "vendor.fortigate.vdom_memory",
+          "resource": "{name}",
+          "value_from": "memory",
+          "unit": "%",
+          "status": "OK",
+          "required_fields": [
+            "name",
+            "memory"
+          ]
+        },
+        {
+          "sensor_type": "vendor.fortigate.vdom_sessions",
+          "resource": "{name}",
+          "value_from": "sessions",
+          "unit": "sessions",
+          "status": "OK",
+          "required_fields": [
+            "name",
+            "sessions"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vpn",
+      "columns": {
+        "phase1": "1.3.6.1.4.1.12356.101.12.2.2.1.2",
+        "phase2": "1.3.6.1.4.1.12356.101.12.2.2.1.3",
+        "remote_gateway": "1.3.6.1.4.1.12356.101.12.2.2.1.4",
+        "local_gateway": "1.3.6.1.4.1.12356.101.12.2.2.1.6",
+        "lifetime": "1.3.6.1.4.1.12356.101.12.2.2.1.15",
+        "timeout": "1.3.6.1.4.1.12356.101.12.2.2.1.17",
+        "in_octets": "1.3.6.1.4.1.12356.101.12.2.2.1.18",
+        "out_octets": "1.3.6.1.4.1.12356.101.12.2.2.1.19",
+        "tunnel_status": "1.3.6.1.4.1.12356.101.12.2.2.1.20",
+        "vdom": "1.3.6.1.4.1.12356.101.12.2.2.1.21"
+      },
+      "sensors": [
+        {
+          "sensor_type": "vendor.fortigate.vpn_tunnel",
+          "resource": "{phase1}/{phase2}",
+          "value_from": "tunnel_status",
+          "value_map": {
+            "1": "down",
+            "2": "up"
+          },
+          "status_from": "tunnel_status",
+          "status_map": {
+            "1": "CRITICAL",
+            "2": "OK"
+          },
+          "message": "peer={remote_gateway} local={local_gateway} in={in_octets} out={out_octets} lifetime={lifetime} timeout={timeout} vdom={vdom}",
+          "required_fields": [
+            "phase1",
+            "phase2",
+            "tunnel_status"
+          ]
+        }
+      ]
+    }
+  ]
+}

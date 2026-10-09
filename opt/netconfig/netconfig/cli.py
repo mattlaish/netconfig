@@ -631,6 +631,26 @@ def cmd_compliance(m, args):
 
 
 def cmd_snmp(m, args):
+    if args.action == "profiles":
+        for profile in m.vendor_profiles.list():
+            print(f"{profile.id}\t{profile.version}\t{profile.vendor} {profile.product}\t{profile.source_path}")
+        return
+    if args.action == "profile-reload":
+        print(f"loaded {m.vendor_profiles.reload()} SNMP vendor profile(s); invalid={len(m.vendor_profiles.errors)}")
+        return
+    if args.action == "profile-validate":
+        from .vendor_profiles import load_profile_file
+        p = load_profile_file(args.file)
+        print(f"OK {p.id} {p.version} collections={len(p.collections)} total_limit={p.total_limit}")
+        return
+    if args.action == "profile-install":
+        p, target = m.vendor_profiles.install(args.file)
+        print(f"installed {p.id} {p.version} -> {target}")
+        return
+    if args.action == "profile-remove":
+        removed, target = m.vendor_profiles.remove_runtime(args.profile_id)
+        print(("removed" if removed else "no runtime override") + f" {args.profile_id} ({target})")
+        return
     _master(m)
     if args.action == "poll":
         targets = [args.name] if args.name else [d["name"] for d in m.inv.all()
@@ -1648,6 +1668,10 @@ def build_parser():
     sns_stats = sns.add_parser("stats"); sns_stats.add_argument("name")
     sns_dbg = sns.add_parser("debug", help="verbose SNMP trace vs snmpwalk")
     sns_dbg.add_argument("name"); sns_dbg.add_argument("--hex", action="store_true", help="include packet hex")
+    sns.add_parser("profiles"); sns.add_parser("profile-reload")
+    x=sns.add_parser("profile-validate"); x.add_argument("file")
+    x=sns.add_parser("profile-install"); x.add_argument("file")
+    x=sns.add_parser("profile-remove"); x.add_argument("profile_id")
     sn.set_defaults(func=cmd_snmp)
 
     topo = sub.add_parser("topology", help="show/discover LLDP/CDP neighbours")

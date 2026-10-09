@@ -1,6 +1,9 @@
 # NetConfig Architecture
 
 
+> **2026-09-29 development update — SNMP Vendor Profile framework:** this working tree adds a data-only, hot-reloadable SNMP Vendor Profile engine on top of the refrozen R67.2 source line. This is a runtime/package payload change, so the previously frozen R67.2 exact-candidate fingerprint and candidate-bound `LIVE_RC` evidence do **not** qualify this working tree. The release identity has intentionally **not** been advanced; that remains an explicit user decision. Project state remains `IMPLEMENTED_TESTING_DEFERRED`; MC-11 remains the final Monitoring / Correlation / Change-Planning feature slice; no MC-12 and no new network-write authority are introduced. Profiles are JSON data, validated fail-closed, bounded to declared numeric OID roots, and cannot execute Python, shell, commands, URLs, or arbitrary expressions.
+
+
 ## MC-11 planning boundary
 
 MC-11 is an evidence/planning layer above existing persisted topology, NI-7 L3/VRF route evidence, endpoint attachment and MC-6 service dependencies. `TopologyChangePlanningService` reads those stores plus MC-11 policy evidence, persists plans, and emits evidence-backed gap/change-point explanations and schema-bounded Structured Change proposals. It does not own device polling, arbitrary command construction, approval, or execution. Candidate what-if operates only on planner state.

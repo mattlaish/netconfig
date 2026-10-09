@@ -1,8 +1,12 @@
-## R60 active development baseline — 2026-09-24
+# NetConfig current development baseline — R67.2
+
+**Current implementation baseline:** Release 67.2 / `2.0.0-67.2` / `IMPLEMENTED_TESTING_DEFERRED`, schema `mc11-topology-change-planning-1`. MC-11 is the final Monitoring/Correlation/Change-Planning slice; do not create MC-12. The assigned track is exact-candidate freeze/qualification followed by the fixed 12 `LIVE_RC` gates. R68 is release-decision-only after exact-candidate live qualification. Historical baseline sections below are provenance and must not override this paragraph.
+
+## Historical R60 development baseline — 2026-09-24
 
 Use Release 60 / `2.0.0-60` as the active full-source baseline. R60 is a production-readiness/lifecycle hardening release, not MC-12. Product schema remains `mc11-topology-change-planning-1`. The supported transactional lifecycle upgrade source is R59; R60 qualification evidence is produced separately from historical Q2 evidence.
 
-## Q2 active qualification baseline — 2026-09-24
+## Historical Q2 qualification baseline — 2026-09-24
 
 Product/runtime baseline remains Release 59 / MC-11 `2.0.0-59`; Q2 adds qualification tooling and evidence only. Use `qualification/q2_runner.py`, `Q2_GATE_CATALOG.json`, and `Q2_PRODUCTION_QUALIFICATION.md` for current continuation. Do not create MC-12. Current product status remains `IMPLEMENTED_TESTING_DEFERRED`; only real `LIVE_PRODUCTION` evidence can close production gates.
 
@@ -12,7 +16,7 @@ Product/runtime baseline remains Release 59 / MC-11 `2.0.0-59`; Q2 adds qualific
 
 > **Roadmap disposition — 2026-09-24:** **R59 / MC-11 is the final Monitoring & Correlation functional slice.** Do not create MC-12. After R59, stop feature expansion and use the Release / Qualification track: **Q2 Production Qualification Campaign → R60 Appliance Reliability & Lifecycle Hardening → R61 Scale & Performance Qualification → R62 PostgreSQL / Concurrency / Recovery Hardening → R63 HA / Failure-Domain Engineering → R64 Security Hardening & Independent Abuse Testing → R65 Operator Workflow Completion → R66 Observability / Supportability → R67 Release Candidate / Full Artifact Qualification → R68 v2 Production Release Decision**. Simulation never counts as live PASS; mandatory gates use `PASS / FAIL / BLOCKED_ENVIRONMENT / NOT_RUN`.
 
-## Current Release 53 baseline identity
+## Historical Release 53 baseline identity
 
 - Parent implementation baseline: repaired Release 52 / MC-4.
 - Application version: `2.0.0`; RPM Release: `53`.
@@ -31,7 +35,7 @@ Release 44 fixes a real Web Console defect in `Operations -> Intent Automation`:
 HTTP-level regression coverage now requests `/operations?tab=intents` and requires a `200` response with the Intent Automation content instead of a server error. Release 43's left sidebar, supplied green theme, and neutral NetConfig branding are preserved. There is no schema or public REST contract change. Package release advances to `2.0.0-44` because shipped runtime source changed.
 
 
-## Current Release 43 baseline identity
+## Historical Release 43 baseline identity
 
 - Parent feature baseline: Release 40 / NI-7 L3/VRF Path & Route Dependency Intelligence, with Release 41 corrective REST/Git hardening inherited.
 - Application version: `2.0.0`.
@@ -62,7 +66,7 @@ Application/project Version: `2.0.0`. RPM source Release: `33`. Database schema 
 
 Source includes PH-4 structured transactions, NI-5 telemetry/time-series foundation, VM-1 vendor model packs, NA-1 desired state, NA-2 fleet campaigns and HA-1 control-plane recovery/drain foundation. All are `IMPLEMENTED_TESTING_DEFERRED`; Q-1 real-service/RPM qualification remains outstanding. The source tree is the authoritative modifiable baseline; no claim is made that Release 33 RPM or real network devices have been qualified until corresponding evidence exists.
 
-> **Current continuation pointer:** use **Release 59 / MC-11 Topology-Aware Change Planning** (`2.0.0-59`) as the active full-source baseline once the final artifact gate below is frozen. Preserve `IMPLEMENTED_TESTING_DEFERRED`; do not promote to `TESTED` or `RELEASED` based on source simulation. MC-11 is the final functional slice and does not add direct execution authority. The immediate next track after artifact freeze is **Q2 Production Qualification Campaign**, not MC-12.
+> **Historical continuation pointer:** at that checkpoint, Release 59 / MC-11 was the active full-source baseline and Q2 was next. It is superseded by the current R67.2 qualification track declared at the top.
 
 ## Historical Q-1 baseline note
 
@@ -184,20 +188,20 @@ Live NETCONF/RESTCONF/gNMI devices, vendor behavior, TLS/mTLS interoperability, 
 
 No next numbered implementation phase is assigned. Perform the roadmap / qualification review before opening another phase.
 
-## R61 baseline
+## Historical R61 baseline
 
 Release `2.0.0-61` / Scale & Performance Qualification is the active implementation baseline. Schema remains `mc11-topology-change-planning-1`; MC-11 remains the final MC slice. Local synthetic scale numbers are non-production comparative evidence only. Current source regression: 435 collected / 427 PASS / 8 SKIP / 0 FAIL; R61 focused 17/17; MC-11 focused 12/12. Production scale remains deferred.
 
-## R63 baseline
+## Historical R63 baseline
 
 Baseline identity: `2.0.0-63`, `IMPLEMENTED_TESTING_DEFERRED`, schema `mc11-topology-change-planning-1`. R63 is HA/failure-domain hardening only; it does not create MC-12 or a second change-execution authority. Production HA remains unqualified until real multi-node/failure-domain gates pass.
 
 
-## R65 baseline
+## Historical R65 baseline
 
 Release 65 (`2.0.0-65`) implements Operator Workflow Completion on top of R64. The persisted-data-first journey binds Incident → MC-11 plan → exact persisted proposal → existing Automation Request/approval → Structured Change → verification/recovery/rollback → Incident-linked post-change evidence. It adds no MC-12, no parallel write authority, no page-triggered polling, and no schema migration. Status remains `IMPLEMENTED_TESTING_DEFERRED`; `LIVE_OPERATOR` evidence is still required for production operator-workflow claims. Next approved track is R66 Observability / Supportability and is not started.
 
 
-## R67 baseline
+## Historical R67 baseline
 
-Active implementation baseline: Release 67 / `2.0.0-67`, `IMPLEMENTED_TESTING_DEFERRED`, schema `mc11-topology-change-planning-1`. R67 is qualification/release-engineering only and feature-frozen.
+Historical R67 candidate baseline: Release 67 / `2.0.0-67`, `IMPLEMENTED_TESTING_DEFERRED`, schema `mc11-topology-change-planning-1`. It was superseded by R67.1 and then R67.2; its candidate-bound evidence is not reusable for R67.2.

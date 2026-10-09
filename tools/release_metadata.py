@@ -14,6 +14,7 @@ SCHEMA = "mc11-topology-change-planning-1"
 EXCLUDE_NAMES = {
     "SBOM.spdx.json", "RELEASE_MANIFEST.json", "RELEASE_MANIFEST_SHA256.txt",
     "R67_SOURCE_MANIFEST.json", "R67_2_SOURCE_MANIFEST.json", "SHA256SUMS", "ARTIFACT_MANIFEST.json",
+    "source-manifest.sha256",
 }
 EXCLUDE_PARTS = {".git", ".pytest_cache", ".mypy_cache", "__pycache__", "dist", "build", "RPMS", "SRPMS", "SOURCES", "SPECS", "BUILD", "BUILDROOT"}
 
@@ -110,7 +111,7 @@ def build_release_manifest(sbom):
         "feature_freeze": True,
         "mc12_defined": False,
         "monitoring_correlation_lineage": "CLOSED at R59/MC-11; do not create MC-12",
-        "authority_boundary": "R67.2 repairs fresh login, additive schema/index ordering, fail-closed Core PostgreSQL preflight, Core/History PostgreSQL separation, and fresh PostgreSQL bootstrap; network mutation authority is unchanged and remains exclusively approval-gated.",
+        "authority_boundary": "R67.2 remains feature-frozen; this unnumbered corrective development update adds bounded read-only data-driven SNMP Vendor Profiles and grouped operator navigation. Network mutation authority is unchanged and remains exclusively approval-gated.",
         "release_candidate_policy": {
             "candidate_evidence_bound_to_exact_fingerprint": True,
             "changes_invalidate_prior_rc_evidence": True,
@@ -124,24 +125,15 @@ def build_release_manifest(sbom):
             "package_verification_code": sbom["packages"][0]["packageVerificationCode"]["packageVerificationCodeValue"],
         },
         "qualification": {
-            "source_tree": "548 collected / 534 passed / 14 skipped / 0 failed (12 bounded groups)",
-            "r67_2_focused": "9/9 PASS",
-            "mc11_focused": "12/12 PASS",
-            "transition_focused": "71/71 PASS",
-            "single_process_full_pytest": "TIMED_OUT around 37 percent with no failure output; not counted as PASS",
-            "initial_campaign": "external candidate-bound evidence; not embedded in source metadata",
+            "source_tree": "556 collected / 542 passed / 14 skipped / 0 failed (12 bounded groups)",
+            "vendor_profile_focused": "8/8 PASS",
+            "legacy_selftest": "ALL PASS",
             "release_candidate_qualified": False,
             "production_release_claim": False,
         },
         "offline_rpm": {
-            "artifact": "netconfig-2.0.0-67.2.el10.noarch.rpm",
-            "boundary": "offline helper RPM; not live AlmaLinux/rpmbuild/systemd/SELinux qualification",
-            "deterministic_rebuild": "PASS",
-            "independent_verifier": "PASS",
-            "payload_files": 106,
-            "payload_size": 1966675,
-            "payload_sha256": "a2bcab1a23a90eaf9bd27a13f4b88cdfeab4669010b2f1d98a97a2a148fd026e",
-            "sha256": "289caa0e57137ed3c2e5a3a3fb55b197c3c58d8094b682c4b5e5f6861ecbb118",
+            "boundary": "offline helper RPM only; deterministic artifact evidence is external to source metadata to avoid a source/artifact hash cycle",
+            "artifact_evidence": "see external artifact packaging integrity gate",
         },
         "deferred": [
             "all 12 required LIVE_RC gates",

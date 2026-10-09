@@ -1,5 +1,6 @@
 {
   "corrective_rc": true,
+  "development_update": "Data-Driven SNMP Vendor Profile framework",
   "feature_freeze": true,
   "files": [
     {
@@ -35,26 +36,26 @@
     {
       "mode": "0644",
       "path": "AI_HANDOFF.md",
-      "sha256": "b88452484eb53ebb520934934bda000d0060e9c9bfc80c2513fe9e1719b791e2",
-      "size": 131450
+      "sha256": "f63ec3db1cf74c760096d1e794fc91a34144b311090a59fdd967939a164352bf",
+      "size": 4696
     },
     {
       "mode": "0644",
       "path": "API.md",
-      "sha256": "5e317e9db11dba709ff1259e0d2619d89ec4fa84a0fc49a17e7c9d2e64194f7e",
-      "size": 44976
+      "sha256": "08c72a81cf1040acb808e5acc13cced9235a42309e9cd746b9d716b57549c609",
+      "size": 45807
     },
     {
       "mode": "0644",
       "path": "ARCHITECTURE.md",
-      "sha256": "90274df961592c3b5f9b41cdf057c2affa52830475591e0eef2692c8ebde8425",
-      "size": 22279
+      "sha256": "bbfdc209ce4ce13482dc78e22da92350e0182262d5ae8cdf29b237d02fe95251",
+      "size": 23110
     },
     {
       "mode": "0644",
       "path": "ARTIFACT_MANIFEST.json",
-      "sha256": "503aa03d16fa3aac45c4d8cc288e658503dcfc9e88968cf9d35f1909da534154",
-      "size": 2037
+      "sha256": "10d21e15bd6a7913e5babd24c89438adc3b67069801ac8cbd74c9e7848a58858",
+      "size": 1293
     },
     {
       "mode": "0644",
@@ -77,8 +78,8 @@
     {
       "mode": "0644",
       "path": "DATA_MODEL.md",
-      "sha256": "96bf00ef898e2752704fcb6a52e91e9e083a1b0870fb4517ae63804b00e9a1e3",
-      "size": 3032
+      "sha256": "7561c254498b557761f4d55de76c4f1cb7517029f5d433081dafbf3ebb343aba",
+      "size": 3863
     },
     {
       "mode": "0644",
@@ -95,26 +96,26 @@
     {
       "mode": "0644",
       "path": "DEPLOYMENT.md",
-      "sha256": "ffd5986e03e2d257ade08ee8447321002ccaa174a98c898aed6a7ae6b7c1e1b9",
-      "size": 3608
+      "sha256": "b0382644f5c4526e9918e5e7a1e1a952340b4876cc68e5e7dc8b3db79f9dbe0c",
+      "size": 4480
     },
     {
       "mode": "0644",
       "path": "DEVELOPMENT.md",
-      "sha256": "6eeacc5af8ab499f6f6c40bd4fe3b4adbfbb0c8a1667e4c79fcd57b31aa94195",
-      "size": 153692
+      "sha256": "9aa53649b1ab4a043cc46ac862ab7a7fbf84de93978a242c59b1b4f39a4d4aa8",
+      "size": 155919
     },
     {
       "mode": "0644",
       "path": "DEV_BASELINE.md",
-      "sha256": "33b74906259075e64a910c78ea20ebb193afa93507ff86b8738e54bc3304071a",
-      "size": 22559
+      "sha256": "c10cedbbde01f962fac6e250c4c10f9288ece90dfda3bb5c7967a42adc442234",
+      "size": 22921
     },
     {
       "mode": "0644",
       "path": "DOCUMENTATION_STATUS.md",
-      "sha256": "64238ea30c7e00aca5023d514005d6d557eb7addc1f30aa7327e7eb678051b69",
-      "size": 19652
+      "sha256": "a81901abd02a36726cb8e6709b3fcc001d4fe63a8718849e55ae523705539ad3",
+      "size": 21065
     },
     {
       "mode": "0644",
@@ -137,14 +138,14 @@
     {
       "mode": "0644",
       "path": "HANDOVER_PROMPT.md",
-      "sha256": "bafaa7b8638159e49cb7b453cd4715d424195c9c46b6af45f69ee8b78505f4c9",
-      "size": 36499
+      "sha256": "78c084238555f2a8bfc2de4322cfb0f781847c92d2d305b23081605058ba2ad3",
+      "size": 36726
     },
     {
       "mode": "0644",
       "path": "INSTALL_RPM.md",
-      "sha256": "d9b6391630eee855e934176acc2bc9975f26f579f7fab89424325f75071c6981",
-      "size": 12061
+      "sha256": "e087c2a61a6c699228c9c55d08e67c26491f3d71ee18842b5c7ee5de8e71ae92",
+      "size": 12485
     },
     {
       "mode": "0644",
@@ -365,8 +366,8 @@
     {
       "mode": "0644",
       "path": "R67_2_FRESH_DATABASE_BOOTSTRAP_HARDENING.md",
-      "sha256": "700fcfdef3f8bdab35f8beb5951330a41a14ea057dbf7fd59d4206bd7ae913ee",
-      "size": 5674
+      "sha256": "906b81f9927a90ac15107d29c8be4babe7f835d794c0b10c42a8bcb1d0248fd3",
+      "size": 7076
     },
     {
       "mode": "0644",
@@ -376,9 +377,15 @@
     },
     {
       "mode": "0644",
+      "path": "R67_2_SNMP_VENDOR_PROFILE_FRAMEWORK.md",
+      "sha256": "3dbda9b218744d071db4ef4140ffb308cbc4a0a476f6b2b2ebd7a045c8d0eac1",
+      "size": 6890
+    },
+    {
+      "mode": "0644",
       "path": "R67_RELEASE_CANDIDATE_QUALIFICATION.md",
-      "sha256": "ec69a28f44d250fbb4e568ec21fdff043acd426d9dee5d1fcfee6da1720c0049",
-      "size": 3548
+      "sha256": "015d723871b6526232e691df19d8dd09d764ef6f2186d4ccb40296ebf3182c32",
+      "size": 3689
     },
     {
       "mode": "0644",
@@ -389,8 +396,8 @@
     {
       "mode": "0644",
       "path": "README.md",
-      "sha256": "b8742580e36eb690fc10ecab7ce523b732ef329bf39742e238c1c3a4769d5e5d",
-      "size": 65674
+      "sha256": "bd4499e9d28016357a502915a30af04c51ee2d83e24023f3a740780891e6dcb9",
+      "size": 67075
     },
     {
       "mode": "0644",
@@ -455,20 +462,20 @@
     {
       "mode": "0644",
       "path": "RELEASE_MANIFEST.json",
-      "sha256": "6be1fe93e8a61c51197d2272319a4787cba02fece833c3c754e39c0e43438eff",
-      "size": 2787
+      "sha256": "d8d6a91f1cbb86ac5ab84037da111b0566d493bc7a3e8bd546e0de7126b4b20f",
+      "size": 2320
     },
     {
       "mode": "0644",
       "path": "RELEASE_MANIFEST_SHA256.txt",
-      "sha256": "341a6a2163b30c285c15333dfc6a06b7f853603611a2a24f580148f3f819202a",
+      "sha256": "6b2f9b23ddb594040fa474e8c90f27f20f26bb2ff259a694c5f444a0d78de054",
       "size": 88
     },
     {
       "mode": "0644",
       "path": "ROADMAP.md",
-      "sha256": "d181ec6562f564b0d1a2894f59f45fccb023602531cc1b248951360ed4717f3a",
-      "size": 88059
+      "sha256": "24cd210308777961dac1cf4a290e151c0c7981f4948ba3db240edd235ff445c8",
+      "size": 88889
     },
     {
       "mode": "0644",
@@ -479,20 +486,20 @@
     {
       "mode": "0644",
       "path": "SBOM.spdx.json",
-      "sha256": "31898c15546ae3050f544165cf5883f73f7c2187e0c78277c382c0214985ddc5",
-      "size": 309368
+      "sha256": "22c8adfed1c51fb3468b04a7ecd2d0acea9bebb86c12abc82499b7b24c1bd984",
+      "size": 311443
     },
     {
       "mode": "0644",
       "path": "SECURITY.md",
-      "sha256": "78f0eecf3a445c452ab4808fb5c96e773d631d5cd2c5064e81edf5450955cd41",
-      "size": 59656
+      "sha256": "249eee81051f7684a4fc97dc4372b35ea784ea147afc2d9c675e54cb5f912634",
+      "size": 60487
     },
     {
       "mode": "0644",
       "path": "TESTING.md",
-      "sha256": "763a3899e5b543a1254962a53297787366262c1b179b8a1ddeed8a42f720c68e",
-      "size": 109470
+      "sha256": "e612b7f8935daf8165ebe44a1932f6b946cb13233f34d8786655ab17c096eb53",
+      "size": 111609
     },
     {
       "mode": "0644",
@@ -533,8 +540,8 @@
     {
       "mode": "0644",
       "path": "WEBGUI.md",
-      "sha256": "a61ce06f47b30ea6cfc3e24b2753c3b42ec56bad9417636653e22481432d9427",
-      "size": 28023
+      "sha256": "89a41d73a6b1b523b53c4a48177bf3d875791588dc2a56ca9a8ed0159d299d61",
+      "size": 28854
     },
     {
       "mode": "0644",
@@ -671,8 +678,8 @@
     {
       "mode": "0644",
       "path": "opt/netconfig/netconfig/cli.py",
-      "sha256": "1a4ad9a27a530720d1d1e73ef9fe5ffb0d2783beade707575c47fa5c96f3128d",
-      "size": 98588
+      "sha256": "e88e63891200582448e6c362c46c0a54de456ee2af03e686a0cfd1c089b8aca6",
+      "size": 99892
     },
     {
       "mode": "0644",
@@ -809,8 +816,8 @@
     {
       "mode": "0644",
       "path": "opt/netconfig/netconfig/manager.py",
-      "sha256": "37a8915ebf8d90f6f6d5fcb0cc3b7964997c855efbbf52174c6301eae02f786c",
-      "size": 53260
+      "sha256": "c976949d3d636ed256abf10670bf0d0600b8888dcf6bd7f5cdd012b7e85a2b1a",
+      "size": 54042
     },
     {
       "mode": "0644",
@@ -953,8 +960,8 @@
     {
       "mode": "0644",
       "path": "opt/netconfig/netconfig/sensor.py",
-      "sha256": "50b058052d7549f1610d8a3b87e497dfa53c485f07a68fc809715729f73789f3",
-      "size": 27612
+      "sha256": "92d47aaca335899294687dfe96e12c4338dcd3f87843b3f6dacb3f7d7063c063",
+      "size": 29012
     },
     {
       "mode": "0644",
@@ -1048,9 +1055,15 @@
     },
     {
       "mode": "0644",
+      "path": "opt/netconfig/netconfig/vendor_profiles.py",
+      "sha256": "9ca21c5d188c62a3c922dd70778c6fc612dcb9bba5c19f648250706f62369d05",
+      "size": 16702
+    },
+    {
+      "mode": "0644",
       "path": "opt/netconfig/netconfig/web.py",
-      "sha256": "8134a2ea6f1f4faff7ff32f0ddf7e3e981a40b5f2bf3c84396c0585a74549b58",
-      "size": 231754
+      "sha256": "9943837891e3fe26e0a18c1f4a9f217228fcef78a55f0bb714a1cc2a2bded67e",
+      "size": 234256
     },
     {
       "mode": "0644",
@@ -1103,8 +1116,8 @@
     {
       "mode": "0644",
       "path": "opt/netconfig/netconfig/web_ui.py",
-      "sha256": "6e770032a474bcd653cbc6858e11c89e490834c0af96923da486d18ee3727c4f",
-      "size": 90951
+      "sha256": "379216e7f787eb6e10d7185778d4d9235324451b77088f0465afdbab154661ff",
+      "size": 91431
     },
     {
       "mode": "0644",
@@ -1151,8 +1164,8 @@
     {
       "mode": "0644",
       "path": "packaging/netconfig.spec",
-      "sha256": "c995a084a549dff74287ebc9915990c6a02d46caf48993b1fa639d2de588b33a",
-      "size": 18641
+      "sha256": "f7c59eb4b81042425f24e631047a316bac3b84d33d2ca0994144bc14d4146bcd",
+      "size": 18921
     },
     {
       "mode": "0644",
@@ -1265,8 +1278,8 @@
     {
       "mode": "0644",
       "path": "patch.md",
-      "sha256": "abad627528d27239eadbdf521ed340f6b397411d3f0088923e381dff874832ab",
-      "size": 54549
+      "sha256": "e07fce5924556ed018fae025925dc896191df69ac6903bf0dab564da5089cd4f",
+      "size": 56178
     },
     {
       "mode": "0644",
@@ -2237,8 +2250,8 @@
     {
       "mode": "0644",
       "path": "source-manifest.sha256",
-      "sha256": "117e6be8a7797b9dac16ab548a3411b7bfbdab61d30f7e9d76db302e12e687e4",
-      "size": 39424
+      "sha256": "1ddc9c0abaa108b27bd03eb4052b0d8718d571e246bf9eeafc9aac37a7892ae0",
+      "size": 47969
     },
     {
       "mode": "0644",
@@ -2674,6 +2687,12 @@
     },
     {
       "mode": "0644",
+      "path": "tests/test_snmp_vendor_profiles.py",
+      "sha256": "fc7a36ae50553c552a9c352f2670cdf3684f58c942074612fc96ce0d5e9e5747",
+      "size": 6755
+    },
+    {
+      "mode": "0644",
       "path": "tests/test_syslog_receiver.py",
       "sha256": "01c011ef58b060596196f9fd08913adf04b6ea7a9c0a6cb6004b2c8d5020e1c0",
       "size": 1096
@@ -2693,8 +2712,8 @@
     {
       "mode": "0755",
       "path": "tools/release_metadata.py",
-      "sha256": "df1e21adf89c054a2695795505218389b09a0d468169c3a9433c45cd8ffbd046",
-      "size": 8016
+      "sha256": "3111283bbbb3332e70012be3c82d8fd7581e106a974feb00f59b970accc14130",
+      "size": 7507
     },
     {
       "mode": "0644",
@@ -2711,8 +2730,8 @@
     {
       "mode": "0755",
       "path": "tools/rpm-builder/rpm_builder.py",
-      "sha256": "3b9c2e338f825df5559c3d6757779285d54b0a2cfbc9899671b360147c087d5f",
-      "size": 16080
+      "sha256": "b57fc96109efa78bf7cfef1672495a6115f7e74f4dcfa2861f5b338e30abf098",
+      "size": 16351
     },
     {
       "mode": "0755",
@@ -2749,6 +2768,12 @@
       "path": "usr/lib/systemd/system/netconfig-web.service",
       "sha256": "9fef6a59c86295cd569d32e53eb609ce710d008eccaa761b236000dc57679c63",
       "size": 1465
+    },
+    {
+      "mode": "0644",
+      "path": "usr/share/netconfig/snmp-profiles/fortinet.fortigate.json",
+      "sha256": "a18687b36cb08e22193474b8f881226127733eb3e758e0917352eabf3c514996",
+      "size": 6435
     }
   ],
   "release": "2.0.0-67.2",

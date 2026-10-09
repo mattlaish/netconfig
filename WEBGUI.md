@@ -1,6 +1,9 @@
 # NetConfig Web Console — Operations and UI
 
 
+> **2026-09-29 development update — SNMP Vendor Profile framework:** this working tree adds a data-only, hot-reloadable SNMP Vendor Profile engine on top of the refrozen R67.2 source line. This is a runtime/package payload change, so the previously frozen R67.2 exact-candidate fingerprint and candidate-bound `LIVE_RC` evidence do **not** qualify this working tree. The release identity has intentionally **not** been advanced; that remains an explicit user decision. Project state remains `IMPLEMENTED_TESTING_DEFERRED`; MC-11 remains the final Monitoring / Correlation / Change-Planning feature slice; no MC-12 and no new network-write authority are introduced. Profiles are JSON data, validated fail-closed, bounded to declared numeric OID roots, and cannot execute Python, shell, commands, URLs, or arbitrary expressions.
+
+
 ## Release 58 / MC-10 Web Console hardening
 
 The MC-9 Dashboard now includes a read-only **Correlation production health** panel showing bounded run/latency/skew/queue information and hard-limit context from persisted/runtime metadata only. Incident investigation includes recent correlation-run evidence (state, mode, facts, hypotheses, latency, skew/out-of-order and replay lineage). Viewer sessions receive no replay/retention mutation controls. The UI states that local qualification does not replace deferred PostgreSQL/AlmaLinux/systemd/SELinux/external-product/scale/clock-skew/HA gates.

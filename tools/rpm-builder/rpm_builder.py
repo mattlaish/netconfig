@@ -274,6 +274,10 @@ def collect_netconfig_payload(repo_root: Path) -> list[PackageFile]:
 
     add_file("/opt/netconfig/selftest.py", repo_root / "opt/netconfig/selftest.py", 0o644)
     add_file("/usr/bin/netconfig", repo_root / "usr/bin/netconfig", 0o755, normalize_lf=True)
+    add_dir("/usr/share/netconfig", 0o755)
+    add_dir("/usr/share/netconfig/snmp-profiles", 0o755)
+    for path in sorted((repo_root / "usr/share/netconfig/snmp-profiles").glob("*.json")):
+        add_file(f"/usr/share/netconfig/snmp-profiles/{path.name}", path, 0o644)
     add_dir("/usr/libexec/netconfig", 0o755)
     add_file("/usr/libexec/netconfig/bootstrap-postgres-core",
              repo_root / "packaging/bootstrap-postgres-core.sh", 0o755, normalize_lf=True)

@@ -1,13 +1,3 @@
-## Repository hygiene & hot-path performance corrective — 2026-09-29
-
-Corrective maintenance on the R67.2 baseline; no product feature, schema, or public REST contract change, and no new network-write authority.
-
-- **Git index executable modes:** the 40 launcher / packaging / qualification / tool entry points listed in `tests/test_repo_hygiene.py::REQUIRED_EXECUTABLES` were committed with git index mode `100644`, so a clean clone failed 13 hygiene/mode-contract tests (`test_repo_hygiene` ×2 plus the q2/r60/r61/r62.1/r64/r65/r66/r67 mode gates). Restaged all 40 to `100755` (`git update-index --chmod=+x`); filesystem and index modes now agree.
-- **Topology N+1 query flaw:** `manager.topology_identities`, `manager.topology_graph`, and the neighbor-analysis path each looped `inv.get_facts()` once per device while rendering. Replaced the three identical blocks with a single `_inventory_with_sysname()` helper that does one bulk `inv.all_facts()` and joins in memory.
-- **Per-packet device lookup flaw:** `manager.device_by_host()` (called once per syslog line / SNMP trap on the ingestion hot path) re-scanned and re-parsed the whole device table. Added `Inventory.get_by_host()`, a single indexed case-insensitive `WHERE LOWER(host)=LOWER(?)` lookup, and pointed `device_by_host` at it.
-- **Release metadata regeneration:** regenerated `SBOM.spdx.json`, `RELEASE_MANIFEST.json`, and `RELEASE_MANIFEST_SHA256.txt` via `tools/release_metadata.py` (460 SPDX source files) so the drift check passes after the source edits.
-- **Validation:** `python3.12 -m compileall` PASS; full suite **535 passed / 13 skipped / 0 failed** (13 skips are live-PostgreSQL/protocol integration gates, environment-gated as designed); `ruff check` clean on the edited modules; `release_metadata.py --check` PASS. Live RC gates remain mandatory and unaffected; status stays `IMPLEMENTED_TESTING_DEFERRED`.
-
 ## R60 Appliance Reliability & Lifecycle Hardening — 2026-09-24
 
 Added release-60 appliance lifecycle hardening: offline-safe checksummed local-state snapshot/verify/restore, external secret/certificate preservation fingerprints, explicit PostgreSQL rollback DB switching, R59→R60 fail-closed upgrade/downgrade wrapper with runtime service masking and service-state restoration, disk-space preflight, lifecycle retention candidates, fixed-name live qualification hooks, and an R60 evidence runner. No MC-12 or new device execution authority is introduced.
@@ -591,3 +581,14 @@ The provisional source archive was extracted with system `unzip` and reproduced 
 ## R65 change summary
 
 Release 65 (`2.0.0-65`) implements Operator Workflow Completion on top of R64. The persisted-data-first journey binds Incident → MC-11 plan → exact persisted proposal → existing Automation Request/approval → Structured Change → verification/recovery/rollback → Incident-linked post-change evidence. It adds no MC-12, no parallel write authority, no page-triggered polling, and no schema migration. Status remains `IMPLEMENTED_TESTING_DEFERRED`; `LIVE_OPERATOR` evidence is still required for production operator-workflow claims. Next approved track is R66 Observability / Supportability and is not started.
+
+## PATCH-20260929-01 — R67.2 development update — Data-Driven SNMP Vendor Profiles
+
+- **Status:** `IMPLEMENTED_TESTING_DEFERRED`; release identity intentionally not advanced pending explicit user decision.
+- **Parent:** refrozen R67.2 source SHA-256 `b93084d7e2af9be4de234ceb6e21f147332a4e696970a0d829812de22a841559`.
+- **Scope:** JSON-only hot-reloadable SNMP Vendor Profile registry, fail-closed validation, bounded profile-owned collection roots, declarative scalar/table Sensor normalization, runtime profile install/remove/reload/validate CLI, generic read-only Web telemetry, and first packaged `fortinet.fortigate` profile.
+- **FortiGate scope:** system, security DB versions, hardware sensors, processors, VDOM, interface/VLAN extensions, VPN. Firewall-policy and HA branches are intentionally excluded for the current deployment scope.
+- **Compatibility:** devices without a matching profile retain the legacy uploaded-MIB bounded vendor collector.
+- **Authority:** profiles are data only and may not contain Python, shell, command, URL, eval/exec, subprocess, or arbitrary expression/action fields. No network-write authority, DB migration, REST mutation surface, or MC-12 is added.
+- **Packaging:** packaged profiles live under `/usr/share/netconfig/snmp-profiles`; administrator/runtime overlays use `/etc/netconfig/snmp-profiles`, `$NETCONFIG_HOME/snmp-profiles`, and optional `NETCONFIG_SNMP_PROFILE_PATH`.
+- **Qualification:** final source/artifact evidence is recorded in `TESTING.md` and `R67_2_SNMP_VENDOR_PROFILE_FRAMEWORK.md`; prior candidate-bound LIVE_RC evidence does not qualify these changed bytes.

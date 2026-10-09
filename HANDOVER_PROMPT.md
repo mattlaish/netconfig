@@ -1,15 +1,19 @@
-## Current continuation — R60
+# Current new-chat handover — R67.2 corrective RC
+
+Continue only from Release 67.2 / `2.0.0-67.2` / schema `mc11-topology-change-planning-1`, state `IMPLEMENTED_TESTING_DEFERRED`. MC-11 is final; do not create MC-12. The immediate assigned work is exact-candidate freeze/qualification and the fixed 12-gate `LIVE_RC` campaign. Local/offline/simulation evidence never counts as `LIVE_RC` PASS. R68 is an explicit release decision only after the same frozen R67.2 candidate completes mandatory live qualification. Historical continuation prompts below are chronology only.
+
+## Historical continuation — R60
 
 Use the complete Release 60 source baseline. Preserve MC-11 as the final feature slice and do not create MC-12. Continue R60 appliance lifecycle qualification/hardening only until its live/local evidence and artifact truth are synchronized; after R60 closeout, the next approved track is R61 Scale & Performance Qualification. Never report local snapshot simulation as live AlmaLinux/PostgreSQL/reboot evidence.
 
-## Current continuation pointer — Q2 Production Qualification Campaign
+## Historical continuation pointer — Q2 Production Qualification Campaign
 
 Continue Q2 over the frozen R59/MC-11 product baseline. The qualification harness is implemented; next work is real AlmaLinux/PostgreSQL/device/protocol/recovery/performance execution and evidence collection, not another MC feature slice. Preserve the four-state gate model and never convert local/offline/simulation evidence into live PASS.
 
 # New Chat Handover Prompt
 
 
-## Current R58 / MC-10 continuation
+## Historical R58 / MC-10 continuation
 
 Use Release 58 / MC-10 as the active baseline. Preserve the deterministic/non-causal MC-7 hypothesis semantics, MC-8 evidence-only integrations, MC-9 read-only console, and MC-10 hard bounds/run evidence. Do not let replay preview alter hypotheses, do not let retention delete evidence/hypotheses, do not turn qualification into release approval, and do not introduce MC-11 path-planning/execution authority early. Next/final slice is R59/MC-11.
 
@@ -54,7 +58,7 @@ HTTP-level regression coverage now requests `/operations?tab=intents` and requir
 
 > **Latest complete-source target:** `netconfig-2.0.0-46-operator-health-cards-v18.zip` (Release 46 / `2.0.0-46`, `IMPLEMENTED_TESTING_DEFERRED`).
 
-## Current Release 45 continuation prompt
+## Historical Release 45 continuation prompt
 
 Start from the Release 45 / `2.0.0-45` complete source baseline. Release 41 is historical corrective evidence; do not roll back to Release 40/41 or restart NI-7. NI-7 is implemented in source and remains `IMPLEMENTED_TESTING_DEFERRED`. Preserve same-VRF-only route traversal, explicit managed next-device identity, bounded loop-safe simulation, multipath fail-closed behavior, candidate-only dependency semantics, and the existing approval-gated configuration plane. Do not restart NI-1 through NI-7. Q-1 live qualification remains deferred and may be resumed independently.
 
@@ -71,7 +75,7 @@ The latest implementation baseline is Release `2.0.0-33`, schema revision `ha1-2
 
 Preserve these Release 33 invariants: all network mutations use the durable request/approve/execute workflow; automation snapshots/model-pack hashes are frozen and revalidated; `RECOVERY_REQUIRED` blocks blind replay; desired-state rollback is compensating/reverse-order; campaign plans are frozen with stable retry identity; DRAINING/DRAINED HA nodes reject new automation work. Session idle/absolute expiry is still explicitly deferred.
 
-> **Current continuation pointer:** use **Release 59 / MC-11 Topology-Aware Change Planning** (`2.0.0-59`) as the active full-source baseline once the final artifact gate below is frozen. Preserve `IMPLEMENTED_TESTING_DEFERRED`; do not promote to `TESTED` or `RELEASED` based on source simulation. MC-11 is the final functional slice and does not add direct execution authority. The immediate next track after artifact freeze is **Q2 Production Qualification Campaign**, not MC-12.
+> **Historical continuation pointer:** at that checkpoint, Release 59 / MC-11 was the active full-source baseline and Q2 was next. It is superseded by the current R67.2 qualification track at the top of this file.
 
 ## Historical Q-1 takeover truth
 
@@ -81,7 +85,7 @@ Q-1 source implementation includes `netconfig qualify`; controlled `pg_dump` bac
 
 The Q-1 live qualification debt remains: execute the real PostgreSQL gates, Ruff/mypy, and AlmaLinux 10 RPM/systemd installed-runtime gates when suitable infrastructure is available. Do not count `NOT_RUN` as pass. Release 34 UI-1 offline/artifact evidence does not substitute for those live gates.
 
-Historical handover text below describes earlier releases. The current handover baseline is **Release 46 / Operator Health Cards & UX Follow-through**; NI-7 remains the feature baseline and Q-1 remains the open deferred qualification track.
+Historical handover text below describes earlier releases. At that checkpoint the handover baseline was **Release 46 / Operator Health Cards & UX Follow-through**; this statement is superseded by the R67.2 entrypoint at the top.
 
 Read these first: `DEV_BASELINE.md`, `TESTING.md`, `ROADMAP.md`, `SECURITY.md`, `API.md`, `DEVELOPMENT.md`, `AI_HANDOFF.md`, then the relevant source under `opt/netconfig/netconfig/` and `tests/`.
 
@@ -90,12 +94,12 @@ Important constraints:
 - The user handles Git manually. Do not pull/fetch/add/commit/push or mutate repository history/remotes unless explicitly authorized in that chat.
 - Deliver implementation changes as a complete modifiable source baseline with tests and packaging/deployment artifacts, not patch-only or documentation-only output.
 - Preserve standard-library-first architecture unless a dependency is explicitly justified and approved.
-- Console sessions still have no idle/absolute expiry. This is known deferred security debt. Do not implement session expiry unless the user explicitly selects it.
+- Historical note: session idle/absolute expiry was deferred at this checkpoint. Current R67.2 inherits the later R64 managed-session enforcement; do not use this historical sentence as current security truth.
 - Do not weaken fail-closed remediation/rollback, secret handling, bearer-token TLS enforcement, token hash-only storage, RBAC/audit, syslog bounds/source correlation, diagnostic redaction/path controls, or incident evidence reference integrity.
 - Do not claim Ruff, mypy, RPM, Linux service, protocol-service, or live-device results unless actually run.
 - Keep `DEVELOPMENT.md`, `AI_HANDOFF.md`, `ROADMAP.md`, `SECURITY.md`, `API.md`, `TESTING.md`, `patch.md`, and relevant user docs synchronized.
 
-Roadmap structure: the historical 2026-09-07 Slice A-G labels are provenance only. Use `ROADMAP.md` as canonical. **CURRENT IMPLEMENTATION BASELINE is Release 46 / Operator Health Cards & UX Follow-through (`2.0.0-46`). Ruff/mypy actual execution and Q-1 live qualification remain open; the offline helper RPM is not a substitute for canonical AlmaLinux `rpmbuild`/DNF/systemd/SELinux qualification. No NI-8 or Q-2 phase is auto-assigned.** D.5 is the completed-in-source Diagnostics Track, not Slice E. Historical Slice E remains Platform Hardening -> Web-console structural hardening.
+Roadmap structure: the historical 2026-09-07 Slice A-G labels are provenance only. Use `ROADMAP.md` as canonical. **Historical checkpoint baseline was Release 46 / Operator Health Cards & UX Follow-through (`2.0.0-46`). This is chronology only and is superseded by R67.2.** D.5 is the completed-in-source Diagnostics Track, not Slice E. Historical Slice E remains Platform Hardening -> Web-console structural hardening.
 
 Current D.5 implementation invariants:
 
@@ -448,6 +452,6 @@ Release 65 (`2.0.0-65`) implements Operator Workflow Completion on top of R64. T
 Continue from Release 66 / `2.0.0-66`. Preserve `r66-supportability-1` as a transient read-only model over the unchanged `mc11-topology-change-planning-1` persisted schema. Do not add device polling to observability reads, do not create MC-12, and do not convert local diagnostics into production supportability claims. The next approved track is R67 RC / Full Artifact Qualification only when explicitly selected.
 
 
-## R67 continuation
+## Historical R67 continuation
 
-Continue from Release 67 / `2.0.0-67`, status `IMPLEMENTED_TESTING_DEFERRED`. Treat the tree as feature-frozen. Preserve MC-11 as final and do not create MC-12. R67 qualification evidence is valid only for the exact candidate fingerprint; any source/package change requires a complete rerun. Do not promote `RELEASED`; R68 owns the explicit production release decision.
+At that historical checkpoint, continue from Release 67 / `2.0.0-67`, status `IMPLEMENTED_TESTING_DEFERRED`. Treat the tree as feature-frozen. Preserve MC-11 as final and do not create MC-12. R67 qualification evidence is valid only for the exact candidate fingerprint; any source/package change requires a complete rerun. Do not promote `RELEASED`; R68 owns the explicit production release decision.
