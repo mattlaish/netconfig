@@ -1277,9 +1277,98 @@ def render_netflow_section(handler, dev, collector):
            f'<div class="table-wrap"><table><tr><th>Time</th><th>Source</th><th>Destination</th><th>Proto</th><th>Packets</th><th>Bytes</th></tr>{raw_rows or "<tr><td colspan=6 class=muted>No flow records.</td></tr>"}</table></div></details></div>')
     offnote = ("" if dev.get("netflow") else
                '<p class="muted">NetFlow is not enabled for this device — edit it and tick "collect NetFlow from this device".</p>')
-    empty = (f'<p class="muted">No flows received yet. Configure this device to export NetFlow to this server on <code>udp/{port}</code>.</p>' if not flows else "")
+    # Flows are matched to a device by the exporter source IP of its UDP
+    # datagrams, which must equal the device's Host/IP. When nothing matches,
+    # explain WHY instead of a dead-end "no flows" note: the device may export
+    # from a different source IP, or datagrams may have arrived without decoded
+    # flow records yet (awaiting a v9 template; IPFIX/v10 is not decoded).
+    empty = ""
+    if col and not flows:
+        exporters = col.exporters() or {}
+        host_pkts = col.packet_count(dev["host"])
+        if host_pkts:
+            empty = (f'<p class="muted">{host_pkts} datagram(s) received from '
+                     f'<code>{html.escape(dev["host"])}</code>, but no flow records decoded yet. '
+                     f'NetFlow v9 sends a template datagram before its data records, so the first '
+                     f'records appear shortly after the exporter starts; IPFIX/v10 is not yet decoded.</p>')
+        elif exporters:
+            other = sorted(exporters.items(), key=lambda kv: kv[1], reverse=True)
+            exp_rows = "".join(
+                f'<tr><td><code>{html.escape(str(ip))}</code></td>'
+                f'<td class=right>{cnt} datagram(s)</td></tr>' for ip, cnt in other[:12])
+            empty = (f'<p class="err">NetFlow is arriving, but no datagrams came from this device’s '
+                     f'Host/IP (<code>{html.escape(dev["host"])}</code>). Flows are matched by the exporter’s '
+                     f'source IP. Set this device’s Host/IP to the address it exports NetFlow from, or see all '
+                     f'flows on the <a href="/traffic">Traffic</a> page.</p>'
+                     f'<div class="table-wrap"><table><tr><th>Exporter currently sending</th><th>Datagrams</th></tr>'
+                     f'{exp_rows}</table></div>')
+        else:
+            empty = (f'<p class="muted">No flows received yet. Configure this device to export NetFlow to '
+                     f'this server on <code>udp/{port}</code>.</p>')
     return (f'<div class="panel"><h2>NetFlow traffic view</h2><p class="muted">FortiView-style summaries from flows already received from <b>{html.escape(dev["host"])}</b>. {status}</p>{offnote}{empty}{cards}</div>'
             + analysis + overview + conversations + raw)
+
+
+def render_vendor_profile_admin(handler, sess):
+    """Fleet-wide SNMP vendor-profile management, mirroring the MIB library:
+    list installed declarative profiles, upload/validate a new one, reload from
+    disk, and remove operator-installed (runtime) profiles. Built-in shipped
+    profiles are read-only."""
+    reg = handler.manager.vendor_profiles
+    runtime_dir = os.path.realpath(str(reg.runtime_dir))
+    can_manage = _can(sess["role"], "manage_devices")
+    rows = ""
+    for p in reg.list():
+        try:
+            is_runtime = os.path.realpath(p.source_path).startswith(runtime_dir)
+        except Exception:
+            is_runtime = False
+        origin = ('<span class="badge b-chg">operator</span>' if is_runtime
+                  else '<span class="badge b-dim">built-in</span>')
+        prefixes = html.escape(", ".join(p.sysobject_prefixes[:6]))
+        if len(p.sysobject_prefixes) > 6:
+            prefixes += " …"
+        dele = ""
+        if can_manage and is_runtime:
+            dele = (f'<form method=post action="/vendor-profile-delete" style="display:inline" '
+                    f'data-confirm="Remove this operator-installed profile?">{handler._csrf_field()}'
+                    f'<input type=hidden name=id value="{html.escape(p.id)}">'
+                    f'<button class=ghost style="padding:2px 8px">remove</button></form>')
+        rows += (f'<tr><td><b>{html.escape(p.id)}</b> {origin}</td>'
+                 f'<td>{html.escape(p.vendor)} {html.escape(p.product)}</td>'
+                 f'<td class=muted>{html.escape(p.version)}</td>'
+                 f'<td class=muted><code>{prefixes}</code></td>'
+                 f'<td>{len(p.collections)} branch(es), {len(p.metrics)} metric(s), {len(p.tables)} table(s)</td>'
+                 f'<td class=right>{dele}</td></tr>')
+    errors_html = ""
+    if reg.errors:
+        items = "".join(
+            f'<li><code>{html.escape(os.path.basename(e.get("path","")))}</code>: '
+            f'{html.escape(e.get("error",""))}</li>' for e in reg.errors[:20])
+        errors_html = (f'<p class="err" style="margin-top:10px">{len(reg.errors)} profile file(s) '
+                       f'failed validation and were skipped:</p><ul class="muted">{items}</ul>')
+    controls = ""
+    if can_manage:
+        controls = (
+            f'<div style="display:flex;gap:16px;flex-wrap:wrap;margin:10px 0">'
+            f'<form method=post action="/vendor-profile-upload" enctype="multipart/form-data" '
+            f'style="display:flex;gap:8px;align-items:center">{handler._csrf_field()}'
+            f'<input type=file name=profile accept=".json">'
+            f'<button>Upload profile</button></form>'
+            f'<form method=post action="/vendor-profile-reload" style="display:inline">'
+            f'{handler._csrf_field()}<button class=ghost>Reload from disk</button></form>'
+            f'</div>')
+    return (f'<div class="panel"><details><summary><b>SNMP vendor profiles · '
+            f'{len(reg.profiles)} loaded</b></summary>'
+            f'<p class="muted" style="margin-top:10px">Declarative, read-only SNMP collection '
+            f'profiles map a device’s sysObjectID to bounded vendor branches and canonical Sensors. '
+            f'Upload a validated JSON profile to add coverage for a new model; operator-installed '
+            f'profiles persist under the data directory and can be removed here. Built-in profiles are '
+            f'read-only.</p>{controls}{errors_html}'
+            f'<table style="margin-top:10px"><tr><th>Profile</th><th>Vendor / product</th><th>Version</th>'
+            f'<th>sysObjectID prefixes</th><th>Contents</th><th></th></tr>'
+            f'{rows or "<tr><td colspan=6 class=muted>No vendor profiles loaded.</td></tr>"}'
+            f'</table></details></div>')
 
 
 def render_protocols_page(handler, sess, q=None):

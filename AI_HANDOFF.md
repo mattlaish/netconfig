@@ -3,6 +3,15 @@
 > **Canonical project state — 2026-09-25:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) on top of the frozen R67 candidate. MC-1 through MC-11 remain implemented; **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice and schema revision remains `mc11-topology-change-planning-1`; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included. R67.2 repairs fresh login, additive migration/index ordering, fail-closed Core PostgreSQL preflight, Core/History PostgreSQL configuration separation, and fresh PostgreSQL Core bootstrap without adding network-write authority. **All network mutation remains approval-gated; local/offline qualification does not establish RC or production release readiness; all required `LIVE_RC` gates remain mandatory. Do not create MC-12.** R68 must be rerun against the exact R67.2 candidate after mandatory live qualification.
 
 
+## Web UI feature-coverage & NetFlow usability corrective — 2026-10-09
+
+Corrective maintenance on top of the SNMP Vendor Profile working tree; no schema or public REST contract change, no new network-write authority, release/package identity intentionally not advanced. Status stays `IMPLEMENTED_TESTING_DEFERRED`.
+
+- Re-applied two hot-path performance fixes a prior ZIP rebuild had reverted: `Inventory.get_by_host()` backs `Manager.device_by_host()` (no per-packet full scan on syslog/trap ingestion), and `Manager._inventory_with_sysname()` replaces the topology N+1 with a single bulk `all_facts()` join.
+- Closed the SNMP vendor-profile **web** gap: the `/snmp` page now lists loaded profiles and lets `manage_devices` operators upload/validate, reload, and remove operator-installed profiles (built-in profiles read-only), mirroring the MIB library. Renderer lives in `web_ui.py` so web.py stays under the PH-1 structural-split gate.
+- Made received NetFlow meaningful on the device page: `render_netflow_section` now distinguishes exporter-IP mismatch (lists real exporters, points to `/traffic`), datagrams-without-decoded-flows (awaiting v9 template / IPFIX not decoded), and nothing-received, instead of a blanket "no flows" note. The global `/traffic` page already aggregated across exporters.
+- Added `tests/test_vendor_profile_web_admin.py` and `tests/test_netflow_device_diagnostics.py`; regenerated SBOM/RELEASE_MANIFEST; full suite green; no new ruff findings.
+
 ## Current engineering state — 2026-09-29
 
 The active working tree is an **unnumbered corrective development update on top of the refrozen R67.2 source line**, implementing the data-driven SNMP Vendor Profile framework. Project roadmap state remains `IMPLEMENTED_TESTING_DEFERRED`. The release/package identity has intentionally not been advanced; do not invent R67.3/R67.2.x or promote R68 without the user's explicit decision.

@@ -40,9 +40,9 @@
   "release_promotion": "NOT_PERFORMED",
   "sbom": {
     "artifact": "SBOM.spdx.json",
-    "files_analyzed": 456,
+    "files_analyzed": 468,
     "format": "SPDX-2.3",
-    "package_verification_code": "5f037738d261bd92b65cae03ff37078487500d15"
+    "package_verification_code": "cef228f93769c45ae1aa15a4d898596c580869ca"
   },
   "schema_revision": "mc11-topology-change-planning-1",
   "status": "IMPLEMENTED_TESTING_DEFERRED",

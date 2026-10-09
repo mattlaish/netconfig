@@ -51,6 +51,7 @@ from .web_ui import (
     _fmt_speed, _oper_badge, apply_csp_nonce, render_sidebar_nav,
     render_snmp_health_summary, render_topology_page, render_events_page,
     render_netflow_section, render_incident_correlation,
+    render_vendor_profile_admin,
 )
 
 
@@ -802,6 +803,8 @@ class Console(WebDatabaseMixin, WebSupportabilityMixin, WebMC9Mixin, WebOpsMixin
             return self._redirect("/diagnostics")
         if u.path == "/mib-upload":
             return self._do_mib_upload_raw()
+        if u.path == "/vendor-profile-upload":
+            return self._do_vendor_profile_upload_raw()
         form = self._read_post()
         if u.path == "/login":
             return self._do_login(form)
@@ -856,6 +859,8 @@ class Console(WebDatabaseMixin, WebSupportabilityMixin, WebMC9Mixin, WebOpsMixin
             "/script-save": lambda: self._do_script_save(form, sess),
             "/script-delete": lambda: self._do_script_delete(form, sess),
             "/mib-delete": lambda: self._do_mib_delete(form, sess),
+            "/vendor-profile-delete": lambda: self._do_vendor_profile_delete(form, sess),
+            "/vendor-profile-reload": lambda: self._do_vendor_profile_reload(form, sess),
             "/compliance-run": lambda: self._do_compliance_run(form, sess),
             "/alert-rule-add": lambda: self._do_alert_rule_add(form, sess),
             "/alert-rule-delete": lambda: self._do_alert_rule_delete(form, sess),
@@ -2325,14 +2330,22 @@ The client secret is stored in the vault.</p>
         note = ""
         if not m.vault_ready():
             note = '<p class="muted">Vault locked \u2014 unlock (on Devices) to poll SNMP.</p>'
-        body = (f'<div class="panel">'
+        banner = ""
+        p_notice = (q.get("profile_notice") or [""])[0]
+        p_error = (q.get("profile_error") or [""])[0]
+        if p_notice:
+            banner += f'<div class="ok">Vendor profile: {html.escape(p_notice)}</div>'
+        if p_error:
+            banner += f'<div class="err">Vendor profile: {html.escape(p_error)}</div>'
+        body = (f'{banner}<div class="panel">'
                 f'<div style="display:flex;align-items:center;margin-bottom:12px">'
                 f'<h2 style="border:none;margin:0">SNMP \u00b7 {len(snmp_devs)} device(s)</h2>{poll_all}</div>'
                 f'{note}'
                 f'<table><tr><th>Device</th><th>Ver</th><th>Reachable</th><th>sysName</th>'
                 f'<th>Model</th><th>Uptime</th><th>Interfaces</th><th>Last poll</th><th></th></tr>'
                 f'{rows or "<tr><td colspan=9 class=muted>No SNMP-enabled devices. Set an SNMP version on a device to enable.</td></tr>"}'
-                f'</table></div>')
+                f'</table></div>'
+                f'{self._vendor_profile_admin_section(sess)}')
         self._send(self._page("SNMP", body, sess))
 
     def _secret_info(self, q, sess):
@@ -2696,6 +2709,60 @@ The client secret is stored in the vault.</p>
                  '<p class="muted">No ARP entries collected yet.</p>')
         return (f'<div class="panel"><h2>ARP table · {len(entries)} entries</h2>'
                 f'<p class="muted">Auto-collected from IP-MIB during SNMP polling.</p>{table}</div>')
+
+    def _vendor_profile_admin_section(self, sess):
+        return render_vendor_profile_admin(self, sess)
+
+    def _do_vendor_profile_upload_raw(self):
+        if not self._require_auth():
+            return
+        _, sess = self._session()
+        if not _can(sess["role"], "manage_devices"):
+            return self._send(self._page("SNMP", '<div class="err">Not permitted.</div>', sess), 403)
+        fields, files = self._read_multipart()
+        if not secrets.compare_digest(fields.get("csrf", ""), sess["csrf"]):
+            return self._send(self._page("Error", '<div class="err">CSRF check failed.</div>', sess), 403)
+        uploads = [u for u in files.get("profile", []) if u[0]]
+        if not uploads:
+            return self._redirect("/snmp?profile_error=no+file")
+        fname, content = uploads[0]
+        if len(content) > 1024 * 1024:
+            return self._redirect("/snmp?profile_error=file+exceeds+1+MiB")
+        import tempfile
+        fd, tmp = tempfile.mkstemp(prefix="upload-", suffix=".json")
+        try:
+            with os.fdopen(fd, "wb") as fh:
+                fh.write(content)
+            profile, target = self.manager.vendor_profiles.install(tmp)
+        except Exception as exc:
+            return self._redirect("/snmp?profile_error=" + _q(f"invalid profile: {exc}"))
+        finally:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+        self.manager.db.audit(sess["username"], "vendor_profile_install", profile.id, "snmp")
+        return self._redirect("/snmp?profile_notice=" + _q(f"installed {profile.id}"))
+
+    def _do_vendor_profile_delete(self, form, sess):
+        if not _can(sess["role"], "manage_devices"):
+            return self._redirect("/snmp")
+        pid = (form.get("id") or [""])[0]
+        try:
+            removed, _target = self.manager.vendor_profiles.remove_runtime(pid)
+        except ValueError:
+            return self._redirect("/snmp?profile_error=invalid+profile+id")
+        if removed:
+            self.manager.db.audit(sess["username"], "vendor_profile_remove", pid, "snmp")
+            return self._redirect("/snmp?profile_notice=" + _q(f"removed {pid}"))
+        return self._redirect("/snmp?profile_error=" + _q("not an operator-installed profile"))
+
+    def _do_vendor_profile_reload(self, form, sess):
+        if not _can(sess["role"], "manage_devices"):
+            return self._redirect("/snmp")
+        n = self.manager.vendor_profiles.reload()
+        self.manager.db.audit(sess["username"], "vendor_profile_reload", str(n), "snmp")
+        return self._redirect("/snmp?profile_notice=" + _q(f"reloaded {n} profile(s)"))
 
     def _vendor_profile_section(self, device):
         facts=self.manager.inv.get_facts(device) or {}
