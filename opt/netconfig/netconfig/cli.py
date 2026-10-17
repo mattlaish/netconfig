@@ -30,6 +30,7 @@ import sys
 
 from .manager import Manager
 from .apitokens import ApiTokens, VALID_SCOPES
+from .users import validate_password
 from .drivers import platforms as _platforms
 from .workflow import Workflow
 from . import compliance as _compliance
@@ -414,6 +415,10 @@ def cmd_user(m, args):
         pw2 = getpass.getpass("Confirm: ")
         if pw != pw2:
             print("passwords do not match", file=sys.stderr); sys.exit(1)
+        try:
+            validate_password(pw, args.name)
+        except ValueError as exc:
+            print(exc, file=sys.stderr); sys.exit(1)
         m.users.create(args.name, pw, role=args.role, fullname=args.fullname or "")
         m.db.audit(args.actor, "user_create", args.name, args.role)
         print(f"user '{args.name}' created ({args.role})")
@@ -427,6 +432,10 @@ def cmd_user(m, args):
         print(f"{args.name} -> {args.role}")
     elif args.action == "passwd":
         pw = getpass.getpass(f"New password for {args.name}: ")
+        try:
+            validate_password(pw, args.name)
+        except ValueError as exc:
+            print(exc, file=sys.stderr); sys.exit(1)
         m.users.set_password(args.name, pw)
         print("password updated")
     elif args.action == "rm":

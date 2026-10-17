@@ -1856,7 +1856,9 @@ an optional expected status code. HTTPS URLs also get a TLS certificate check
 {form}<div class="row"><div><label>NetFlow collector</label>
 <label style="color:var(--text);font-weight:400"><input type=checkbox name=netflow_enabled value=1 style="width:auto" {"checked" if s.get("netflow_enabled") else ""}> receive NetFlow</label>
 <div class=muted>UDP listener for flow exports from network devices</div></div>
-{field("netflow_port","NetFlow UDP port","default 2055")}{field("netflow_max_flows","Recent flows kept per device")}</div>
+{field("netflow_port","NetFlow UDP port","default 2055")}{field("netflow_max_flows","Recent flows kept per device","default 10000; more covers a longer period")}</div>
+<label style="color:var(--text);font-weight:400"><input type=checkbox name=netflow_resolve_names value=1 style="width:auto" {"checked" if s.get("netflow_resolve_names") else ""}> Look up host names (reverse DNS)</label>
+<div class=muted>Names are looked up in the background using this server's DNS resolver and cached; pages never wait for DNS.</div>
 <button>Save NetFlow settings</button></form></div>"""
         elif section == "monitoring":
             content = f"""<div class="panel"><h2>Monitoring &amp; alerts</h2>
@@ -2116,6 +2118,7 @@ The client secret is stored in the vault.</p>
             s["scrub_sessions"] = bool(form.get("scrub_sessions"))
         elif section == "netflow":
             s["netflow_enabled"] = bool(form.get("netflow_enabled"))
+            s["netflow_resolve_names"] = bool(form.get("netflow_resolve_names"))
         elif section == "monitoring":
             s["syslog_enabled"] = bool(form.get("syslog_enabled"))
             s["snmp_trap_enabled"] = bool(form.get("snmp_trap_enabled"))
@@ -3611,7 +3614,7 @@ def serve(manager, bind="127.0.0.1", port=8778):
             from . import netflow as _nf
             col = _nf.Collector(bind="0.0.0.0",
                                 port=int(manager.settings.get("netflow_port", 2055)),
-                                max_flows=int(manager.settings.get("netflow_max_flows", 500)))
+                                max_flows=int(manager.settings.get("netflow_max_flows", 10000)))
             col.start()
             Console.netflow = col
             manager.runtime_collectors["netflow"] = col

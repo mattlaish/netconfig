@@ -1469,6 +1469,15 @@ class Database:
         return [dict(r) for r in self.conn.execute(
             "SELECT * FROM arp_entries WHERE device=? ORDER BY ip", (device,)).fetchall()]
 
+    def arp_index(self):
+        """Newest ARP observation per IP across all devices: {ip: row}. One query,
+        used to label traffic-analytics hosts without per-row lookups."""
+        out = {}
+        for r in self.conn.execute(
+                "SELECT device, ip, mac, ifindex, ts FROM arp_entries ORDER BY ts").fetchall():
+            out[r["ip"]] = dict(r)
+        return out
+
     def set_mac_table(self, device, entries):
         import time
         now = time.time()

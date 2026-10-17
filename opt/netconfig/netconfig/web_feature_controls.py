@@ -13,7 +13,7 @@ from .protocoltrace import (
     DEFAULT_MAX_BYTES, DEFAULT_MAX_EVENTS, DEFAULT_TTL, IMPLEMENTED_CAPTURE_PROTOCOLS,
     MAX_BYTES, MAX_EVENTS, MAX_TTL, STATUSES,
 )
-from .users import can, roles
+from .users import MIN_PASSWORD_LENGTH, can, roles, validate_password
 from .web_ui import _fmt_ts
 
 
@@ -58,7 +58,7 @@ class WebFeatureControlsMixin:
                 f'<td>{state}</td><td>{_fmt_ts(user["last_login"])}</td><td>'
                 f'<form method=post action="/user-update">{hidden}'
                 f'<select name=role aria-label="Role for {username}">{options}</select>'
-                '<input type=password name=password autocomplete=new-password placeholder="New password (optional)">'
+                f'<input type=password name=password autocomplete=new-password minlength={MIN_PASSWORD_LENGTH} placeholder="New password (optional, {MIN_PASSWORD_LENGTH}+ characters)">'
                 f'<button>Update role / password</button></form>{access}</td></tr>')
         options = "".join(f'<option>{role}</option>' for role in roles())
         inner = (
@@ -70,7 +70,7 @@ class WebFeatureControlsMixin:
             '<label>Username</label><input name=username required>'
             '<label>Full name</label><input name=fullname>'
             f'<label>Role</label><select name=role>{options}</select>'
-            '<label>Password</label><input type=password name=password autocomplete=new-password required>'
+            f'<label>Password (at least {MIN_PASSWORD_LENGTH} characters)</label><input type=password name=password autocomplete=new-password minlength={MIN_PASSWORD_LENGTH} required>'
             '<button>Create user</button></form></div>')
         return self._send(self._page("Users", inner, sess, flash=flash))
 
@@ -81,6 +81,7 @@ class WebFeatureControlsMixin:
         try:
             if not username:
                 raise ValueError("Username required.")
+            validate_password(_value(form, "password"), username)
             self.manager.users.create(username, _value(form, "password"),
                                       role=_value(form, "role", "viewer"), fullname=_value(form, "fullname"))
         except ValueError as exc:
@@ -94,6 +95,10 @@ class WebFeatureControlsMixin:
         username = _value(form, "username")
         role, password = _value(form, "role"), _value(form, "password")
         try:
+            # Validate before changing anything so a rejected password never
+            # leaves a half-applied role change behind.
+            if password:
+                validate_password(password, username)
             self.manager.users.change_access(username, actor=sess["username"], role=role or None)
             if password:
                 self.manager.users.set_password(username, password)

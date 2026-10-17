@@ -357,9 +357,12 @@ def test_mc10_dashboard_surfaces_read_only_correlation_health(tmp_path):
         conn.request("GET", "/dashboard", headers={"Cookie": f"ncsid={token}"})
         res = conn.getresponse(); text = res.read().decode(); conn.close()
         assert res.status == 200
-        assert "Correlation production health" in text
-        assert "Hard bounds:" in text
-        assert "deferred live PostgreSQL" in text
+        assert "Analysis service health" in text
+        assert "Analysis limits:" in text
+        # The operator dashboard no longer carries release-qualification status
+        # (live-gate state is tracked in the release documents); it must still
+        # state that viewing it runs no checks and changes no devices.
+        assert "does not run checks or change devices" in text
         assert "correlation-replay" not in text and "correlation/retention" not in text
     finally:
         if server:

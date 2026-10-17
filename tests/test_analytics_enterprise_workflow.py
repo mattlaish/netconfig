@@ -112,7 +112,7 @@ def test_network_intelligence_ui_operator_workflow_and_action_boundary(tmp_path)
         status, _, data = _request(server, token, "GET", "/operations?tab=intelligence")
         text = data.decode()
         assert status == 200
-        assert "Persisted insights" in text
+        assert "Saved analysis results" in text
         assert "Impact simulation" in text
         assert "Structured Change" in text or "Action boundary" not in text
         insight = manager.analytics.list(insight_type="HEALTH", object_id="sw1", limit=1)[0]
@@ -136,7 +136,7 @@ def test_network_intelligence_viewer_is_read_only(tmp_path):
         status, _, data = _request(server, token, "GET", "/operations?tab=intelligence")
         text = data.decode()
         assert status == 200
-        assert "Persisted insights" in text
+        assert "Saved analysis results" in text
         assert "Analyze and persist" not in text
         assert "Simulate impact" not in text
         assert 'action="/ops-insight-state"' not in text

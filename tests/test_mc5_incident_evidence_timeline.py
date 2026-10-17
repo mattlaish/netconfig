@@ -267,7 +267,7 @@ def test_mc5_web_incident_has_operator_evidence_sections(tmp_path):
             "Network evidence", "Security evidence", "Infrastructure evidence", "Raw / advanced evidence",
         ):
             assert heading in text
-        assert "does not infer root cause" in text
+        assert "does not confirm a root cause" in text
     finally:
         server.shutdown(); server.server_close(); thread.join(timeout=5)
         web._SESSIONS.clear(); m.db.close()

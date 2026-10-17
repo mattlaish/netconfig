@@ -25,6 +25,22 @@ import time
 from contextlib import nullcontext
 
 _ITERS = 600_000
+
+# Operator-facing password policy (console and CLI). The low-level create /
+# set_password primitives stay permissive for migrations and tests.
+MIN_PASSWORD_LENGTH = 12
+MAX_PASSWORD_LENGTH = 1024   # bounds PBKDF2 work per login attempt
+
+
+def validate_password(password, username=""):
+    """Raise ValueError when a new password does not meet the console policy."""
+    pw = str(password or "")
+    if len(pw) < MIN_PASSWORD_LENGTH:
+        raise ValueError(f"Password must be at least {MIN_PASSWORD_LENGTH} characters.")
+    if len(pw) > MAX_PASSWORD_LENGTH:
+        raise ValueError(f"Password must be at most {MAX_PASSWORD_LENGTH} characters.")
+    if username and pw.strip().lower() == str(username).strip().lower():
+        raise ValueError("Password must not be the same as the username.")
 _ROLES = ("viewer", "operator", "approver", "admin")
 
 # capability -> minimum roles that hold it

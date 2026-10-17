@@ -180,8 +180,8 @@ def test_netflow_summary_is_aggregated_and_raw_rows_are_advanced(tmp_path):
     try:
         status, text = _web_get(server, sid, "/device?name=fw1")
         assert status == 200
-        assert "NetFlow traffic view" in text and "Traffic analysis" in text and "Top sources" in text
-        assert "Advanced: raw recent flow records" in text and "TCP/443" in text
+        assert "NetFlow traffic" in text and "Top sources" in text and "Services" in text
+        assert "Advanced: raw recent flow records" in text and "TCP/443" in text and "HTTPS" in text
     finally:
         server.shutdown(); server.server_close(); thread.join(timeout=5); web._SESSIONS.clear(); Console.netflow = old; m.db.close()
 

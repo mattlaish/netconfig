@@ -8,7 +8,7 @@ initiates device I/O, external connector actions, or configuration changes.
 from collections import defaultdict
 import time
 
-from .netflow import summarize_flows
+from .netflow import REVERSE_DNS, analyze_traffic, summarize_flows
 
 
 _ACTIVE_INCIDENT_STATES = {"OPEN", "INVESTIGATING"}
@@ -136,7 +136,8 @@ class OperationsCorrelationConsole:
                 }
         return index
 
-    def traffic(self, collector, *, window_seconds=3600, bucket_seconds=300, limit=12, now=None):
+    def traffic(self, collector, *, window_seconds=3600, bucket_seconds=300, limit=12, now=None,
+                query="", exporter=None, view_limit=50, resolve_names=None):
         window_seconds = max(60, min(int(window_seconds), 86400))
         bucket_seconds = max(60, min(int(bucket_seconds), 3600))
         limit = max(1, min(int(limit), 20))
@@ -144,11 +145,19 @@ class OperationsCorrelationConsole:
         cutoff = now - window_seconds
 
         flows = []
+        ring_full = []
         exporter_counts = collector.exporters() if collector is not None else {}
         if collector is not None:
             max_flows = max(1, int(getattr(collector, "max_flows", 500)))
-            for exporter in sorted(exporter_counts):
-                for flow in collector.flows_for(exporter, limit=max_flows):
+            for exp in sorted(exporter_counts):
+                if exporter and exp != exporter:
+                    continue
+                ring = collector.flows_for(exp, limit=max_flows)
+                # A full ring whose oldest record is newer than the window start
+                # means the window is only partially covered.
+                if len(ring) >= max_flows and ring and float(ring[-1].get("ts") or 0) > cutoff:
+                    ring_full.append(exp)
+                for flow in ring:
                     ts = float(flow.get("ts") or 0)
                     if cutoff <= ts <= now:
                         flows.append(dict(flow))
@@ -179,15 +188,63 @@ class OperationsCorrelationConsole:
         exporters.sort(key=lambda x: (x["bytes"], x["packets"], x["flows"], x["exporter"]), reverse=True)
         trend_rows = [{"bucket_ts": ts, **trend[ts]} for ts in sorted(trend)]
 
+        host_to_device, arp = traffic_host_context(self.manager)
+        analysis = analyze_traffic(
+            flows, window_seconds=window_seconds, now=now, bucket_seconds=bucket_seconds,
+            local_ips=set(host_to_device) | set(arp), query=query, limit=view_limit)
+        if resolve_names is None:
+            resolve_names = bool(self.manager.settings.get("netflow_resolve_names"))
+        analysis["identities"] = traffic_identities(
+            analysis, host_to_device, arp, endpoints, resolve_names=resolve_names, now=now)
+        analysis["resolve_names"] = resolve_names
+        analysis["ring_full_exporters"] = ring_full
+        for row in exporters:
+            row["device"] = host_to_device.get(row["exporter"], "")
+
         return {
             "window_seconds": window_seconds,
             "bucket_seconds": bucket_seconds,
             "cutoff_ts": cutoff,
             "generated_ts": now,
             "ring_bounded": True,
+            "analysis": analysis,
             "summary": summary,
             "exporters": exporters[:limit],
             "trend": trend_rows,
             "raw_flows": list(reversed(flows))[:200],
             "collector_status": collector.status() if collector is not None else {"running": False, "exporters": 0},
         }
+
+
+def traffic_host_context(manager):
+    """({host_ip: inventory device name}, {ip: newest ARP row}) for labelling
+    traffic hosts. Two queries total; no per-row lookups, no device I/O."""
+    inventory = manager.inv.all()
+    host_to_device = {str(d.get("host") or ""): d["name"] for d in inventory if d.get("host")}
+    return host_to_device, manager.db.arp_index()
+
+
+def traffic_identities(analysis, host_to_device, arp, endpoints=None, *, resolve_names=False, now=None):
+    """Who is behind each IP in an analysis: managed device name, MAC and the
+    device whose ARP table learned it, switch attachment, optional DNS name."""
+    endpoints = endpoints or {}
+    ips = {r["ip"] for key in ("sources", "destinations") for r in analysis.get(key) or ()}
+    ips |= {r[k] for r in analysis.get("conversations") or () for k in ("local", "remote")}
+    out = {}
+    for ip in ips:
+        ident = {"device": host_to_device.get(ip, ""), "mac": "", "learned_on": "",
+                 "attachment": "", "name": ""}
+        row = arp.get(ip)
+        if row:
+            ident["mac"] = row.get("mac") or ""
+            ident["learned_on"] = row.get("device") or ""
+        ep = endpoints.get(ip)
+        if ep:
+            ident["mac"] = ep.get("mac") or ident["mac"]
+            att = ep.get("attachment") or {}
+            if att.get("device"):
+                ident["attachment"] = f'{att.get("device")} {att.get("ifdescr") or ""}'.strip()
+        if resolve_names:
+            ident["name"] = REVERSE_DNS.name(ip, now=now)
+        out[ip] = ident
+    return out

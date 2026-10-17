@@ -1,3 +1,51 @@
+## PATCH-20261017-02 — Security policy fixes and NetFlow traffic analytics
+
+- Status: Ready for integration (source/local validation only).
+
+**Security policy fixes.** `POST /api/v1/protocol-profiles` now requires an
+approver/admin token, matching the console's `manage_devices` rule (operators keep
+`/api/v1/protocol-collect/`). `debug:create` and `debug:admin` token scopes now
+require the admin role; `debug:read`/`debug:download` stay delegable by design
+(support-bundle tokens). Token verification drops any stored scope above the
+token's role, so tokens issued before a minimum role was raised lose it.
+Operator-facing passwords (console create/update, CLI `user add`/`user passwd`)
+need 12–1024 characters and must differ from the username; `/user-update`
+validates before changing the role. Model primitives stay permissive.
+
+**NetFlow parser and analytics.** NetFlow v9 IPv6 addresses (fields 27/28) are
+decoded instead of being dropped as empty strings. New direction-aware
+`analyze_traffic()`: local vs remote hosts (private/CGNAT/ULA/link-local or known
+inventory/ARP host), per-host sent/received bytes, port-based service names that
+ignore ephemeral reply ports, sessions as unique client/server 5-tuples (both
+directions and repeated records count once), average and peak rate on one
+interval grid (average can never exceed peak). `netflow_max_flows` default rises
+from 500 to 10000 per exporter; an existing saved value still applies.
+
+**Traffic views.** `/traffic` is rebuilt FortiView-style in `web_traffic.py`:
+Sources / Destinations / Services / Conversations / Exporters views, time-range
+and exporter filters, address/service drill-down, KPI tiles, an SVG throughput
+chart with keyboard-accessible crosshair tooltip and table fallback, sent/received
+split bars and session/rate meters (palette validated for light and dark), host
+identity from inventory names, ARP MAC/learning device and endpoint attachment,
+and a warning when the flow memory limits coverage. Optional reverse-DNS names
+(`netflow_resolve_names`, default off, Settings → NetFlow) come from a bounded
+background cache and never block rendering; names are escaped as untrusted text.
+The device page NetFlow section reuses the same tables and keeps the exporter
+diagnostics. Rendering still never contacts devices.
+
+**Tests.** 11 tests that asserted pre-rewrite console wording or the operator
+profile-save form were updated to the current wording carrying the same
+guarantee (one dashboard assertion on release-qualification wording was replaced
+with the page's no-device-change statement). New:
+`tests/test_security_policy_fixes.py` (10) and
+`tests/test_netflow_traffic_analytics.py` (21). `tools/release_metadata.py` now excludes `.ruff_cache` (it previously listed lint-cache files in the
+SBOM, so running ruff broke the drift check; also added to `.gitignore`), with
+`tests/test_release_metadata_excludes_caches.py`. Full suite: **647 passed /
+14 skipped / 0 failed**; ruff adds no new findings. SBOM / release manifest were
+regenerated to match current source; this is not a candidate freeze and assigns
+no release identity. Release stays `2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`;
+all LIVE_RC gates remain mandatory.
+
 ## PATCH-20261017-01 — Operator-facing console wording
 
 - Status: Ready for integration (source/local validation only).

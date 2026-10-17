@@ -16,7 +16,7 @@ EXCLUDE_NAMES = {
     "R67_SOURCE_MANIFEST.json", "R67_2_SOURCE_MANIFEST.json", "SHA256SUMS", "ARTIFACT_MANIFEST.json",
     "source-manifest.sha256",
 }
-EXCLUDE_PARTS = {".git", ".pytest_cache", ".mypy_cache", "__pycache__", "dist", "build", "RPMS", "SRPMS", "SOURCES", "SPECS", "BUILD", "BUILDROOT"}
+EXCLUDE_PARTS = {".git", ".pytest_cache", ".mypy_cache", ".ruff_cache", "__pycache__", "dist", "build", "RPMS", "SRPMS", "SOURCES", "SPECS", "BUILD", "BUILDROOT"}
 
 
 def digest(path: Path, algorithm: str) -> str:

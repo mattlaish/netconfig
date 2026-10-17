@@ -478,8 +478,12 @@ def test_protocol_api_and_web_rbac_surface(tmp_path, monkeypatch):
 
     viewer = render_protocols_page(H(), {"role": "viewer"})
     operator = render_protocols_page(H(), {"role": "operator"})
+    approver = render_protocols_page(H(), {"role": "approver"})
     assert "/protocol-save" not in viewer and "/protocol-collect" not in viewer
-    assert "/protocol-save" in operator and "/protocol-collect" in operator
+    # Operators collect; editing a profile is device management (approver/admin),
+    # matching the server-side manage_devices check on /protocol-save.
+    assert "/protocol-collect" in operator and "/protocol-save" not in operator
+    assert "/protocol-save" in approver and "/protocol-collect" in approver
 
     monkeypatch.setattr(m, "protocol_capabilities", lambda device: {"protocol": "restconf", "root": "/restconf"})
     _, raw = ApiTokens(m.db.conn).create("proto-reader", ["protocol:read"], role="viewer")

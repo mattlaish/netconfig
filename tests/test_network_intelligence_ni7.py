@@ -175,12 +175,12 @@ def test_ni7_operations_ui_is_read_only_for_viewer_and_has_no_execution_path(tmp
         status, _, data = _web_request(server, token, "GET", "/operations?tab=intelligence")
         text = data.decode()
         assert status == 200
-        assert "NI-7 · L3/VRF path intelligence" in text
+        assert "Routing & VRF Path Analysis" in text
         assert "Explicit route evidence only" in text
         assert 'action="/ops-l3-route-observe"' not in text
         assert 'action="/ops-l3-path"' not in text
         assert 'action="/ops-l3-dependencies"' not in text
         assert "no network mutation" in text.lower()
-        assert "/operations?tab=structured" not in text or "approved Structured Changes" in text
+        assert "/operations?tab=structured" not in text or "existing approved device-change" in text
     finally:
         server.shutdown(); server.server_close(); thread.join(timeout=5); web._SESSIONS.clear(); manager.close()

@@ -200,7 +200,7 @@ def test_successful_core_preflight_persists_switch_but_runtime_stays_current_unt
             "cluster_stale_seconds": "90", "distributed_task_lease_seconds": "60",
         }, sid=sid)
         assert status == 200
-        assert "preflight/bootstrap passed" in body
+        assert "connection and setup checks passed" in body
         persisted = json.loads(Path(manager.paths.settings_file).read_text())
         assert persisted["core_db_backend"] == "postgres"
         assert manager.db.dialect == "sqlite"

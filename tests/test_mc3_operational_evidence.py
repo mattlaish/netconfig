@@ -240,7 +240,7 @@ def test_events_web_detail_shows_mc3_semantics_and_current_sensor(tmp_path):
     try:
         status, text = _web_get(server, sid, f"/events?id={event['id']}")
         assert status == 200
-        assert "MC-3 normalized cross-domain operational evidence" in text
+        assert "Events record changes in monitoring status" in text
         assert "Evidence reference" in text and "sensor-transition:" in text
         assert "Current related Sensor" in text and "interface.status" in text
         assert "NETWORK" in text and "interface.down" in text

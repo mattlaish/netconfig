@@ -29,8 +29,18 @@ _SCOPE_MIN_ROLE = {
     "analytics:write": "operator",
     "external:ingest": "operator",
     "external:manage": "admin",
+    # Creating a support bundle is an administrative action in the console.
+    # debug:read / debug:download stay delegable so an admin can give a
+    # support pipeline read access to redacted bundles without an admin token.
+    "debug:create": "admin",
+    "debug:admin": "admin",
 }
 _ROLE_LEVEL = {"viewer": 0, "operator": 1, "approver": 2, "admin": 3}
+
+
+def _scope_allowed(scope, role):
+    minimum = _SCOPE_MIN_ROLE.get(scope)
+    return not minimum or _ROLE_LEVEL.get(role, -1) >= _ROLE_LEVEL[minimum]
 
 
 def _hash(token):
@@ -59,7 +69,11 @@ class ApiTokens:
         row = self.conn.execute("SELECT * FROM api_tokens WHERE token_hash=? AND disabled=0", (_hash(raw),)).fetchone()
         if not row:
             return None
-        d = dict(row); d["scopes"] = set(json.loads(d.get("scopes") or "[]"))
+        d = dict(row)
+        # Enforce the scope/role policy at use time too, so tokens issued before
+        # a minimum role was raised cannot keep exercising that scope.
+        d["scopes"] = {s for s in json.loads(d.get("scopes") or "[]")
+                       if _scope_allowed(s, d.get("role") or "viewer")}
         self.conn.execute("UPDATE api_tokens SET last_used_ts=? WHERE id=?", (time.time(), d["id"])); self.conn.commit()
         return d
     def list(self):

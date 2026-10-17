@@ -1,5 +1,24 @@
 # NetConfig AI Handover
 
+## Security policy fixes and NetFlow traffic analytics — 2026-10-17
+
+Source-only corrective on top of the operator-wording refresh; no schema, route
+removal or network-write authority change. Status stays `IMPLEMENTED_TESTING_DEFERRED`.
+
+- API protocol-profile writes need approver/admin; `debug:create`/`debug:admin`
+  scopes need admin and over-role scopes are dropped at token verification;
+  console/CLI passwords need 12+ characters (`users.validate_password`).
+- NetFlow: v9 IPv6 decoding; `netflow.analyze_traffic()` (direction-aware,
+  port-based services, 5-tuple sessions, interval-aligned avg/peak);
+  `netflow_max_flows` default 10000; optional `netflow_resolve_names`
+  background reverse-DNS cache (`netflow.REVERSE_DNS`).
+- UI: `/traffic` and the device NetFlow section render through
+  `web_traffic.py` (Sources/Destinations/Services/Conversations/Exporters,
+  drill-down, throughput chart). Keep bars as SVG geometry (CSP forbids style
+  attributes) and keep host names escaped.
+- Next: unchanged — choose release identity, freeze a candidate, run the twelve
+  LIVE_RC gates. IPFIX decoding remains unassigned future scope.
+
 ## Operator-facing wording refresh — 2026-10-17
 
 The English console now uses task-oriented labels and instructions rather than

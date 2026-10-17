@@ -274,7 +274,7 @@ def test_l3_topology_web_view_is_persisted_evidence_only(tmp_path, monkeypatch):
         response = conn.getresponse(); body = response.read().decode(); conn.close()
         assert response.status == 200
         assert "Topology view" in body and "Layer 3" in body and "Combined" in body
-        assert "Rendering never polls a device" in body
+        assert "Opening it does not poll devices" in body
         assert 'action="/topology-discover"' not in body
     finally:
         server.shutdown(); server.server_close(); thread.join(timeout=5)

@@ -748,8 +748,10 @@ class WebApiMixin:
             self._api_json(item)
             return True
         if path == "/api/v1/protocol-profiles":
-            if "protocol:write" not in token["scopes"] or token.get("role") not in {"operator","approver","admin"}:
-                self._api_json({"error":"insufficient_scope","required":"protocol:write"},403); return True
+            # Changing a collection profile (credentials ref, TLS verification, CA,
+            # CLI fallback) is device management: approver/admin, as in the console.
+            if "protocol:write" not in token["scopes"] or token.get("role") not in {"approver","admin"}:
+                self._api_json({"error":"insufficient_scope","required":"protocol:write with approver or admin role"},403); return True
             try:
                 device=(form.get("device") or [""])[0]
                 protocol=(form.get("protocol") or [""])[0]

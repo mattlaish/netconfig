@@ -7,6 +7,8 @@ exporter (keyed by the exporter's source IP, which maps to a device host).
 Only the Python standard library is used. IPFIX (v10) shares v9's structure and
 can be added later; unknown versions are counted and ignored.
 """
+import ipaddress
+import queue
 import socket
 import struct
 import threading
@@ -34,11 +36,22 @@ _V9_FIELDS = {
     8: "src",         # IPV4_SRC_ADDR
     11: "dport",      # L4_DST_PORT
     12: "dst",        # IPV4_DST_ADDR
+    27: "src",        # IPV6_SRC_ADDR
+    28: "dst",        # IPV6_DST_ADDR
 }
 
 
 def _int(b):
     return int.from_bytes(b, "big")
+
+
+def _addr(raw):
+    """Render a 4-byte IPv4 or 16-byte IPv6 address field; '' otherwise."""
+    if len(raw) == 4:
+        return _ip(_int(raw))
+    if len(raw) == 16:
+        return str(ipaddress.IPv6Address(bytes(raw)))
+    return ""
 
 
 class NetflowParser:
@@ -138,7 +151,11 @@ class NetflowParser:
                 if not key:
                     continue
                 if key in ("src", "dst"):
-                    rec[key] = _ip(_int(raw)) if len(raw) == 4 else ""
+                    addr = _addr(raw)
+                    # A template may carry both IPv4 and IPv6 address fields;
+                    # the unused family is all-zero and must not overwrite.
+                    if addr and (not rec[key] or any(raw)):
+                        rec[key] = addr
                 elif key == "proto":
                     rec[key] = proto_name(_int(raw))
                 else:
@@ -291,3 +308,295 @@ class Collector:
                 "started_at": self.started_at, "total_packets": self.total_packets,
                 "total_flows": self.total_flows, "exporters": len(self._counts),
                 "last_error": self.last_error}
+
+
+# ---------------------------------------------------------------------------
+# Direction-aware traffic analytics (FortiView-style views over the flow ring)
+# ---------------------------------------------------------------------------
+#
+# NetFlow v5/v9 records are unidirectional and carry no application identity,
+# so names here are PORT-BASED service labels, not DPI application detection.
+
+def _ports(proto, ports, name):
+    return {(proto, p): name for p in ports}
+
+
+_SERVICES = {}
+for _proto in ("TCP", "UDP"):
+    _SERVICES.update(_ports(_proto, (53,), "DNS"))
+    _SERVICES.update(_ports(_proto, (3478, 3479, 5349), "STUN/TURN"))
+    _SERVICES.update(_ports(_proto, (5060,), "SIP"))
+    _SERVICES.update(_ports(_proto, range(6881, 6890), "BitTorrent"))
+    _SERVICES.update(_ports(_proto, (51413,), "BitTorrent"))
+_SERVICES.update({
+    ("TCP", 80): "HTTP", ("TCP", 443): "HTTPS", ("UDP", 443): "QUIC",
+    ("TCP", 8080): "HTTP-alt", ("TCP", 8443): "HTTPS-alt", ("TCP", 9443): "HTTPS-alt",
+    ("TCP", 853): "DNS over TLS", ("UDP", 853): "DNS over QUIC", ("UDP", 5353): "mDNS",
+    ("UDP", 123): "NTP", ("UDP", 67): "DHCP", ("UDP", 68): "DHCP",
+    ("UDP", 546): "DHCPv6", ("UDP", 547): "DHCPv6", ("UDP", 1900): "SSDP",
+    ("TCP", 22): "SSH", ("TCP", 23): "Telnet", ("TCP", 21): "FTP", ("TCP", 3389): "RDP",
+    ("TCP", 445): "SMB", ("TCP", 139): "NetBIOS", ("UDP", 137): "NetBIOS", ("UDP", 138): "NetBIOS",
+    ("TCP", 25): "SMTP", ("TCP", 465): "SMTPS", ("TCP", 587): "SMTP submission",
+    ("TCP", 143): "IMAP", ("TCP", 993): "IMAPS", ("TCP", 110): "POP3", ("TCP", 995): "POP3S",
+    ("TCP", 5223): "Apple Push", ("TCP", 5228): "Google Push", ("TCP", 5061): "SIP TLS",
+    ("UDP", 500): "IPsec IKE", ("UDP", 4500): "IPsec NAT-T", ("UDP", 1194): "OpenVPN",
+    ("TCP", 1194): "OpenVPN", ("UDP", 51820): "WireGuard",
+    ("UDP", 161): "SNMP", ("UDP", 162): "SNMP trap", ("UDP", 514): "Syslog",
+    ("UDP", 2055): "NetFlow", ("UDP", 4739): "IPFIX", ("TCP", 179): "BGP",
+    ("TCP", 1883): "MQTT", ("TCP", 8883): "MQTT over TLS", ("TCP", 554): "RTSP",
+    ("TCP", 3306): "MySQL", ("TCP", 5432): "PostgreSQL", ("TCP", 1433): "MS SQL",
+    ("TCP", 6379): "Redis", ("TCP", 8291): "Winbox", ("TCP", 3128): "HTTP proxy",
+})
+_PORTLESS = {"ICMP", "ICMPv6", "GRE", "ESP", "AH", "OSPF", "IGMP"}
+_CGNAT = ipaddress.ip_network("100.64.0.0/10")
+
+
+def service_for(proto, sport, dport):
+    """Return (name, port, server_side) for one flow record.
+
+    server_side is "dst" when the destination port is the service port, else
+    "src" (a reply record). Ephemeral client ports are never used as labels.
+    """
+    proto = str(proto or "").upper() or "UNKNOWN"
+    sport, dport = int(sport or 0), int(dport or 0)
+    if proto in _PORTLESS or (not sport and not dport):
+        return proto, 0, "dst"
+    known_d, known_s = (proto, dport) in _SERVICES, (proto, sport) in _SERVICES
+    if known_d and not known_s:
+        port, side = dport, "dst"
+    elif known_s and not known_d:
+        port, side = sport, "src"
+    elif (known_d and known_s) or min(sport, dport) >= 1024:
+        # Both well-known (e.g. DNS 53<->53) or both high: the lower port is
+        # the service; the higher one is the client's ephemeral port.
+        port, side = (dport, "dst") if dport <= sport else (sport, "src")
+    elif dport < 1024:
+        port, side = dport, "dst"
+    else:
+        port, side = sport, "src"
+    return _SERVICES.get((proto, port), f"{proto}/{port}"), port, side
+
+
+def ip_scope(ip):
+    """private | public | multicast | loopback | unknown (for labelling)."""
+    try:
+        addr = ipaddress.ip_address(str(ip))
+    except ValueError:
+        return "unknown"
+    if addr.is_loopback:
+        return "loopback"
+    if addr.is_multicast or str(addr) == "255.255.255.255":
+        return "multicast"
+    if addr.is_private or addr.is_link_local or (addr.version == 4 and addr in _CGNAT):
+        return "private"
+    return "public"
+
+
+def analyze_traffic(flows, *, window_seconds=3600, now=None, bucket_seconds=300,
+                    local_ips=(), query="", limit=50):
+    """Direction-aware Sources / Destinations / Services / Conversations.
+
+    A host is "local" when its address is private/CGNAT/link-local or it is a
+    known managed/ARP host (``local_ips``). Per local host, bytes it sent and
+    received are tracked separately. When both ends are local (or both remote)
+    the client side, i.e. the side NOT using the service port, is the source.
+    Sessions are unique client/server 5-tuples, so both directions and repeated
+    active-timeout records of one conversation count once.
+    """
+    now = time.time() if now is None else float(now)
+    window_seconds = max(60, int(window_seconds or 3600))
+    bucket_seconds = max(10, int(bucket_seconds or 300))
+    limit = max(1, int(limit or 50))
+    known = {str(x) for x in (local_ips or ()) if x}
+    needle = str(query or "").strip().lower()
+    scope_cache = {}
+
+    def is_local(ip):
+        if ip in known:
+            return True
+        sc = scope_cache.get(ip)
+        if sc is None:
+            sc = scope_cache[ip] = ip_scope(ip)
+        return sc in ("private", "loopback")
+
+    def bucket():
+        return {"sent": 0, "received": 0, "packets": 0, "sessions": set(),
+                "services": defaultdict(int), "peers": set()}
+
+    sources = defaultdict(bucket)
+    dests = defaultdict(bucket)
+    services = defaultdict(lambda: {"bytes": 0, "packets": 0, "sessions": set(),
+                                    "sources": set(), "destinations": set(),
+                                    "labels": defaultdict(int)})
+    convs = defaultdict(lambda: {"sent": 0, "received": 0, "sessions": set()})
+    trend = defaultdict(int)
+    first_ts = None
+    total_b = total_p = records = 0
+    all_sessions = set()
+
+    for f in flows or ():
+        src, dst = str(f.get("src") or ""), str(f.get("dst") or "")
+        if not src or not dst:
+            continue
+        proto = str(f.get("proto") or "")
+        sport, dport = int(f.get("sport") or 0), int(f.get("dport") or 0)
+        b = max(0, int(f.get("bytes") or 0))
+        p = max(0, int(f.get("packets") or 0))
+        ts = float(f.get("ts") or now)
+        name, port, side = service_for(proto, sport, dport)
+        src_l, dst_l = is_local(src), is_local(dst)
+        if src_l != dst_l:
+            local, remote = (src, dst) if src_l else (dst, src)
+        else:  # both local or both remote: client is the source
+            local, remote = (src, dst) if side == "dst" else (dst, src)
+        outbound = (src == local)
+        if needle and needle not in local.lower() and needle not in remote.lower() \
+                and needle not in name.lower():
+            continue
+        lport = sport if outbound else dport
+        sess = (local, lport, remote, port, proto)
+        records += 1
+        total_b += b
+        total_p += p
+        first_ts = ts if first_ts is None else min(first_ts, ts)
+        all_sessions.add(sess)
+        trend[int(ts // bucket_seconds) * bucket_seconds] += b
+        for agg, peer in ((sources[local], remote), (dests[remote], local)):
+            agg["sent" if outbound else "received"] += b
+            agg["packets"] += p
+            agg["sessions"].add(sess)
+            agg["services"][name] += b
+            agg["peers"].add(peer)
+        sv = services[name]
+        sv["bytes"] += b
+        sv["packets"] += p
+        sv["sessions"].add(sess)
+        sv["sources"].add(local)
+        sv["destinations"].add(remote)
+        sv["labels"][f"{proto}/{port}" if port else proto] += b
+        cv = convs[(local, remote, name)]
+        cv["sent" if outbound else "received"] += b
+        cv["sessions"].add(sess)
+
+    # Coverage is measured on the interval grid (first spanned interval through
+    # the current one), so the average is the mean interval rate and can never
+    # exceed the peak interval rate.
+    if first_ts is None:
+        first_bucket, coverage = None, window_seconds
+    else:
+        first_bucket = int(first_ts // bucket_seconds) * bucket_seconds
+        coverage = int(now // bucket_seconds) * bucket_seconds + bucket_seconds - first_bucket
+
+    def rate(nbytes):
+        return nbytes * 8.0 / coverage if coverage else 0.0
+
+    def top_services(counter, n=3):
+        return [k for k, _ in sorted(counter.items(), key=lambda kv: kv[1], reverse=True)[:n]]
+
+    def host_rows(table):
+        rows = []
+        for ip, a in table.items():
+            total = a["sent"] + a["received"]
+            svc = top_services(a["services"])
+            rows.append({"ip": ip, "scope": scope_cache.get(ip) or ip_scope(ip),
+                         "sent": a["sent"], "received": a["received"], "bytes": total,
+                         "packets": a["packets"], "sessions": len(a["sessions"]),
+                         "avg_bps": rate(total), "services": svc,
+                         "service_count": len(a["services"]), "peer_count": len(a["peers"])})
+        rows.sort(key=lambda r: (r["bytes"], r["sessions"], r["ip"]), reverse=True)
+        return rows[:limit]
+
+    def port_label(labels):
+        ranked = [k for k, _ in sorted(labels.items(), key=lambda kv: kv[1], reverse=True)]
+        return ", ".join(ranked[:2]) + (f" +{len(ranked) - 2}" if len(ranked) > 2 else "")
+
+    svc_rows = [{"name": k, "label": port_label(v["labels"]), "bytes": v["bytes"], "packets": v["packets"],
+                 "sessions": len(v["sessions"]), "source_count": len(v["sources"]),
+                 "destination_count": len(v["destinations"]), "avg_bps": rate(v["bytes"])}
+                for k, v in services.items()]
+    svc_rows.sort(key=lambda r: (r["bytes"], r["sessions"], r["name"]), reverse=True)
+    conv_rows = [{"local": k[0], "remote": k[1], "service": k[2], "sent": v["sent"],
+                  "received": v["received"], "bytes": v["sent"] + v["received"],
+                  "sessions": len(v["sessions"]), "avg_bps": rate(v["sent"] + v["received"])}
+                 for k, v in convs.items()]
+    conv_rows.sort(key=lambda r: (r["bytes"], r["sessions"]), reverse=True)
+    trend_rows = [{"ts": t, "bytes": trend[t], "bps": trend[t] * 8.0 / bucket_seconds}
+                  for t in sorted(trend)]
+    return {
+        "window_seconds": window_seconds, "bucket_seconds": bucket_seconds,
+        "coverage_seconds": coverage, "first_bucket_ts": first_bucket, "query": needle,
+        "totals": {"bytes": total_b, "packets": total_p, "records": records,
+                   "sessions": len(all_sessions), "avg_bps": rate(total_b),
+                   "peak_bps": max((r["bps"] for r in trend_rows), default=0.0),
+                   "sources": len(sources), "destinations": len(dests),
+                   "services": len(services)},
+        "sources": host_rows(sources), "destinations": host_rows(dests),
+        "services": svc_rows[:limit], "conversations": conv_rows[:limit], "trend": trend_rows,
+    }
+
+
+class ReverseDnsCache:
+    """Non-blocking, bounded reverse-DNS cache for traffic views.
+
+    ``name(ip)`` never waits on DNS: a miss is queued for a small pool of daemon
+    workers and the page simply shows the IP until a later refresh. Results
+    (including failures) are cached with a TTL; queue and cache are bounded.
+    """
+
+    def __init__(self, ttl=3600, negative_ttl=900, max_entries=4096, max_queue=512, workers=3,
+                 resolver=None):
+        self.ttl, self.negative_ttl = ttl, negative_ttl
+        self.max_entries = max_entries
+        self._resolver = resolver or (lambda ip: socket.gethostbyaddr(ip)[0])
+        self._cache = {}
+        self._pending = set()
+        self._queue = queue.Queue(maxsize=max_queue)
+        self._lock = threading.Lock()
+        self._workers = workers
+        self._started = False
+
+    def _ensure_started(self):
+        if self._started:
+            return
+        self._started = True
+        for _ in range(self._workers):
+            threading.Thread(target=self._work, daemon=True).start()
+
+    def name(self, ip, now=None):
+        ip = str(ip or "")
+        if not ip or ip_scope(ip) in ("multicast", "unknown"):
+            return ""
+        now = time.time() if now is None else now
+        with self._lock:
+            hit = self._cache.get(ip)
+            if hit and hit[1] > now:
+                return hit[0]
+            if ip in self._pending:
+                return ""
+            try:
+                self._queue.put_nowait(ip)
+            except queue.Full:
+                return ""
+            self._pending.add(ip)
+        self._ensure_started()
+        return ""
+
+    def _work(self):
+        while True:
+            ip = self._queue.get()
+            try:
+                name = str(self._resolver(ip) or "").rstrip(".")
+            except Exception:
+                name = ""
+            if name == ip:
+                name = ""
+            expires = time.time() + (self.ttl if name else self.negative_ttl)
+            with self._lock:
+                self._pending.discard(ip)
+                if len(self._cache) >= self.max_entries:
+                    for old in sorted(self._cache, key=lambda k: self._cache[k][1])[:self.max_entries // 10 or 1]:
+                        self._cache.pop(old, None)
+                self._cache[ip] = (name, expires)
+
+
+REVERSE_DNS = ReverseDnsCache()

@@ -355,7 +355,7 @@ def test_mc8_settings_integrations_page_exposes_health_without_secrets(tmp_path)
         assert "CONNECTED" in text
         assert "Received" in text and "Rejected" in text and "Authentication" in text
         assert raw_token not in text
-        assert "reconfigure external systems" in text
+        assert "cannot change external systems" in text
     finally:
         if server:
             server.shutdown()

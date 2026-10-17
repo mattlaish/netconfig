@@ -304,10 +304,10 @@ def test_mc6_web_view_distinguishes_evidence_and_viewer_has_no_write_forms(tmp_p
         assert status == 200
         assert "Service &amp; Dependency Graph" in text
         assert "CONFIGURED" in text and "INFERRED" in text and "UNKNOWN" in text
-        assert "UNKNOWN means insufficient evidence" in text
+        assert "links without enough data are excluded" in text
         assert 'action="/dependency-entity-save"' not in text
         assert 'action="/dependency-edge-save"' not in text
-        assert "performs no device polling" in text
+        assert "Opening this page does not poll devices" in text
     finally:
         server.shutdown(); server.server_close(); thread.join(timeout=5)
         web._SESSIONS.clear(); manager.close()

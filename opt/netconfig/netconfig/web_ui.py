@@ -1216,7 +1216,7 @@ def render_events_page(handler, q, sess):
 
 
 def render_netflow_section(handler, dev, collector):
-    from . import netflow as _nf
+    from .web_traffic import fmt_bytes, render_device_traffic
     m = handler.manager
     port = m.settings.get("netflow_port", 2055)
     col = collector
@@ -1230,48 +1230,12 @@ def render_netflow_section(handler, dev, collector):
         status = (f'<span class="badge b-ok">listening udp/{st["port"]}</span> · '
                   f'{col.packet_count(dev["host"])} packet(s) received from this device')
 
-    flows = col.flows_for(dev["host"], limit=max(50, int(m.settings.get("netflow_max_flows", 500)))) if col else []
-    summary = _nf.summarize_flows(flows, limit=8)
-    cards = (
-        '<div class="sensor-grid">'
-        f'<div class="sensor-card ok"><div class="sensor-head"><span class="sensor-dot"></span>Recent flows</div><div class="sensor-value">{summary["flow_count"]}</div><div class="sensor-detail">recent received traffic; retained in memory only</div></div>'
-        f'<div class="sensor-card ok"><div class="sensor-head"><span class="sensor-dot"></span>Observed bytes</div><div class="sensor-value">{handler._human_bytes(summary["total_bytes"])}</div><div class="sensor-detail">{summary["total_packets"]} packets</div></div>'
-        f'<div class="sensor-card ok"><div class="sensor-head"><span class="sensor-dot"></span>Sources</div><div class="sensor-value">{summary["unique_sources"]}</div><div class="sensor-detail">unique source IPs</div></div>'
-        f'<div class="sensor-card ok"><div class="sensor-head"><span class="sensor-dot"></span>Destinations</div><div class="sensor-value">{summary["unique_destinations"]}</div><div class="sensor-detail">unique destination IPs</div></div>'
-        '</div>')
-
-    def ranked(title, rows):
-        body = []
-        for row in rows:
-            pct = row.get("byte_share", 0) * 100
-            body.append(
-                f'<tr><td><b>{html.escape(str(row.get("label") or "-"))}</b></td>'
-                f'<td class=right>{handler._human_bytes(row.get("bytes"))}</td>'
-                f'<td class=right>{row.get("packets",0)}</td><td class=right>{pct:.0f}%</td>'
-                f'<td><progress max="100" value="{max(0,min(100,pct)):.1f}"></progress></td></tr>')
-        return (f'<div><h3>{html.escape(title)}</h3><div class="table-wrap"><table>'
-                f'<tr><th>Item</th><th>Bytes</th><th>Packets</th><th>Share</th><th></th></tr>'
-                f'{"".join(body) or "<tr><td colspan=5 class=muted>No data.</td></tr>"}</table></div></div>')
-
-    insight_rows = ''.join(f'<li>{html.escape(x)}</li>' for x in summary["insights"])
-    analysis = (f'<div class="panel"><h3>Traffic analysis</h3><ul>{insight_rows}</ul>'
-                '<p class="muted">Summary of recently received traffic. It does not confirm an attack or its cause.</p></div>')
-    overview = ('<div class="panel"><h3>Traffic overview</h3><div class="row">'
-                + ranked("Top sources", summary["top_sources"])
-                + ranked("Top destinations", summary["top_destinations"])
-                + '</div><div class="row">'
-                + ranked("Protocols", summary["protocols"])
-                + ranked("Destination ports", summary["top_ports"])
-                + '</div></div>')
-    conv_rows = ''.join(
-        f'<tr><td>{html.escape(str(r.get("label") or ""))}</td><td class=right>{handler._human_bytes(r.get("bytes"))}</td><td class=right>{r.get("packets",0)}</td><td class=right>{r.get("flows",0)}</td></tr>'
-        for r in summary["conversations"])
-    conversations = (f'<div class="panel"><h3>Top conversations</h3><div class="table-wrap"><table><tr><th>Conversation</th><th>Bytes</th><th>Packets</th><th>Flows</th></tr>{conv_rows or "<tr><td colspan=4 class=muted>No data.</td></tr>"}</table></div></div>')
-
+    flows = col.flows_for(dev["host"], limit=max(50, int(m.settings.get("netflow_max_flows", 10000)))) if col else []
+    views = render_device_traffic(handler, dev, flows) if flows else ""
     raw_rows = ''.join(
         f'<tr><td class=muted>{time.strftime("%H:%M:%S", time.localtime(fl["ts"]))}</td>'
-        f'<td>{html.escape(fl["src"])}:{fl["sport"]}</td><td>{html.escape(fl["dst"])}:{fl["dport"]}</td>'
-        f'<td>{html.escape(str(fl["proto"]))}</td><td class=right>{fl["packets"]}</td><td class=right>{fl["bytes"]}</td></tr>'
+        f'<td>{html.escape(str(fl["src"]))}:{fl["sport"]}</td><td>{html.escape(str(fl["dst"]))}:{fl["dport"]}</td>'
+        f'<td>{html.escape(str(fl["proto"]))}</td><td class=right>{fl["packets"]}</td><td class=right>{html.escape(fmt_bytes(fl["bytes"]))}</td></tr>'
         for fl in flows[:100])
     raw = (f'<div class="panel"><details><summary><b>Advanced: raw recent flow records</b></summary>'
            f'<div class="table-wrap"><table><tr><th>Time</th><th>Source</th><th>Destination</th><th>Proto</th><th>Packets</th><th>Bytes</th></tr>{raw_rows or "<tr><td colspan=6 class=muted>No flow records.</td></tr>"}</table></div></details></div>')
@@ -1305,8 +1269,8 @@ def render_netflow_section(handler, dev, collector):
         else:
             empty = (f'<p class="muted">No flows received yet. Configure this device to export NetFlow to '
                      f'this server on <code>udp/{port}</code>.</p>')
-    return (f'<div class="panel"><h2>NetFlow traffic view</h2><p class="muted">FortiView-style summaries from flows already received from <b>{html.escape(dev["host"])}</b>. {status}</p>{offnote}{empty}{cards}</div>'
-            + analysis + overview + conversations + raw)
+    return (f'<div class="panel"><h2>NetFlow traffic</h2><p class="muted">Traffic exported by <b>{html.escape(dev["host"])}</b>, '
+            f'from records held in memory. {status}</p>{offnote}{empty}</div>' + views + raw)
 
 
 def render_vendor_profile_admin(handler, sess):
