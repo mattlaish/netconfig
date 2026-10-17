@@ -95,7 +95,7 @@ class WebIntegrationsMixin:
                        f'<div><label>Role</label><select name=role><option>viewer</option><option selected>operator</option><option>approver</option><option>admin</option></select></div>'
                        f'<div><label>Scopes</label><select name=scopes multiple size=8 required>{scope_options}</select><div class=muted>Ctrl/Cmd-click for multiple scopes.</div></div></div><button>Create token</button></form></div>')
         return token_panel + f'''<div class="panel"><h2>External evidence integrations</h2>
-<p class="muted">MC-8 connectors are inbound, evidence-only integrations. They cannot reconfigure external systems, execute EDR response, run device commands, or bypass Structured Change authority.</p>
+<p class="muted">Connected tools send monitoring and security records to NetConfig. These connections cannot change external systems, run response actions or device commands, or bypass change approval.</p>
 <div class="table-wrap"><table><tr><th>Source</th><th>Status</th><th>Last event</th><th>Received</th><th>Rejected</th><th>Authentication</th><th>State</th></tr>{''.join(rows) or '<tr><td colspan=7 class=muted>No external evidence sources configured.</td></tr>'}</table></div></div>
 <div class="panel"><h2>Register inbound source</h2>
 <p class="muted">Create or select a dedicated bearer token above with <code>external:ingest</code>. NetConfig stores only the token hash in the API-token table and binds the source to that token ID; no connector secret is stored here.</p>
@@ -104,10 +104,10 @@ class WebIntegrationsMixin:
 <div><label>Display name</label><input name=display_name required placeholder="Primary NDR"></div>
 <div><label>Source type</label><select name=source_type>{types}</select></div></div>
 <div class=row><div><label>Ingest token</label>{token_select}</div>
-<div><label>Max request/payload bytes</label><input name=max_payload_bytes type=number min=1024 max=262144 value=65536></div>
+<div><label>Maximum incoming message size (bytes)</label><input name=max_payload_bytes type=number min=1024 max=262144 value=65536></div>
 <div><label>Rate limit / minute</label><input name=rate_limit_per_minute type=number min=1 max=6000 value=120></div></div>
 <button{' disabled' if not token_opts else ''}>Register / update source</button></form>
-<p class="muted">Push normalized JSON to <code>/api/v1/external-evidence/&lt;source-key&gt;/events</code>. Required event fields: <code>source_event_id</code>, <code>idempotency_key</code>, <code>event_type</code>, and <code>source_ts</code>. Raw payload fields are recursively secret-redacted before persistence.</p></div>'''
+<p class="muted">Push normalized JSON to <code>/api/v1/external-evidence/&lt;source-key&gt;/events</code>. Required event fields: <code>source_event_id</code>, <code>idempotency_key</code>, <code>event_type</code>, and <code>source_ts</code>. Passwords and other recognized secrets are masked before incoming records are saved.</p></div>'''
 
     def _do_api_token_create(self, form, sess):
         if not _can(sess["role"], "settings"):

@@ -36,7 +36,7 @@ class WebMC9Mixin:
         cards = (
             '<div class="sensor-grid">'
             f'<div class="sensor-card {"warn" if data["active_incident_count"] else "ok"}"><div class="sensor-head"><span class="sensor-dot"></span>Active incidents</div><div class="sensor-value">{data["active_incident_count"]}</div><div class="sensor-detail">open / investigating</div></div>'
-            f'<div class="sensor-card {"warn" if data["impacted_services"] else "ok"}"><div class="sensor-head"><span class="sensor-dot"></span>Services impacted</div><div class="sensor-value">{len(data["impacted_services"])}</div><div class="sensor-detail">evidence-backed entities</div></div>'
+            f'<div class="sensor-card {"warn" if data["impacted_services"] else "ok"}"><div class="sensor-head"><span class="sensor-dot"></span>Services impacted</div><div class="sensor-value">{len(data["impacted_services"])}</div><div class="sensor-detail">services identified in monitoring records</div></div>'
             f'<div class="sensor-card {"bad" if data["critical_alerts"] else "ok"}"><div class="sensor-head"><span class="sensor-dot"></span>Critical alerts</div><div class="sensor-value">{len(data["critical_alerts"])}</div><div class="sensor-detail">open / acknowledged</div></div>'
             f'<div class="sensor-card {"warn" if data["degraded_connectors"] else "ok"}"><div class="sensor-head"><span class="sensor-dot"></span>External source health</div><div class="sensor-value">{len(data["degraded_connectors"])}</div><div class="sensor-detail">degraded / failed</div></div>'
             '</div>'
@@ -45,15 +45,15 @@ class WebMC9Mixin:
         corr = health.get("correlation") or {}
         bounds = health.get("bounds") or {}
         correlation_health_panel = (
-            '<div class="panel"><h2>Correlation production health</h2>'
-            '<p class="muted">MC-10 self-monitoring is read-only. Local checks do not replace deferred live PostgreSQL, AlmaLinux/systemd/SELinux, external-product, scale, clock-skew or HA qualification.</p>'
+            '<div class="panel"><h2>Analysis service health</h2>'
+            '<p class="muted">Shows recent analysis activity and service limits. Viewing this page does not run checks or change devices.</p>'
             '<div class="sensor-grid">'
             f'<div class="sensor-card {"bad" if corr.get("failed") or corr.get("non_deterministic") else "ok"}"><div class="sensor-head"><span class="sensor-dot"></span>Correlation runs</div><div class="sensor-value">{int(corr.get("runs") or 0)}</div><div class="sensor-detail">last {int(health.get("window_seconds") or 0)}s</div></div>'
-            f'<div class="sensor-card {"warn" if float((corr.get("latency_ms") or {}).get("p95") or 0) > 1000 else "ok"}"><div class="sensor-head"><span class="sensor-dot"></span>p95 latency</div><div class="sensor-value">{float((corr.get("latency_ms") or {}).get("p95") or 0):.1f} ms</div><div class="sensor-detail">bounded synchronous execution</div></div>'
-            f'<div class="sensor-card {"warn" if int(corr.get("late_evidence") or 0) or int(corr.get("out_of_order") or 0) else "ok"}"><div class="sensor-head"><span class="sensor-dot"></span>Late / out-of-order</div><div class="sensor-value">{int(corr.get("late_evidence") or 0)} / {int(corr.get("out_of_order") or 0)}</div><div class="sensor-detail">evidence diagnostics, not failures</div></div>'
-            f'<div class="sensor-card {"warn" if int(corr.get("queue_depth") or 0) else "ok"}"><div class="sensor-head"><span class="sensor-dot"></span>In flight / waiting</div><div class="sensor-value">{int(corr.get("inflight") or 0)} / {int(corr.get("queue_depth") or 0)}</div><div class="sensor-detail">lock wait bound {float(bounds.get("lock_wait_seconds") or 0):.1f}s</div></div>'
+            f'<div class="sensor-card {"warn" if float((corr.get("latency_ms") or {}).get("p95") or 0) > 1000 else "ok"}"><div class="sensor-head"><span class="sensor-dot"></span>95th-percentile analysis time</div><div class="sensor-value">{float((corr.get("latency_ms") or {}).get("p95") or 0):.1f} ms</div><div class="sensor-detail">95% of runs finish within this time</div></div>'
+            f'<div class="sensor-card {"warn" if int(corr.get("late_evidence") or 0) or int(corr.get("out_of_order") or 0) else "ok"}"><div class="sensor-head"><span class="sensor-dot"></span>Late / out-of-order</div><div class="sensor-value">{int(corr.get("late_evidence") or 0)} / {int(corr.get("out_of_order") or 0)}</div><div class="sensor-detail">late or reordered records, not device failures</div></div>'
+            f'<div class="sensor-card {"warn" if int(corr.get("queue_depth") or 0) else "ok"}"><div class="sensor-head"><span class="sensor-dot"></span>In flight / waiting</div><div class="sensor-value">{int(corr.get("inflight") or 0)} / {int(corr.get("queue_depth") or 0)}</div><div class="sensor-detail">maximum wait {float(bounds.get("lock_wait_seconds") or 0):.1f}s</div></div>'
             '</div>'
-            f'<p class="muted">Hard bounds: {int(bounds.get("max_facts_per_run") or 0)} facts/run · {int(bounds.get("max_hypotheses_per_run") or 0)} hypotheses/run · dependency depth {int(bounds.get("max_relationship_depth") or 0)} · replay range {int(bounds.get("max_replay_range_seconds") or 0)}s.</p>'
+            f'<p class="muted">Analysis limits: {int(bounds.get("max_facts_per_run") or 0)} facts/run · {int(bounds.get("max_hypotheses_per_run") or 0)} hypotheses/run · dependency depth {int(bounds.get("max_relationship_depth") or 0)} · replay range {int(bounds.get("max_replay_range_seconds") or 0)}s.</p>'
             '</div>'
         )
         incident_rows = []
@@ -99,15 +99,15 @@ class WebMC9Mixin:
         data = self.manager.operations_console.traffic(self.netflow, window_seconds=window, bucket_seconds=bucket)
         summary = data["summary"]
         cards = ('<div class="sensor-grid">'
-                 f'<div class="sensor-card ok"><div class="sensor-head"><span class="sensor-dot"></span>Flow records</div><div class="sensor-value">{summary["flow_count"]}</div><div class="sensor-detail">bounded ring / selected window</div></div>'
+                 f'<div class="sensor-card ok"><div class="sensor-head"><span class="sensor-dot"></span>Flow records</div><div class="sensor-value">{summary["flow_count"]}</div><div class="sensor-detail">recent received traffic in the selected period</div></div>'
                  f'<div class="sensor-card ok"><div class="sensor-head"><span class="sensor-dot"></span>Observed bytes</div><div class="sensor-value">{html.escape(_fmt_bps(summary["total_bytes"] * 8))}</div><div class="sensor-detail">bit-equivalent total, not sustained rate</div></div>'
                  f'<div class="sensor-card ok"><div class="sensor-head"><span class="sensor-dot"></span>Sources</div><div class="sensor-value">{summary["unique_sources"]}</div><div class="sensor-detail">unique observed IPs</div></div>'
                  f'<div class="sensor-card ok"><div class="sensor-head"><span class="sensor-dot"></span>Exporters</div><div class="sensor-value">{len(data["exporters"])}</div><div class="sensor-detail">with flows in this window</div></div></div>')
         filters = ('<div class="panel"><form method=get action="/traffic"><div class=row>'
                    f'<div><label>Window seconds</label><input name=window value="{data["window_seconds"]}"></div>'
-                   f'<div><label>Trend bucket seconds</label><input name=bucket value="{data["bucket_seconds"]}"></div>'
+                   f'<div><label>Chart interval (seconds)</label><input name=bucket value="{data["bucket_seconds"]}"></div>'
                    '<div style="align-self:end"><button>Apply</button></div></div></form>'
-                   '<p class=muted>Read-only analytics over the existing in-memory NetFlow ring. This is not a persistent flow warehouse and page rendering does not poll devices.</p></div>')
+                   '<p class=muted>Analyze recently received NetFlow traffic. Records are held in memory, not saved as long-term history, and are cleared when NetConfig restarts. Opening this page does not poll devices.</p></div>')
         def top_table(title, rows, endpoint=False):
             body=[]
             for x in rows:
@@ -126,6 +126,6 @@ class WebMC9Mixin:
               +top_table("Destination ports",summary.get("top_ports") or [])
               +top_table("Conversations",summary.get("conversations") or [])
               +f'<div class="panel"><h2>Exporters</h2><table><tr><th>Exporter</th><th>Bytes</th><th>Packets</th><th>Flows</th><th>Datagrams</th></tr>{exporter_rows or "<tr><td colspan=5 class=muted>No exporter data in selected window.</td></tr>"}</table></div>'
-              +f'<div class="panel"><h2>Traffic trend</h2><table><tr><th>Bucket</th><th>Bytes</th><th>Packets</th><th>Flows</th></tr>{trend_rows or "<tr><td colspan=4 class=muted>No trend data.</td></tr>"}</table></div>'
+              +f'<div class="panel"><h2>Traffic trend</h2><table><tr><th>Time interval</th><th>Bytes</th><th>Packets</th><th>Flows</th></tr>{trend_rows or "<tr><td colspan=4 class=muted>No trend data.</td></tr>"}</table></div>'
               +f'<details class="panel"><summary><b>Advanced · raw flow records</b></summary><div class="table-wrap"><table><tr><th>Time</th><th>Exporter</th><th>Source</th><th>Destination</th><th>Protocol/port</th><th>Bytes</th></tr>{raw or "<tr><td colspan=6 class=muted>No raw flow records.</td></tr>"}</table></div></details>')
         return self._send(self._page("Traffic Analytics",body,sess))

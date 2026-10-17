@@ -1,11 +1,64 @@
 # NetConfig Documentation Status
 
+## Operator-facing wording refresh — 2026-10-17
+
+Current console terminology is synchronized across the operator guides,
+README, handoff, patch ledger and maintained engineering/security/deployment
+documents. Historical release records and technical identifiers are retained.
+The Markdown inventory remains 68; no documentation file was added.
+
+Validation: **119 PASS** (including **18 new console-copy page checks**); legacy
+selftest **ALL PASS**; **14 changed/new Python files compile**; **10 runtime
+modules retain identical non-text AST and machine-facing fields**. Ruff adds
+**0 new findings**; 10 existing findings remain. Three qualification/platform
+cases were deliberately deselected, not counted as PASS. No Git operations,
+RPM build/install, browser visual acceptance or LIVE_RC execution were performed.
+
+## Workspace reconciliation — 2026-10-16
+
+The sole active Windows source root is `C:\Users\mattlai\Projects\netconfig`.
+Workspace locks now lead AGENTS/CLAUDE, handoff, baseline, continuation prompt and
+README; TESTING documents the root-anchored Windows runner. The older artifact
+pointers remain historical provenance, not alternate active source locations.
+`WORKSPACE_AUDIT_2026-10-16.md` is a new maintained evidence document. The inventory
+below describes the 2026-10-13 checkpoint (67 Markdown documents); adding this
+audit makes the present source inventory **68 documents: 55 maintained, 13 historical**.
+The earlier 67/67 validation remains historical and is not relabeled as a new run.
+
+Current continuation includes the 2026-10-16 Web UI corrective. No release number,
+RPM, generated manifest, SBOM or candidate fingerprint is refreshed by path repair.
+These remain freeze prerequisites; LIVE_RC gates are not claimed as passed.
+
+Reconciliation checks: 51 local tests PASS, legacy selftest ALL PASS, focused
+Ruff/compile PASS; 468 original file hashes checked with no unexpected change.
+See the workspace audit for the exact scope and environment-only retries.
+
+## Web UI control coverage corrective — 2026-10-16
+
+The R67.2-based working tree now closes five console coverage gaps. Status remains `IMPLEMENTED_TESTING_DEFERRED`; package identity remains `2.0.0-67.2` pending the user's release decision.
+
+- **Users:** admins can enable, disable and delete accounts from `/users`. Console changes protect the current account and the last enabled admin; SQLite transactions and a PostgreSQL transaction advisory lock serialize access changes. Existing managed sessions reject deleted/disabled accounts on their next request. Password-reset inputs are masked.
+- **Device Collection:** approvers/admins can remove a saved protocol profile; inventory and vault secrets are retained and default collection is restored. Operators and above can explicitly run Capabilities, Read state and bounded gNMI Subscribe once. Collection now checks the existing `collect` capability. Page loads do not initiate protocol I/O.
+- **Diagnostics:** admins can create full or per-device captures, request a signature, verify archive signature/trust, view effective signing status and clean up older managed bundles with a minimum keep count of one. Signature validity and trusted-signer status are displayed separately. Device captures create their missing security subdirectory; cleanup uses file modification time across full/device archive prefixes.
+- **Settings → Evidence signing:** admin-only policy controls for `evidence_signing_required` and `evidence_trusted_fingerprints`; validated/normalized SHA-256 pins are saved only after all inputs pass. Environment policy overrides remain visible and environment-added pins are not copied into settings. Private keys remain outside the Web UI.
+- **Protocol Traces:** standalone `/traces` navigation, device/status filters, session detail and bounded event view. Operators and above can start/stop captures with TTL/event/byte budgets and optional Incident linkage. Viewers can read but cannot capture.
+
+All new console POST routes use session authentication, existing role checks and CSRF protection. Network configuration writes remain behind the existing approval chain; no schema or public bearer-REST contract changes are introduced. `web_feature_controls.py` holds the additional controls and preserves the PH-1 `web.py` structural limits.
+
+Validation on the Windows development host: **131 PASS** across **45 new HTTP/role/CSRF/access-lifecycle cases** and **86 related existing regressions**. Three pre-existing POSIX/qualification-runner cases were reproduced against the unmodified working folder and excluded from this compatible run; they require the appropriate runtime. Ten existing OpenSSL signing cases were skipped in the earlier expanded run because OpenSSL was not exposed to that runner. The Windows test harness supplies only a fail-closed `pty` import shim; any real POSIX SSH attempt raises rather than simulating success. This is source/local HTTP evidence, not live AlmaLinux, PostgreSQL concurrency, device interoperability, browser acceptance or cryptographic-signing qualification.
+
+Generated manifests, SBOM and artifact hashes remain pending regeneration for the next frozen candidate. Earlier candidate fingerprints do not qualify these changed bytes. No new version, MC slice or production release is declared. Git remains user-managed.
+
+Additional completed local checks: legacy selftest **ALL PASS** (including Application-only isolation and System-only regression), six changed runtime modules compile, and the existing canonical-state, compound-statement and PH-1 structure checks **3/3 PASS**. Selftest uses the same fail-closed Windows PTY import harness; this is not live SSH evidence.
+
+<!-- documentation-sync: 2026-10-13 -->
+> **Canonical project state — 2026-10-13:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) with unnumbered SNMP Vendor Profile and October Web UI / NetFlow corrective updates. **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included; schema `mc11-topology-change-planning-1` is unchanged. The working tree is not the previously frozen R67.2 candidate. Release numbering awaits an explicit user decision. Next: choose release identity, freeze a new candidate, execute all twelve mandatory `LIVE_RC` gates against its exact bytes, then perform R68 production release review. No new feature phase is assigned. All network mutation remains approval-gated. Local/source evidence does not establish production readiness. **Do not create MC-12.**
+
+> **Document applicability:** this document is maintained against [ROADMAP.md](ROADMAP.md) and [AI_HANDOFF.md](AI_HANDOFF.md). Older release-numbered sections, test counts, fingerprints and Current/Next pointers below are historical unless explicitly restated in this 2026-10-13 update.
 
 > **2026-09-29 development update — SNMP Vendor Profile framework:** this working tree adds a data-only, hot-reloadable SNMP Vendor Profile engine on top of the refrozen R67.2 source line. This is a runtime/package payload change, so the previously frozen R67.2 exact-candidate fingerprint and candidate-bound `LIVE_RC` evidence do **not** qualify this working tree. The release identity has intentionally **not** been advanced; that remains an explicit user decision. Project state remains `IMPLEMENTED_TESTING_DEFERRED`; MC-11 remains the final Monitoring / Correlation / Change-Planning feature slice; no MC-12 and no new network-write authority are introduced. Profiles are JSON data, validated fail-closed, bounded to declared numeric OID roots, and cannot execute Python, shell, commands, URLs, or arbitrary expressions.
 
-**Current vendor-profile source evidence:** **556 collected / 542 PASS / 14 SKIP / 0 FAIL** across 12 bounded groups; focused Vendor Profile framework coverage is **8 PASS / 0 FAIL**; `compileall`, actual launcher `py_compile`, packaging/tool/qualification shell syntax, release-metadata check, and legacy selftest are PASS. The 14 skips remain explicit live PostgreSQL/protocol-service prerequisites plus the expected source-archive Git-metadata prerequisite. These are local/source gates only and do not promote the working tree beyond `IMPLEMENTED_TESTING_DEFERRED`.
-
-> **Canonical project state — 2026-09-25:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) on top of the frozen R67 candidate. MC-1 through MC-11 remain implemented; **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice and schema revision remains `mc11-topology-change-planning-1`; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included. R67.2 repairs fresh login, additive migration/index ordering, fail-closed Core PostgreSQL preflight, Core/History PostgreSQL configuration separation, and fresh PostgreSQL Core bootstrap without adding network-write authority. **All network mutation remains approval-gated; local/offline qualification does not establish RC or production release readiness; all required `LIVE_RC` gates remain mandatory. Do not create MC-12.** R68 must be rerun against the exact R67.2 candidate after mandatory live qualification.
+**Recorded 2026-09-29 vendor-profile source evidence:** **556 collected / 542 PASS / 14 SKIP / 0 FAIL** across 12 bounded groups; focused Vendor Profile framework coverage is **8 PASS / 0 FAIL**; `compileall`, actual launcher `py_compile`, packaging/tool/qualification shell syntax, release-metadata check, and legacy selftest are PASS. The 14 skips remain explicit live PostgreSQL/protocol-service prerequisites plus the expected source-archive Git-metadata prerequisite. These are local/source gates only and do not promote the working tree beyond `IMPLEMENTED_TESTING_DEFERRED`.
 
 ## Historical Release 53 documentation sync — 2026-09-23
 
@@ -56,50 +109,80 @@ Canonical design documentation now records the future Site Edge/Collector surviv
 
 This file is the documentation truth map. Historical release records retain their original measured counts and decisions; they do not override the current R67.2 / `2.0.0-67.2` / `mc11-topology-change-planning-1` state declared at the top.
 
-## Complete Markdown inventory
+## Complete Markdown inventory — 2026-10-13
 
-| File | Classification | Role |
-|---|---|---|
-| `ADR/ADR-004-ui1-unified-operations-console.md` | HISTORICAL EVIDENCE | historical release evidence |
-| `AGENTS.md` | CURRENT / MAINTAINED | agent engineering instructions |
-| `AI_HANDOFF.md` | CURRENT / MAINTAINED | new-session continuation state |
-| `API.md` | CURRENT / MAINTAINED | API contract |
-| `ARCHITECTURE.md` | CURRENT / MAINTAINED | architecture contract |
-| `CLAUDE.md` | CURRENT / MAINTAINED | alternate-agent engineering instructions |
-| `CURRENT_PROGRESS_DELIVERY_REPORT.md` | CURRENT / MAINTAINED | current progress snapshot |
-| `DELIVERY_REPORT.md` | CURRENT / MAINTAINED | current delivery summary |
-| `DELIVERY_REPORT_NI65.md` | HISTORICAL EVIDENCE | historical release evidence |
-| `DEVELOPMENT.md` | CURRENT / MAINTAINED | canonical engineering ledger |
-| `DEV_BASELINE.md` | CURRENT / MAINTAINED | source baseline contract |
-| `DOCUMENTATION_STATUS.md` | CURRENT / MAINTAINED | documentation truth map (this file) |
-| `GIT_REPRODUCIBILITY.md` | CURRENT / MAINTAINED | Git reproducibility contract/evidence |
-| `HANDOVER_2026-09-07.md` | HISTORICAL EVIDENCE | historical release evidence |
-| `HANDOVER_PROMPT.md` | CURRENT / MAINTAINED | handoff prompt / continuation rules |
-| `INSTALL_RPM.md` | CURRENT / MAINTAINED | RPM installation lifecycle |
-| `NI63_CAPACITY_ANALYTICS.md` | HISTORICAL EVIDENCE | historical release evidence |
-| `NI64_FAILURE_RISK.md` | HISTORICAL EVIDENCE | historical release evidence |
-| `NI65_IMPACT_SIMULATION.md` | HISTORICAL EVIDENCE | historical release evidence |
-| `NI66_HEALTH_DASHBOARD.md` | HISTORICAL EVIDENCE | historical release evidence |
-| `NI7_L3_ROUTE_INTELLIGENCE.md` | CURRENT / MAINTAINED | NI-7 current feature contract/evidence |
-| `PH6_COMPLETION.md` | HISTORICAL EVIDENCE | historical release evidence |
-| `Q1_PRODUCTION_QUALIFICATION.md` | CURRENT / MAINTAINED | active Q-1 qualification contract/evidence ledger |
-| `README.md` | CURRENT / MAINTAINED | product entry point / current baseline |
-| `ROADMAP.md` | CURRENT / MAINTAINED | roadmap and strict status truth |
-| `SECURITY.md` | CURRENT / MAINTAINED | security contract |
-| `TESTING.md` | CURRENT / MAINTAINED | current test ledger |
-| `TESTING_RESULT_2026-09-07.md` | HISTORICAL EVIDENCE | historical release evidence |
-| `TESTING_RESULT_2026-09-11.md` | HISTORICAL EVIDENCE | historical release evidence |
-| `TESTING_RESULT_2026-09-12.md` | HISTORICAL EVIDENCE | historical release evidence |
-| `TESTING_RESULT_2026-09-13.md` | HISTORICAL EVIDENCE | historical release evidence |
-| `VALIDATION_SUMMARY.md` | CURRENT / MAINTAINED | current qualification summary |
-| `WEBGUI.md` | CURRENT / MAINTAINED | top-level UI contract |
-| `opt/netconfig/CREDENTIALS.md` | CURRENT / MAINTAINED | credential/vault operations guide |
-| `opt/netconfig/INSTALL.md` | CURRENT / MAINTAINED | installed-source operations guide |
-| `opt/netconfig/README.md` | CURRENT / MAINTAINED | installed product README |
-| `opt/netconfig/WEBGUI.md` | CURRENT / MAINTAINED | web console operator guide |
-| `packaging/README.md` | CURRENT / MAINTAINED | RPM packaging/operator instructions |
-| `patch.md` | CURRENT / MAINTAINED | patch ledger |
-| `tools/rpm-builder/README.md` | CURRENT / MAINTAINED | offline RPM builder/verifier usage and qualification boundary |
+All **67** discovered Markdown files were reviewed and received an applicability pointer; **54** are maintained contracts/guides and **13** are historical evidence. Hook examples retain their runnable contract and receive only the current documentation pointer. Historical source/test records retain original measurements.
+
+| File | Classification |
+|---|---|
+| `ADR/ADR-004-ui1-unified-operations-console.md` | HISTORICAL EVIDENCE |
+| `AGENTS.md` | CURRENT / MAINTAINED |
+| `AI_HANDOFF.md` | CURRENT / MAINTAINED |
+| `API.md` | CURRENT / MAINTAINED |
+| `ARCHITECTURE.md` | CURRENT / MAINTAINED |
+| `CLAUDE.md` | CURRENT / MAINTAINED |
+| `CSS_UI_REVIEW_2026-09-22.md` | HISTORICAL EVIDENCE |
+| `CURRENT_PROGRESS_DELIVERY_REPORT.md` | CURRENT / MAINTAINED |
+| `DATA_MODEL.md` | CURRENT / MAINTAINED |
+| `DELIVERY_REPORT.md` | CURRENT / MAINTAINED |
+| `DELIVERY_REPORT_NI65.md` | HISTORICAL EVIDENCE |
+| `DEPLOYMENT.md` | CURRENT / MAINTAINED |
+| `DEVELOPMENT.md` | CURRENT / MAINTAINED |
+| `DEV_BASELINE.md` | CURRENT / MAINTAINED |
+| `DOCUMENTATION_STATUS.md` | CURRENT / MAINTAINED |
+| `GIT_REPRODUCIBILITY.md` | CURRENT / MAINTAINED |
+| `HANDOVER_2026-09-07.md` | HISTORICAL EVIDENCE |
+| `HANDOVER_PROMPT.md` | CURRENT / MAINTAINED |
+| `INSTALL_RPM.md` | CURRENT / MAINTAINED |
+| `NETCONFIG_MONITORING_CORRELATION_SLICES.md` | CURRENT / MAINTAINED |
+| `NI63_CAPACITY_ANALYTICS.md` | HISTORICAL EVIDENCE |
+| `NI64_FAILURE_RISK.md` | HISTORICAL EVIDENCE |
+| `NI65_IMPACT_SIMULATION.md` | HISTORICAL EVIDENCE |
+| `NI66_HEALTH_DASHBOARD.md` | HISTORICAL EVIDENCE |
+| `NI7_L3_ROUTE_INTELLIGENCE.md` | CURRENT / MAINTAINED |
+| `PH6_COMPLETION.md` | HISTORICAL EVIDENCE |
+| `Q1_PRODUCTION_QUALIFICATION.md` | CURRENT / MAINTAINED |
+| `Q2_PRODUCTION_QUALIFICATION.md` | CURRENT / MAINTAINED |
+| `R60_APPLIANCE_LIFECYCLE.md` | CURRENT / MAINTAINED |
+| `R61_SCALE_PERFORMANCE.md` | CURRENT / MAINTAINED |
+| `R62_1_SECURITY_PACKAGING_HARDENING.md` | CURRENT / MAINTAINED |
+| `R62_POSTGRES_CONCURRENCY_RECOVERY.md` | CURRENT / MAINTAINED |
+| `R63_HA_FAILURE_DOMAIN.md` | CURRENT / MAINTAINED |
+| `R64_SECURITY_ABUSE.md` | CURRENT / MAINTAINED |
+| `R65_OPERATOR_WORKFLOW.md` | CURRENT / MAINTAINED |
+| `R66_OBSERVABILITY_SUPPORTABILITY.md` | CURRENT / MAINTAINED |
+| `R67_1_RELEASE_UI_AUTHORITY_CONSOLIDATION.md` | CURRENT / MAINTAINED |
+| `R67_2_FRESH_DATABASE_BOOTSTRAP_HARDENING.md` | CURRENT / MAINTAINED |
+| `R67_2_SNMP_VENDOR_PROFILE_FRAMEWORK.md` | CURRENT / MAINTAINED |
+| `R67_RELEASE_CANDIDATE_QUALIFICATION.md` | CURRENT / MAINTAINED |
+| `README.md` | CURRENT / MAINTAINED |
+| `ROADMAP.md` | CURRENT / MAINTAINED |
+| `SECURITY.md` | CURRENT / MAINTAINED |
+| `TESTING.md` | CURRENT / MAINTAINED |
+| `TESTING_RESULT_2026-09-07.md` | HISTORICAL EVIDENCE |
+| `TESTING_RESULT_2026-09-11.md` | HISTORICAL EVIDENCE |
+| `TESTING_RESULT_2026-09-12.md` | HISTORICAL EVIDENCE |
+| `TESTING_RESULT_2026-09-13.md` | HISTORICAL EVIDENCE |
+| `VALIDATION_SUMMARY.md` | CURRENT / MAINTAINED |
+| `WEBGUI.md` | CURRENT / MAINTAINED |
+| `WORKSPACE_AUDIT_2026-10-16.md` | CURRENT / MAINTAINED (added 2026-10-16) |
+| `opt/netconfig/CREDENTIALS.md` | CURRENT / MAINTAINED |
+| `opt/netconfig/INSTALL.md` | CURRENT / MAINTAINED |
+| `opt/netconfig/README.md` | CURRENT / MAINTAINED |
+| `opt/netconfig/WEBGUI.md` | CURRENT / MAINTAINED |
+| `packaging/README.md` | CURRENT / MAINTAINED |
+| `patch.md` | CURRENT / MAINTAINED |
+| `qualification/README.md` | CURRENT / MAINTAINED |
+| `qualification/hooks.example/README.md` | CURRENT / MAINTAINED |
+| `qualification/r60-hooks.example/README.md` | CURRENT / MAINTAINED |
+| `qualification/r61-hooks.example/README.md` | CURRENT / MAINTAINED |
+| `qualification/r62-hooks.example/README.md` | CURRENT / MAINTAINED |
+| `qualification/r63-hooks.example/README.md` | CURRENT / MAINTAINED |
+| `qualification/r64-hooks.example/README.md` | CURRENT / MAINTAINED |
+| `qualification/r65-hooks.example/README.md` | CURRENT / MAINTAINED |
+| `qualification/r66-hooks.example/README.md` | CURRENT / MAINTAINED |
+| `qualification/r67-hooks.example/README.md` | CURRENT / MAINTAINED |
+| `tools/rpm-builder/README.md` | CURRENT / MAINTAINED |
 
 ## Roadmap disposition
 
@@ -107,7 +190,7 @@ This file is the documentation truth map. Historical release records retain thei
 - Current product baseline: **R67.2 / `2.0.0-67.2` / `IMPLEMENTED_TESTING_DEFERRED`**; NI-7 remains included and MC-11 remains the final Monitoring/Correlation functional slice.
 - Current assigned track: **R67.2 exact-candidate qualification and the fixed 12-gate `LIVE_RC` campaign**; this is qualification/release work, not a new feature phase.
 - Future NI/MC feature work or any new development track requires an explicit roadmap decision; historical `NEXT`/`PLANNED` text is provenance only. **Do not create MC-12.**
-- Documentation ownership after this sync: **28 CURRENT / MAINTAINED**, **12 HISTORICAL EVIDENCE**, **40 total Markdown files**.
+- Documentation ownership after the 2026-10-13 sync: **54 CURRENT / MAINTAINED**, **13 HISTORICAL EVIDENCE**, **67 total Markdown files**.
 
 ## Historical Release 46 delivery evidence
 
@@ -166,6 +249,10 @@ Historical R51-HF1 documentation checkpoint: the baseline was Release 51 / MC-3 
 
 
 
-## R67 documentation status
+## Historical R67 documentation checkpoint
 
-Canonical documentation is synchronized to Release 67. `R67_RELEASE_CANDIDATE_QUALIFICATION.md` is the release-candidate gate contract. `RELEASE_MANIFEST.json` and `SBOM.spdx.json` are generated deterministically and checked for drift.
+At that historical checkpoint, documentation was synchronized to Release 67. `R67_RELEASE_CANDIDATE_QUALIFICATION.md` is the release-candidate gate contract. `RELEASE_MANIFEST.json` and `SBOM.spdx.json` are generated deterministically and checked for drift.
+
+## 2026-10-13 documentation validation result
+
+Markdown inventory/applicability: **67/67 PASS** (54 maintained, 13 historical). Canonical-state consistency: **PASS**, executing the existing `test_release_67_rc_canonical_truth_is_consistent` assertion function directly. The pytest runner was **NOT_RUN** because the installed Python has no pytest module; direct assertion execution is not reported as a pytest-suite result. Local Markdown links and fenced-code balance pass the documentation audit. All **399 non-Markdown files** checked before/after synchronization are byte-unchanged. No Git operations, full product regression, RPM build or LIVE_RC gates were executed. Original Markdown is recoverable from the external temporary backup created for this sync.

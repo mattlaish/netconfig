@@ -15,10 +15,10 @@ import urllib.parse
 
 _TABS = (
     ("overview", "Overview"),
-    ("workflow", "Operator Journey"),
+    ("workflow", "Incident Workflow"),
     ("structured", "Structured Changes"),
     ("telemetry", "Telemetry"),
-    ("models", "Model Packs"),
+    ("models", "Device Models"),
     ("desired", "Configuration Baselines / Templates & Drift"),
     ("intents", "Automation Requests"),
     ("campaigns", "Campaigns"),
@@ -159,7 +159,7 @@ class WebOpsMixin:
                 continue
             cls = "btn" if key == active else "btn ghost"
             out.append(f'<a class="{cls}" href="/operations?tab={key}">{_e(label)}</a>')
-        out.append('</div><details class="ops-advanced"><summary><b>Advanced operations</b> · telemetry, model packs, HA/DR</summary><div class="row">')
+        out.append('</div><details class="ops-advanced"><summary><b>Advanced operations</b> · streaming monitoring, device models, HA/DR</summary><div class="row">')
         for key, label in _TABS:
             if key in primary:
                 continue
@@ -195,8 +195,8 @@ class WebOpsMixin:
             '<p>Start with the outcome you need. Read-only analysis and drift checking do not require you to trust NetConfig with configuration writes. '
             'Change execution remains optional and keeps the existing approval/audit safeguards.</p>'
             '<div class="ops-actions">'
-            '<div class="ops-card"><h3>Follow an incident to verified change</h3><p>Use the R65 persisted operator journey to move from incident evidence and hypothesis through MC-11 planning, approval, Structured Change verification and post-change evidence.</p>'
-            '<a class="btn" href="/operations?tab=workflow">Operator Journey</a></div>'
+            '<div class="ops-card"><h3>Follow an incident to verified change</h3><p>Investigate an incident, review possible causes, plan a change, request approval and check the results.</p>'
+            '<a class="btn" href="/operations?tab=workflow">Incident Workflow</a></div>'
             '<div class="ops-card"><h3>Check templates & drift</h3><p>Compare devices or groups with a reusable configuration baseline before deciding whether to change anything.</p>'
             '<a class="btn ghost" href="/operations?tab=desired">Configuration Baselines / Templates & Drift</a></div>'
             '<div class="ops-card"><h3>Analyze the network</h3><p>Use stored topology, route, health and telemetry evidence for read-only impact and dependency analysis.</p>'
@@ -204,9 +204,9 @@ class WebOpsMixin:
             '<div class="ops-card"><h3>Controlled changes</h3><p>Structured Changes handles one targeted change; Campaigns stages the same approved change across many devices.</p>'
             '<a class="btn ghost" href="/operations?tab=structured">Structured Changes</a> '
             '<a class="btn ghost" href="/operations?tab=campaigns">Campaigns</a></div>'
-            '<div class="ops-card"><h3>Automation requests</h3><p>Review the durable request/approval ledger created by NetConfig workflows or external automation integrations.</p>'
+            '<div class="ops-card"><h3>Automation requests</h3><p>Review change requests and approval history from NetConfig workflows or connected automation tools.</p>'
             '<a class="btn ghost" href="/operations?tab=intents">Automation Requests</a></div>'
-            '</div><p class="muted">Telemetry subscriptions, Model Packs and HA/DR are available under Advanced operations.</p></div>'
+            '</div><p class="muted">Streaming monitoring, Device Models and HA/DR are available under Advanced operations.</p></div>'
         )
 
     # ---- R65 persisted operator journey --------------------------------
@@ -239,8 +239,8 @@ class WebOpsMixin:
                     f'<td><a href="/incident?ref={urllib.parse.quote(str(inc["incident_key"]))}">Incident console</a></td></tr>'
                 )
             return (
-                '<div class="panel"><h2>R65 · Operator Journey</h2>'
-                '<p class="muted">Persisted-data-first workflow: Dashboard → Incident → Hypothesis → Evidence → Topology / Path Analysis → Proposed Change → Approval → Structured Change → Validation → post-change evidence. This view does not poll devices and does not bypass existing approval, frozen snapshot, verification, rollback or audit authority.</p>'
+                '<div class="panel"><h2>Incident Workflow</h2>'
+                '<p class="muted">Follow an incident from investigation and path analysis to an approved change and follow-up checks. This view does not poll devices. Changes still require approval and safety checks; rollback and audit records remain available.</p>'
                 '<table><tr><th>Incident</th><th>Title</th><th>Severity</th><th>Status</th><th>Investigation</th></tr>'
                 + (''.join(rows) or '<tr><td colspan="5" class="muted">No incidents yet.</td></tr>') + '</table></div>'
             )
@@ -262,12 +262,12 @@ class WebOpsMixin:
             for idx, stage in enumerate(view["stages"])
         )
         header = (
-            f'<div class="panel"><h2>R65 Operator Journey · {_e(key)}</h2>'
-            '<p class="muted">One persisted context across investigation, MC-11 planning, approval, execution and verification. Root cause is never auto-confirmed; analysis and candidate state remain read-only; this journey does not poll devices or trigger page-side network actions.</p>'
+            f'<div class="panel"><h2>Incident Workflow · {_e(key)}</h2>'
+            '<p class="muted">Keep the investigation, change plan, approval and results together. Suggested causes are not confirmed automatically. Analysis does not change devices; this workflow does not poll devices when opened.</p>'
             '<div class="row">'
             f'<a class="btn ghost" href="/dashboard">Dashboard</a><a class="btn ghost" href="/incident?ref={urllib.parse.quote(key)}">Incident</a>'
             '<a class="btn ghost" href="/topology">Topology</a><a class="btn ghost" href="/operations?tab=intelligence">Network Intelligence</a>'
-            '</div><table><tr><th>#</th><th>Stage</th><th>State</th><th>Persisted evidence / next action</th></tr>'
+            '</div><table><tr><th>#</th><th>Stage</th><th>State</th><th>Collected information / next step</th></tr>'
             + stage_rows + '</table></div>'
         )
 
@@ -277,7 +277,7 @@ class WebOpsMixin:
             '<div class="panel"><h3>Investigation context</h3>'
             f'<p><b>Incident:</b> {_e(inc.get("title"))} · {_status(inc.get("status"))}</p>'
             f'<p><b>Current hypothesis:</b> {_e(hyp.get("hypothesis_type") or "No active hypothesis")} · confidence {_e(hyp.get("confidence") or 0)}%</p>'
-            f'<p>{_e(hyp.get("summary") or "Correlate persisted Incident evidence before treating any explanation as supported.")}</p>'
+            f'<p>{_e(hyp.get("summary") or "Analyze the linked incident records before accepting a possible explanation.")}</p>'
             f'<p class="muted">Timeline/evidence items: {len(inv.get("timeline") or [])}. Correlation remains decision support, not causation proof.</p></div>'
         )
 
@@ -294,7 +294,7 @@ class WebOpsMixin:
             )
         elif sess.get("role") in _OPERATOR_ROLES:
             plan_panel = (
-                '<div class="panel"><h3>Persist incident-linked MC-11 path plan</h3>'
+                '<div class="panel"><h3>Create a path plan for this incident</h3>'
                 '<p class="muted">Use already-collected topology, endpoint, route, dependency and policy evidence only; this action performs no device polling.</p>'
                 f'<form method="post" action="/ops-workflow-plan">{self._csrf_field()}'
                 f'<input type="hidden" name="incident" value="{_e(key)}">'
@@ -304,7 +304,7 @@ class WebOpsMixin:
                 '<div class="row"><div><label>Destination prefix</label><input name="destination_prefix"></div>'
                 '<div><label>Source / return prefix</label><input name="source_prefix"></div>'
                 '<div><label>Service</label><input name="service" value="any"></div><div><label>Max hops</label><input name="max_hops" value="16"></div></div>'
-                '<button>Analyze persisted evidence</button></form></div>'
+                '<button>Analyze collected data</button></form></div>'
             )
 
         proposals_panel = ''
@@ -317,10 +317,10 @@ class WebOpsMixin:
                     action = (
                         f'<form method="post" action="/ops-workflow-request">{self._csrf_field()}'
                         f'<input type="hidden" name="incident" value="{_e(key)}"><input type="hidden" name="plan_id" value="{int(plan["id"])}">'
-                        f'<input type="hidden" name="proposal_index" value="{idx}"><button>Submit frozen proposal for approval</button></form>'
+                        f'<input type="hidden" name="proposal_index" value="{idx}"><button>Submit reviewed proposal for approval</button></form>'
                     )
                 items.append(f'<div class="ops-card"><h4>Proposal {idx + 1}</h4><pre>{_pretty(proposal)}</pre>{action}</div>')
-            proposals_panel = '<div class="panel"><h3>Proposed Structured Changes</h3><p class="muted">Buttons submit the exact persisted schema-bounded proposal; no arbitrary command, RPC, URL or caller-supplied approval state is accepted.</p><div class="ops-actions">' + ''.join(items) + '</div></div>'
+            proposals_panel = '<div class="panel"><h3>Proposed Structured Changes</h3><p class="muted">Submit the displayed proposal for separate approval. These controls cannot send arbitrary commands or bypass approval.</p><div class="ops-actions">' + ''.join(items) + '</div></div>'
 
         request_panel = ''
         selected_request = view.get("selected_request") or {}
@@ -338,7 +338,7 @@ class WebOpsMixin:
             if req.get("status") == "pending" and sess.get("role") in _APPROVER_ROLES:
                 actions = (
                     f'<form method="post" action="/ops-workflow-review">{self._csrf_field()}<input type="hidden" name="incident" value="{_e(key)}">'
-                    f'<input type="hidden" name="request_id" value="{int(req["id"])}"><button name="action" value="approve">Approve frozen request</button> '
+                    f'<input type="hidden" name="request_id" value="{int(req["id"])}"><button name="action" value="approve">Approve reviewed request</button> '
                     '<input name="note" placeholder="rejection reason"><button class="danger" name="action" value="reject">Reject</button></form>'
                 )
             elif req.get("status") == "approved" and sess.get("role") in _APPROVER_ROLES:
@@ -350,7 +350,7 @@ class WebOpsMixin:
                 )
             request_panel = (
                 f'<div class="panel"><h3>Approval · CR#{int(req["id"])} · {_status(req.get("status"))}</h3>'
-                f'<p><b>{_e(req.get("title"))}</b> · requested by {_e(req.get("requested_by"))}. Frozen snapshot current: {_status("CURRENT" if fresh else "STALE")}</p>'
+                f'<p><b>{_e(req.get("title"))}</b> · requested by {_e(req.get("requested_by"))}. Submitted change still matches: {_status("CURRENT" if fresh else "STALE")}</p>'
                 '<pre>' + snapshot_text + '</pre>' + actions + '</div>'
             )
 
@@ -375,7 +375,7 @@ class WebOpsMixin:
         )
         validation = (
             '<div class="panel"><h3>Validation & post-change evidence</h3>'
-            '<p class="muted">Structured Change verification is authoritative for the write. R65 then links its normalized execution change-event back to the originating Incident so operators can correlate subsequent evidence without copying raw device payloads.</p>'
+            '<p class="muted">Review the change verification results, then link them to this incident to compare before-and-after monitoring records.</p>'
             '<table><tr><th>Event</th><th>Type</th><th>Status</th><th>Summary</th></tr>'
             + (post_rows or '<tr><td colspan="4" class="muted">No linked post-change execution evidence yet.</td></tr>') + '</table></div>'
         )
@@ -392,7 +392,7 @@ class WebOpsMixin:
                 source_prefix=_value(form, "source_prefix"), service=_value(form, "service", "any"),
                 max_hops=int(_value(form, "max_hops", "16") or 16), actor=sess["username"],
                 incident_ref=incident)
-            return self._redirect(self._workflow_url(incident, plan=int(item["id"]), notice="Incident-linked MC-11 plan stored"))
+            return self._redirect(self._workflow_url(incident, plan=int(item["id"]), notice="Incident path plan saved"))
         except Exception as exc:
             return self._redirect(self._workflow_url(incident, notice=f"Path planning failed: {exc}"))
 
@@ -496,13 +496,13 @@ class WebOpsMixin:
         if sess["role"] in _OPERATOR_ROLES:
             create = (
                 '<div class="panel"><h2>Request structured change</h2>'
-                '<p class="muted">This only creates a durable change request. No device write occurs before approval and execution.</p>'
+                '<p class="muted">This creates a change request only. Devices are not changed until the request is approved and executed.</p>'
                 f'<form method="post" action="/ops-structured-submit">{self._csrf_field()}'
                 '<div class="row"><div><label>Device</label><select name="device">'
                 f'{device_opts}</select></div><div><label>Allow-listed resource</label><input name="resource" required></div>'
                 '<div><label>Title</label><input name="title" placeholder="Structured configuration change"></div></div>'
                 '<label>Selectors JSON</label><textarea name="selectors" placeholder="{&quot;interface&quot;:&quot;GigabitEthernet1&quot;}">{}</textarea>'
-                '<label>Typed value JSON (JSON string/number/bool/object)</label><textarea name="value" required>true</textarea>'
+                '<label>Change value (JSON: text, number, true/false or object)</label><textarea name="value" required>true</textarea>'
                 '<button>Submit for approval</button></form></div>'
             )
         detail = ""
@@ -532,7 +532,7 @@ class WebOpsMixin:
                     f'<tr><th>Verification</th><td>{_e(tx.get("verification_state"))}</td></tr>'
                     f'<tr><th>Rollback</th><td>{_e(tx.get("rollback_state"))}</td></tr>'
                     f'<tr><th>Error</th><td>{_e(tx.get("error"))}</td></tr></table>'
-                    '<div class="row"><div><h3>Requested typed change</h3><pre>' + _pretty(tx.get("request")) + '</pre></div>'
+                    '<div class="row"><div><h3>Requested change</h3><pre>' + _pretty(tx.get("request")) + '</pre></div>'
                     '<div><h3>Pre-read</h3><pre>' + _pretty(tx.get("pre_value")) + '</pre></div>'
                     '<div><h3>Post-read</h3><pre>' + _pretty(tx.get("post_value")) + '</pre></div></div>'
                     f'<div class="row"><div>{rollback}</div><div>{recover}</div></div></div>'
@@ -552,7 +552,7 @@ class WebOpsMixin:
                 '<label>Stale threshold seconds</label><input name="stale_seconds" value="300"><button>Mark interrupted for recovery</button></form></div>'
             )
         table = (
-            '<div class="panel"><h2>Structured transaction ledger</h2>'
+            '<div class="panel"><h2>Device change history</h2>'
             f'<table><tr><th>TX</th><th>Device</th><th>Protocol</th><th>Resource</th><th>State</th><th>Changed</th><th>Approval</th></tr>{"".join(rows) or "<tr><td colspan=7 class=muted>no transactions</td></tr>"}</table></div>'
         )
         return create + detail + table + recovery
@@ -709,7 +709,7 @@ class WebOpsMixin:
                     '<h3>Time-series summary</h3>'
                     f'<form method="get" action="/operations"><input type="hidden" name="tab" value="telemetry"><input type="hidden" name="sub" value="{int(raw)}">'
                     f'<label>Scalar path</label><select name="value_path">{path_opts}</select><button class="ghost">View</button></form>{summary_html}'
-                    f'<h3>Recent bounded samples</h3><table><tr><th>Observed</th><th>Payload</th></tr>{sample_rows or "<tr><td colspan=2 class=muted>no samples</td></tr>"}</table></div>'
+                    f'<h3>Recent monitoring samples</h3><table><tr><th>Observed</th><th>Payload</th></tr>{sample_rows or "<tr><td colspan=2 class=muted>no samples</td></tr>"}</table></div>'
                 )
         maintenance = ""
         if sess["role"] in _OPERATOR_ROLES:
@@ -845,7 +845,7 @@ class WebOpsMixin:
                 '<button name="action" value="enable">Enable</button> <button name="action" value="disable">Disable</button> <button class="danger" name="action" value="delete">Delete custom pack</button></form></div>'
             )
         return (
-            detail + admin + '<div class="panel"><h2>Vendor model packs</h2><table><tr><th>Name</th><th>Revision</th><th>Vendor</th><th>Enabled</th><th>SHA</th></tr>'
+            detail + admin + '<div class="panel"><h2>Device models</h2><table><tr><th>Name</th><th>Revision</th><th>Vendor</th><th>Enabled</th><th>SHA</th></tr>'
             f'{pack_rows}</table><h3>Explicit device bindings</h3><table><tr><th>Device</th><th>Pack</th></tr>{bind_rows or "<tr><td colspan=2 class=muted>no explicit bindings; inference is used</td></tr>"}</table></div>'
         )
 
@@ -854,9 +854,9 @@ class WebOpsMixin:
             return
         try:
             self.manager.vendor_models.create(name=_value(form, "name"), revision=_value(form, "revision"), spec=_json_input(_value(form, "spec"), object_only=True), actor=sess["username"])
-            return self._ops_redirect("models", "Model pack created")
+            return self._ops_redirect("models", "Device model created")
         except Exception as exc:
-            return self._ops_redirect("models", f"Model pack create failed: {exc}")
+            return self._ops_redirect("models", f"Could not create device model: {exc}")
 
     def _do_ops_model_bind(self, form, sess):
         if not self._ops_require(sess, _ADMIN_ROLES):
@@ -889,9 +889,9 @@ class WebOpsMixin:
                 self.manager.vendor_models.delete(name, sess["username"])
             else:
                 raise ValueError("unsupported model-pack action")
-            return self._ops_redirect("models", f"Model pack {action} completed")
+            return self._ops_redirect("models", f"Device model {action} completed")
         except Exception as exc:
-            return self._ops_redirect("models", f"Model pack action failed: {exc}")
+            return self._ops_redirect("models", f"Device model action failed: {exc}")
 
     # ---- NA-1 desired state --------------------------------------------
     def _ops_desired(self, q, sess):
@@ -1004,7 +1004,7 @@ class WebOpsMixin:
             return
         try:
             dsid = int(_value(form, "dsid", "0"))
-            rid = self.wf.submit_automation(title=f"Apply desired state DS#{dsid}", intent={"kind": "desired_apply", "desired_state_id": dsid, "rollback_on_failure": bool(_value(form, "rollback_on_failure"))}, requested_by=sess["username"])
+            rid = self.wf.submit_automation(title=f"Apply configuration baseline #{dsid}", intent={"kind": "desired_apply", "desired_state_id": dsid, "rollback_on_failure": bool(_value(form, "rollback_on_failure"))}, requested_by=sess["username"])
             return self._redirect(f"/request?id={rid}")
         except Exception as exc:
             return self._ops_redirect("desired", f"Apply request failed: {exc}")
@@ -1023,17 +1023,17 @@ class WebOpsMixin:
             )
         table = (
             '<div class="panel"><h2>Automation requests</h2>'
-            '<p class="muted">This is the approval/audit ledger for automation requests; it is not a free-form command builder. Durable requests are frozen before approval. '
-            'Execution remains behind the normal approval and snapshot-revalidation workflow; '
+            '<p class="muted">Review automation requests and their approval history. Submitted changes are saved for review before approval. '
+            'Changes are checked again before execution and still require approval; '
             'this page does not execute device changes directly.</p>'
-            '<table><tr><th>Request</th><th>Title</th><th>Intent kind</th><th>Status</th><th>Requested by</th></tr>'
+            '<table><tr><th>Request</th><th>Title</th><th>Change type</th><th>Status</th><th>Requested by</th></tr>'
             + (''.join(rows) if rows else '<tr><td colspan="5" class="muted">no automation requests</td></tr>')
             + '</table></div>'
         )
         links = (
-            '<div class="panel"><h2>Start from the owning workflow</h2>'
-            '<p class="muted">Create intents from the typed workflow that owns the desired change. '
-            'Those workflows submit the frozen intent for separate approval.</p>'
+            '<div class="panel"><h2>Choose a change workflow</h2>'
+            '<p class="muted">Create a request using the workflow for the change you need. '
+            'Each workflow submits the proposed change for separate approval.</p>'
             '<div class="row"><a class="btn" href="/operations?tab=structured">Structured Change</a>'
             '<a class="btn ghost" href="/operations?tab=desired">Configuration Baselines / Templates & Drift</a>'
             '<a class="btn ghost" href="/operations?tab=campaigns">Campaign</a></div></div>'
@@ -1053,7 +1053,7 @@ class WebOpsMixin:
             ds_opts = ''.join(f'<option value="{int(item["id"])}">DS#{int(item["id"])} · {_e(item.get("name"))}</option>' for item in states)
             create = (
                 '<div class="panel"><h2>Create fleet campaign</h2>'
-                f'<form method="post" action="/ops-campaign-create">{self._csrf_field()}<div class="row"><div><label>Name</label><input name="name"></div><div><label>Published desired state</label><select name="desired_state_id">{ds_opts}</select></div></div>'
+                f'<form method="post" action="/ops-campaign-create">{self._csrf_field()}<div class="row"><div><label>Name</label><input name="name"></div><div><label>Published configuration baseline</label><select name="desired_state_id">{ds_opts}</select></div></div>'
                 '<div class="row"><div><label>Wave size</label><input name="wave_size" value="1"></div><div><label>Canary size</label><input name="canary_size" value="0"></div><div><label>Max failures</label><input name="max_failures" value="0"></div></div>'
                 '<label><input type="checkbox" name="rollback_on_failure" value="1" checked> rollback completed targets in a failed wave</label><button>Create campaign</button></form></div>'
             )
@@ -1080,7 +1080,7 @@ class WebOpsMixin:
                     f'<h3>Frozen plan</h3><pre>{_pretty(item.get("plan"))}</pre>'
                     f'<h3>Target progress</h3><table><tr><th>#</th><th>Device</th><th>Wave</th><th>State</th><th>Attempt</th><th>TX</th><th>RUN</th><th>Error</th></tr>{target_rows}</table></div>'
                 )
-        return create + detail + f'<div class="panel"><h2>Fleet campaigns</h2><table><tr><th>Campaign</th><th>Desired state</th><th>State</th><th>Wave</th><th>Failures</th></tr>{rows or "<tr><td colspan=5 class=muted>no campaigns</td></tr>"}</table></div>'
+        return create + detail + f'<div class="panel"><h2>Fleet campaigns</h2><table><tr><th>Campaign</th><th>Configuration baseline</th><th>State</th><th>Wave</th><th>Failures</th></tr>{rows or "<tr><td colspan=5 class=muted>no campaigns</td></tr>"}</table></div>'
 
     def _do_ops_campaign_create(self, form, sess):
         if not self._ops_require(sess, _OPERATOR_ROLES):
@@ -1138,7 +1138,7 @@ class WebOpsMixin:
         if sess["role"] in _OPERATOR_ROLES:
             forms = (
                 '<div class="row"><div class="panel"><h2>Refresh analytics</h2>'
-                '<p class="muted">Generate durable Capacity, Failure Risk and Health insights from current evidence. This does not change network state.</p>'
+                '<p class="muted">Analyze collected data for capacity, failure risk and health recommendations. This does not change devices.</p>'
                 f'<form method="post" action="/ops-analytics-refresh">{self._csrf_field()}'
                 f'<label>Managed object</label><select name="object_id">{device_opts}</select>'
                 '<button>Analyze and persist</button></form></div>'
@@ -1162,7 +1162,7 @@ class WebOpsMixin:
             for r in routes
         ) or '<tr><td colspan="7" class="muted">No explicit L3 route observations.</td></tr>'
         l3_panel = (
-            '<div class="panel"><h2>NI-7 · L3/VRF path intelligence</h2>'
+            '<div class="panel"><h2>Routing & VRF Path Analysis</h2>'
             '<p class="muted">Explicit route evidence only. No next-hop IP inference, no VRF crossing, no arbitrary ECMP choice, and no network mutation.</p>'
         )
         if sess["role"] in _OPERATOR_ROLES:
@@ -1204,7 +1204,7 @@ class WebOpsMixin:
             f'<td>{_e(p.get("vrf"))}</td><td>{_status(p.get("planning_status"))}</td>'
             f'<td>{len((p.get("result") or {}).get("configuration_gaps") or [])}</td></tr>'
             for p in plans
-        ) or '<tr><td colspan="6" class="muted">No persisted MC-11 plans.</td></tr>'
+        ) or '<tr><td colspan="6" class="muted">No saved path or change plans.</td></tr>'
         mc11_forms = ''
         if sess["role"] in _OPERATOR_ROLES:
             mc11_forms = (
@@ -1248,8 +1248,8 @@ class WebOpsMixin:
                     '<div class="row"><a class="btn ghost" href="/operations?tab=structured">Continue to Structured Change approval</a></div></div>'
                 )
         mc11_panel = (
-            '<div class="panel"><h2>MC-11 · Topology-Aware Change Planning</h2>'
-            '<p class="muted">Persisted-data-only Source → Destination planning combines endpoint attachment, forward/return L3/VRF path evidence, service dependencies, and ACL/firewall/NAT/PBR/routing-policy evidence. Missing or ambiguous evidence stays UNKNOWN. Planning can propose a schema-bounded Structured Change but cannot execute it.</p>'
+            '<div class="panel"><h2>Path & Change Planning</h2>'
+            '<p class="muted">Plan a source-to-destination path using collected endpoint, routing, service and network policy information. Missing or conflicting data is shown as Unknown. A plan can suggest a change, but cannot execute it.</p>'
             + mc11_forms + '<h3>Recent plans</h3><table><tr><th>Plan</th><th>Source</th><th>Destination</th><th>VRF</th><th>Status</th><th>Gaps</th></tr>'
             + plan_rows + '</table></div>' + plan_detail
         )
@@ -1260,7 +1260,7 @@ class WebOpsMixin:
             f'<div><b>{int(dashboard.get("states",{}).get("NEW",0))}</b><br><span class="muted">new</span></div>'
             f'<div><b>{int(dashboard.get("states",{}).get("ACKNOWLEDGED",0))}</b><br><span class="muted">acknowledged</span></div>'
             f'<div><b>{int(dashboard.get("types",{}).get("HEALTH",0))}</b><br><span class="muted">health observations</span></div></div>'
-            '<p class="muted">Insights are evidence and recommendations only. Any configuration action must use the existing approved Structured Changes, Desired State or Campaign workflow.</p></div>'
+            '<p class="muted">Insights are evidence and recommendations only. Any configuration action must use the existing approved device-change, configuration-baseline or campaign workflow.</p></div>'
         )
         filter_form = (
             '<div class="panel"><h2>Insight search</h2><form method="get" action="/operations">'
@@ -1278,9 +1278,9 @@ class WebOpsMixin:
             f'<td>{_status(x.get("severity"))}</td><td>{_status(x.get("state"))}</td>'
             f'<td>{float(x.get("confidence") or 0):.2f}</td><td>{_e(x.get("summary"))}</td></tr>'
             for x in insights
-        ) or '<tr><td colspan="7" class="muted">No persisted analytics insights match this filter.</td></tr>'
+        ) or '<tr><td colspan="7" class="muted">No saved analysis results match this filter.</td></tr>'
         ledger = (
-            '<div class="panel"><h2>Persisted insights</h2><table><tr><th>Insight</th><th>Type</th><th>Object</th><th>Severity</th><th>Lifecycle</th><th>Confidence</th><th>Summary</th></tr>'
+            '<div class="panel"><h2>Saved analysis results</h2><table><tr><th>Insight</th><th>Type</th><th>Object</th><th>Severity</th><th>Lifecycle</th><th>Confidence</th><th>Summary</th></tr>'
             + rows + '</table></div>'
         )
         detail = ""
@@ -1418,7 +1418,7 @@ class WebOpsMixin:
                 service=_value(form, "service", "any"),
                 max_hops=int(_value(form, "max_hops", "16") or 16), actor=sess["username"])
             return self._redirect(
-                f'/operations?tab=intelligence&plan={int(item["id"])}&notice=MC-11+plan+stored')
+                f'/operations?tab=intelligence&plan={int(item["id"])}&notice=Path+plan+saved')
         except Exception as exc:
             return self._ops_redirect("intelligence", f"Change planning failed: {exc}")
 
@@ -1438,7 +1438,7 @@ class WebOpsMixin:
                 destination_selector=_value(form, "destination_selector", "*"),
                 service=_value(form, "service", "any"), state=_value(form, "state", "UNKNOWN"),
                 evidence_ref=_value(form, "evidence_ref"), metadata=metadata, actor=sess["username"])
-            return self._ops_redirect("intelligence", f"MC-11 evidence #{int(item['id'])} stored")
+            return self._ops_redirect("intelligence", f"Planning record #{int(item['id'])} stored")
         except Exception as exc:
             return self._ops_redirect("intelligence", f"Change-planning evidence failed: {exc}")
 
@@ -1511,15 +1511,15 @@ class WebOpsMixin:
             if (sess["role"] == "admin" and task.get("state") == "RECOVERY_REQUIRED"
                     and bool(task.get("replay_safe"))):
                 action = (f'<form method="post" action="/ops-ha-task-requeue" class="inline-form">{self._csrf_field()}'
-                          f'<input type="hidden" name="task_id" value="{int(task["id"])}"><input name="reason" required maxlength="240" placeholder="operator recovery reason"><button class="ghost">Requeue safe task</button></form>')
+                          f'<input type="hidden" name="task_id" value="{int(task["id"])}"><input name="reason" required maxlength="240" placeholder="operator recovery reason"><button class="ghost">Retry safe task</button></form>')
             task_rows.append(
                 f'<tr><td>#{int(task["id"])}</td><td>{_e(task.get("queue"))}</td><td>{_e(task.get("kind"))}</td>'
                 f'<td>{_status(task.get("state"))}</td><td>{"yes" if task.get("replay_safe") else "no"}</td>'
                 f'<td>{int(task.get("claim_generation") or 0)}</td><td>{_e(task.get("claimed_instance") or task.get("claimed_by"))}</td><td>{action}</td></tr>')
         task_panel = (
             '<div class="panel"><h2>Distributed work recovery</h2>'
-            '<p class=muted>R63 fenced work queue. Expired/unknown-side-effect work remains RECOVERY_REQUIRED; only explicitly replay-safe work may be manually requeued, and only by admin.</p>'
-            f'<div class="table-wrap"><table><tr><th>ID</th><th>Queue</th><th>Kind</th><th>State</th><th>Replay safe</th><th>Generation</th><th>Claimed by</th><th>Recovery</th></tr>{"".join(task_rows) or "<tr><td colspan=8 class=muted>no distributed tasks</td></tr>"}</table></div></div>'
+            '<p class=muted>Tasks with an expired execution window or uncertain results need recovery review (RECOVERY_REQUIRED). Only an administrator can retry tasks that are confirmed safe to repeat.</p>'
+            f'<div class="table-wrap"><table><tr><th>ID</th><th>Queue</th><th>Kind</th><th>State</th><th>Safe to retry</th><th>Assignment number</th><th>Processing node</th><th>Recovery</th></tr>{"".join(task_rows) or "<tr><td colspan=8 class=muted>no distributed tasks</td></tr>"}</table></div></div>'
         )
         return (
             f'<div class="panel"><h2>HA readiness</h2><pre>{_pretty(readiness)}</pre></div>' + admin + task_panel + drill_form + detail +
@@ -1579,18 +1579,18 @@ class WebOpsMixin:
         action = ""
         if cr["status"] == "pending" and sess["role"] in _APPROVER_ROLES:
             action = (
-                f'<form method="post" action="/request-approve">{self._csrf_field()}<input type="hidden" name="id" value="{int(cr["id"])}"><button>Approve frozen automation</button></form> '
+                f'<form method="post" action="/request-approve">{self._csrf_field()}<input type="hidden" name="id" value="{int(cr["id"])}"><button>Approve reviewed automation</button></form> '
                 f'<form method="post" action="/request-reject">{self._csrf_field()}<input type="hidden" name="id" value="{int(cr["id"])}"><input name="note" placeholder="reason"><button class="danger">Reject</button></form>'
             )
         elif cr["status"] == "approved" and sess["role"] in _APPROVER_ROLES:
             action = f'<form method="post" action="/request-execute">{self._csrf_field()}<input type="hidden" name="id" value="{int(cr["id"])}"><button>Execute approved automation</button></form>'
         return (
             f'<div class="panel"><h2>CR#{int(cr["id"])} · {_e(cr.get("title"))} · {_status(cr.get("status"))}</h2>'
-            f'<p>Automation kind: <b>{_e((auto.get("intent") or {}).get("kind"))}</b></p>'
-            f'<p>Snapshot integrity: <span class="badge {badge}">{"CURRENT" if auto.get("snapshot_matches") else "DRIFTED — re-submit required"}</span></p>'
+            f'<p>Change type: <b>{_e((auto.get("intent") or {}).get("kind"))}</b></p>'
+            f'<p>Submitted change check: <span class="badge {badge}">{"CURRENT" if auto.get("snapshot_matches") else "Changed — submit for approval again"}</span></p>'
             f'<table><tr><th>Submitted SHA-256</th><td><code>{_e(auto.get("snapshot_sha256"))}</code></td></tr>'
             f'<tr><th>Current SHA-256</th><td><code>{_e(auto.get("snapshot_current_sha256"))}</code></td></tr></table>'
-            '<div class="row"><div><h3>Frozen submitted intent</h3><pre>' + _pretty(auto.get("submitted_snapshot")) + '</pre></div>'
-            '<div><h3>Current resolved intent</h3><pre>' + _pretty(auto.get("current_snapshot")) + '</pre></div></div>'
+            '<div class="row"><div><h3>Submitted change details</h3><pre>' + _pretty(auto.get("submitted_snapshot")) + '</pre></div>'
+            '<div><h3>Current change details</h3><pre>' + _pretty(auto.get("current_snapshot")) + '</pre></div></div>'
             f'<div>{action}</div></div>'
         )

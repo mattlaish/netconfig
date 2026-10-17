@@ -13,13 +13,12 @@ import urllib.parse
 from pathlib import Path
 
 from . import compliance as _compliance
-from .users import can as _can, roles as _roles
+from .users import can as _can
 from .workflow import Workflow, Scripts
 from .drivers import platforms as _platforms, get_driver as _get_driver
 from . import config as _config
 from .security import LoginThrottle, security_headers
 
-_LOGIN_THROTTLE = LoginThrottle()
 from .observability import METRICS, event as _obs_event
 from .credentials import service_master_password
 from .debug import DebugBundle
@@ -34,6 +33,7 @@ from .web_integrations import WebIntegrationsMixin
 from .web_mc9 import WebMC9Mixin
 from .web_supportability import WebSupportabilityMixin
 from .web_database import WebDatabaseMixin
+from .web_feature_controls import WebFeatureControlsMixin
 
 from .web_security_runtime import (
     SESSION_IDLE_SECONDS, SESSION_ABSOLUTE_SECONDS, MAX_CONSOLE_SESSIONS,
@@ -54,8 +54,10 @@ from .web_ui import (
     render_vendor_profile_admin,
 )
 
+_LOGIN_THROTTLE = LoginThrottle()
 
-class Console(WebDatabaseMixin, WebSupportabilityMixin, WebMC9Mixin, WebOpsMixin, WebApiMixin, WebDependenciesMixin, WebIntegrationsMixin, http.server.BaseHTTPRequestHandler):
+
+class Console(WebFeatureControlsMixin, WebDatabaseMixin, WebSupportabilityMixin, WebMC9Mixin, WebOpsMixin, WebApiMixin, WebDependenciesMixin, WebIntegrationsMixin, http.server.BaseHTTPRequestHandler):
     manager = None
     tls_enabled = False
     netflow = None
@@ -146,7 +148,7 @@ class Console(WebDatabaseMixin, WebSupportabilityMixin, WebMC9Mixin, WebOpsMixin
             ("Monitor", [("/alerts","Alerts"),("/incidents","Incidents"),("/traffic","Traffic")]),
             ("Inventory", [("/","Devices"),("/groups","Groups"),("/endpoints","Endpoints"),("/topology","Topology"),("/dependencies","Dependencies")]),
             ("Operations", [("/operations","Operations"),("/automation","Automation"),("/requests","Change Requests"),("/compliance","Compliance")]),
-            ("Collection", [("/protocols","Device Collection"),("/snmp","SNMP"),("/runs","Run Log"),("/diagnostics","Diagnostics")]),
+            ("Collection", [("/protocols","Device Collection"),("/snmp","SNMP"),("/runs","Run Log"),("/diagnostics","Diagnostics"),("/traces","Protocol Traces")]),
         ]
         admin=[]
         if _can(role,"manage_devices"):
@@ -286,8 +288,8 @@ class Console(WebDatabaseMixin, WebSupportabilityMixin, WebMC9Mixin, WebOpsMixin
         if not _can(sess["role"], "settings"):
             return self._send("forbidden", 403, "text/plain")
         name = (q.get("name") or [""])[0]
-        p = Path(getattr(self.manager.paths, "home", ".")) / "debug-bundles" / Path(name).name
-        if not p.exists() or p.suffixes[-2:] != [".tar", ".gz"]:
+        p = DebugBundle(self.manager).get_bundle(name)
+        if p is None:
             return self._send("not found", 404, "text/plain")
         self.manager.db.audit(sess["username"], "debug_bundle_download", p.name, "diagnostics")
         return self._send_file(p, "application/gzip", [("Content-Disposition", f"attachment; filename=\"{p.name}\"")])
@@ -532,7 +534,7 @@ class Console(WebDatabaseMixin, WebSupportabilityMixin, WebMC9Mixin, WebOpsMixin
 <div class=row><div><label>Device</label><select name=device {"" if devices else "disabled"}>{devices or "<option>No devices</option>"}</select></div>
 <div><label>Protocol</label><select name=protocol><option value=cli_ssh>CLI / SSH</option><option value=snmp>SNMP</option></select></div>
 <div><label>TTL seconds</label><input type=number min=30 max=3600 name=ttl value=900></div></div>
-<label>Reason</label><input name=reason maxlength=1000><button {"" if devices else "disabled"}>Start bounded trace</button></form>'''
+<label>Reason</label><input name=reason maxlength=1000><button {"" if devices else "disabled"}>Start trace</button></form>'''
         trace_events = ""
         selected_trace = (q.get("trace") or [""])[0].strip()
         if selected_trace:
@@ -763,6 +765,7 @@ class Console(WebDatabaseMixin, WebSupportabilityMixin, WebMC9Mixin, WebOpsMixin
             "/incident": lambda s: self._incident_page(q, s),
             "/incident-export-download": lambda s: self._incident_export_download(q, s),
             "/diagnostics": lambda s: self._diagnostics_page(s),
+            "/traces": lambda s: self._traces_page(q, s),
             "/debug-download": lambda s: self._debug_download(q, s),
             "/snmp-series": lambda s: self._snmp_series(q, s),
             "/snmp-history": lambda s: self._snmp_history(q, s),
@@ -793,14 +796,6 @@ class Console(WebDatabaseMixin, WebSupportabilityMixin, WebMC9Mixin, WebOpsMixin
             form = self._read_post()
             if self._handle_api_post(u.path, form):
                 return
-        if u.path == "/debug-create":
-            _, sess = self._session()
-            form = self._read_post()
-            if not sess or not _can(sess["role"], "settings") or not self._check_csrf(form):
-                return self._send("forbidden", 403, "text/plain")
-            out = DebugBundle(self.manager).collect()
-            self.manager.db.audit(sess["username"], "debug_bundle_create", str(out), "diagnostics")
-            return self._redirect("/diagnostics")
         if u.path == "/mib-upload":
             return self._do_mib_upload_raw()
         if u.path == "/vendor-profile-upload":
@@ -825,6 +820,13 @@ class Console(WebDatabaseMixin, WebSupportabilityMixin, WebMC9Mixin, WebOpsMixin
             "/snmp-poll": lambda: self._do_snmp(form, sess),
             "/protocol-save": lambda: self._do_protocol_save(form, sess),
             "/protocol-collect": lambda: self._do_protocol_collect(form, sess),
+            "/protocol-delete": lambda: self._do_protocol_delete(form, sess),
+            "/protocol-inspect": lambda: self._do_protocol_inspect(form, sess),
+            "/debug-create": lambda: self._do_debug_create(form, sess),
+            "/debug-verify": lambda: self._do_debug_verify(form, sess),
+            "/debug-cleanup": lambda: self._do_debug_cleanup(form, sess),
+            "/trace-start": lambda: self._do_trace_start(form, sess),
+            "/trace-stop": lambda: self._do_trace_stop(form, sess),
             "/topology-discover": lambda: self._do_topology_discover(form, sess),
             "/dependency-entity-save": lambda: self._do_dependency_entity_save(form, sess),
             "/dependency-edge-save": lambda: self._do_dependency_edge_save(form, sess),
@@ -880,6 +882,7 @@ class Console(WebDatabaseMixin, WebSupportabilityMixin, WebMC9Mixin, WebOpsMixin
             "/settings-save": lambda: self._do_settings_save_v2(form, sess),
             "/user-create": lambda: self._do_user_create(form, sess),
             "/user-update": lambda: self._do_user_update(form, sess),
+            "/user-access": lambda: self._do_user_access(form, sess),
         }
         h = handlers.get(u.path)
         if h:
@@ -1674,8 +1677,8 @@ an optional expected status code. HTTPS URLs also get a TLS certificate check
         m = self.manager
         if not m.vault.exists():
             body = (f'<div class="panel"><h2>Create the credential vault</h2>'
-                    f'<p class="muted">The vault encrypts device credentials (PBKDF2 + '
-                    f'ChaCha20-Poly1305). Choose a master password \u2014 it is never stored '
+                    f'<p class="muted">The vault encrypts device credentials. '
+                    f'Choose a master password \u2014 it is never stored '
                     f'and cannot be recovered.</p>'
                     f'<form method=post action="/vault-create" class="row">{self._csrf_field()}'
                     f'<input type=password name=master placeholder="Master password">'
@@ -1805,7 +1808,7 @@ an optional expected status code. HTTPS URLs also get a TLS certificate check
         sections = (("general", "General & SSH"), ("snmp", "SNMP polling"),
                     ("netflow", "NetFlow"), ("monitoring", "Monitoring"),
                     ("integrations", "Integrations"), ("email", "Email & OAuth"),
-                    ("db", "Database"))
+                    ("db", "Database"), ("evidence", "Evidence signing"))
         if section not in dict(sections):
             section = "general"
         s = self.manager.settings
@@ -1837,7 +1840,7 @@ an optional expected status code. HTTPS URLs also get a TLS certificate check
 <div class=muted>accept-new trusts new hosts once, then pins</div></div>
 <div><label>Session recording</label>
 <label style="color:var(--text);font-weight:400"><input type=checkbox name=record_sessions value=1 style="width:auto" {"checked" if s.get("record_sessions") else ""}> record transcripts</label>
-<label style="color:var(--text);font-weight:400"><input type=checkbox name=scrub_sessions value=1 style="width:auto" {"checked" if s.get("scrub_sessions") else ""}> scrub secrets in transcripts</label></div></div>
+<label style="color:var(--text);font-weight:400"><input type=checkbox name=scrub_sessions value=1 style="width:auto" {"checked" if s.get("scrub_sessions") else ""}> mask passwords and secrets in session recordings</label></div></div>
 <button>Save general settings</button></form></div>"""
         elif section == "snmp":
             content = f"""<div class="panel"><h2>SNMP polling</h2>
@@ -1845,7 +1848,7 @@ an optional expected status code. HTTPS URLs also get a TLS certificate check
 {form}<div class="row">{field("snmp_timeout","SNMP timeout (s)")}{field("snmp_port","Default SNMP port")}</div>
 <div class="row">{field("snmp_poll_interval","Background poll interval (s)","0 = off; restart the console after changing this value")}
 {field("snmp_history_seconds","Live-graph history window (s)")}
-{field("network_intelligence_max_age_seconds","Endpoint evidence max age (s)","older FDB/neighbor observations are marked stale")}</div>
+{field("network_intelligence_max_age_seconds","Mark endpoint data outdated after (s)","older FDB/neighbor observations are marked stale")}</div>
 <button>Save SNMP settings</button></form></div>"""
         elif section == "netflow":
             content = f"""<div class="panel"><h2>NetFlow</h2>
@@ -1862,22 +1865,22 @@ an optional expected status code. HTTPS URLs also get a TLS certificate check
 {field("monitor_history_days","Monitor history retention (days)")}</div>
 <h3>Event-driven collection &amp; digest</h3>
 <div class="row"><div><label>Syslog change receiver</label><label style="color:var(--text);font-weight:400"><input type=checkbox name=syslog_enabled value=1 style="width:auto" {"checked" if s.get("syslog_enabled") else ""}> enabled (restart required)</label></div>
-{field("syslog_port","Syslog UDP port","default 5514; forward udp/514 if required")}{field("syslog_queue_size","Syslog queue size")}{field("syslog_debounce_seconds","Change debounce (s)")}</div>
+{field("syslog_port","Syslog UDP port","default 5514; forward udp/514 if required")}{field("syslog_queue_size","Maximum queued Syslog messages")}{field("syslog_debounce_seconds","Minimum time between change collections (s)")}</div>
 <h3>SNMP traps &amp; operational events</h3>
 <div class="row"><div><label>SNMP trap receiver</label><label style="color:var(--text);font-weight:400"><input type=checkbox name=snmp_trap_enabled value=1 style="width:auto" {"checked" if s.get("snmp_trap_enabled") else ""}> enabled (restart required)</label></div>
-{field("snmp_trap_port","Trap UDP port","default 5162; forward udp/162 if required")}{field("snmp_trap_queue_size","Trap queue size")}{field("operational_event_dedup_seconds","Event dedup window (s)")}</div>
-<div class="row">{field("operational_suppression_ttl_seconds","Dependency suppression TTL (s)")}{field("snmp_trap_repoll_debounce_seconds","Targeted re-poll debounce (s)")}<div><label>Targeted re-poll</label><label style="color:var(--text);font-weight:400"><input type=checkbox name=snmp_trap_targeted_repoll value=1 style="width:auto" {"checked" if s.get("snmp_trap_targeted_repoll", True) else ""}> poll matched managed device after accepted trap</label></div></div>
+{field("snmp_trap_port","Trap UDP port","default 5162; forward udp/162 if required")}{field("snmp_trap_queue_size","Maximum queued SNMP traps")}{field("operational_event_dedup_seconds","Ignore repeated events within (s)")}</div>
+<div class="row">{field("operational_suppression_ttl_seconds","Related-alert suppression duration (s)")}{field("snmp_trap_repoll_debounce_seconds","Minimum time between trap-triggered polls (s)")}<div><label>Targeted re-poll</label><label style="color:var(--text);font-weight:400"><input type=checkbox name=snmp_trap_targeted_repoll value=1 style="width:auto" {"checked" if s.get("snmp_trap_targeted_repoll", True) else ""}> poll matched managed device after accepted trap</label></div></div>
 <div class="row">{field("digest_interval","Compliance/drift digest interval (s)","0 = off; 86400 = daily; uses configured email")}</div>
-<h3>NI-4 alert/report lifecycle</h3>
-<div class="row">{field("operational_alert_min_severity","Alert minimum severity","INFO / NOTICE / WARNING / MINOR / MAJOR / CRITICAL")}{field("operational_lifecycle_interval","Lifecycle scheduler interval (s)","0 = off; processes report schedules and notification retries")}</div>
-<h3>NI-5 telemetry lifecycle</h3>
-<div class="row">{field("telemetry_scheduler_interval","Telemetry scheduler interval (s)","0 = off; runs due bounded gNMI streaming windows")}</div>
-<div class="row">{field("operational_notification_max_attempts","Notification max attempts")}{field("operational_notification_backoff_base_seconds","Retry base seconds")}{field("operational_notification_backoff_max_seconds","Retry max seconds")}</div>
-<label style="color:var(--text);font-weight:400"><input type=checkbox name=operational_notifications_enabled value=1 style="width:auto" {"checked" if s.get("operational_notifications_enabled") else ""}> enable NI-4 alert/report SMTP notifications</label>
+<h3>Alerts & scheduled reports</h3>
+<div class="row">{field("operational_alert_min_severity","Alert minimum severity","INFO / NOTICE / WARNING / MINOR / MAJOR / CRITICAL")}{field("operational_lifecycle_interval","Alert and report check interval (s)","0 = off; processes report schedules and notification retries")}</div>
+<h3>Streaming monitoring</h3>
+<div class="row">{field("telemetry_scheduler_interval","Streaming collection check interval (s)","0 = off; checks when gNMI monitoring sessions are due")}</div>
+<div class="row">{field("operational_notification_max_attempts","Notification max attempts")}{field("operational_notification_backoff_base_seconds","Initial retry delay (s)")}{field("operational_notification_backoff_max_seconds","Maximum retry delay (s)")}</div>
+<label style="color:var(--text);font-weight:400"><input type=checkbox name=operational_notifications_enabled value=1 style="width:auto" {"checked" if s.get("operational_notifications_enabled") else ""}> enable email notifications for alerts and scheduled reports</label>
 <h3>Diagnostic retention</h3>
-<p class="muted">Maintenance is opt-in. Case-export metadata is preserved when archives expire; incident-linked traces are never auto-pruned.</p>
+<p class="muted">Automatic cleanup is off unless enabled. Export history is kept after archive files expire; traces linked to incidents are never removed automatically.</p>
 <div class="row">{field("diagnostic_maintenance_interval","Maintenance interval (s)","0 = off; minimum 60 when enabled")}{field("debug_bundle_keep","Support bundles to keep","newest N; minimum 1")}</div>
-<div class="row">{field("case_export_retention_days","Case archive retention (days)","0 = retain indefinitely; metadata remains")}{field("protocol_trace_retention_days","Unlinked trace retention (days)","0 = retain; incident-linked traces excluded")}</div>
+<div class="row">{field("case_export_retention_days","Case archive retention (days)","0 = keep archive files indefinitely; export history is always kept")}{field("protocol_trace_retention_days","Unlinked trace retention (days)","0 = retain; incident-linked traces excluded")}</div>
 <button>Save monitoring settings</button></form></div>"""
         elif section == "monitoring":
             s["syslog_enabled"] = bool(form.get("syslog_enabled"))
@@ -1917,6 +1920,8 @@ an optional expected status code. HTTPS URLs also get a TLS certificate check
 
         elif section == "db":
             content = self._database_settings_content(s, form)
+        elif section == "evidence":
+            content = self._evidence_settings_content(sess)
 
         body = (f'<h1>Settings</h1><p class="muted" style="margin-bottom:14px">Stored in '
                 f'<code>settings.json</code> in the data directory.</p><div class="settings-shell">'
@@ -2001,7 +2006,7 @@ The client secret is stored in the vault.</p>
 <div class=muted>accept-new trusts new hosts once, then pins</div></div>
 <div><label>Session recording</label>
 <label style="color:var(--text);font-weight:400"><input type=checkbox name=record_sessions value=1 style="width:auto" {"checked" if s.get("record_sessions") else ""}> record transcripts</label>
-<label style="color:var(--text);font-weight:400"><input type=checkbox name=scrub_sessions value=1 style="width:auto" {"checked" if s.get("scrub_sessions") else ""}> scrub secrets in transcripts</label>
+<label style="color:var(--text);font-weight:400"><input type=checkbox name=scrub_sessions value=1 style="width:auto" {"checked" if s.get("scrub_sessions") else ""}> mask passwords and secrets in session recordings</label>
 </div></div>
 <button>Save settings</button>
 <button formaction="/smtp-test" formmethod="post" class=ghost style="margin-left:8px">Send test email</button></form></div>"""
@@ -2067,6 +2072,8 @@ The client secret is stored in the vault.</p>
         def g(k):
             return (form.get(k) or [""])[0].strip()
         section = g("section") or "general"
+        if section == "evidence":
+            return self._save_evidence_settings(form, sess)
         valid_sections = {"general", "snmp", "netflow", "monitoring", "email", "db"}
         if section not in valid_sections:
             section = "general"
@@ -2184,7 +2191,7 @@ The client secret is stored in the vault.</p>
             for n, o in shortcuts)
         rows = ""
         note = ('Choose a subtree only when you need raw SNMP/OID troubleshooting. '
-                'Normal NetConfig features use their own bounded collectors.')
+                'Other NetConfig features use their own collection settings.')
         if requested:
             try:
                 data = self.manager.snmp_walk(device, root=root, max_vars=400)
@@ -2217,7 +2224,11 @@ The client secret is stored in the vault.</p>
     def _protocols_page(self, q, sess):
         from .web_ui import render_protocols_page
         flash = "Protocol operation completed." if (q.get("notice") or [""])[0] else None
-        return self._send(self._page("Device Collection", render_protocols_page(self, sess, q), sess, flash))
+        content = render_protocols_page(self, sess, q)
+        device = (q.get("device") or [""])[0]
+        if device and self.manager.inv.get(device):
+            content += self._protocol_inspection_controls(device, sess)
+        return self._send(self._page("Device Collection", content, sess, flash))
 
     def _do_protocol_save(self, form, sess):
         if not _can(sess["role"], "manage_devices"):
@@ -2234,7 +2245,7 @@ The client secret is stored in the vault.</p>
         return self._redirect("/protocols?notice=saved")
 
     def _do_protocol_collect(self, form, sess):
-        if not _can(sess["role"], "run_commands"):
+        if not _can(sess["role"], "collect"):
             return self._send("forbidden", 403, "text/plain")
         device = (form.get("device") or [""])[0]
         result = self.manager.protocol_collect(device)
@@ -2606,11 +2617,11 @@ The client secret is stored in the vault.</p>
                                (f'<code>{html.escape(oid)}</code> <span class="muted">Source: {html.escape(detail["source"])}</span>'
                                 if oid else '<span class="muted">not found</span>') + '</p>')
         purpose = (f'<div class="panel"><h2>MIB support</h2>'
-                   f'<p><b>MIB files are dictionaries, not features.</b> NetConfig promotes useful collected values into operator-facing health cards on each device SNMP page; raw OIDs stay here for lookup and troubleshooting.</p>'
+                   f'<p><b>MIB files are dictionaries, not features.</b> NetConfig promotes useful collected values into device health cards on each device SNMP page; raw OIDs stay here for lookup and troubleshooting.</p>'
                    f'<div class="sensor-grid">'
                    f'<div class="sensor-card dim"><div class="sensor-head"><span class="sensor-dot"></span>MIB definitions</div><div class="sensor-value">{len(files)}</div><div class="sensor-detail">reference files installed</div></div>'
                    f'<div class="sensor-card ok"><div class="sensor-head"><span class="sensor-dot"></span>Named OIDs</div><div class="sensor-value">{n_names}</div><div class="sensor-detail">OID/name mappings available</div></div>'
-                   f'<div class="sensor-card ok"><div class="sensor-head"><span class="sensor-dot"></span>Pollable objects</div><div class="sensor-value">{n_collectible}</div><div class="sensor-detail">bounded vendor OBJECT-TYPE definitions</div></div>'
+                   f'<div class="sensor-card ok"><div class="sensor-head"><span class="sensor-dot"></span>Pollable objects</div><div class="sensor-value">{n_collectible}</div><div class="sensor-detail">vendor measurements available for collection</div></div>'
                    f'<div class="sensor-card {"ok" if devices_with_values else "dim"}"><div class="sensor-head"><span class="sensor-dot"></span>Devices with telemetry</div><div class="sensor-value">{devices_with_values}</div><div class="sensor-detail">have stored extended MIB values</div></div>'
                    f'</div><p class="muted" style="margin-top:10px">Unresolved definitions: {unresolved_total} · conflicts: {len(idx.conflicts)}. '
                    f'For useful status such as Loop Protection, interface health, FDB and ARP evidence, open the device SNMP page.</p></div>')
@@ -2773,7 +2784,7 @@ The client secret is stored in the vault.</p>
         if not sensors:
             return (f'<div class="panel"><h2>Vendor profile telemetry</h2><p><b>{html.escape(profile.vendor)} {html.escape(profile.product)}</b> '
                     f'<span class="badge b-dim">{html.escape(profile.id)} {html.escape(profile.version)}</span></p>'
-                    '<p class="muted">Profile matched this device, but no canonical vendor Sensors are stored yet. Poll the device to collect the bounded profile branches.</p></div>')
+                    '<p class="muted">A monitoring profile matches this device, but no vendor measurements have been collected yet. Use Poll now to collect them.</p></div>')
         rows=""
         for item in sorted(sensors,key=lambda r:(str(r.get("sensor_type") or ""),str(r.get("resource") or ""))):
             status=str(item.get("status") or "UNKNOWN").upper(); badge={"OK":"b-ok","WARNING":"b-chg","CRITICAL":"b-bad"}.get(status,"b-dim")
@@ -2782,8 +2793,8 @@ The client secret is stored in the vault.</p>
                      f'<td>{value}{(" "+unit) if unit else ""}</td><td><span class="badge {badge}">{html.escape(status)}</span></td>'
                      f'<td class="muted">{html.escape(str(item.get("message") or ""))}</td></tr>')
         return (f'<div class="panel"><h2>Vendor profile telemetry</h2><p><b>{html.escape(profile.vendor)} {html.escape(profile.product)}</b> '
-                f'<span class="badge b-dim">{html.escape(profile.id)} {html.escape(profile.version)}</span> · {len(sensors)} canonical Sensor(s)</p>'
-                '<p class="muted">Derived only from the latest persisted bounded SNMP profile snapshot. Opening this page does not poll the device.</p>'
+                f'<span class="badge b-dim">{html.escape(profile.id)} {html.escape(profile.version)}</span> · {len(sensors)} monitoring measurement(s)</p>'
+                '<p class="muted">Shows the latest collected SNMP measurements. Opening this page does not poll the device.</p>'
                 f'<table><tr><th>Sensor</th><th>Resource</th><th>Value</th><th>Status</th><th>Detail</th></tr>{rows}</table></div>')
 
     def _vendor_mib_section(self, device):
@@ -2798,7 +2809,7 @@ The client secret is stored in the vault.</p>
             for v in values)
         error = status.get("error", "")
         error_html = (f'<p class="err">Some vendor roots failed: {html.escape(error)}</p>' if error else "")
-        summary = (f'{len(values)} raw value(s) from {status.get("roots", 0)} bounded vendor root(s)'
+        summary = (f'{len(values)} raw value(s) from {status.get("roots", 0)} vendor collection group(s)'
                    + (f' · last collection {_fmt_ts(status.get("ts"))}' if status else ''))
         if rows:
             detail = (f'<details><summary>Show {len(values)} raw vendor MIB values</summary>'
@@ -2948,7 +2959,7 @@ The client secret is stored in the vault.</p>
             locked = "" if m.vault_ready() else ' <span class="vault-lock">vault locked \u2014 unlock first</span>'
             sections.append(
                 f'<div class="panel"><h2>Run now (read-only)</h2>'
-                f'<p class="muted">Runs bounded read-only CLI commands immediately across the target. '
+                f'<p class="muted">Runs read-only commands immediately on the selected devices. '
                 f'Only <code>show</code>, <code>display</code>, <code>get</code>, or exact <code>/export</code> commands are accepted; '
                 f'configuration mutation must use a change request / Structured Change approval path. Everything is audited.{locked}</p>'
                 f'<form method=post action="/run-adhoc">{self._csrf_field()}'
@@ -3172,7 +3183,7 @@ The client secret is stored in the vault.</p>
         maint_active = life.maintenance(active_only=True)
         cards = (
             '<div class="sensor-grid">'
-            f'<div class="sensor-card {"bad" if open_alerts else "ok"}"><div class="sensor-head"><span class="sensor-dot"></span>Active alerts</div><div class="sensor-value">{len(open_alerts)}</div><div class="sensor-detail">canonical operational lifecycle</div></div>'
+            f'<div class="sensor-card {"bad" if open_alerts else "ok"}"><div class="sensor-head"><span class="sensor-dot"></span>Active alerts</div><div class="sensor-value">{len(open_alerts)}</div><div class="sensor-detail">active monitoring alerts</div></div>'
             f'<div class="sensor-card ok"><div class="sensor-head"><span class="sensor-dot"></span>Events</div><div class="sensor-value">{len(events)}</div><div class="sensor-detail">normalized evidence rows</div></div>'
             f'<div class="sensor-card {"warn" if suppressed else "ok"}"><div class="sensor-head"><span class="sensor-dot"></span>Suppressed events</div><div class="sensor-value">{suppressed}</div><div class="sensor-detail">dependency suppression preserved</div></div>'
             f'<div class="sensor-card {"warn" if maint_active else "ok"}"><div class="sensor-head"><span class="sensor-dot"></span>Maintenance</div><div class="sensor-value">{len(maint_active)}</div><div class="sensor-detail">active windows</div></div>'
@@ -3193,7 +3204,7 @@ The client secret is stored in the vault.</p>
 
         body = tabs
         if view == "active":
-            body += ('<div class="panel"><p class="muted">MC-4 authoritative alert plane: normalized Operational Events create one lifecycle per underlying Sensor condition. Escalation updates the same alert and recovery can resolve it automatically.</p></div>'
+            body += ('<div class="panel"><p class="muted">Each monitored condition has one alert. A worsening condition updates that alert; recovery can resolve it automatically.</p></div>'
                      + alert_table(open_alerts, f"Active Alerts · {len(open_alerts)}"))
         elif view == "maintenance":
             windows = life.maintenance(False); now = time.time(); rows=[]
@@ -3218,14 +3229,14 @@ The client secret is stored in the vault.</p>
                                f'<form method=post action="/report-schedule-action" class="inline-form">{self._csrf_field()}'
                                f'<input type=hidden name=id value="{item["id"]}"><input type=hidden name=action value="{next_action}"><button class=ghost>{"Disable" if item["enabled"] else "Enable"}</button></form>')
                 rows.append(f'<tr><td>#{item["id"]}</td><td>{html.escape(item["name"])}</td><td>{"on" if item["enabled"] else "off"}</td><td>{item["interval_seconds"]}s</td><td>{item["lookback_hours"]}h</td><td>{_fmt_ts(item["next_run_ts"])}</td><td>{actions}</td></tr>')
-            body += f'<div class="panel"><h2>Operational report schedules</h2><p class=muted>NI-4 scheduled aggregate reports. This is the canonical Console surface; legacy <code>/op-alerts</code> redirects here.</p><div class="table-wrap"><table><tr><th>ID</th><th>Name</th><th>State</th><th>Interval</th><th>Lookback</th><th>Next run</th><th>Actions</th></tr>{"".join(rows) or "<tr><td colspan=7 class=muted>No schedules.</td></tr>"}</table></div></div>'
+            body += f'<div class="panel"><h2>Operational report schedules</h2><p class=muted>Create and manage scheduled monitoring summary reports here.</p><div class="table-wrap"><table><tr><th>ID</th><th>Name</th><th>State</th><th>Interval</th><th>Lookback</th><th>Next run</th><th>Actions</th></tr>{"".join(rows) or "<tr><td colspan=7 class=muted>No schedules.</td></tr>"}</table></div></div>'
             if can_write:
                 body += (f'<div class="panel"><h3>Add report schedule</h3><form method=post action="/report-schedule-add">{self._csrf_field()}'
                          f'<div class=row><div><label>Name</label><input name=name required></div><div><label>Interval seconds</label><input name=interval_seconds value=86400></div><div><label>Lookback hours</label><input name=lookback_hours value=24></div></div><button>Add schedule</button></form></div>')
         elif view == "legacy":
             legacy = m.db.alerts(limit=200)
             rows = ''.join(f'<tr><td>#{a["id"]}</td><td>{html.escape(a["state"])}</td><td>{html.escape(a["severity"])}</td><td>{html.escape(a["device"])}</td><td>{html.escape(a["message"])}</td><td>{_fmt_ts(a["last_ts"])}</td></tr>' for a in legacy)
-            body += ('<div class="panel"><h2>Legacy monitor alert history</h2><p class="muted">Compatibility read only. MC-4 no longer creates new rows in the legacy <code>alerts</code> table; existing <code>alert_rules</code> remain threshold inputs for service/application Sensors.</p>'
+            body += ('<div class="panel"><h2>Legacy monitor alert history</h2><p class="muted">Previous monitoring alerts are kept here for reference only. New alerts appear under Active Alerts; existing alert rules still set monitoring thresholds.</p>'
                      f'<div class="table-wrap"><table><tr><th>ID</th><th>State</th><th>Severity</th><th>Device</th><th>Message</th><th>Last seen</th></tr>{rows or "<tr><td colspan=6 class=muted>No legacy rows.</td></tr>"}</table></div></div>')
         else:
             body += ('<div class="panel"><h2>Unified Alert Plane</h2><p class="muted">Sensor transitions and normalized cross-domain events feed the operational alert lifecycle. Legacy monitor alert rows remain readable, but new service/HTTP/TLS alerting is authoritative here.</p></div>'
@@ -3373,62 +3384,6 @@ The client secret is stored in the vault.</p>
         m.db.audit(sess["username"], "compliance_run", standard or "all",
                    f'{t["compliant_devices"]}/{t["device_count"]} compliant')
         return self._redirect("/compliance" + (f"?standard={_q(standard)}" if standard else ""))
-
-    def _users_page(self, sess, flash=None):
-        if not _can(sess["role"], "manage_users"):
-            return self._send(self._page("Users", '<div class="err">Admin only.</div>', sess), 403)
-        m = self.manager
-        rows = ""
-        for u in m.users.all():
-            dis = ' <span class="badge b-dim">disabled</span>' if u["disabled"] else ""
-            role_opts = "".join(f'<option value="{r}"{" selected" if r==u["role"] else ""}>{r}</option>' for r in _roles())
-            rows += (f'<tr><td><b>{html.escape(u["username"])}</b>{dis}<br>'
-                     f'<span class=muted>{html.escape(u["fullname"] or "")}</span></td>'
-                     f'<td>{html.escape(u["role"])}</td>'
-                     f'<td class=muted>{_fmt_ts(u["last_login"])}</td>'
-                     f'<td><form method=post action="/user-update" class="row" style="gap:6px">'
-                     f'{self._csrf_field()}<input type=hidden name=username value="{html.escape(u["username"])}">'
-                     f'<select name=role style="margin:0;width:auto">{role_opts}</select>'
-                     f'<input name=password placeholder="new pw (optional)" style="margin:0;width:140px">'
-                     f'<button style="padding:5px 10px">Update</button></form></td></tr>')
-        table = (f'<div class="panel"><table><tr><th>User</th><th>Role</th><th>Last login</th><th>Manage</th></tr>{rows}</table></div>')
-        ropts = "".join(f'<option value="{r}">{r}</option>' for r in _roles())
-        create = (f'<div class="panel"><h2>Add user</h2>'
-                  f'<form method=post action="/user-create">{self._csrf_field()}'
-                  f'<div class="row"><div><label>Username</label><input name=username></div>'
-                  f'<div><label>Full name</label><input name=fullname></div>'
-                  f'<div><label>Role</label><select name=role>{ropts}</select></div></div>'
-                  f'<label>Password</label><input type=password name=password>'
-                  f'<button>Create user</button></form></div>')
-        self._send(self._page("Users", table + create, sess, flash=flash))
-
-    def _do_user_create(self, form, sess):
-        if not _can(sess["role"], "manage_users"):
-            return self._users_page(sess, flash="Admin only.")
-        u = (form.get("username") or [""])[0].strip()
-        pw = (form.get("password") or [""])[0]
-        role = (form.get("role") or ["viewer"])[0]
-        fn = (form.get("fullname") or [""])[0]
-        try:
-            self.manager.users.create(u, pw, role=role, fullname=fn)
-            self.manager.db.audit(sess["username"], "user_create", u, role)
-            return self._users_page(sess, flash=f"User '{u}' created.")
-        except ValueError as e:
-            return self._users_page(sess, flash=str(e))
-
-    def _do_user_update(self, form, sess):
-        if not _can(sess["role"], "manage_users"):
-            return self._users_page(sess, flash="Admin only.")
-        u = (form.get("username") or [""])[0]
-        role = (form.get("role") or [""])[0]
-        pw = (form.get("password") or [""])[0]
-        if role:
-            self.manager.users.set_role(u, role)
-        if pw:
-            self.manager.users.set_password(u, pw)
-        self.manager.db.audit(sess["username"], "user_update", u,
-                              (f"role={role}" if role else "") + (" pw-reset" if pw else ""))
-        return self._users_page(sess, flash=f"User '{u}' updated.")
 
     def _audit_page(self, sess):
         rows = ""
@@ -3629,7 +3584,7 @@ def _check_writable(manager):
         if getattr(manager.db, "dialect", "sqlite") == "sqlite":
             hint = f" Check ownership of {home}/*.db* -- `sudo chown -R netconfig:netconfig {home}`."
         else:
-            hint = " Check PostgreSQL connectivity, credentials, privileges, TLS policy, and schema readiness."
+            hint = " Check PostgreSQL connectivity, credentials, privileges, TLS policy, and database setup."
         print(f"  WARNING: the database is not writable ({e.__class__.__name__}: {e}).{hint}",
               file=sys.stderr)
 
@@ -3687,7 +3642,7 @@ def serve(manager, bind="127.0.0.1", port=8778):
                 queue_size=int(manager.settings.get("snmp_trap_queue_size", 256)))
             col.start(); Console.snmp_trap = col
             manager.runtime_collectors["snmp_trap"] = col
-            print(f"  SNMP trap collector: listening on udp/{col.port} (NI-3 operational events)")
+            print(f"  SNMP trap collector: listening on udp/{col.port} (monitoring events)")
         except Exception as e:
             print(f"  SNMP trap collector NOT started: {e}", file=sys.stderr)
     digest_iv = int(manager.settings.get("digest_interval", 0) or 0)
@@ -3705,7 +3660,7 @@ def serve(manager, bind="127.0.0.1", port=8778):
     if life_iv > 0:
         from . import operational_alerts as _op_alerts
         threading.Thread(target=_op_alerts.poller, args=(manager, life_iv, stop), daemon=True).start()
-        print(f"  NI-4 operational alert/report lifecycle: every {max(30,life_iv)}s")
+        print(f"  Alert checks and scheduled reports: every {max(30,life_iv)}s")
     telemetry_iv = int(manager.settings.get("telemetry_scheduler_interval", 0) or 0)
     if telemetry_iv > 0:
         if telemetry_iv < 5:
@@ -3714,7 +3669,7 @@ def serve(manager, bind="127.0.0.1", port=8778):
         threading.Thread(
             target=_telemetry.poller, args=(manager, telemetry_iv, stop), daemon=True
         ).start()
-        print(f"  NI-5 telemetry lifecycle: every {telemetry_iv}s")
+        print(f"  Streaming monitoring: every {telemetry_iv}s")
     diag_iv = int(manager.settings.get("diagnostic_maintenance_interval", 0) or 0)
     if diag_iv > 0:
         if diag_iv < 60:

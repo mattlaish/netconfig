@@ -49,10 +49,10 @@ class WebDatabaseMixin:
         core_form = form + '<input type=hidden name=db_scope value="core">'
         history_form = form + '<input type=hidden name=db_scope value="history">'
         return f"""<div class="panel"><h2>Core Database</h2>
-<p class="muted">The control-plane database is separate from Interface History. PostgreSQL
-selection is fail-closed: Save is refused unless the psycopg 3 driver, host/database, protected
-pre-vault credential, connection, and schema bootstrap all pass. A successful change takes effect
-after process restart. Core credential status: <b>{core_secret_label}</b>.</p>
+<p class="muted">The main database stores NetConfig settings and operational records separately from Interface History.
+Before saving PostgreSQL settings, NetConfig checks the required driver, connection, protected credentials
+and database setup. If a check fails, the settings are not saved. Restart NetConfig after a successful change.
+Main database credential status: <b>{core_secret_label}</b>.</p>
 {core_form}<div class="row"><div><label>Core database backend</label>
 <select name=core_db_backend><option value="sqlite"{" selected" if s.get("core_db_backend","sqlite")=="sqlite" else ""}>SQLite — single node</option><option value="postgres"{" selected" if s.get("core_db_backend")=="postgres" else ""}>PostgreSQL — distributed capable</option></select>
 <div class=muted>Backend changes require a process restart.</div></div>
@@ -66,7 +66,7 @@ after process restart. Core credential status: <b>{core_secret_label}</b>.</p>
 <div class="row">{field("cluster_stale_seconds","Node stale threshold (s)","default 90")}
 {field("distributed_task_lease_seconds","Task lease (s)","default 60")}</div>
 <button>Save Core Database settings</button>
-<button formaction="/core-db-test" formmethod="post" class=ghost style="margin-left:8px">Test &amp; bootstrap Core PostgreSQL</button></form></div>
+<button formaction="/core-db-test" formmethod="post" class=ghost style="margin-left:8px">Test &amp; prepare Core PostgreSQL</button></form></div>
 
 <div class="panel"><h2>Interface History Store</h2>
 <p class="muted">Optional long-term interface-rate history. This connection is independent from
@@ -129,7 +129,7 @@ these History settings are saved.</p>
             self.manager.db.audit(sess["username"], "settings_save", "db-core", backend)
             suffix = " Restart NetConfig to activate the backend change."
             if backend == "postgres":
-                suffix = " Core PostgreSQL preflight/bootstrap passed." + suffix
+                suffix = " Core PostgreSQL connection and setup checks passed." + suffix
             return self._settings_page_v2(sess, q={"section": ["db"]},
                                           flash="Core Database settings saved." + suffix)
 
@@ -202,7 +202,7 @@ these History settings are saved.</p>
                                           flash="Core PostgreSQL credential failed: " + str(exc)[:240])
         result = preflight_core_postgres(candidate, password=password)
         if result.get("ok"):
-            msg = "Core PostgreSQL connection/schema bootstrap OK — settings were not changed."
+            msg = "Core PostgreSQL connection and database setup passed — settings were not changed."
         else:
             msg = ("Core PostgreSQL test failed at " + str(result.get("stage", "unknown")) +
                    ": " + str(result.get("error", "unknown error")))

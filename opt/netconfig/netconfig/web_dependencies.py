@@ -41,21 +41,21 @@ class WebDependenciesMixin:
         checked = " checked" if include_inferred else ""
         inner = [
             '<div class="panel"><h2>Service &amp; Dependency Graph</h2>',
-            '<p class="muted">MC-6 uses explicit configured/discovered evidence. INFERRED candidates require opt-in; UNKNOWN means insufficient evidence and is never traversed. Rendering reads persisted evidence only and performs no device polling.</p>',
+            '<p class="muted">Shows dependencies you configured or NetConfig discovered. Suggested links are included only when selected; links without enough data are excluded. Opening this page does not poll devices.</p>',
             '<form method=get action="/dependencies"><div class=row>',
-            f'<div><label>Root entity</label><select name=root>{"".join(options)}</select></div>',
-            f'<div><label>Traversal depth</label><input name=depth type=number min=0 max=8 value="{depth}"></div>',
-            f'<div><label>&nbsp;</label><label style="font-weight:400"><input type=checkbox name=include_inferred value=1{checked}> include INFERRED candidates</label></div>',
+            f'<div><label>Starting service or device</label><select name=root>{"".join(options)}</select></div>',
+            f'<div><label>Relationship levels</label><input name=depth type=number min=0 max=8 value="{depth}"></div>',
+            f'<div><label>&nbsp;</label><label style="font-weight:400"><input type=checkbox name=include_inferred value=1{checked}> include suggested links</label></div>',
             '<div style="flex:0"><label>&nbsp;</label><button>View graph</button></div></div></form></div>'
         ]
         if error:
             inner.append(f'<div class="err">{html.escape(error)}</div>')
         if graph:
             summary = graph["summary"]
-            inner.append('<div class="panel"><h2>Dependency traversal</h2>')
+            inner.append('<div class="panel"><h2>Dependency paths</h2>')
             inner.append(f'<p><b>{summary["nodes"]}</b> nodes · <b>{summary["edges"]}</b> evidence edges · <b>{summary["cycle_edges"]}</b> cycle edge(s)</p>')
             if graph.get("truncated"):
-                inner.append(f'<div class="warn">Traversal bounded at {html.escape(graph.get("truncation_reason") or "limit")}.</div>')
+                inner.append(f'<div class="warn">Results limited by {html.escape(graph.get("truncation_reason") or "limit")}.</div>')
             chain = []
             for node in graph["nodes"]:
                 chain.append(f'<div style="margin-left:{min(int(node["depth"]),8)*22}px"><span class="muted">{"↳ " if node["depth"] else ""}</span><b>{html.escape(node["name"])}</b> <span class="badge b-dim">{html.escape(node["entity_type"])}</span></div>')
@@ -68,7 +68,7 @@ class WebDependenciesMixin:
                 if edge.get("vrf") or edge.get("destination_prefix"):
                     scope = f'{html.escape(edge.get("vrf") or "default")} · {html.escape(edge.get("destination_prefix") or "")}'
                 rows.append(f'<tr><td><code>{html.escape(edge["source_key"])}</code></td><td>{html.escape(edge["relationship"])}</td><td><code>{html.escape(edge["target_key"])}</code></td><td>{status}</td><td>{html.escape(edge["provenance"])}</td><td>{html.escape(edge.get("evidence_ref") or "—")}</td><td>{scope or "—"}</td><td>{traversal}</td></tr>')
-            inner.append('<div class="table-wrap"><table><tr><th>Source</th><th>Relationship</th><th>Target</th><th>Evidence</th><th>Provenance</th><th>Reference</th><th>Network scope</th><th>Traversed</th></tr>' + (''.join(rows) or '<tr><td colspan=8 class=muted>No outgoing dependency evidence.</td></tr>') + '</table></div></div>')
+            inner.append('<div class="table-wrap"><table><tr><th>Source</th><th>Relationship</th><th>Target</th><th>Evidence</th><th>Information source</th><th>Reference</th><th>Network scope</th><th>Traversed</th></tr>' + (''.join(rows) or '<tr><td colspan=8 class=muted>No outgoing dependency evidence.</td></tr>') + '</table></div></div>')
 
             src = (q.get("source_device") or [""])[0]
             prefix = (q.get("destination_prefix") or [""])[0]
@@ -81,7 +81,7 @@ class WebDependenciesMixin:
                     inner.append(f'<div class="err">Network overlay: {html.escape(str(exc))}</div>')
             devices = self.manager.inv.all()
             dopts = ['<option value="">Select managed device</option>'] + [f'<option value="{html.escape(d["name"])}"{" selected" if d["name"]==src else ""}>{html.escape(d["name"])}</option>' for d in devices]
-            inner.append('<div class="panel"><h2>Network path overlay</h2><p class="muted">Uses persisted NI-7 route evidence only. VRF scope is preserved; ambiguous paths fail closed; next-hop IP alone never creates a managed node.</p><form method=get action="/dependencies">'
+            inner.append('<div class="panel"><h2>Network path overlay</h2><p class="muted">Uses previously collected routes within the selected VRF. Conflicting routes are shown as unresolved; a next-hop IP alone is not treated as a known managed device.</p><form method=get action="/dependencies">'
                          f'<input type=hidden name=root value="{html.escape(root)}"><input type=hidden name=depth value="{depth}">'
                          f'<div class=row><div><label>Source device</label><select name=source_device>{"".join(dopts)}</select></div><div><label>VRF</label><input name=vrf value="{html.escape(vrf)}"></div><div><label>Destination prefix</label><input name=destination_prefix value="{html.escape(prefix)}" placeholder="10.20.0.0/16"></div><div style="flex:0"><label>&nbsp;</label><button>Overlay path</button></div></div></form>')
             if overlay:
@@ -94,16 +94,16 @@ class WebDependenciesMixin:
         rows = []
         for edge in all_edges:
             rows.append(f'<tr><td><code>{html.escape(edge["source_key"])}</code></td><td>{html.escape(edge["relationship"])}</td><td><code>{html.escape(edge["target_key"])}</code></td><td>{_badge(edge["evidence_state"])} {_badge(edge["freshness"])}</td><td>{html.escape(edge["provenance"])}</td></tr>')
-        inner.append('<div class="panel"><h2>Dependency evidence inventory</h2><div class="table-wrap"><table><tr><th>Source</th><th>Relationship</th><th>Target</th><th>State</th><th>Provenance</th></tr>' + (''.join(rows) or '<tr><td colspan=5 class=muted>No dependency evidence configured.</td></tr>') + '</table></div></div>')
+        inner.append('<div class="panel"><h2>Saved dependencies</h2><div class="table-wrap"><table><tr><th>Source</th><th>Relationship</th><th>Target</th><th>State</th><th>Information source</th></tr>' + (''.join(rows) or '<tr><td colspan=5 class=muted>No dependency evidence configured.</td></tr>') + '</table></div></div>')
 
         if _can(sess["role"], "manage_dependencies"):
             types = ''.join(f'<option>{x}</option>' for x in ENTITY_TYPES)
             rels = ''.join(f'<option>{x}</option>' for x in RELATIONSHIPS)
             states = ''.join(f'<option>{x}</option>' for x in EVIDENCE_STATES)
             entity_opts = ''.join(f'<option value="{html.escape(e["entity_key"])}">{html.escape(e["name"])} · {html.escape(e["entity_key"])}</option>' for e in entities)
-            inner.append(f'''<div class="panel"><h2>Configure dependency model</h2><p class="muted">This changes NetConfig's dependency inventory only; it does not configure network/application infrastructure.</p>
-<div class=row><form method=post action="/dependency-entity-save" style="flex:1">{self._csrf_field()}<h3>Entity</h3><label>Stable key</label><input name=entity_key required placeholder="service:payment-api"><label>Type</label><select name=entity_type>{types}</select><label>Name</label><input name=name required><label>Description</label><input name=description><button style="margin-top:10px">Save entity</button></form>
-<form method=post action="/dependency-edge-save" style="flex:1">{self._csrf_field()}<h3>Dependency evidence</h3><label>Source</label><select name=source_key>{entity_opts}</select><label>Relationship</label><select name=relationship>{rels}</select><label>Target</label><select name=target_key>{entity_opts}</select><label>Evidence state</label><select name=evidence_state>{states}</select><label>Provenance</label><input name=provenance required placeholder="operator / CMDB / discovery"><label>Evidence reference</label><input name=evidence_ref placeholder="ticket:123 / lldp:42"><label>Freshness max age (s)</label><input name=max_age_seconds type=number min=60 placeholder="3600"><button style="margin-top:10px">Save dependency</button></form></div></div>''')
+            inner.append(f'''<div class="panel"><h2>Manage service dependencies</h2><p class="muted">This changes NetConfig's dependency inventory only; it does not configure network/application infrastructure.</p>
+<div class=row><form method=post action="/dependency-entity-save" style="flex:1">{self._csrf_field()}<h3>Service or device</h3><label>Unique reference</label><input name=entity_key required placeholder="service:payment-api"><label>Type</label><select name=entity_type>{types}</select><label>Name</label><input name=name required><label>Description</label><input name=description><button style="margin-top:10px">Save entity</button></form>
+<form method=post action="/dependency-edge-save" style="flex:1">{self._csrf_field()}<h3>Dependency evidence</h3><label>Source</label><select name=source_key>{entity_opts}</select><label>Relationship</label><select name=relationship>{rels}</select><label>Target</label><select name=target_key>{entity_opts}</select><label>Evidence state</label><select name=evidence_state>{states}</select><label>Information source</label><input name=provenance required placeholder="operator / CMDB / discovery"><label>Evidence reference</label><input name=evidence_ref placeholder="ticket:123 / lldp:42"><label>Treat data as outdated after (s)</label><input name=max_age_seconds type=number min=60 placeholder="3600"><button style="margin-top:10px">Save dependency</button></form></div></div>''')
         self._send(self._page("Dependencies", ''.join(inner), sess))
 
     def _do_dependency_entity_save(self, form, sess):

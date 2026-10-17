@@ -142,11 +142,11 @@ class OperatorWorkflowService:
             "incident", "COMPLETE", f"{incident_key} · {incident.get('status')}", incident=incident_key))
         stages.append(self._stage(
             "hypothesis", "COMPLETE" if hypothesis else "ACTION_REQUIRED",
-            (hypothesis or {}).get("summary") or "No active deterministic hypothesis; correlate persisted evidence first.",
+            (hypothesis or {}).get("summary") or "No possible cause has been identified yet; analyze the linked records first.",
             hypothesis_key=(hypothesis or {}).get("hypothesis_key") or ""))
         stages.append(self._stage(
             "evidence", "COMPLETE" if evidence_count else "ACTION_REQUIRED",
-            f"{evidence_count} persisted investigation evidence/timeline item(s).", count=evidence_count))
+            f"{evidence_count} saved investigation or timeline record(s).", count=evidence_count))
         if selected_plan:
             stages.append(self._stage(
                 "topology_path", "COMPLETE",
@@ -154,17 +154,17 @@ class OperatorWorkflowService:
         else:
             stages.append(self._stage(
                 "topology_path", "ACTION_REQUIRED",
-                "No incident-linked MC-11 path/change plan has been persisted."))
+                "No path or change plan has been saved for this incident."))
         if selected_plan and proposals:
             stages.append(self._stage(
-                "proposed_change", "COMPLETE", f"{len(proposals)} schema-bounded proposal(s) available.", count=len(proposals)))
+                "proposed_change", "COMPLETE", f"{len(proposals)} reviewable change proposal(s) available.", count=len(proposals)))
         elif selected_plan and selected_plan.get("planning_status") == "NO_EVIDENCE_BACKED_GAP":
             stages.append(self._stage(
-                "proposed_change", "NO_CHANGE_REQUIRED", "The persisted plan has no evidence-backed configuration gap."))
+                "proposed_change", "NO_CHANGE_REQUIRED", "The saved plan has not identified a configuration change to make."))
         else:
             stages.append(self._stage(
                 "proposed_change", "WAITING" if not selected_plan else "ACTION_REQUIRED",
-                "No schema-bounded Structured Change proposal is currently available."))
+                "No supported device change proposal is currently available."))
 
         req = (selected_request or {}).get("request") or {}
         if req:

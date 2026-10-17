@@ -1,11 +1,59 @@
 # R67.2 corrective RC — current development truth
 
+## Operator-facing wording refresh — 2026-10-17
+
+The English console now uses task-oriented labels and instructions rather than
+internal release/slice codes and implementation wording. Coverage includes
+Dashboard, alerts/events, SNMP/MIB, service dependencies, integrations, database
+and monitoring settings, diagnostics/traces, and Operations/change workflows.
+Only display strings and generated human-readable workflow summaries change;
+routes, form names/values, settings keys, DB schema, machine-readable API fields,
+role/CSRF checks, approval and device-I/O behavior are unchanged. Raw diagnostic
+records, protocol identifiers and developer/historical documents retain their
+precise technical terms. This is not a global replacement of stored/user data.
+
+Validation: **119 PASS** (including **18 new console-copy page checks**); legacy
+selftest **ALL PASS**; **14 changed/new Python files compile**; **10 runtime
+modules retain identical non-text AST and machine-facing fields**. Ruff adds
+**0 new findings**; 10 existing findings remain. Three qualification/platform
+cases were deliberately deselected, not counted as PASS. No Git operations,
+RPM build/install, browser visual acceptance or LIVE_RC execution were performed.
+
+Release identity stays `2.0.0-67.2`, state `IMPLEMENTED_TESTING_DEFERRED`. The
+current source bytes changed: earlier candidate hashes/manifests/SBOM do not
+qualify this update. Regenerate them at the next user-approved candidate freeze
+and run the required LIVE_RC gates; no new feature phase or release is declared.
+
+## Web UI control coverage corrective — 2026-10-16
+
+The R67.2-based working tree now closes five console coverage gaps. Status remains `IMPLEMENTED_TESTING_DEFERRED`; package identity remains `2.0.0-67.2` pending the user's release decision.
+
+- **Users:** admins can enable, disable and delete accounts from `/users`. Console changes protect the current account and the last enabled admin; SQLite transactions and a PostgreSQL transaction advisory lock serialize access changes. Existing managed sessions reject deleted/disabled accounts on their next request. Password-reset inputs are masked.
+- **Device Collection:** approvers/admins can remove a saved protocol profile; inventory and vault secrets are retained and default collection is restored. Operators and above can explicitly run Capabilities, Read state and bounded gNMI Subscribe once. Collection now checks the existing `collect` capability. Page loads do not initiate protocol I/O.
+- **Diagnostics:** admins can create full or per-device captures, request a signature, verify archive signature/trust, view effective signing status and clean up older managed bundles with a minimum keep count of one. Signature validity and trusted-signer status are displayed separately. Device captures create their missing security subdirectory; cleanup uses file modification time across full/device archive prefixes.
+- **Settings → Evidence signing:** admin-only policy controls for `evidence_signing_required` and `evidence_trusted_fingerprints`; validated/normalized SHA-256 pins are saved only after all inputs pass. Environment policy overrides remain visible and environment-added pins are not copied into settings. Private keys remain outside the Web UI.
+- **Protocol Traces:** standalone `/traces` navigation, device/status filters, session detail and bounded event view. Operators and above can start/stop captures with TTL/event/byte budgets and optional Incident linkage. Viewers can read but cannot capture.
+
+All new console POST routes use session authentication, existing role checks and CSRF protection. Network configuration writes remain behind the existing approval chain; no schema or public bearer-REST contract changes are introduced. `web_feature_controls.py` holds the additional controls and preserves the PH-1 `web.py` structural limits.
+
+Console routes added: `POST /user-access`, `/protocol-delete`, `/protocol-inspect`, `/debug-verify`, `/debug-cleanup`, `/trace-start`, `/trace-stop`; `GET /traces` lists/details existing trace sessions. Existing `POST /debug-create` now accepts `mode=full|device`, `device` and optional `require_signature=1`. Existing `POST /settings-save` accepts `section=evidence`. These remain browser-session routes, not new bearer-token API endpoints.
+
+<!-- documentation-sync: 2026-10-13 -->
+> **Canonical project state — 2026-10-13:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) with unnumbered SNMP Vendor Profile and October Web UI / NetFlow corrective updates. **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included; schema `mc11-topology-change-planning-1` is unchanged. The working tree is not the previously frozen R67.2 candidate. Release numbering awaits an explicit user decision. Next: choose release identity, freeze a new candidate, execute all twelve mandatory `LIVE_RC` gates against its exact bytes, then perform R68 production release review. No new feature phase is assigned. All network mutation remains approval-gated. Local/source evidence does not establish production readiness. **Do not create MC-12.**
+
+> **Document applicability:** this document is maintained against [ROADMAP.md](ROADMAP.md) and [AI_HANDOFF.md](AI_HANDOFF.md). Older release-numbered sections, test counts, fingerprints and Current/Next pointers below are historical unless explicitly restated in this 2026-10-13 update.
+
+## Current engineering disposition — 2026-10-13
+
+MC-1 through MC-11 and NI-1 through NI-7 are implemented in source; MC-11 closes the functional MC lineage. Q2 and R60 through R67 provide implemented qualification/release hardening. No next feature-development phase is assigned.
+
+The current R67.2-based working tree includes the September JSON Vendor Profile framework, October `/snmp` profile administration, restored indexed source-host lookup and bulk topology facts joins, and improved NetFlow exporter/template diagnostics. Application-only device normalization and panel isolation are present. These updates introduce no schema/public REST/network-write authority change. R64 session idle/absolute expiry is implemented (30 minutes / 12 hours).
+
+Next: explicitly select release identity, freeze the new candidate, run the required twelve LIVE_RC gates and perform R68 review. Site Edge/Collector, SNMPv3 Trap/INFORM, IPFIX, NETCONF base:1.1-only framing and additional vendor adapters are unassigned future scope. Historical next-release pointers below preserve chronology only.
 
 > **2026-09-29 development update — SNMP Vendor Profile framework:** this working tree adds a data-only, hot-reloadable SNMP Vendor Profile engine on top of the refrozen R67.2 source line. This is a runtime/package payload change, so the previously frozen R67.2 exact-candidate fingerprint and candidate-bound `LIVE_RC` evidence do **not** qualify this working tree. The release identity has intentionally **not** been advanced; that remains an explicit user decision. Project state remains `IMPLEMENTED_TESTING_DEFERRED`; MC-11 remains the final Monitoring / Correlation / Change-Planning feature slice; no MC-12 and no new network-write authority are introduced. Profiles are JSON data, validated fail-closed, bounded to declared numeric OID roots, and cannot execute Python, shell, commands, URLs, or arbitrary expressions.
 
-**Current vendor-profile source evidence:** **556 collected / 542 PASS / 14 SKIP / 0 FAIL** across 12 bounded groups; focused Vendor Profile framework coverage is **8 PASS / 0 FAIL**; `compileall`, actual launcher `py_compile`, packaging/tool/qualification shell syntax, release-metadata check, and legacy selftest are PASS. The 14 skips remain explicit live PostgreSQL/protocol-service prerequisites plus the expected source-archive Git-metadata prerequisite. These are local/source gates only and do not promote the working tree beyond `IMPLEMENTED_TESTING_DEFERRED`.
-
-> **Canonical project state — 2026-09-25:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) on top of the frozen R67 candidate. MC-1 through MC-11 remain implemented; **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice and schema revision remains `mc11-topology-change-planning-1`; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included. R67.2 repairs fresh login, additive migration/index ordering, fail-closed Core PostgreSQL preflight, Core/History PostgreSQL configuration separation, and fresh PostgreSQL Core bootstrap without adding network-write authority. **All network mutation remains approval-gated; local/offline qualification does not establish RC or production release readiness; all required `LIVE_RC` gates remain mandatory. Do not create MC-12.** R68 must be rerun against the exact R67.2 candidate after mandatory live qualification.
+**Recorded 2026-09-29 vendor-profile source evidence:** **556 collected / 542 PASS / 14 SKIP / 0 FAIL** across 12 bounded groups; focused Vendor Profile framework coverage is **8 PASS / 0 FAIL**; `compileall`, actual launcher `py_compile`, packaging/tool/qualification shell syntax, release-metadata check, and legacy selftest are PASS. The 14 skips remain explicit live PostgreSQL/protocol-service prerequisites plus the expected source-archive Git-metadata prerequisite. These are local/source gates only and do not promote the working tree beyond `IMPLEMENTED_TESTING_DEFERRED`.
 
 Historical R67.1 note: R67.1 closed P0 legacy direct-write paths and P1 Console/documentation exposure debt found by the frozen-R67 audit. R67.2 supersedes that candidate; R67/R67.1 candidate-bound evidence is not reusable for R67.2.
 
@@ -72,8 +120,6 @@ The resumed MC-9 checkpoint contained synchronized Markdown but not the complete
 **Release 57 clean-extract artifact qualification:** **349 passed / 8 skipped / 0 failed** across **357 collected tests**, with MC-9 focused **8/8 PASS**. ZIP structural verification is **223 entries**, **0 duplicates**, **0 unsafe paths**, **0 symlinks**, **223/223 source↔ZIP↔system-unzip extract byte+mode parity**, **209/209 source payload manifest**, **222/222 SHA256SUMS**, and **12/12 required executable modes = 0755**. `compileall`, launcher `py_compile`, packaging/tool shell syntax, and legacy selftest pass from the extracted artifact. Two helper-RPM rebuilds from the clean extract are byte-identical to each other and to the source-tree RPM and pass the independent RPM verifier.
 
 **Release 58 clean-extract artifact qualification:** provisional clean-extract verification completed with **360 passed / 8 skipped / 0 failed** across **368 collected tests**, MC-10 focused included in the full run, **226 ZIP entries**, **0 duplicates**, **0 unsafe paths**, **0 symlinks**, **226/226 source↔ZIP↔system-unzip extract byte+mode parity**, **211/211 source payload manifest**, **225/225 SHA256SUMS**, and **12/12 required executable modes = 0755**. `compileall`, launcher `py_compile`, packaging/tool shell syntax, and legacy selftest pass from the extracted artifact. Two helper-RPM rebuilds from that clean extract are byte-identical to each other and to the source-tree helper RPM and pass the independent verifier. These results are re-run once more against the frozen final ZIP before delivery; the ZIP is not promoted to `TESTED` or `RELEASED`.
-
-> **Canonical project state — 2026-09-25:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) on top of the frozen R67 candidate. MC-1 through MC-11 remain implemented; **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice and schema revision remains `mc11-topology-change-planning-1`; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included. R67.2 repairs fresh login, additive migration/index ordering, fail-closed Core PostgreSQL preflight, Core/History PostgreSQL configuration separation, and fresh PostgreSQL Core bootstrap without adding network-write authority. **All network mutation remains approval-gated; local/offline qualification does not establish RC or production release readiness; all required `LIVE_RC` gates remain mandatory. Do not create MC-12.** R68 must be rerun against the exact R67.2 candidate after mandatory live qualification.
 
 ## Release 55 / MC-7 implementation ledger — 2026-09-23
 
@@ -265,11 +311,11 @@ Implemented:
 
 Consolidated Release 33 source verification after implementation fixes: automation/repository-hygiene focused **23 passed**; PH-2 **9 passed**; PH-3 **22 passed**; Q-1 **11 passed**; full repository **168 passed / 7 skipped**; legacy selftest **ALL PASS**; compileall, launcher `py_compile`, and packaging shell syntax **PASS**; source text CR offenders **0**, caches **0** after cleanup, symlinks **0**, historical E701-style same-line compound suites **0**, required executable modes **7/7 = 0755**. The final focused run found and fixed NA-2 retry/resume state-machine gaps and PH-3 gNMI/Web regressions before the green result. Ruff and mypy are `NOT_RUN`: the binaries are absent and this isolated environment cannot retrieve them, so no lint/type-check PASS is claimed.
 
-Testing/qualification truth is recorded in `TESTING_RESULT_2026-09-12.md`. Offline success does not promote any phase beyond `IMPLEMENTED_TESTING_DEFERRED`. Session idle/absolute expiry remains deferred by explicit user direction.
+**Historical session-policy note (superseded by R64):** Testing/qualification truth is recorded in `TESTING_RESULT_2026-09-12.md`. Offline success does not promote any phase beyond `IMPLEMENTED_TESTING_DEFERRED`. Session idle/absolute expiry remains deferred by explicit user direction.
 
 Artifact candidate evidence: Clean Release 33 candidate `netconfig_release33_candidate_2026-09-12.zip` (SHA-256 `d03720a411b796458747f7d8976a8fa01f4f40859b5e51341ef031aaa343f538`) passed the artifact gate: ZIP CRC **PASS**; path traversal **0**; symlinks **0**; caches **0**; text CR offenders **0**; source/extracted byte identity **132/132 PASS**; payload plus each SHA/release manifest **128/128 PASS**; required executable modes **7/7 = 0755**. From the clean extraction: Release 33 focused **23 passed**, PH-2 **9 passed**, PH-3 **22 passed**, Q-1 **11 passed**, full repository **168 passed / 7 skipped** in the isolated full-suite rerun, legacy selftest **ALL PASS**, and compileall/launcher py_compile/packaging shell syntax **PASS**. A first command that chained all suites hit the execution-tool timeout after full pytest reached ~82%; that interrupted run is not counted as PASS. The same candidate full suite was then rerun alone and completed cleanly (**168 passed / 7 skipped in 22.90s**).
 
-> **Current continuation pointer:** use **Release 59 / MC-11 Topology-Aware Change Planning** (`2.0.0-59`) as the active full-source baseline once the final artifact gate below is frozen. Preserve `IMPLEMENTED_TESTING_DEFERRED`; do not promote to `TESTED` or `RELEASED` based on source simulation. MC-11 is the final functional slice and does not add direct execution authority. The immediate next track after artifact freeze is **Q2 Production Qualification Campaign**, not MC-12.
+> **Historical continuation pointer (superseded):** use **Release 59 / MC-11 Topology-Aware Change Planning** (`2.0.0-59`) as the active full-source baseline once the final artifact gate below is frozen. Preserve `IMPLEMENTED_TESTING_DEFERRED`; do not promote to `TESTED` or `RELEASED` based on source simulation. MC-11 is the final functional slice and does not add direct execution authority. The immediate next track after artifact freeze is **Q2 Production Qualification Campaign**, not MC-12.
 
 ## 2026-09-12 — Qualification Track Q-1 — Production Runtime & Service-backed Qualification
 
@@ -292,9 +338,9 @@ Offline evidence before final artifact packaging: Q-1 focused **11 passed**; ful
 
 Artifact evidence: Clean Q-1 candidate `netconfig_qualification_q1_candidate_2026-09-12.zip` (SHA-256 `185039eadf8e8e63a8dad358df35f759a7a1f099d5fa6a3456a50e023920a2b1`) passed the artifact gate: ZIP CRC **PASS**; path traversal **0**; symlinks **0**; caches **0**; CR offenders **0**; source/extracted byte identity **125/125 PASS**; payload plus each SHA manifest **121/121 PASS**; required executable modes **7/7 = 0755**; extracted Q-1 focused **11 passed**; extracted full regression **147 passed / 7 skipped**; legacy selftest **ALL PASS**; compileall/launcher py_compile/packaging shell syntax **PASS**.
 
-Session idle/absolute expiry remains explicitly deferred and unchanged. PH-3 structured-protocol behavior is unchanged by Q-1.
+**Historical session-policy note (superseded by R64):** Session idle/absolute expiry remains explicitly deferred and unchanged. PH-3 structured-protocol behavior is unchanged by Q-1.
 
-## Current implementation pointer — 2026-09-12
+## Historical implementation pointer — 2026-09-12
 
 **Historical Release 33 checkpoint:** HA-1 / Release 33 (`IMPLEMENTED_TESTING_DEFERRED`) was the parent implementation baseline before UI-1. Its PH-4/NI-5/VM-1/NA-1/NA-2/HA-1 evidence remains provenance only; the active baseline is Release 34 / UI-1.
 
@@ -322,7 +368,7 @@ Session idle/absolute expiry remains explicitly deferred and unchanged. PH-3 str
 
 ### Intentional non-change
 
-Console session expiry was **not** implemented in this slice. The current in-memory session remains valid until logout or process restart. This is explicitly documented as deferred security debt in `SECURITY.md` and `ROADMAP.md` for a later dedicated lifecycle change.
+**Historical session-policy note (superseded by R64):** Console session expiry was **not** implemented in this slice. The current in-memory session remains valid until logout or process restart. This is explicitly documented as deferred security debt in `SECURITY.md` and `ROADMAP.md` for a later dedicated lifecycle change.
 
 ### Validation still required
 
@@ -359,7 +405,7 @@ Console session expiry was **not** implemented in this slice. The current in-mem
 
 ### Deferred security debt unchanged
 
-- Console idle timeout / absolute session expiry remains deliberately deferred. No session-lifetime behavior was changed in this follow-up; see `SECURITY.md` and `ROADMAP.md`.
+**Historical session-policy note (superseded by R64):** - Console idle timeout / absolute session expiry remains deliberately deferred. No session-lifetime behavior was changed in this follow-up; see `SECURITY.md` and `ROADMAP.md`.
 
 ## 2026-09-02 — topology, event-driven collection, read-only API, scheduled digest slice
 
@@ -385,7 +431,7 @@ Console session expiry was **not** implemented in this slice. The current in-mem
 - No real-device LLDP/CDP lab run was performed in this environment.
 - No production syslog relay/NAT design is claimed; source-IP matching assumes the UDP peer is the managed device. Trusted-relay parsing must be explicit before supporting relayed syslog.
 - SNMP traps are not implemented in this slice.
-- Session idle/absolute expiry remains deliberately deferred security debt and was not changed.
+**Historical session-policy note (superseded by R64):** - Session idle/absolute expiry remains deliberately deferred security debt and was not changed.
 
 
 ## 2026-09-07 — new-chat handover and roadmap reconciliation
@@ -588,7 +634,7 @@ Both diagnostic bundles and Phase 4C support-case exports now auto-sign when a v
 
 Support-case export metadata now has additive `signature_state`, `signature_algorithm`, and `signer_fingerprint` columns. Existing databases migrate additively and prior unsigned records remain valid. Case download still validates durable outer archive size/SHA-256, then verifies signed inner evidence and durable signer fingerprint; configured trust pins are enforced.
 
-CLI/API verification and signer-readiness surfaces were added. Key rotation is supported by allowing multiple independent trusted fingerprints. HSM/KMS-backed signers, protocol traces, and Incident Web Console remain deferred. Session expiry remains unchanged/deferred.
+**Historical session-policy note (superseded by R64):** CLI/API verification and signer-readiness surfaces were added. Key rotation is supported by allowing multiple independent trusted fingerprints. HSM/KMS-backed signers, protocol traces, and Incident Web Console remain deferred. Session expiry remains unchanged/deferred.
 
 Executed repository regression after implementation: **49 passed, 3 skipped**; Phase 4D focused signing tests: **10 passed**; legacy selftest: **ALL PASS**; compileall/launcher pycompile/packaging shell syntax: **PASS**; CR offenders: **0**. Ruff/mypy remain NOT RUN in this environment.
 
@@ -775,7 +821,7 @@ Candidate `netconfig_network_intelligence_ni4_candidate_2026-09-11.zip` SHA-256 
 
 ## 2026-09-11 — Platform Hardening PH-1 — Web-console Structural Hardening
 
-Implemented structural/security decomposition without changing product routes or API semantics. `web.py` moved Bearer API routing into `web_api.py` and UI assets/helpers into `web_ui.py`; current dispatcher size is below 4,000 lines and 240 KB. Enforced CSP now requires per-response nonces for script/style elements and denies script/style attributes; server-rendered style attributes are converted to deterministic classes in one nonce-authorized style block. HTML event-handler attributes were removed in favor of delegated events. Dynamic graph device names are escaped before script context, and vault-secret names are rendered through `textContent`. Source regression: **105 passed / 3 skipped**; focused PH-1: **6 passed**; legacy selftest **ALL PASS**; compileall/launcher/package-shell syntax **PASS**. Session idle/absolute expiry remains deliberately deferred.
+**Historical session-policy note (superseded by R64):** Implemented structural/security decomposition without changing product routes or API semantics. `web.py` moved Bearer API routing into `web_api.py` and UI assets/helpers into `web_ui.py`; current dispatcher size is below 4,000 lines and 240 KB. Enforced CSP now requires per-response nonces for script/style elements and denies script/style attributes; server-rendered style attributes are converted to deterministic classes in one nonce-authorized style block. HTML event-handler attributes were removed in favor of delegated events. Dynamic graph device names are escaped before script context, and vault-secret names are rendered through `textContent`. Source regression: **105 passed / 3 skipped**; focused PH-1: **6 passed**; legacy selftest **ALL PASS**; compileall/launcher/package-shell syntax **PASS**. Session idle/absolute expiry remains deliberately deferred.
 
 ### PH-1 candidate artifact evidence
 
@@ -839,7 +885,7 @@ Status: `IMPLEMENTED_TESTING_DEFERRED`. Historical mapping: Slice G.
 - Production RESTCONF/gNMI certificate verification is mandatory by default. The only insecure TLS path is an explicit environment-gated lab override.
 - Structured network writes remain subordinate to existing change/approval safety. The only new write primitive is internal and explicitly approval-gated; existing public API/CLI does not expose generic structured mutation.
 - Protocol traces remain metadata-only and exclude payload/body/RPC/protobuf/authorization/user/password fields.
-- Session idle timeout / absolute expiry remains deliberately deferred and was not changed.
+**Historical session-policy note (superseded by R64):** - Session idle timeout / absolute expiry remains deliberately deferred and was not changed.
 - NETCONF base:1.1-only chunk framing, full NETCONF edit/commit transaction execution, and gNMI Set are not claimed.
 
 ### Offline verification before final artifact packaging
@@ -1322,14 +1368,14 @@ The provisional source archive was extracted with system `unzip` and reproduced 
 
 R64 was implemented as a hardening/qualification slice on R63 without schema change or new MC authority. New runtime code separates bounded web security/session/request-framing primitives into `web_security_runtime.py` so the PH-1 structural split remains below its `web.py` size gate. OAuth public-cloud authority/redirect/response controls, signed-archive streaming/type controls, bounded login throttle/session/MIB body handling, generic server-error responses, focused abuse tests, and a fixed-hook independent abuse runner were added. R65 remains unstarted.
 
-## R64 current verification truth
+## Historical R64 verification evidence
 
 Source-tree regression: **498 collected / 484 PASS / 14 SKIP / 0 FAIL**. R64 focused: **21/21 PASS**. MC-11 focused: **12/12 PASS**. Security/compatibility focused set: **102 PASS / 1 expected no-.git SKIP / 0 FAIL**. Initial selected R64 campaign: **6 local PASS / 0 FAIL / 12 BLOCKED_ENVIRONMENT / 0 NOT_RUN / 0 LIVE_ABUSE PASS**; `production_security_claim=false`. The runner all-local nested full-regression invocation exceeded the surrounding execution envelope, so the full regression was executed separately with the same deterministic five-group partition and recorded in the evidence bundle; this does not change its `LOCAL_REGRESSION` class.
 
 
 ## R65 implementation ledger
 
-Release 65 (`2.0.0-65`) implements Operator Workflow Completion on top of R64. The persisted-data-first journey binds Incident → MC-11 plan → exact persisted proposal → existing Automation Request/approval → Structured Change → verification/recovery/rollback → Incident-linked post-change evidence. It adds no MC-12, no parallel write authority, no page-triggered polling, and no schema migration. Status remains `IMPLEMENTED_TESTING_DEFERRED`; `LIVE_OPERATOR` evidence is still required for production operator-workflow claims. Next approved track is R66 Observability / Supportability and is not started.
+Release 65 (`2.0.0-65`) implements Operator Workflow Completion on top of R64. The persisted-data-first journey binds Incident → MC-11 plan → exact persisted proposal → existing Automation Request/approval → Structured Change → verification/recovery/rollback → Incident-linked post-change evidence. It adds no MC-12, no parallel write authority, no page-triggered polling, and no schema migration. Status remains `IMPLEMENTED_TESTING_DEFERRED`; `LIVE_OPERATOR` evidence is still required for production operator-workflow claims. At that historical checkpoint the next track was R66 Observability / Supportability; R66 is now implemented with live qualification deferred.
 
 ## R65 verification closeout — 2026-09-24
 

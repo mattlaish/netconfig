@@ -1,8 +1,19 @@
 # NetConfig Current Progress Delivery Report
 
-> **Canonical project state — 2026-09-25:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) on top of the frozen R67 candidate. MC-1 through MC-11 remain implemented; **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice and schema revision remains `mc11-topology-change-planning-1`; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included. R67.2 repairs fresh login, additive migration/index ordering, fail-closed Core PostgreSQL preflight, Core/History PostgreSQL configuration separation, and fresh PostgreSQL Core bootstrap without adding network-write authority. **All network mutation remains approval-gated; local/offline qualification does not establish RC or production release readiness; all required `LIVE_RC` gates remain mandatory. Do not create MC-12.** R68 must be rerun against the exact R67.2 candidate after mandatory live qualification.
+<!-- documentation-sync: 2026-10-13 -->
+> **Canonical project state — 2026-10-13:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) with unnumbered SNMP Vendor Profile and October Web UI / NetFlow corrective updates. **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included; schema `mc11-topology-change-planning-1` is unchanged. The working tree is not the previously frozen R67.2 candidate. Release numbering awaits an explicit user decision. Next: choose release identity, freeze a new candidate, execute all twelve mandatory `LIVE_RC` gates against its exact bytes, then perform R68 production release review. No new feature phase is assigned. All network mutation remains approval-gated. Local/source evidence does not establish production readiness. **Do not create MC-12.**
 
-## Release 48 current status
+> **Document applicability:** this document is maintained against [ROADMAP.md](ROADMAP.md) and [AI_HANDOFF.md](AI_HANDOFF.md). Older release-numbered sections, test counts, fingerprints and Current/Next pointers below are historical unless explicitly restated in this 2026-10-13 update.
+
+## Current corrective scope and release work — 2026-10-13
+
+Current source includes JSON SNMP Vendor Profiles, persisted vendor Sensor summaries, `/snmp` profile management (upload/validate/reload/remove with role and CSRF checks), indexed host lookups and bulk topology facts joins. Device NetFlow diagnostics distinguish exporter-IP mismatch, received datagrams without decoded records/templates, and no traffic. IPFIX/v10 decoding remains unsupported.
+
+Application-only devices are endpoint monitors: saved platform is neutral `generic`; Current raw, Current configuration, SNMP facts and Config backups are omitted. System/Network types retain their management surfaces. Session expiry is already implemented by R64 (30 minutes idle, 12 hours absolute).
+
+The next work is release identity selection, a newly frozen candidate and the twelve mandatory LIVE_RC gates, followed by R68 review. No feature slice is assigned. Detailed open qualification and unassigned future scope are maintained in `ROADMAP.md`; historical release/test counts below apply only to their recorded source version.
+
+## Historical Release 48 status
 
 **Release 48 source qualification (2026-09-20):** focused Sensor Model/API coverage is **14 passed / 0 failed**. The full repository regression was executed in four bounded mutually exclusive groups and totals **236 passed / 8 skipped / 0 failed**; the eight skips are seven explicit live/service prerequisites plus the expected Git-index mode skip because `.git` is absent from this archive-derived workspace. Legacy selftest is **ALL PASS**; compileall, launcher `py_compile`, and packaging/tool shell syntax are **PASS**. Ruff `0.16.7` and mypy `2.3.1` remain **NOT_RUN** because their executables are unavailable. Canonical AlmaLinux 10 `rpmbuild`/DNF install-upgrade/systemd/SELinux, PostgreSQL live/backup-restore, protocol-service and vendor/device live gates remain **NOT_RUN / DEFERRED**. Final source-artifact integrity qualification and offline RPM build occur after this source/documentation sync and do not promote the project beyond `IMPLEMENTED_TESTING_DEFERRED`.
 
@@ -64,10 +75,10 @@ Release 44 source-tree qualification on the archive-derived workspace is **219 p
 
 This baseline is not `TESTED` or `RELEASED`. Historical documents retain their original measured counts for provenance.
 
-## Release 66 current progress
+## Historical Release 66 progress
 
 R66 Observability / Supportability is implementation-complete locally and remains `IMPLEMENTED_TESTING_DEFERRED`. Source-tree regression is 519 collected / 505 PASS / 14 SKIP / 0 FAIL. Initial qualification has 5 local PASS and 10 LIVE_SUPPORT gates BLOCKED_ENVIRONMENT with no live PASS; production supportability is not claimed. Final clean-extract/artifact gate is the remaining closeout step before delivery freeze.
 
 ### R66 closeout
 
-Frozen clean-extract qualification is complete and matches source truth: 519 collected / 505 PASS / 14 SKIP / 0 FAIL. Artifact structural, manifest, executable-mode and deterministic offline-RPM gates pass. LIVE_SUPPORT remains 0 PASS, so status remains IMPLEMENTED_TESTING_DEFERRED and R67 is not started.
+Frozen clean-extract qualification is complete and matches source truth: 519 collected / 505 PASS / 14 SKIP / 0 FAIL. Artifact structural, manifest, executable-mode and deterministic offline-RPM gates pass. LIVE_SUPPORT remains 0 PASS, so status remains IMPLEMENTED_TESTING_DEFERRED and R67 had not been started at that historical checkpoint.

@@ -46,7 +46,7 @@ class DebugBundle:
 
     def list_bundles(self):
         result=[]
-        for p in sorted(self.root.glob("*.tar.gz"), reverse=True):
+        for p in sorted(self.root.glob("*.tar.gz"), key=lambda p: (p.stat().st_mtime_ns, p.name), reverse=True):
             result.append({"name": p.name, "size": p.stat().st_size})
         return result
 
@@ -60,7 +60,7 @@ class DebugBundle:
         return target if target.is_file() else None
 
     def cleanup(self, keep=10):
-        bundles=sorted(self.root.glob("*.tar.gz"), reverse=True)
+        bundles=sorted(self.root.glob("*.tar.gz"), key=lambda p: (p.stat().st_mtime_ns, p.name), reverse=True)
         removed=[]
         for p in bundles[keep:]:
             p.unlink(missing_ok=True)
@@ -111,12 +111,13 @@ class DebugBundle:
 
     def device_capture(self, device_name, output=None, require_signature=False):
         """Create a redacted single-device diagnostic capture."""
-        stamp=datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
-        base=Path(tempfile.mkdtemp(prefix="netconfig-device-debug-"))
-        (base / "device").mkdir(parents=True, exist_ok=True)
         dev=self.manager.inv.get(device_name)
         if not dev:
             raise ValueError(f"unknown device: {device_name}")
+        stamp=datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
+        base=Path(tempfile.mkdtemp(prefix="netconfig-device-debug-"))
+        (base / "device").mkdir(parents=True, exist_ok=True)
+        (base / "security").mkdir(parents=True, exist_ok=True)
         self._json(base/"device"/"inventory.json", dev)
         self._json(base/"device"/"topology.json", [n for n in self.manager.topology() if n.get("local_device")==device_name or n.get("device")==device_name])
         self._json(base/"device"/"drift.json", self.manager.check_drift(device_name))

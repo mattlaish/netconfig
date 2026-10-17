@@ -1,5 +1,46 @@
 # NetConfig Architecture
 
+## Operator-facing wording refresh — 2026-10-17
+
+The English console now uses task-oriented labels and instructions rather than
+internal release/slice codes and implementation wording. Coverage includes
+Dashboard, alerts/events, SNMP/MIB, service dependencies, integrations, database
+and monitoring settings, diagnostics/traces, and Operations/change workflows.
+Only display strings and generated human-readable workflow summaries change;
+routes, form names/values, settings keys, DB schema, machine-readable API fields,
+role/CSRF checks, approval and device-I/O behavior are unchanged. Raw diagnostic
+records, protocol identifiers and developer/historical documents retain their
+precise technical terms. This is not a global replacement of stored/user data.
+
+Release identity stays `2.0.0-67.2`, state `IMPLEMENTED_TESTING_DEFERRED`. The
+current source bytes changed: earlier candidate hashes/manifests/SBOM do not
+qualify this update. Regenerate them at the next user-approved candidate freeze
+and run the required LIVE_RC gates; no new feature phase or release is declared.
+
+## Web UI control coverage corrective — 2026-10-16
+
+The R67.2-based working tree now closes five console coverage gaps. Status remains `IMPLEMENTED_TESTING_DEFERRED`; package identity remains `2.0.0-67.2` pending the user's release decision.
+
+- **Users:** admins can enable, disable and delete accounts from `/users`. Console changes protect the current account and the last enabled admin; SQLite transactions and a PostgreSQL transaction advisory lock serialize access changes. Existing managed sessions reject deleted/disabled accounts on their next request. Password-reset inputs are masked.
+- **Device Collection:** approvers/admins can remove a saved protocol profile; inventory and vault secrets are retained and default collection is restored. Operators and above can explicitly run Capabilities, Read state and bounded gNMI Subscribe once. Collection now checks the existing `collect` capability. Page loads do not initiate protocol I/O.
+- **Diagnostics:** admins can create full or per-device captures, request a signature, verify archive signature/trust, view effective signing status and clean up older managed bundles with a minimum keep count of one. Signature validity and trusted-signer status are displayed separately. Device captures create their missing security subdirectory; cleanup uses file modification time across full/device archive prefixes.
+- **Settings → Evidence signing:** admin-only policy controls for `evidence_signing_required` and `evidence_trusted_fingerprints`; validated/normalized SHA-256 pins are saved only after all inputs pass. Environment policy overrides remain visible and environment-added pins are not copied into settings. Private keys remain outside the Web UI.
+- **Protocol Traces:** standalone `/traces` navigation, device/status filters, session detail and bounded event view. Operators and above can start/stop captures with TTL/event/byte budgets and optional Incident linkage. Viewers can read but cannot capture.
+
+All new console POST routes use session authentication, existing role checks and CSRF protection. Network configuration writes remain behind the existing approval chain; no schema or public bearer-REST contract changes are introduced. `web_feature_controls.py` holds the additional controls and preserves the PH-1 `web.py` structural limits.
+
+<!-- documentation-sync: 2026-10-13 -->
+> **Canonical project state — 2026-10-13:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) with unnumbered SNMP Vendor Profile and October Web UI / NetFlow corrective updates. **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included; schema `mc11-topology-change-planning-1` is unchanged. The working tree is not the previously frozen R67.2 candidate. Release numbering awaits an explicit user decision. Next: choose release identity, freeze a new candidate, execute all twelve mandatory `LIVE_RC` gates against its exact bytes, then perform R68 production release review. No new feature phase is assigned. All network mutation remains approval-gated. Local/source evidence does not establish production readiness. **Do not create MC-12.**
+
+> **Document applicability:** this document is maintained against [ROADMAP.md](ROADMAP.md) and [AI_HANDOFF.md](AI_HANDOFF.md). Older release-numbered sections, test counts, fingerprints and Current/Next pointers below are historical unless explicitly restated in this 2026-10-13 update.
+
+## Current corrective architecture — 2026-10-13
+
+JSON Vendor Profiles declare validated numeric collection roots and scalar/table mappings. Matching profiles use bounded SNMP collection, normalize to existing canonical Sensors and retain legacy bounded MIB collection when no profile matches. Profiles cannot execute code, commands or URLs. The October Web UI adds registry management, using the same role/CSRF and JSON validation boundaries.
+
+`Inventory.get_by_host()` backs ingestion-source lookup; `_inventory_with_sysname()` joins one bulk facts snapshot to inventory for topology identity/graph analysis. NetFlow diagnostics expose existing exporter/decoder evidence and add no parser support for IPFIX. Application-only save handling removes management settings and stores a neutral platform; managed System/Network behavior remains.
+
+No database schema or public REST contract is changed by these correctives. Schema remains `mc11-topology-change-planning-1`; network writes remain behind existing approval, execution-time validation, verification and audit. Site Edge/Collector runtime is future scope.
 
 > **2026-09-29 development update — SNMP Vendor Profile framework:** this working tree adds a data-only, hot-reloadable SNMP Vendor Profile engine on top of the refrozen R67.2 source line. This is a runtime/package payload change, so the previously frozen R67.2 exact-candidate fingerprint and candidate-bound `LIVE_RC` evidence do **not** qualify this working tree. The release identity has intentionally **not** been advanced; that remains an explicit user decision. Project state remains `IMPLEMENTED_TESTING_DEFERRED`; MC-11 remains the final Monitoring / Correlation / Change-Planning feature slice; no MC-12 and no new network-write authority are introduced. Profiles are JSON data, validated fail-closed, bounded to declared numeric OID roots, and cannot execute Python, shell, commands, URLs, or arbitrary expressions.
 
@@ -11,8 +52,6 @@ MC-11 is an evidence/planning layer above existing persisted topology, NI-7 L3/V
 ## Release 58 / MC-10 correlation hardening layer
 
 `CorrelationHardeningService` sits around the existing MC-7 deterministic correlation engine. It persists execution evidence in `correlation_runs`, supplies bounded per-incident serialization/advisory locking, startup interruption recovery, replay/input/result fingerprinting, skew/truncation diagnostics, metadata retention, self-monitoring and qualification reporting. MC-5 remains the evidence system of record; MC-7 remains the hypothesis engine; MC-9 remains the operator presentation layer. The hardening layer does not poll infrastructure and is not a device/external-product execution plane.
-
-> **Canonical project state — 2026-09-25:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) on top of the frozen R67 candidate. MC-1 through MC-11 remain implemented; **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice and schema revision remains `mc11-topology-change-planning-1`; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included. R67.2 repairs fresh login, additive migration/index ordering, fail-closed Core PostgreSQL preflight, Core/History PostgreSQL configuration separation, and fresh PostgreSQL Core bootstrap without adding network-write authority. **All network mutation remains approval-gated; local/offline qualification does not establish RC or production release readiness; all required `LIVE_RC` gates remain mandatory. Do not create MC-12.** R68 must be rerun against the exact R67.2 candidate after mandatory live qualification.
 
 ## Release 55 / MC-7 deterministic correlation pipeline
 
@@ -143,7 +182,7 @@ HTTP-level regression coverage now requests `/operations?tab=intents` and requir
 ## PH-5 Intent / Desired State Automation
 
 
-## Current Release 43 architecture position
+## Historical Release 43 architecture position
 
 Release 43 does not change the NI-7 runtime schema or network-control architectural boundaries. Its offline RPM builder/verifier is packaging/reproducibility tooling outside the runtime decision and mutation planes. The inherited Release 41 campaign-retry fix is HTTP parsing/coverage only. Network Intelligence remains read-only/decision-support; device mutations continue to flow only through the approval-gated Structured Changes / Desired State / Campaign paths.
 

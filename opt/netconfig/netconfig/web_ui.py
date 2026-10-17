@@ -766,7 +766,7 @@ def render_snmp_health_summary(handler, device, dev, fx):
             sensor_detail(reachability, "No reachability observation collected")))
     else:
         cards.append(_sensor_card(
-            "Reachability", "dim", "No data", "No canonical reachability Sensor available"))
+            "Reachability", "dim", "No data", "Reachability data has not been collected yet"))
 
     polling = first("device.polling")
     if polling:
@@ -777,7 +777,7 @@ def render_snmp_health_summary(handler, device, dev, fx):
             sensor_detail(polling, "No poll observation collected")))
     else:
         cards.append(_sensor_card(
-            "SNMP polling", "dim", "Not polled", "No canonical polling Sensor available"))
+            "SNMP polling", "dim", "Not polled", "SNMP polling data is not available yet"))
 
     interface_status = by_type.get("interface.status", [])
     interface_errors = by_type.get("interface.errors", [])
@@ -804,7 +804,7 @@ def render_snmp_health_summary(handler, device, dev, fx):
         cards.append(_sensor_card("Interface health", state, value, detail))
     else:
         cards.append(_sensor_card(
-            "Interface health", "dim", "No data", "No canonical interface Sensors available"))
+            "Interface health", "dim", "No data", "Interface monitoring data has not been collected yet"))
 
     fdb = first("endpoint.fdb_evidence")
     if fdb:
@@ -815,7 +815,7 @@ def render_snmp_health_summary(handler, device, dev, fx):
             sensor_detail(fdb, "No forwarding evidence collected")))
     else:
         cards.append(_sensor_card(
-            "FDB / MAC learning", "dim", "No data", "No canonical FDB/MAC Sensor available"))
+            "FDB / MAC learning", "dim", "No data", "MAC address learning data has not been collected yet"))
 
     l3 = first("endpoint.arp_evidence")
     if l3:
@@ -826,7 +826,7 @@ def render_snmp_health_summary(handler, device, dev, fx):
             sensor_detail(l3, "No ARP/IP-neighbor evidence collected")))
     else:
         cards.append(_sensor_card(
-            "ARP / IP neighbor", "dim", "No data", "No canonical L3 evidence Sensor available"))
+            "ARP / IP neighbor", "dim", "No data", "IP neighbor data has not been collected yet"))
 
     topology = first("topology.neighbor")
     managed = first("topology.managed_neighbor_count")
@@ -844,7 +844,7 @@ def render_snmp_health_summary(handler, device, dev, fx):
             "Topology neighbors", card_state(topology.get("status")), value, detail))
     else:
         cards.append(_sensor_card(
-            "Topology neighbors", "dim", "No data", "No canonical topology Sensor available"))
+            "Topology neighbors", "dim", "No data", "Network neighbor data has not been collected yet"))
 
     loop = first("loop_protection.health")
     if loop:
@@ -875,7 +875,7 @@ def render_snmp_health_summary(handler, device, dev, fx):
             "Loop Protection", "dim", "No mapped data", "No mapped Loop Protection Sensor available"))
 
     health_panel = ('<div class="panel"><h2>Device health</h2>'
-                    '<p class="muted">Status cards are derived from canonical Sensors generated from already-collected DB/cache data only. Opening this page does not add polling or device I/O.</p>'
+                    '<p class="muted">Status cards show the latest collected monitoring data. Opening this page does not poll devices.</p>'
                     f'<div class="sensor-grid">{"".join(cards)}</div></div>')
 
     # MC-2: history is read from durable Sensor transitions only.  Rendering the
@@ -907,7 +907,7 @@ def render_snmp_health_summary(handler, device, dev, fx):
             )
         history_panel = (
             '<div class="panel"><h2>Recent sensor changes</h2>'
-            '<p class="muted">Latest durable Sensor state transitions for this device. UNKNOWN means evidence is unavailable, not a failure verdict.</p>'
+            '<p class="muted">Recent monitoring status changes for this device. Unknown means data is unavailable, not that the device has failed.</p>'
             '<div class="table-wrap"><table><thead><tr><th>Time</th><th>Sensor / resource</th>'
             '<th>From</th><th></th><th>To</th></tr></thead><tbody>'
             + ''.join(rows) + '</tbody></table></div></div>'
@@ -915,7 +915,7 @@ def render_snmp_health_summary(handler, device, dev, fx):
     else:
         history_panel = (
             '<div class="panel"><h2>Recent sensor changes</h2>'
-            '<p class="muted">No Sensor state transitions have been recorded for this device yet.</p></div>'
+            '<p class="muted">No monitoring status changes have been recorded for this device yet.</p></div>'
         )
 
     return health_panel + history_panel
@@ -1011,7 +1011,7 @@ def _render_l3_topology_page(handler, q, sess, view):
     note = ('<div class="topology-legend"><span><i class="topology-swatch"></i>DIRECT / PHYSICAL</span>'
             '<span><i class="topology-swatch inferred"></i>ROUTING / INFERRED PATH</span>'
             '<span><i class="topology-swatch unknown"></i>Subnet / unknown evidence</span></div>'
-            '<p class="topology-note">This view is built only from persisted evidence. Rendering never polls a device. '
+            '<p class="topology-note">This view uses previously collected network data. Opening it does not poll devices. '
             'A next-hop IP becomes a managed-device edge only when it uniquely matches fresh interface evidence in the same VRF.</p>')
     return (_topology_view_tabs(view) + f'<div class="panel">{toolbar}{note}{"".join(svg)}</div>{_TOPOLOGY_JS}'
             f'<div class="panel"><h3>L3 evidence</h3><table><tr><th>Kind</th><th>From</th><th>To</th><th>VRF</th><th>Next hop</th><th>Interface</th><th>Evidence</th><th>Resolution</th><th>Routes</th></tr>'
@@ -1138,7 +1138,7 @@ def render_topology_page(handler, q, sess):
              f'{evidence_rows or "<tr><td colspan=8 class=muted>No managed adjacency/path evidence yet. Managed devices still remain visible above.</td></tr>"}</table>'
              f'<p class="muted">FDB matches indicate reachability through a port, not guaranteed direct physical adjacency. Only LLDP/CDP OBSERVED edges are traversed by downstream-impact analysis.</p></div>'
              f'<div class="panel"><h3>Managed identity</h3><table><tr><th>Device</th><th>sysName</th><th>Chassis identity</th><th>Model</th><th>Capabilities</th><th>Interfaces</th></tr>'
-             f'{identity_rows or "<tr><td colspan=6 class=muted>No normalized identity collected yet.</td></tr>"}</table></div>'
+             f'{identity_rows or "<tr><td colspan=6 class=muted>Device identity has not been collected yet.</td></tr>"}</table></div>'
              f'<div class="panel"><h3>Downstream impact</h3><form method=get action="/topology"><select name=impact_device>{"".join(impact_opts)}</select> '
              f'<input name=impact_port value="{html.escape(root_port)}" placeholder="optional root port"> <button class="ghost">Analyze</button></form>{impact_html}</div>'
              f'<details class="panel"><summary>Raw LLDP/CDP observations · {len(rows)} rows · {len(unmanaged)} unmanaged · {len(ambiguous)} ambiguous</summary>'
@@ -1208,7 +1208,7 @@ def render_events_page(handler, q, sess):
         sup_rows = ''.join(f'<tr><td>{html.escape(x.get("root_device", ""))}:{html.escape(x.get("root_port", ""))}</td><td>{html.escape(x.get("target_device", ""))}</td><td>{_fmt_ts(x.get("expires_ts"))}</td><td>{html.escape(x.get("reason", ""))}</td></tr>' for x in suppressions)
         tabs = handler._correlation_workspace_tabs("events") if hasattr(handler, "_correlation_workspace_tabs") else ""
         inner = (tabs + detail +
-                 f'<div class="panel"><h2>Operational Events</h2><p class="muted">MC-3 normalized cross-domain operational evidence. Sensor refreshes create events only for durable state transitions; UNKNOWN remains missing evidence rather than an automatic critical verdict.</p>'
+                 f'<div class="panel"><h2>Operational Events</h2><p class="muted">Events record changes in monitoring status across devices, systems and applications. Unknown means data is missing, not automatically a critical fault.</p>'
                  f'<form method=get action="/events"><div class="row"><select name=device>{options}</select><select name=domain>{domain_options}</select><button class=ghost>Filter</button></div></form>'
                  f'<div class="table-wrap"><table><tr><th>Observed</th><th>Domain</th><th>Severity</th><th>Event</th><th>Entity</th><th>Resource</th><th>Status</th><th>Count</th><th>State</th></tr>{body_rows or "<tr><td colspan=9 class=muted>No operational events.</td></tr>"}</table></div></div>'
                  f'<div class="panel"><h3>Active dependency suppressions</h3><div class="table-wrap"><table><tr><th>Upstream</th><th>Suppressed device</th><th>Expires</th><th>Reason</th></tr>{sup_rows or "<tr><td colspan=4 class=muted>None.</td></tr>"}</table></div></div>')
@@ -1234,7 +1234,7 @@ def render_netflow_section(handler, dev, collector):
     summary = _nf.summarize_flows(flows, limit=8)
     cards = (
         '<div class="sensor-grid">'
-        f'<div class="sensor-card ok"><div class="sensor-head"><span class="sensor-dot"></span>Recent flows</div><div class="sensor-value">{summary["flow_count"]}</div><div class="sensor-detail">bounded in-memory records</div></div>'
+        f'<div class="sensor-card ok"><div class="sensor-head"><span class="sensor-dot"></span>Recent flows</div><div class="sensor-value">{summary["flow_count"]}</div><div class="sensor-detail">recent received traffic; retained in memory only</div></div>'
         f'<div class="sensor-card ok"><div class="sensor-head"><span class="sensor-dot"></span>Observed bytes</div><div class="sensor-value">{handler._human_bytes(summary["total_bytes"])}</div><div class="sensor-detail">{summary["total_packets"]} packets</div></div>'
         f'<div class="sensor-card ok"><div class="sensor-head"><span class="sensor-dot"></span>Sources</div><div class="sensor-value">{summary["unique_sources"]}</div><div class="sensor-detail">unique source IPs</div></div>'
         f'<div class="sensor-card ok"><div class="sensor-head"><span class="sensor-dot"></span>Destinations</div><div class="sensor-value">{summary["unique_destinations"]}</div><div class="sensor-detail">unique destination IPs</div></div>'
@@ -1255,7 +1255,7 @@ def render_netflow_section(handler, dev, collector):
 
     insight_rows = ''.join(f'<li>{html.escape(x)}</li>' for x in summary["insights"])
     analysis = (f'<div class="panel"><h3>Traffic analysis</h3><ul>{insight_rows}</ul>'
-                '<p class="muted">Deterministic summary of the recent flow ring; it does not infer attack intent or causation.</p></div>')
+                '<p class="muted">Summary of recently received traffic. It does not confirm an attack or its cause.</p></div>')
     overview = ('<div class="panel"><h3>Traffic overview</h3><div class="row">'
                 + ranked("Top sources", summary["top_sources"])
                 + ranked("Top destinations", summary["top_destinations"])
@@ -1360,10 +1360,10 @@ def render_vendor_profile_admin(handler, sess):
             f'</div>')
     return (f'<div class="panel"><details><summary><b>SNMP vendor profiles · '
             f'{len(reg.profiles)} loaded</b></summary>'
-            f'<p class="muted" style="margin-top:10px">Declarative, read-only SNMP collection '
-            f'profiles map a device’s sysObjectID to bounded vendor branches and canonical Sensors. '
+            f'<p class="muted" style="margin-top:10px">Read-only SNMP monitoring '
+            f'profiles identify supported devices and turn vendor SNMP values into monitoring measurements. '
             f'Upload a validated JSON profile to add coverage for a new model; operator-installed '
-            f'profiles persist under the data directory and can be removed here. Built-in profiles are '
+            f'profiles are saved by NetConfig and can be removed here. Built-in profiles are '
             f'read-only.</p>{controls}{errors_html}'
             f'<table style="margin-top:10px"><tr><th>Profile</th><th>Vendor / product</th><th>Version</th>'
             f'<th>sysObjectID prefixes</th><th>Contents</th><th></th></tr>'
@@ -1388,6 +1388,13 @@ def render_protocols_page(handler, sess, q=None):
             collect = (f'<form method=post action="/protocol-collect">{handler._csrf_field()}'
                        f'<input type=hidden name=device value="{html.escape(dev["name"])}">'
                        '<button class=ghost>Collect now</button></form>')
+            collect += (f'<a class="btn ghost" href="/protocols?device={urllib.parse.quote(dev["name"], safe="")}">'
+                        'Inspect protocol</a>')
+        if prof and sess["role"] in {"approver", "admin"}:
+            collect += ('<form method=post action="/protocol-delete" '
+                        'data-confirm="Remove this collection profile? The device stays in inventory and default collection is restored.">'
+                        f'{handler._csrf_field()}<input type=hidden name=device value="{html.escape(dev["name"])}">'
+                        '<button class=danger>Remove profile</button></form>')
         profile_badge = ('<span class="badge b-ok">configured</span>' if enabled
                          else '<span class="badge b-dim">default</span>')
         device_name = html.escape(dev["name"])
@@ -1409,7 +1416,11 @@ def render_protocols_page(handler, sess, q=None):
         '<table><tr><th>Network device</th><th>Read protocol</th><th>Profile</th><th>Port</th><th>CLI fallback</th><th>Action</th></tr>'
         + ''.join(rows) + '</table></div>'
     )
-    if sess["role"] not in {"operator", "approver", "admin"}:
+    if sess["role"] not in {"approver", "admin"}:
+        if sess["role"] == "operator":
+            table += ('<div class=panel><details><summary><b>Advanced: change a network-device collection profile</b></summary>'
+                      '<p>Changing or removing profiles requires an approver or admin. You can collect and inspect protocols above.</p>'
+                      '</details></div>')
         return intro + table
     opts = ''.join(
         f'<option value="{html.escape(d["name"])}"{" selected" if d["name"] == selected else ""}>{html.escape(d["name"])}</option>'
@@ -1471,7 +1482,7 @@ def render_incident_investigation(investigation):
             + '</div></div>')
     hypothesis_panel = (
         current_detail + f'<div class="panel"><h2>Current hypotheses · {len(hypotheses)}</h2>'
-        '<p class=muted>Deterministic evidence correlation only. Correlation does not confirm causation or root cause.</p>'
+        '<p class=muted>Related records suggest possible explanations. Correlation does not confirm causation or root cause.</p>'
         '<table><tr><th>Hypothesis</th><th>Confidence</th><th>Summary</th><th>Support / contradict</th><th>Rule</th></tr>'
         f'{"".join(hypothesis_rows) or "<tr><td colspan=5 class=muted>No active hypothesis. Run correlation after linking relevant evidence.</td></tr>"}</table></div>'
     )
@@ -1491,7 +1502,7 @@ def render_incident_investigation(investigation):
             f'<td>{"yes" if run.get("replay_of_id") else "no"}</td></tr>')
     run_panel = (
         f'<div class="panel"><h2>Correlation run evidence · {len(correlation_runs)}</h2>'
-        '<p class=muted>MC-10 runtime evidence records determinism, latency, replay, late/out-of-order evidence and bounded truncation. It does not establish causation.</p>'
+        '<p class=muted>Review analysis duration, repeated runs, late-arriving data and collection limits. These results do not confirm a root cause.</p>'
         '<div class="table-wrap"><table><tr><th>Started</th><th>State</th><th>Mode</th><th>Facts</th><th>Hypotheses</th><th>Latency</th><th>Late / OOO</th><th>Replay</th></tr>'
         f'{"".join(run_rows) or "<tr><td colspan=8 class=muted>No correlation run evidence yet.</td></tr>"}</table></div></div>'
     )
@@ -1512,7 +1523,7 @@ def render_incident_investigation(investigation):
     timeline_panel = (
         f'<div class="panel"><h2>Incident timeline · Unified · {len(timeline)}</h2>'
         '<p class=muted>Ordered by source time; receive time is retained for late-arriving evidence. '
-        'Equal timestamps use deterministic evidence ordering.</p>'
+        'Records with the same timestamp keep a consistent order.</p>'
         '<table><tr><th>Source time</th><th>Source</th><th>Actor / system</th><th>Summary</th><th>Evidence</th></tr>'
         f'{"".join(rows) or "<tr><td colspan=5 class=muted>No timeline entries.</td></tr>"}</table></div>'
     )
@@ -1520,7 +1531,7 @@ def render_incident_investigation(investigation):
     affected = impact.get("affected_entities") or []
     impact_panel = (
         '<div class="panel"><h2>Impact</h2>'
-        '<p class=muted>Observed entities only; MC-5 does not infer root cause or service dependency.</p>'
+        '<p class=muted>Lists devices and services found in the linked records. It does not confirm a root cause or assume dependencies.</p>'
         f'<p><b>{len(affected)}</b> affected/related entities from <b>{impact.get("evidence_count", 0)}</b> timeline entries.</p>'
         f'<p>{html.escape(", ".join(affected[:30])) if affected else "No affected entity can be established from linked evidence."}</p></div>'
     )
@@ -1559,14 +1570,14 @@ def render_incident_correlation(handler, incident_key, can_write, investigation)
     investigation["correlation_runs"] = handler.manager.correlation_hardening.runs(
         incident_key, limit=20)
     controls = (
-        '<div class="panel"><h2>Operator journey</h2>'
-        '<p class=muted>Continue this persisted investigation through MC-11 path analysis, frozen approval, Structured Change verification and post-change evidence without page-triggered polling.</p>'
-        f'<a class="btn ghost" href="/operations?tab=workflow&incident={_q(incident_key)}">Open R65 Operator Journey</a></div>'
+        '<div class="panel"><h2>Incident workflow</h2>'
+        '<p class=muted>Follow this incident through path analysis, change approval, execution checks and follow-up monitoring. Opening the workflow does not poll devices.</p>'
+        f'<a class="btn ghost" href="/operations?tab=workflow&incident={_q(incident_key)}">Open Incident Workflow</a></div>'
     )
     if can_write:
         controls += (
             '<div class="panel"><h2>Correlation</h2>'
-            '<p class=muted>Re-evaluate linked evidence using deterministic MC-7 rules. '
+            '<p class=muted>Analyze the linked monitoring records again. '
             'This does not execute device actions or confirm root cause.</p>'
             f'<form method=post action="/incident-correlate">{handler._csrf_field()}'
             f'<input type=hidden name=ref value="{html.escape(incident_key)}">'

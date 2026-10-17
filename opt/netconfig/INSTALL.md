@@ -4,11 +4,22 @@ R60 adds a fail-closed lifecycle workflow for supported R59→R60 upgrades. Use 
 
 # NetConfig — Install & Operations
 
-> **Canonical project state — 2026-09-25:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) on top of the frozen R67 candidate. MC-1 through MC-11 remain implemented; **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice and schema revision remains `mc11-topology-change-planning-1`; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included. R67.2 repairs fresh login, additive migration/index ordering, fail-closed Core PostgreSQL preflight, Core/History PostgreSQL configuration separation, and fresh PostgreSQL Core bootstrap without adding network-write authority. **All network mutation remains approval-gated; local/offline qualification does not establish RC or production release readiness; all required `LIVE_RC` gates remain mandatory. Do not create MC-12.** R68 must be rerun against the exact R67.2 candidate after mandatory live qualification.
+<!-- documentation-sync: 2026-10-13 -->
+> **Canonical project state — 2026-10-13:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) with unnumbered SNMP Vendor Profile and October Web UI / NetFlow corrective updates. **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included; schema `mc11-topology-change-planning-1` is unchanged. The working tree is not the previously frozen R67.2 candidate. Release numbering awaits an explicit user decision. Next: choose release identity, freeze a new candidate, execute all twelve mandatory `LIVE_RC` gates against its exact bytes, then perform R68 production release review. No new feature phase is assigned. All network mutation remains approval-gated. Local/source evidence does not establish production readiness. **Do not create MC-12.**
+
+> **Document applicability:** this document is maintained against [ROADMAP.md](../../ROADMAP.md) and [AI_HANDOFF.md](../../AI_HANDOFF.md). Older release-numbered sections, test counts, fingerprints and Current/Next pointers below are historical unless explicitly restated in this 2026-10-13 update.
+
+## Current packaging and qualification disposition — 2026-10-13
+
+The source/spec identity remains `2.0.0-67.2`, with unnumbered runtime and documentation correctives after the prior freeze. Release numbering awaits the user's decision. Building these sources does not reproduce the earlier frozen R67.2 artifact or inherit its qualification. Old release-specific filenames/commands below are historical examples; verify the actual build output and RPM metadata for the candidate being installed.
+
+Packaged JSON SNMP profiles reside under `/usr/share/netconfig/snmp-profiles`; administrator/runtime overlays use `/etc/netconfig/snmp-profiles` and `$NETCONFIG_HOME/snmp-profiles`. October console administration manages runtime profiles while preserving built-in defaults. Ordinary RPM installation remains SQLite-first; fresh Core PostgreSQL requires the documented psycopg 3/bootstrap workflow.
+
+Before candidate qualification, regenerate applicable release/source manifests, SPDX SBOM and checksums, then verify the new artifact. Packaged Markdown changes affect payload bytes. This documentation pass leaves generated JSON/SHA artifacts untouched so earlier frozen evidence is not silently rewritten. Canonical AlmaLinux build/install/upgrade/systemd/SELinux and all other LIVE_RC gates require the exact new candidate; offline helper verification alone does not qualify deployment. Git remains user-managed.
 
 ## Release 54 package identity
 
-Current RPM identity is `netconfig-2.0.0-56.el10.noarch`. MC-7 Deterministic Correlation & Hypothesis Engine remains `IMPLEMENTED_TESTING_DEFERRED`; helper-built RPMs are offline-structurally qualified only until canonical AlmaLinux 10 `rpmbuild`/DNF/systemd/SELinux gates actually run. The package preserves `/var/lib/netconfig` and `%config(noreplace)` settings across upgrade and does not create administrator credentials.
+Historical Release 56 RPM identity was `netconfig-2.0.0-56.el10.noarch`. MC-7 Deterministic Correlation & Hypothesis Engine remains `IMPLEMENTED_TESTING_DEFERRED`; helper-built RPMs are offline-structurally qualified only until canonical AlmaLinux 10 `rpmbuild`/DNF/systemd/SELinux gates actually run. The package preserves `/var/lib/netconfig` and `%config(noreplace)` settings across upgrade and does not create administrator credentials.
 
 > **Roadmap disposition — 2026-09-24:** **R59 / MC-11 is the final Monitoring & Correlation functional slice.** Do not create MC-12. After R59, stop feature expansion and use the Release / Qualification track: **Q2 Production Qualification Campaign → R60 Appliance Reliability & Lifecycle Hardening → R61 Scale & Performance Qualification → R62 PostgreSQL / Concurrency / Recovery Hardening → R63 HA / Failure-Domain Engineering → R64 Security Hardening & Independent Abuse Testing → R65 Operator Workflow Completion → R66 Observability / Supportability → R67 Release Candidate / Full Artifact Qualification → R68 v2 Production Release Decision**. Simulation never counts as live PASS; mandatory gates use `PASS / FAIL / BLOCKED_ENVIRONMENT / NOT_RUN`.
 
@@ -518,7 +529,7 @@ Only Ed25519 is accepted and the private-key file must have no group/world permi
 
 ---
 
-Historical NI-1 documentation snapshot: `netconfig_network_intelligence_ni1_markdown_refresh_FULL_source_baseline_2026-09-11.zip`. The current baseline is the Q-1 FULL source artifact described by the canonical header.
+Historical NI-1 documentation snapshot: `netconfig_network_intelligence_ni1_markdown_refresh_FULL_source_baseline_2026-09-11.zip`. That Q-1 FULL source artifact is historical; the current working-tree applicability is declared in the canonical header.
 
 ## PH-2 PostgreSQL core deployment
 
@@ -576,4 +587,3 @@ The helper installs `/etc/netconfig/postgres-core-password` as `root:netconfig` 
 If a fresh bootstrap is interrupted, rerun the **same arguments** with `--resume`. Resume requires the stored argument fingerprint and refuses an operational SQLite Core, pre-existing untracked settings, a completed installation, or a different/non-fresh PostgreSQL user set.
 
 Do not use the Interface History password field as the Core credential. R67.2 separates these settings in the Console.
-

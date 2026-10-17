@@ -147,7 +147,7 @@ def test_p1_supportability_snapshot_is_visible_but_bundle_admin_boundary_remains
     try:
         status, text, _ = _request(server, sid, "GET", "/diagnostics")
         assert status == 200
-        assert "Runtime Supportability" in text and "r66-supportability-1" in text
+        assert "NetConfig Service Status" in text and "r66-supportability-1" in text
         assert "Create support bundle" not in text
         status, _, _ = _request(server, sid, "POST", "/debug-create", {"csrf": csrf})
         assert status == 403
@@ -175,7 +175,7 @@ def test_p1_ha_console_exposes_fenced_replay_safe_recovery(tmp_path):
         status, text, _ = _request(server, sid, "GET", "/operations?tab=ha")
         assert status == 200
         assert "Distributed work recovery" in text and "RECOVERY_REQUIRED" in text
-        assert "Requeue safe task" in text
+        assert "Retry safe task" in text
         status, _, headers = _request(server, sid, "POST", "/ops-ha-task-requeue", {
             "csrf": csrf, "task_id": str(task["id"]), "reason": "verified no side effect",
         })
@@ -193,8 +193,14 @@ def test_current_docs_do_not_present_r60_or_session_expiry_as_current_truth():
     readme = (ROOT / "README.md").read_text()
     roadmap = (ROOT / "ROADMAP.md").read_text()
     security = (ROOT / "SECURITY.md").read_text()
-    assert readme.startswith("# NetConfig\n\n## Current baseline — R67.2")
-    assert roadmap.startswith("# Roadmap\n\n## Current baseline — R67.2")
+    assert readme.startswith("# NetConfig\n")
+    assert roadmap.startswith("# Roadmap\n")
+    # Dated corrective/workspace entries may precede the maintained baseline.
+    for document in (readme, roadmap):
+        current = next(line for line in document.splitlines()
+                       if line.startswith("> **Canonical project state"))
+        assert "Release 67.2" in current and "2.0.0-67.2" in current
+        assert "IMPLEMENTED_TESTING_DEFERRED" in current
     current_security = security.split("## Historical", 1)[0].lower()
     assert "session idle/absolute expiry remains" not in current_security
     assert "session idle/absolute expiry is implemented" in current_security

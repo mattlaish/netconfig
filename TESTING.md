@@ -1,11 +1,78 @@
 # R67.2 corrective RC — current testing truth
 
+## Operator-facing wording refresh — 2026-10-17
+
+Validation: **119 PASS** (including **18 new console-copy page checks**); legacy
+selftest **ALL PASS**; **14 changed/new Python files compile**; **10 runtime
+modules retain identical non-text AST and machine-facing fields**. Ruff adds
+**0 new findings**; 10 existing findings remain. Three qualification/platform
+cases were deliberately deselected, not counted as PASS. No Git operations,
+RPM build/install, browser visual acceptance or LIVE_RC execution were performed.
+
+The 18 new checks request real localhost HTTP pages, parse rendered copy
+separately from raw code/diagnostic records, reject internal slice codes and
+implementation jargon, and verify stable monitoring/database form fields.
+Existing regression retains viewer/admin, CSRF, XSS, exact-proposal approval,
+profile management, System/Application isolation and PH-1 structure coverage.
+Initial new tests used two incorrect page selectors and a quote-sensitive
+HTML assertion; these were corrected to real routes/HTML attribute parsing.
+The pre-existing docs-order assertion was corrected to canonical content.
+Windows PTY remains fail-closed; no live SSH/PostgreSQL/AlmaLinux claim.
+
+## Root-anchored Windows runner — 2026-10-16
+
+The maintained runner is `tools/run_windows_source_tests.py` in the active source
+tree `C:\Users\mattlai\Projects\netconfig`. It sets cwd, source imports and pytest
+configuration from its own location, not the terminal's starting folder. From any
+folder, first confirm the root with:
+
+```powershell
+python C:\Users\mattlai\Projects\netconfig\tools\run_windows_source_tests.py --print-root
+```
+
+Run local regressions with the same absolute script path followed by pytest
+arguments, or use `--selftest` for the legacy selftest. Install pytest in your test
+environment, or explicitly set `NETCONFIG_TEST_DEPENDENCIES` to an external pytest
+dependency directory. No old workspace dependency path is embedded in this runner.
+The Windows PTY import shim raises on real SSH/PTY calls; it never establishes
+AlmaLinux/device qualification. The old `run_netconfig_local_tests.py` outside the
+project is only a compatibility forwarder. See the
+[workspace audit](WORKSPACE_AUDIT_2026-10-16.md) for this maintenance validation.
+
+## Web UI control coverage corrective — 2026-10-16
+
+The R67.2-based working tree now closes five console coverage gaps. Status remains `IMPLEMENTED_TESTING_DEFERRED`; package identity remains `2.0.0-67.2` pending the user's release decision.
+
+- **Users:** admins can enable, disable and delete accounts from `/users`. Console changes protect the current account and the last enabled admin; SQLite transactions and a PostgreSQL transaction advisory lock serialize access changes. Existing managed sessions reject deleted/disabled accounts on their next request. Password-reset inputs are masked.
+- **Device Collection:** approvers/admins can remove a saved protocol profile; inventory and vault secrets are retained and default collection is restored. Operators and above can explicitly run Capabilities, Read state and bounded gNMI Subscribe once. Collection now checks the existing `collect` capability. Page loads do not initiate protocol I/O.
+- **Diagnostics:** admins can create full or per-device captures, request a signature, verify archive signature/trust, view effective signing status and clean up older managed bundles with a minimum keep count of one. Signature validity and trusted-signer status are displayed separately. Device captures create their missing security subdirectory; cleanup uses file modification time across full/device archive prefixes.
+- **Settings → Evidence signing:** admin-only policy controls for `evidence_signing_required` and `evidence_trusted_fingerprints`; validated/normalized SHA-256 pins are saved only after all inputs pass. Environment policy overrides remain visible and environment-added pins are not copied into settings. Private keys remain outside the Web UI.
+- **Protocol Traces:** standalone `/traces` navigation, device/status filters, session detail and bounded event view. Operators and above can start/stop captures with TTL/event/byte budgets and optional Incident linkage. Viewers can read but cannot capture.
+
+All new console POST routes use session authentication, existing role checks and CSRF protection. Network configuration writes remain behind the existing approval chain; no schema or public bearer-REST contract changes are introduced. `web_feature_controls.py` holds the additional controls and preserves the PH-1 `web.py` structural limits.
+
+Validation on the Windows development host: **131 PASS** across **45 new HTTP/role/CSRF/access-lifecycle cases** and **86 related existing regressions**. Three pre-existing POSIX/qualification-runner cases were reproduced against the unmodified working folder and excluded from this compatible run; they require the appropriate runtime. Ten existing OpenSSL signing cases were skipped in the earlier expanded run because OpenSSL was not exposed to that runner. The Windows test harness supplies only a fail-closed `pty` import shim; any real POSIX SSH attempt raises rather than simulating success. This is source/local HTTP evidence, not live AlmaLinux, PostgreSQL concurrency, device interoperability, browser acceptance or cryptographic-signing qualification.
+
+Generated manifests, SBOM and artifact hashes remain pending regeneration for the next frozen candidate. Earlier candidate fingerprints do not qualify these changed bytes. No new version, MC slice or production release is declared. Git remains user-managed.
+
+Additional completed local checks: legacy selftest **ALL PASS** (including Application-only isolation and System-only regression), six changed runtime modules compile, and the existing canonical-state, compound-statement and PH-1 structure checks **3/3 PASS**. Selftest uses the same fail-closed Windows PTY import harness; this is not live SSH evidence.
+
+<!-- documentation-sync: 2026-10-13 -->
+> **Canonical project state — 2026-10-13:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) with unnumbered SNMP Vendor Profile and October Web UI / NetFlow corrective updates. **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included; schema `mc11-topology-change-planning-1` is unchanged. The working tree is not the previously frozen R67.2 candidate. Release numbering awaits an explicit user decision. Next: choose release identity, freeze a new candidate, execute all twelve mandatory `LIVE_RC` gates against its exact bytes, then perform R68 production release review. No new feature phase is assigned. All network mutation remains approval-gated. Local/source evidence does not establish production readiness. **Do not create MC-12.**
+
+> **Document applicability:** this document is maintained against [ROADMAP.md](ROADMAP.md) and [AI_HANDOFF.md](AI_HANDOFF.md). Older release-numbered sections, test counts, fingerprints and Current/Next pointers below are historical unless explicitly restated in this 2026-10-13 update.
+
+## Documentation reconciliation evidence — 2026-10-13
+
+This maintenance pass synchronizes Markdown state and inventories every discovered Markdown file. Checks cover canonical release/schema/next-action consistency, classification and local documentation links, historical-pointer labeling, corrected R64 session-expiry truth, and Markdown-only file changes. It does not execute the full product suite, browser acceptance, a new RPM build or LIVE_RC campaign.
+
+The September Vendor Profile checkpoint records 556 collected / 542 PASS / 14 SKIP / 0 FAIL and focused 8 PASS. These totals are historical checkpoint evidence, not current-tree qualification. The October corrective ledger records five profile-Web tests plus four NetFlow-diagnostic tests and reports a green full suite/no new Ruff findings without recording an exact aggregate; this pass does not synthesize one.
+
+Application-only isolation is present in source. Dedicated System-only and mixed-type candidate regression/acceptance evidence must be confirmed during qualification; this pass does not claim those checks have run. All twelve mandatory LIVE_RC gates remain required against the newly frozen bytes. Earlier candidate evidence cannot be transferred after code or packaged-document changes. Release/artifact manifests and SBOM/checksums must be regenerated and verified when freezing that candidate.
 
 > **2026-09-29 development update — SNMP Vendor Profile framework:** this working tree adds a data-only, hot-reloadable SNMP Vendor Profile engine on top of the refrozen R67.2 source line. This is a runtime/package payload change, so the previously frozen R67.2 exact-candidate fingerprint and candidate-bound `LIVE_RC` evidence do **not** qualify this working tree. The release identity has intentionally **not** been advanced; that remains an explicit user decision. Project state remains `IMPLEMENTED_TESTING_DEFERRED`; MC-11 remains the final Monitoring / Correlation / Change-Planning feature slice; no MC-12 and no new network-write authority are introduced. Profiles are JSON data, validated fail-closed, bounded to declared numeric OID roots, and cannot execute Python, shell, commands, URLs, or arbitrary expressions.
 
-**Current vendor-profile source evidence:** **556 collected / 542 PASS / 14 SKIP / 0 FAIL** across 12 bounded groups; focused Vendor Profile framework coverage is **8 PASS / 0 FAIL**; `compileall`, actual launcher `py_compile`, packaging/tool/qualification shell syntax, release-metadata check, and legacy selftest are PASS. The 14 skips remain explicit live PostgreSQL/protocol-service prerequisites plus the expected source-archive Git-metadata prerequisite. These are local/source gates only and do not promote the working tree beyond `IMPLEMENTED_TESTING_DEFERRED`.
-
-> **Canonical project state — 2026-09-25:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) on top of the frozen R67 candidate. MC-1 through MC-11 remain implemented; **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice and schema revision remains `mc11-topology-change-planning-1`; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included. R67.2 repairs fresh login, additive migration/index ordering, fail-closed Core PostgreSQL preflight, Core/History PostgreSQL configuration separation, and fresh PostgreSQL Core bootstrap without adding network-write authority. **All network mutation remains approval-gated; local/offline qualification does not establish RC or production release readiness; all required `LIVE_RC` gates remain mandatory. Do not create MC-12.** R68 must be rerun against the exact R67.2 candidate after mandatory live qualification.
+**Recorded 2026-09-29 vendor-profile source evidence:** **556 collected / 542 PASS / 14 SKIP / 0 FAIL** across 12 bounded groups; focused Vendor Profile framework coverage is **8 PASS / 0 FAIL**; `compileall`, actual launcher `py_compile`, packaging/tool/qualification shell syntax, release-metadata check, and legacy selftest are PASS. The 14 skips remain explicit live PostgreSQL/protocol-service prerequisites plus the expected source-archive Git-metadata prerequisite. These are local/source gates only and do not promote the working tree beyond `IMPLEMENTED_TESTING_DEFERRED`.
 
 R67.2 requires focused fresh-database/bootstrap tests, retained MC-11 authority regression, full bounded repository regression, clean-extract reproduction, deterministic RPM, artifact integrity and a fresh exact-candidate LIVE_RC matrix. No R67/R67.1 candidate-bound live evidence may be reused after these byte changes.
 
@@ -19,7 +86,7 @@ The refreeze is documentation/manifest-only and does not alter runtime/API/schem
 
 **R60 local/offline and clean-extract qualification (2026-09-24):** repository regression is **418 collected / 410 passed / 8 skipped / 0 failed**; R60 focused lifecycle/qualification coverage is **24/24 PASS** and retained MC-11 authority coverage is **12/12 PASS**. `compileall`, launcher/Q2/R60 `py_compile`, packaging/tool shell syntax, and legacy selftest are PASS. The dependency-free helper RPM contains **99 payload files**; two source-tree builds and two clean-extract builds are byte-identical and independently verified, SHA-256 `901142aab3041272d0929360bee1d555f5e5600fa428fd771bcbdceff75469ad`. The initial R60 campaign on the current non-AlmaLinux runner records **3 LOCAL_REGRESSION PASS / 0 FAIL / 0 BLOCKED_ENVIRONMENT / 10 NOT_RUN / 0 LIVE_PRODUCTION PASS** because destructive appliance hooks were not authorized/executed in this runner. These results do not promote R60 beyond `IMPLEMENTED_TESTING_DEFERRED`; live AlmaLinux R59→R60 upgrade/rollback, systemd/SELinux/reboot/crash/disk-pressure and PostgreSQL rollback-database gates remain separate live evidence.
 
-## R60 qualification plan and current truth
+## Recorded R60 qualification plan and evidence
 
 R60 adds focused lifecycle and qualification regression plus a separate live qualification matrix. Local/offline evidence can prove snapshot integrity, restore semantics, package identity, deterministic helper-RPM construction, MC-11 authority preservation and qualification-runner behavior; it cannot prove AlmaLinux upgrade/rollback, systemd/reboot, SELinux, PostgreSQL recovery, or disk-pressure behavior. Those live gates use only `PASS / FAIL / BLOCKED_ENVIRONMENT / NOT_RUN`.
 
@@ -80,11 +147,9 @@ MC-9 regression covers empty/no-correlation rendering, correlated incident/servi
 
 Runtime/UI source changed in Release 46 and was requalified on the Release 46 source workspace. Four bounded non-live groups total **222 passed / 1 skipped / 0 failed**, and the service-backed integration inventory contributes **7 skipped** explicit live prerequisites, for an effective **222 passed / 8 skipped / 0 failed**. The archive-only skip is the Git-index executable-mode check because `.git` is absent. Focused Web Console/structural coverage is **13 passed**. Legacy selftest is **ALL PASS**; compileall, launcher `py_compile`, and packaging/tool shell syntax are **PASS**. The offline RPM was built twice byte-identically and independently verified. Ruff `0.16.7`, mypy, canonical AlmaLinux `rpmbuild`/DNF/systemd/SELinux, PostgreSQL live, and vendor-device live qualification remain `NOT_RUN` unless separately executed.
 
-> **Canonical project state — 2026-09-25:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) on top of the frozen R67 candidate. MC-1 through MC-11 remain implemented; **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice and schema revision remains `mc11-topology-change-planning-1`; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included. R67.2 repairs fresh login, additive migration/index ordering, fail-closed Core PostgreSQL preflight, Core/History PostgreSQL configuration separation, and fresh PostgreSQL Core bootstrap without adding network-write authority. **All network mutation remains approval-gated; local/offline qualification does not establish RC or production release readiness; all required `LIVE_RC` gates remain mandatory. Do not create MC-12.** R68 must be rerun against the exact R67.2 candidate after mandatory live qualification.
+## Historical Release 55 / MC-7 validation — 2026-09-23
 
-## Release 55 / MC-7 current validation — 2026-09-23
-
-Current source-tree truth after MC-7 implementation and release-identity synchronization:
+Historical source-tree evidence after MC-7 implementation and release-identity synchronization:
 
 - repository collection: **337 tests**;
 - result: **329 passed / 8 skipped / 0 failed**;
@@ -226,7 +291,7 @@ Release 33 adds focused coverage in `tests/test_automation_expansion.py` for PH-
 
 Ruff/mypy may be marked only `PASS` when the actual tools execute successfully. Tool absence is `NOT_RUN`, never PASS. Q-1 real PostgreSQL/AlmaLinux/systemd/OpenSSH/Net-SNMP/vendor/live SMTP gates remain separate and must not be inferred from offline tests.
 
-> **Current continuation pointer:** use **Release 59 / MC-11 Topology-Aware Change Planning** (`2.0.0-59`) as the active full-source baseline once the final artifact gate below is frozen. Preserve `IMPLEMENTED_TESTING_DEFERRED`; do not promote to `TESTED` or `RELEASED` based on source simulation. MC-11 is the final functional slice and does not add direct execution authority. The immediate next track after artifact freeze is **Q2 Production Qualification Campaign**, not MC-12.
+> **Historical continuation pointer (superseded):** use **Release 59 / MC-11 Topology-Aware Change Planning** (`2.0.0-59`) as the active full-source baseline once the final artifact gate below is frozen. Preserve `IMPLEMENTED_TESTING_DEFERRED`; do not promote to `TESTED` or `RELEASED` based on source simulation. MC-11 is the final functional slice and does not add direct execution authority. The immediate next track after artifact freeze is **Q2 Production Qualification Campaign**, not MC-12.
 
 ## Historical Q-1 baseline qualification summary
 
@@ -1016,7 +1081,7 @@ The provisional source archive was extracted with system `unzip` and reproduced 
 
 R64 adds `qualification/r64_runner.py`, `R64_GATE_CATALOG.json`, and fixed-name assessor hook templates. Gate states remain `PASS`, `FAIL`, `BLOCKED_ENVIRONMENT`, and `NOT_RUN`. Evidence classes are `LOCAL_REGRESSION`, `LOCAL_ABUSE`, and `LIVE_ABUSE`; local results never satisfy production-security gates. The live matrix covers authz/object boundaries, CSRF/session revocation, API-token scope/revoke/replay, hostile external evidence, RESTCONF/SSH/OAuth egress abuse, XSS/CSP/request framing/body exhaustion, archive/parser bombs and special files, secret leakage/redaction, MC-11 non-execution, OS/RPM/SELinux/service-account confinement, resource exhaustion/slow clients, and independent assessor sign-off.
 
-## R64 current verification truth
+## Historical R64 verification evidence
 
 Source-tree regression: **498 collected / 484 PASS / 14 SKIP / 0 FAIL**. R64 focused: **21/21 PASS**. MC-11 focused: **12/12 PASS**. Security/compatibility focused set: **102 PASS / 1 expected no-.git SKIP / 0 FAIL**. Initial selected R64 campaign: **6 local PASS / 0 FAIL / 12 BLOCKED_ENVIRONMENT / 0 NOT_RUN / 0 LIVE_ABUSE PASS**; `production_security_claim=false`. The runner all-local nested full-regression invocation exceeded the surrounding execution envelope, so the full regression was executed separately with the same deterministic five-group partition and recorded in the evidence bundle; this does not change its `LOCAL_REGRESSION` class.
 
@@ -1024,7 +1089,7 @@ Source-tree regression: **498 collected / 484 PASS / 14 SKIP / 0 FAIL**. R64 foc
 
 R65 adds focused persisted-journey tests and `qualification/r65_runner.py`. Evidence classes are `LOCAL_REGRESSION`, `LOCAL_WORKFLOW`, and `LIVE_OPERATOR`; fixed live hooks cover browser continuity, path/proposal continuity, role separation, snapshot revalidation, exact verification, recovery, rollback, restart continuity, concurrent-operator isolation, and independent acceptance. Local evidence never establishes production operator acceptance.
 
-### R65 current evidence
+### Recorded R65 evidence
 
 - Full deterministic repository regression: **508 collected / 494 PASS / 14 SKIP / 0 FAIL**.
 - R65 focused: **10/10 PASS**; retained MC-11: **12/12 PASS**.
@@ -1060,3 +1125,7 @@ R67 evidence classes are `LOCAL_REGRESSION`, `LOCAL_ARTIFACT`, and `LIVE_RC`. Lo
 - `compileall`, selected `py_compile`, all packaging/qualification/tool `bash -n`, Node JavaScript syntax and legacy selftest: **PASS**.
 - Offline helper RPM deterministic A/B rebuild and independent verifier: **PASS**. This is not canonical AlmaLinux `rpmbuild`/DNF/systemd/SELinux evidence.
 - Real fresh PostgreSQL Core bootstrap, PostgreSQL upgrade/concurrency/outage/recovery, AlmaLinux 10 install, browser/operator, HA, scale, independent security, vendor/protocol, supportability and MC-11 live E2E remain **NOT_RUN / BLOCKED_ENVIRONMENT**. No release promotion claim is made.
+
+## 2026-10-13 documentation validation result
+
+Markdown inventory/applicability: **67/67 PASS** (54 maintained, 13 historical). Canonical-state consistency: **PASS**, executing the existing `test_release_67_rc_canonical_truth_is_consistent` assertion function directly. The pytest runner was **NOT_RUN** because the installed Python has no pytest module; direct assertion execution is not reported as a pytest-suite result. Local Markdown links and fenced-code balance pass the documentation audit. All **399 non-Markdown files** checked before/after synchronization are byte-unchanged. No Git operations, full product regression, RPM build or LIVE_RC gates were executed. Original Markdown is recoverable from the external temporary backup created for this sync.

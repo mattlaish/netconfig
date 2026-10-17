@@ -1,6 +1,57 @@
 # NetConfig — Web Console Operator Guide
 
-> **Canonical project state — 2026-09-25:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) on top of the frozen R67 candidate. MC-1 through MC-11 remain implemented; **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice and schema revision remains `mc11-topology-change-planning-1`; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included. R67.2 repairs fresh login, additive migration/index ordering, fail-closed Core PostgreSQL preflight, Core/History PostgreSQL configuration separation, and fresh PostgreSQL Core bootstrap without adding network-write authority. **All network mutation remains approval-gated; local/offline qualification does not establish RC or production release readiness; all required `LIVE_RC` gates remain mandatory. Do not create MC-12.** R68 must be rerun against the exact R67.2 candidate after mandatory live qualification.
+## Operator-facing wording refresh — 2026-10-17
+
+The console remains in English. Labels now describe what you can do:
+
+- **Incident Workflow**: investigate an incident, review a change, request
+  approval and check the results.
+- **Path & Change Planning**: review collected network information and plan
+  a change; planning alone does not change devices.
+- **Device Models**: manage the device definitions used by change workflows.
+- **NetConfig Service Status**: view service information and create support
+  bundles if your account has permission.
+- Monitoring settings explain repeat-event filtering, collection delays,
+  alert suppression and retries without internal development terminology.
+
+Existing bookmarks and saved settings continue to work. Network terms such as
+SNMP, VRF and TLS, and raw technical details used for troubleshooting, are kept.
+Approval, permissions, signature trust and data-retention warnings remain explicit.
+
+Validation: **119 PASS** (including **18 new console-copy page checks**); legacy
+selftest **ALL PASS**; **14 changed/new Python files compile**; **10 runtime
+modules retain identical non-text AST and machine-facing fields**. Ruff adds
+**0 new findings**; 10 existing findings remain. Three qualification/platform
+cases were deliberately deselected, not counted as PASS. No Git operations,
+RPM build/install, browser visual acceptance or LIVE_RC execution were performed.
+
+## Web UI control coverage corrective — 2026-10-16
+
+The R67.2-based working tree now closes five console coverage gaps. Status remains `IMPLEMENTED_TESTING_DEFERRED`; package identity remains `2.0.0-67.2` pending the user's release decision.
+
+- **Users:** admins can enable, disable and delete accounts from `/users`. Console changes protect the current account and the last enabled admin; SQLite transactions and a PostgreSQL transaction advisory lock serialize access changes. Existing managed sessions reject deleted/disabled accounts on their next request. Password-reset inputs are masked.
+- **Device Collection:** approvers/admins can remove a saved protocol profile; inventory and vault secrets are retained and default collection is restored. Operators and above can explicitly run Capabilities, Read state and bounded gNMI Subscribe once. Collection now checks the existing `collect` capability. Page loads do not initiate protocol I/O.
+- **Diagnostics:** admins can create full or per-device captures, request a signature, verify archive signature/trust, view effective signing status and clean up older managed bundles with a minimum keep count of one. Signature validity and trusted-signer status are displayed separately. Device captures create their missing security subdirectory; cleanup uses file modification time across full/device archive prefixes.
+- **Settings → Evidence signing:** admin-only policy controls for `evidence_signing_required` and `evidence_trusted_fingerprints`; validated/normalized SHA-256 pins are saved only after all inputs pass. Environment policy overrides remain visible and environment-added pins are not copied into settings. Private keys remain outside the Web UI.
+- **Protocol Traces:** standalone `/traces` navigation, device/status filters, session detail and bounded event view. Operators and above can start/stop captures with TTL/event/byte budgets and optional Incident linkage. Viewers can read but cannot capture.
+
+All new console POST routes use session authentication, existing role checks and CSRF protection. Network configuration writes remain behind the existing approval chain; no schema or public bearer-REST contract changes are introduced. `web_feature_controls.py` holds the additional controls and preserves the PH-1 `web.py` structural limits.
+
+<!-- documentation-sync: 2026-10-13 -->
+> **Canonical project state — 2026-10-13:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) with unnumbered SNMP Vendor Profile and October Web UI / NetFlow corrective updates. **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included; schema `mc11-topology-change-planning-1` is unchanged. The working tree is not the previously frozen R67.2 candidate. Release numbering awaits an explicit user decision. Next: choose release identity, freeze a new candidate, execute all twelve mandatory `LIVE_RC` gates against its exact bytes, then perform R68 production release review. No new feature phase is assigned. All network mutation remains approval-gated. Local/source evidence does not establish production readiness. **Do not create MC-12.**
+
+> **Document applicability:** this document is maintained against [ROADMAP.md](../../ROADMAP.md) and [AI_HANDOFF.md](../../AI_HANDOFF.md). Older release-numbered sections, test counts, fingerprints and Current/Next pointers below are historical unless explicitly restated in this 2026-10-13 update.
+
+## Current device and SNMP operator behavior — 2026-10-13
+
+- `/snmp` shows loaded Vendor Profiles and validation errors. Operators with `manage_devices` can upload/validate JSON profiles, reload the registry and remove runtime-installed profiles. Built-in profiles are read-only; mutations require CSRF protection.
+- Device SNMP telemetry uses persisted canonical Sensors; raw vendor OIDs remain under Advanced. Opening the view does not itself launch an extra vendor walk.
+- Application-only entries hide Platform/SSH/SNMP management fields and management panels, including Current raw, Current configuration, SNMP facts and Config backups. Saving discards stale management values and stores `generic`; System and Network types retain management controls, and mixed types retain the applicable panels.
+- Device NetFlow diagnostics explain exporter-IP mismatch (and link to `/traffic`), datagrams without decoded records (v9 template/IPFIX limitation), or nothing received. Global `/traffic` aggregates across exporters. IPFIX/v10 is not decoded.
+- Managed console sessions expire after 30 minutes idle or 12 hours absolute; account/auth/role state is revalidated.
+
+Browser/operator acceptance for the newly frozen candidate remains a required LIVE_RC gate. Source inspection in this documentation pass is not browser acceptance evidence.
+
 ## Release 48 — Sensor Model & Evidence Normalization
 
 Release 48 promotes the sensor work from UI-only health cards into a reusable persisted normalization layer. `SensorEngine` stores `sensor_type`, `device`, `resource`, `value`, `unit`, `status`, `message`, `threshold`, `source`, and `updated_at`, with the status contract limited to `OK`, `WARNING`, `CRITICAL`, and `UNKNOWN`. It reads existing NetConfig persistence only and does **not** initiate SNMP/NETCONF/RESTCONF/gNMI/SSH device I/O or change polling frequency.
@@ -34,7 +85,7 @@ Keep Structured Changes, Campaigns, Automation Requests, Device Collection/Proto
 For MIB/SNMP data, normal operator views should emphasize feature-oriented sensor cards and health indicators derived from existing collected evidence—for example `Loop Protection: enabled ports / loop detected / last event`—rather than presenting raw OID rows as the primary experience. Raw MIB/OID detail remains in Advanced/troubleshooting views. UI visualization should reuse DB/cache evidence by default and must not create higher-frequency polling or broader device walks merely to draw cards or status lights.
 
 
-> **Current continuation pointer:** use **Release 59 / MC-11 Topology-Aware Change Planning** (`2.0.0-59`) as the active full-source baseline once the final artifact gate below is frozen. Preserve `IMPLEMENTED_TESTING_DEFERRED`; do not promote to `TESTED` or `RELEASED` based on source simulation. MC-11 is the final functional slice and does not add direct execution authority. The immediate next track after artifact freeze is **Q2 Production Qualification Campaign**, not MC-12.
+> **Historical continuation pointer (superseded):** use **Release 59 / MC-11 Topology-Aware Change Planning** (`2.0.0-59`) as the active full-source baseline once the final artifact gate below is frozen. Preserve `IMPLEMENTED_TESTING_DEFERRED`; do not promote to `TESTED` or `RELEASED` based on source simulation. MC-11 is the final functional slice and does not add direct execution authority. The immediate next track after artifact freeze is **Q2 Production Qualification Campaign**, not MC-12.
 
 This guide documents **every page and every control** in the console: what each
 button, field, and option does, and what value it expects. Controls you can't see
@@ -330,7 +381,7 @@ Managed Console sessions enforce a 30-minute idle expiry and 12-hour absolute ex
 
 ---
 
-Historical NI-1 documentation snapshot: `netconfig_network_intelligence_ni1_markdown_refresh_FULL_source_baseline_2026-09-11.zip`. The current baseline is the Q-1 FULL source artifact described by the canonical header.
+Historical NI-1 documentation snapshot: `netconfig_network_intelligence_ni1_markdown_refresh_FULL_source_baseline_2026-09-11.zip`. That Q-1 FULL source artifact is historical; the current working-tree applicability is declared in the canonical header.
 
 
 ## NI-4 Ops Alerts page

@@ -1,5 +1,8 @@
 # NetConfig UI/CSS Regression Review — 2026-09-22
 
+<!-- documentation-sync: 2026-10-13 -->
+> **Historical snapshot — applicability clarified 2026-10-13:** release names, Current/Next pointers, counts, hashes and test outcomes below belong to the recorded checkpoint. They do not describe current release readiness. See [current roadmap](ROADMAP.md) and [active handoff](AI_HANDOFF.md). Original evidence is preserved; this clarification adds no new test result.
+
 **Baseline reviewed:** Release 50 / MC-2.1 Sensor History Database Foundation (`2.0.0-50`)  
 **Status:** `IMPLEMENTED_TESTING_DEFERRED`  
 **Scope:** restart the WebUI/CSS review from the current source baseline after the NetFlow conditional-visibility defect. This review does not claim MC-2.2+ implementation and does not build an RPM.

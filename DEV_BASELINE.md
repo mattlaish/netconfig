@@ -1,6 +1,29 @@
 # NetConfig current development baseline — R67.2
 
-**Current implementation baseline:** Release 67.2 / `2.0.0-67.2` / `IMPLEMENTED_TESTING_DEFERRED`, schema `mc11-topology-change-planning-1`. MC-11 is the final Monitoring/Correlation/Change-Planning slice; do not create MC-12. The assigned track is exact-candidate freeze/qualification followed by the fixed 12 `LIVE_RC` gates. R68 is release-decision-only after exact-candidate live qualification. Historical baseline sections below are provenance and must not override this paragraph.
+## Active source location — 2026-10-16
+
+The only active Windows working tree is `C:\Users\mattlai\Projects\netconfig`,
+including the 2026-10-16 Web UI corrective. Use its `AI_HANDOFF.md` and `patch.md`.
+The old App launch folder is not a source baseline. Every older release, ZIP,
+"current artifact" or next-slice statement below describes its historical
+checkpoint only; do not extract/adopt it over this working tree. See
+[workspace audit](WORKSPACE_AUDIT_2026-10-16.md). Release identity/freeze and LIVE_RC
+qualification remain outstanding; no release number is advanced by path repair.
+
+<!-- documentation-sync: 2026-10-13 -->
+> **Canonical project state — 2026-10-13:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) with unnumbered SNMP Vendor Profile and October Web UI / NetFlow corrective updates. **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included; schema `mc11-topology-change-planning-1` is unchanged. The working tree is not the previously frozen R67.2 candidate. Release numbering awaits an explicit user decision. Next: choose release identity, freeze a new candidate, execute all twelve mandatory `LIVE_RC` gates against its exact bytes, then perform R68 production release review. No new feature phase is assigned. All network mutation remains approval-gated. Local/source evidence does not establish production readiness. **Do not create MC-12.**
+
+> **Document applicability:** this document is maintained against [ROADMAP.md](ROADMAP.md) and [AI_HANDOFF.md](AI_HANDOFF.md). Older release-numbered sections, test counts, fingerprints and Current/Next pointers below are historical unless explicitly restated in this 2026-10-13 update.
+
+## Active continuation — 2026-10-13
+
+Continue from the current working tree on R67.2 plus the 2026-09-29 Vendor Profile framework and 2026-10-09 Web UI/NetFlow corrective. No new version has been selected. Do not reuse the old candidate fingerprint or manufacture a live PASS. Resolve release identity, freeze the candidate and execute the twelve LIVE_RC gates before R68 review. No new feature-development phase is assigned; MC-11 is final.
+
+Current source has `/snmp` profile administration, indexed host lookup, bulk topology facts joins, exporter/template diagnostics and Application-only isolation. Preserve System/Network/mixed-type management behavior. Session idle/absolute expiry is already implemented in `web_security_runtime.py` (30 minutes / 12 hours); older deferred-expiry notes are historical. IPFIX decoding, SNMPv3 traps/INFORM, NETCONF base:1.1-only framing and Site Edge/Collector are unassigned future scope.
+
+This handover pass changes Markdown only. It does not rerun full product tests or live gates. Historical 556/542/14 source-test counts belong to the September Vendor Profile checkpoint; the October ledger records nine new focused tests and reports a green suite without an exact new aggregate. Do not combine or invent totals. Any changed packaged Markdown also changes artifact bytes and requires metadata/artifact regeneration before qualification.
+
+Git synchronization and history remain user-managed. Do not run Git commands without explicit current-chat authorization. Completion feedback after a documentation-stage update must end with Taiwan time (UTC+8).
 
 ## Historical R60 development baseline — 2026-09-24
 
@@ -11,8 +34,6 @@ Use Release 60 / `2.0.0-60` as the active full-source baseline. R60 is a product
 Product/runtime baseline remains Release 59 / MC-11 `2.0.0-59`; Q2 adds qualification tooling and evidence only. Use `qualification/q2_runner.py`, `Q2_GATE_CATALOG.json`, and `Q2_PRODUCTION_QUALIFICATION.md` for current continuation. Do not create MC-12. Current product status remains `IMPLEMENTED_TESTING_DEFERRED`; only real `LIVE_PRODUCTION` evidence can close production gates.
 
 # NetConfig development baseline
-
-> **Canonical project state — 2026-09-25:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) on top of the frozen R67 candidate. MC-1 through MC-11 remain implemented; **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice and schema revision remains `mc11-topology-change-planning-1`; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included. R67.2 repairs fresh login, additive migration/index ordering, fail-closed Core PostgreSQL preflight, Core/History PostgreSQL configuration separation, and fresh PostgreSQL Core bootstrap without adding network-write authority. **All network mutation remains approval-gated; local/offline qualification does not establish RC or production release readiness; all required `LIVE_RC` gates remain mandatory. Do not create MC-12.** R68 must be rerun against the exact R67.2 candidate after mandatory live qualification.
 
 > **Roadmap disposition — 2026-09-24:** **R59 / MC-11 is the final Monitoring & Correlation functional slice.** Do not create MC-12. After R59, stop feature expansion and use the Release / Qualification track: **Q2 Production Qualification Campaign → R60 Appliance Reliability & Lifecycle Hardening → R61 Scale & Performance Qualification → R62 PostgreSQL / Concurrency / Recovery Hardening → R63 HA / Failure-Domain Engineering → R64 Security Hardening & Independent Abuse Testing → R65 Operator Workflow Completion → R66 Observability / Supportability → R67 Release Candidate / Full Artifact Qualification → R68 v2 Production Release Decision**. Simulation never counts as live PASS; mandatory gates use `PASS / FAIL / BLOCKED_ENVIRONMENT / NOT_RUN`.
 
@@ -72,7 +93,7 @@ Source includes PH-4 structured transactions, NI-5 telemetry/time-series foundat
 
 At the Q-1 baseline checkpoint, **Qualification Q-1 — Production Runtime & Service-backed Qualification** was the active track, status `IMPLEMENTED_TESTING_DEFERRED`; PH-3 was then the latest feature baseline. That historical baseline used RPM source Release `32` and schema revision `ph3-1`. At that historical checkpoint, Release 33 superseded it as the active implementation source.
 
-Q-1 source adds runtime preflight, controlled PostgreSQL backup/restore, real PostgreSQL qualification tests, AlmaLinux/RPM qualification harnesses, hardened backup systemd service, and CI coverage for PostgreSQL client recovery tooling. Current local evidence before final packaging is **147 passed / 7 skipped**, Q-1 focused **11 passed**. Ruff/mypy, real PostgreSQL, and AlmaLinux install gates are explicitly `NOT_RUN` in this environment. No Q-2 is assigned.
+Q-1 source adds runtime preflight, controlled PostgreSQL backup/restore, real PostgreSQL qualification tests, AlmaLinux/RPM qualification harnesses, hardened backup systemd service, and CI coverage for PostgreSQL client recovery tooling. Current local evidence before final packaging is **147 passed / 7 skipped**, Q-1 focused **11 passed**. Ruff/mypy, real PostgreSQL, and AlmaLinux install gates are explicitly `NOT_RUN` in this environment. At this historical checkpoint Q-2 had not been assigned; the current Q2 harness is implemented.
 
 Historical PH-3 closeout immediately preceded Q-1. Release 33 subsequently implemented PH-4/NI-5/VM-1/NA-1/NA-2/HA-1 while leaving Q-1 qualification open. Historical Slice labels are provenance only; D.5 remains the separate completed-in-source Diagnostics Track.
 
@@ -84,7 +105,7 @@ Historical PH-3 closeout immediately preceded Q-1. Release 33 subsequently imple
 
 This source tree is a complete modifiable development baseline, not an installed-RPM image. RPM Release 33 has **not** been built or installed in this environment because the current host is not AlmaLinux and lacks `rpmbuild`; that gate remains `NOT_RUN`. Historical RPM/handover material is provenance only and must not override current source truth.
 
-Phase 4C adds bounded managed Support Case Export on top of the Phase 4B reference-only Incident Timeline. It packages Incident-owned metadata, reference indexes and selected linked diagnostic bundles without copying authoritative event/report/config payloads into Incident state. Phase 4A lifecycle and Phase 3D debug download/admin scope repair remain intact. Session idle/absolute expiry remains deliberately deferred.
+**Historical session-policy note (superseded by R64):** Phase 4C adds bounded managed Support Case Export on top of the Phase 4B reference-only Incident Timeline. It packages Incident-owned metadata, reference indexes and selected linked diagnostic bundles without copying authoritative event/report/config payloads into Incident state. Phase 4A lifecycle and Phase 3D debug download/admin scope repair remain intact. Session idle/absolute expiry remains deliberately deferred.
 
 Before any new implementation phase, complete consolidated Release 33 verification and execute the available deferred Q-1 service/RPM qualification gates. Then perform a new roadmap review before naming another phase.
 
@@ -199,7 +220,7 @@ Baseline identity: `2.0.0-63`, `IMPLEMENTED_TESTING_DEFERRED`, schema `mc11-topo
 
 ## Historical R65 baseline
 
-Release 65 (`2.0.0-65`) implements Operator Workflow Completion on top of R64. The persisted-data-first journey binds Incident → MC-11 plan → exact persisted proposal → existing Automation Request/approval → Structured Change → verification/recovery/rollback → Incident-linked post-change evidence. It adds no MC-12, no parallel write authority, no page-triggered polling, and no schema migration. Status remains `IMPLEMENTED_TESTING_DEFERRED`; `LIVE_OPERATOR` evidence is still required for production operator-workflow claims. Next approved track is R66 Observability / Supportability and is not started.
+Release 65 (`2.0.0-65`) implements Operator Workflow Completion on top of R64. The persisted-data-first journey binds Incident → MC-11 plan → exact persisted proposal → existing Automation Request/approval → Structured Change → verification/recovery/rollback → Incident-linked post-change evidence. It adds no MC-12, no parallel write authority, no page-triggered polling, and no schema migration. Status remains `IMPLEMENTED_TESTING_DEFERRED`; `LIVE_OPERATOR` evidence is still required for production operator-workflow claims. At that historical checkpoint the next track was R66 Observability / Supportability; R66 is now implemented with live qualification deferred.
 
 
 ## Historical R67 baseline

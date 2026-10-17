@@ -1,11 +1,59 @@
 # Security
 
+## Operator-facing wording refresh — 2026-10-17
+
+The English console now uses task-oriented labels and instructions rather than
+internal release/slice codes and implementation wording. Coverage includes
+Dashboard, alerts/events, SNMP/MIB, service dependencies, integrations, database
+and monitoring settings, diagnostics/traces, and Operations/change workflows.
+Only display strings and generated human-readable workflow summaries change;
+routes, form names/values, settings keys, DB schema, machine-readable API fields,
+role/CSRF checks, approval and device-I/O behavior are unchanged. Raw diagnostic
+records, protocol identifiers and developer/historical documents retain their
+precise technical terms. This is not a global replacement of stored/user data.
+
+Risk and authority statements remain visible in operator language: read-only
+views do not poll/change devices, proposals require separate approval,
+signatures and signer trust remain distinct, and incoming secrets are masked
+only where recognized by existing redaction. No security policy is relaxed.
+
+Validation: **119 PASS** (including **18 new console-copy page checks**); legacy
+selftest **ALL PASS**; **14 changed/new Python files compile**; **10 runtime
+modules retain identical non-text AST and machine-facing fields**. Ruff adds
+**0 new findings**; 10 existing findings remain. Three qualification/platform
+cases were deliberately deselected, not counted as PASS. No Git operations,
+RPM build/install, browser visual acceptance or LIVE_RC execution were performed.
+
+## Web UI control coverage corrective — 2026-10-16
+
+The R67.2-based working tree now closes five console coverage gaps. Status remains `IMPLEMENTED_TESTING_DEFERRED`; package identity remains `2.0.0-67.2` pending the user's release decision.
+
+- **Users:** admins can enable, disable and delete accounts from `/users`. Console changes protect the current account and the last enabled admin; SQLite transactions and a PostgreSQL transaction advisory lock serialize access changes. Existing managed sessions reject deleted/disabled accounts on their next request. Password-reset inputs are masked.
+- **Device Collection:** approvers/admins can remove a saved protocol profile; inventory and vault secrets are retained and default collection is restored. Operators and above can explicitly run Capabilities, Read state and bounded gNMI Subscribe once. Collection now checks the existing `collect` capability. Page loads do not initiate protocol I/O.
+- **Diagnostics:** admins can create full or per-device captures, request a signature, verify archive signature/trust, view effective signing status and clean up older managed bundles with a minimum keep count of one. Signature validity and trusted-signer status are displayed separately. Device captures create their missing security subdirectory; cleanup uses file modification time across full/device archive prefixes.
+- **Settings → Evidence signing:** admin-only policy controls for `evidence_signing_required` and `evidence_trusted_fingerprints`; validated/normalized SHA-256 pins are saved only after all inputs pass. Environment policy overrides remain visible and environment-added pins are not copied into settings. Private keys remain outside the Web UI.
+- **Protocol Traces:** standalone `/traces` navigation, device/status filters, session detail and bounded event view. Operators and above can start/stop captures with TTL/event/byte budgets and optional Incident linkage. Viewers can read but cannot capture.
+
+All new console POST routes use session authentication, existing role checks and CSRF protection. Network configuration writes remain behind the existing approval chain; no schema or public bearer-REST contract changes are introduced. `web_feature_controls.py` holds the additional controls and preserves the PH-1 `web.py` structural limits.
+
+Console routes added: `POST /user-access`, `/protocol-delete`, `/protocol-inspect`, `/debug-verify`, `/debug-cleanup`, `/trace-start`, `/trace-stop`; `GET /traces` lists/details existing trace sessions. Existing `POST /debug-create` now accepts `mode=full|device`, `device` and optional `require_signature=1`. Existing `POST /settings-save` accepts `section=evidence`. These remain browser-session routes, not new bearer-token API endpoints.
+
+<!-- documentation-sync: 2026-10-13 -->
+> **Canonical project state — 2026-10-13:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) with unnumbered SNMP Vendor Profile and October Web UI / NetFlow corrective updates. **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included; schema `mc11-topology-change-planning-1` is unchanged. The working tree is not the previously frozen R67.2 candidate. Release numbering awaits an explicit user decision. Next: choose release identity, freeze a new candidate, execute all twelve mandatory `LIVE_RC` gates against its exact bytes, then perform R68 production release review. No new feature phase is assigned. All network mutation remains approval-gated. Local/source evidence does not establish production readiness. **Do not create MC-12.**
+
+> **Document applicability:** this document is maintained against [ROADMAP.md](ROADMAP.md) and [AI_HANDOFF.md](AI_HANDOFF.md). Older release-numbered sections, test counts, fingerprints and Current/Next pointers below are historical unless explicitly restated in this 2026-10-13 update.
+
+## Current security and credential truth — 2026-10-13
+
+R64 managed sessions implement a 30-minute idle lifetime and 12-hour absolute lifetime, with account disable/delete, password fingerprint and role revalidation. Earlier deferred-expiry notes below describe their historical release only.
+
+Vendor Profiles are validated JSON data with bounded numeric OID roots; executable code, shell/commands, URLs and arbitrary expressions are rejected. Console upload/reload/remove requires `manage_devices` and CSRF; packaged defaults remain read-only. Application-only saves discard SSH/SNMP/enable references and management flags instead of trusting hidden controls. System/Network credential workflows remain applicable.
+
+Public certificate verification uses CA certificates/trust chains; a monitored server's private key is never required on the monitor. Network mutation continues through the existing approval and audit chain. Independent live abuse assessment remains required for the new frozen candidate; this documentation review supplies no new security-test PASS.
 
 > **2026-09-29 development update — SNMP Vendor Profile framework:** this working tree adds a data-only, hot-reloadable SNMP Vendor Profile engine on top of the refrozen R67.2 source line. This is a runtime/package payload change, so the previously frozen R67.2 exact-candidate fingerprint and candidate-bound `LIVE_RC` evidence do **not** qualify this working tree. The release identity has intentionally **not** been advanced; that remains an explicit user decision. Project state remains `IMPLEMENTED_TESTING_DEFERRED`; MC-11 remains the final Monitoring / Correlation / Change-Planning feature slice; no MC-12 and no new network-write authority are introduced. Profiles are JSON data, validated fail-closed, bounded to declared numeric OID roots, and cannot execute Python, shell, commands, URLs, or arbitrary expressions.
 
 ## Current security truth — R67.2
-
-> **Canonical project state — 2026-09-25:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) on top of the frozen R67 candidate. MC-1 through MC-11 remain implemented; **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice and schema revision remains `mc11-topology-change-planning-1`; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included. R67.2 repairs fresh login, additive migration/index ordering, fail-closed Core PostgreSQL preflight, Core/History PostgreSQL configuration separation, and fresh PostgreSQL Core bootstrap without adding network-write authority. **All network mutation remains approval-gated; local/offline qualification does not establish RC or production release readiness; all required `LIVE_RC` gates remain mandatory. Do not create MC-12.** R68 must be rerun against the exact R67.2 candidate after mandatory live qualification.
 
 Console session idle/absolute expiry is implemented and enforced by the R64 managed-session runtime: 30-minute idle expiry and 12-hour absolute expiry, with authoritative disable/delete/password-hash/role revalidation on every request. Legacy immediate command surfaces are now server-enforced read-only (`show`/`display`/`get` or exact `/export`); configuration mutation must use the durable approval workflow. Supportability snapshot access is read-only; support-bundle creation/download remains admin-only.
 
@@ -31,8 +79,6 @@ Topology planning does not grant configuration authority. Policy evidence and pr
 ## Release 58 / MC-10 hardening security boundary
 
 MC-10 adds bounded execution controls, not new southbound authority. Correlation and replay consume persisted evidence only; UI/health/qualification rendering causes no SNMP/SSH/device collection. Replay preview cannot mutate active hypotheses. PostgreSQL advisory locks serialize correlation work only and confer no device, external-product, Structured Change, approval, or arbitrary-command privilege. Runtime retention is deliberately limited to finished correlation-run metadata. Non-deterministic replay detection fails closed and records integrity state. Qualification is evidence-only and cannot approve or release the product.
-
-> **Canonical project state — 2026-09-25:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) on top of the frozen R67 candidate. MC-1 through MC-11 remain implemented; **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice and schema revision remains `mc11-topology-change-planning-1`; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included. R67.2 repairs fresh login, additive migration/index ordering, fail-closed Core PostgreSQL preflight, Core/History PostgreSQL configuration separation, and fresh PostgreSQL Core bootstrap without adding network-write authority. **All network mutation remains approval-gated; local/offline qualification does not establish RC or production release readiness; all required `LIVE_RC` gates remain mandatory. Do not create MC-12.** R68 must be rerun against the exact R67.2 candidate after mandatory live qualification.
 
 ## Release 55 / MC-7 correlation security boundary
 
@@ -93,9 +139,9 @@ Release 44 fixes a real Web Console defect in `Operations -> Intent Automation`:
 HTTP-level regression coverage now requests `/operations?tab=intents` and requires a `200` response with the Intent Automation content instead of a server error. Release 43's left sidebar, supplied green theme, and neutral NetConfig branding are preserved. There is no schema or public REST contract change. Package release advances to `2.0.0-44` because shipped runtime source changed.
 
 
-## Current security/roadmap disposition
+## Historical security/roadmap disposition
 
-No new feature phase is assigned. Existing security debt such as console session idle/absolute expiry remains deferred until explicitly selected; it must not be silently treated as the next phase. Q-1 security-relevant live qualification remains open and evidence-driven.
+**Historical session-policy note (superseded by R64):** No new feature phase is assigned. Existing security debt such as console session idle/absolute expiry remains deferred until explicitly selected; it must not be silently treated as the next phase. Q-1 security-relevant live qualification remains open and evidence-driven.
 
 ## Release 34 / UI-1 security boundaries
 
@@ -103,7 +149,7 @@ UI-1 adds no direct network-write primitive. Structured changes, desired-state a
 
 Web role boundaries mirror the service/API plane: viewers are read-only; operators may create operational objects and submit approvals; approvers may publish desired-state revisions and approve/execute CRs; only admins may mark/reconcile interrupted structured transactions, manage model packs/bindings, or change cluster-node lifecycle state. CSRF is required for every UI mutation. Strict CSP nonce processing and `script-src-attr/style-src-attr 'none'` remain unchanged.
 
-Telemetry edits cannot change the bound device and cannot modify a RUNNING subscription. This prevents retained sample/audit history from being silently reassigned. Session idle/absolute expiry remains explicitly deferred security debt and was not implemented by UI-1.
+**Historical session-policy note (superseded by R64):** Telemetry edits cannot change the bound device and cannot modify a RUNNING subscription. This prevents retained sample/audit history from being silently reassigned. Session idle/absolute expiry remains explicitly deferred security debt and was not implemented by UI-1.
 
 
 ## Release 33 security invariants
@@ -120,9 +166,9 @@ Release 33 preserves the existing fail-closed boundaries and adds the following 
 - telemetry persists bounded sanitized JSON/scalar observations and does not persist credential material or unbounded stream buffers;
 - custom model packs are validated against path/selector/resource allow-lists and cannot introduce arbitrary URLs, traversal, shell content or generic protocol payloads.
 
-Session idle/absolute expiry remains deliberately deferred security debt and is unchanged.
+**Historical session-policy note (superseded by R64):** Session idle/absolute expiry remains deliberately deferred security debt and is unchanged.
 
-> **Current continuation pointer:** use **Release 59 / MC-11 Topology-Aware Change Planning** (`2.0.0-59`) as the active full-source baseline once the final artifact gate below is frozen. Preserve `IMPLEMENTED_TESTING_DEFERRED`; do not promote to `TESTED` or `RELEASED` based on source simulation. MC-11 is the final functional slice and does not add direct execution authority. The immediate next track after artifact freeze is **Q2 Production Qualification Campaign**, not MC-12.
+> **Historical continuation pointer (superseded):** use **Release 59 / MC-11 Topology-Aware Change Planning** (`2.0.0-59`) as the active full-source baseline once the final artifact gate below is frozen. Preserve `IMPLEMENTED_TESTING_DEFERRED`; do not promote to `TESTED` or `RELEASED` based on source simulation. MC-11 is the final functional slice and does not add direct execution authority. The immediate next track after artifact freeze is **Q2 Production Qualification Campaign**, not MC-12.
 
 ## Q-1 production qualification security boundaries
 
@@ -135,7 +181,7 @@ Session idle/absolute expiry remains deliberately deferred security debt and is 
 - AlmaLinux install qualification is deliberately double-gated (`--install` and `NETCONFIG_Q1_ALLOW_INSTALL=1`) to prevent accidental mutation of a non-disposable host.
 - Q-1 does not change the explicitly deferred console session idle/absolute expiry policy.
 
-## Current hardening baseline
+## Historical hardening checkpoint
 
 The built-in console remains stdlib-only. It now supports optional built-in TLS, failed-login throttling keyed by peer IP + normalized username, failed/successful authentication auditing, JSON security/access logs, secure-response headers, health/readiness endpoints, and Prometheus-text metrics. HSTS is emitted only when the built-in server is actually serving TLS.
 
@@ -211,7 +257,7 @@ Incident records are operational metadata and may themselves be sensitive. The P
 
 Diagnostic bundle association is name-based only. A linked bundle must be a single basename ending in `.tar.gz` and must exist beneath the managed NetConfig `debug-bundles` directory when used through the production Manager. Paths such as `../bundle.tar.gz` are rejected. Linking does not copy, decrypt, or inspect bundle payloads.
 
-All incident create/update/status/link/unlink actions append audit evidence containing actor, incident ID and bounded metadata; they must not contain credentials or bearer tokens. Timeline aggregation, support-case export and evidence signing are deliberately deferred so Phase 4A does not create an unreviewed evidence trust model. Console session expiry remains unchanged/deferred.
+**Historical session-policy note (superseded by R64):** All incident create/update/status/link/unlink actions append audit evidence containing actor, incident ID and bounded metadata; they must not contain credentials or bearer tokens. Timeline aggregation, support-case export and evidence signing are deliberately deferred so Phase 4A does not create an unreviewed evidence trust model. Console session expiry remains unchanged/deferred.
 
 
 ## D.5 Phase 4B incident timeline security boundary
@@ -220,7 +266,7 @@ Incident evidence correlation is reference-only. `incident_evidence_links` store
 
 Evidence is existence-validated at link time. Drift references additionally require bare archived configuration filenames and are resolved through `ConfigStore.read_version()` traversal controls. A drift link pins immutable baseline/current archive stamps so later collections cannot silently rewrite the historical comparison. If retention or an administrator later removes an authoritative source, the incident timeline retains the reference and marks it unavailable rather than manufacturing replacement evidence.
 
-Timeline/evidence reads require `incident:read`. Evidence link/unlink requires `incident:write` plus operator/approver/admin role through the same double-check used for other incident mutation. Every link/unlink operation emits incident-targeted audit evidence. Phase 4B does not add automatic correlation, case export, signatures, protocol payload capture, or broader filesystem access. Console session expiry remains unchanged/deferred.
+**Historical session-policy note (superseded by R64):** Timeline/evidence reads require `incident:read`. Evidence link/unlink requires `incident:write` plus operator/approver/admin role through the same double-check used for other incident mutation. Every link/unlink operation emits incident-targeted audit evidence. Phase 4B does not add automatic correlation, case export, signatures, protocol payload capture, or broader filesystem access. Console session expiry remains unchanged/deferred.
 
 
 ## D.5 Phase 4C support-case export security boundary
@@ -231,7 +277,7 @@ The exporter accepts only diagnostic bundle basenames already linked to the targ
 
 Case indexes preserve the Phase 4B provenance model: `timeline-references.json` contains only source type/id/link/timestamp/availability fields and `evidence-links.json` contains Incident-owned link metadata/reference pointers. Raw authoritative syslog messages, external audit details, compliance report bodies and device configuration contents are not copied into these indexes. Linked diagnostic bundles are copied byte-for-byte as opaque `.tar.gz` files and are not extracted or rewritten.
 
-Phase 4C originally provided SHA-256 integrity only. Phase 4D now adds optional Ed25519 manifest signatures and independent signer-fingerprint trust pins; private signing material remains outside exported evidence and NetConfig state. Free-text Incident/case metadata applies bounded credential-assignment redaction before export, but operators must still treat case exports as sensitive restricted data. Console session idle/absolute expiry remains deliberately deferred and unchanged.
+**Historical session-policy note (superseded by R64):** Phase 4C originally provided SHA-256 integrity only. Phase 4D now adds optional Ed25519 manifest signatures and independent signer-fingerprint trust pins; private signing material remains outside exported evidence and NetConfig state. Free-text Incident/case metadata applies bounded credential-assignment redaction before export, but operators must still treat case exports as sensitive restricted data. Console session idle/absolute expiry remains deliberately deferred and unchanged.
 
 
 ## D.5 Phase 4D evidence-signing security boundary
@@ -244,7 +290,7 @@ The embedded public key is convenience material, not a trust anchor. A cryptogra
 
 Signing is backward-compatible by default: legacy unsigned archives remain usable. Operators may require signed creation per command (`--require-signature`), globally with `NETCONFIG_EVIDENCE_SIGNING_REQUIRED=1`, or via `evidence_signing_required` in settings. A configured but malformed/insecure/wrong-type signing key always fails closed rather than silently producing unsigned output.
 
-Phase 4D does not create certificates, manage a CA, store CA keys, expose arbitrary OpenSSL operations, or claim HSM/KMS attestation. External HSM/KMS signer adapters remain future work if required. Protocol traces are still Phase 4E. Console session idle/absolute expiry remains deliberately deferred.
+**Historical session-policy note (superseded by R64):** Phase 4D does not create certificates, manage a CA, store CA keys, expose arbitrary OpenSSL operations, or claim HSM/KMS attestation. External HSM/KMS signer adapters remain future work if required. Protocol traces are still Phase 4E. Console session idle/absolute expiry remains deliberately deferred.
 
 
 ## D.5 Phase 4E protocol-trace security boundary
@@ -267,7 +313,7 @@ Incident-controlled title, description, tags, evidence notes and trace summaries
 
 ## D.5 closeout retention safety
 
-Diagnostic maintenance is opt-in and disabled by default. Count-based support-bundle cleanup only operates inside the managed `debug-bundles/` directory. Case-export age cleanup removes only the managed archive file and preserves the durable database record/provenance. Protocol-trace age cleanup excludes ACTIVE traces and every trace linked to an Incident, preventing the generic retention worker from silently destroying Incident evidence. Every maintenance pass writes an audit summary. Session idle/absolute expiry remains separately deferred by project direction.
+**Historical session-policy note (superseded by R64):** Diagnostic maintenance is opt-in and disabled by default. Count-based support-bundle cleanup only operates inside the managed `debug-bundles/` directory. Case-export age cleanup removes only the managed archive file and preserves the durable database record/provenance. Protocol-trace age cleanup excludes ACTIVE traces and every trace linked to an Incident, preventing the generic retention worker from silently destroying Incident evidence. Every maintenance pass writes an audit summary. Session idle/absolute expiry remains separately deferred by project direction.
 
 
 ## Network Intelligence NI-1 correlation security boundary
@@ -281,7 +327,7 @@ The read API uses the separate `endpoint:read` scope. NI-1 adds no remote write/
 
 ---
 
-Historical NI-1 documentation snapshot: `netconfig_network_intelligence_ni1_markdown_refresh_FULL_source_baseline_2026-09-11.zip`. The current baseline is the Q-1 FULL source artifact described by the canonical header.
+Historical NI-1 documentation snapshot: `netconfig_network_intelligence_ni1_markdown_refresh_FULL_source_baseline_2026-09-11.zip`. That Q-1 FULL source artifact is historical; the current working-tree applicability is declared in the canonical header.
 
 ## Network Intelligence NI-2 identity / impact security boundary
 
@@ -296,11 +342,11 @@ The NI-3 receiver accepts bounded SNMP v1/v2c Trap datagrams only. Community str
 
 ## Network Intelligence NI-4 alert/report security boundary
 
-NI-4 consumes only normalized NI-3 events. Dependency-suppressed events and events below the configured severity floor are not promoted to operational alerts. Maintenance windows suppress promotion only; they do not erase or rewrite the underlying event evidence. `alerts:write` and `reports:write` require operator/approver/admin, while browser writes also require CSRF. SMTP credentials continue to come from the existing vault/OAuth paths and are never persisted in delivery rows. Notification delivery is durable but bounded by a configured maximum-attempt count and exponential-backoff cap. Scheduled reports persist aggregate counts/state summaries only; they do not copy raw SNMP packets, communities, configuration bodies or credential material. The old monitor-rule alert engine remains separate to avoid silent semantic migration. Session idle/absolute expiry remains intentionally deferred.
+**Historical session-policy note (superseded by R64):** NI-4 consumes only normalized NI-3 events. Dependency-suppressed events and events below the configured severity floor are not promoted to operational alerts. Maintenance windows suppress promotion only; they do not erase or rewrite the underlying event evidence. `alerts:write` and `reports:write` require operator/approver/admin, while browser writes also require CSRF. SMTP credentials continue to come from the existing vault/OAuth paths and are never persisted in delivery rows. Notification delivery is durable but bounded by a configured maximum-attempt count and exponential-backoff cap. Scheduled reports persist aggregate counts/state summaries only; they do not copy raw SNMP packets, communities, configuration bodies or credential material. The old monitor-rule alert engine remains separate to avoid silent semantic migration. Session idle/absolute expiry remains intentionally deferred.
 
 ## PH-1 Web-console CSP and rendering hardening
 
-Every HTML response generates a fresh CSP nonce. Enforced CSP authorizes first-party script/style elements only with that nonce, rejects `script-src-attr` and `style-src-attr`, and retains `default-src 'self'`, `object-src 'none'`, `base-uri 'none'`, `frame-ancestors 'none'`, `form-action 'self'`, no-referrer and no-store boundaries. Server-rendered inline styles are normalized into deterministic generated classes inside one nonce-authorized style element. HTML inline event attributes were removed. PH-1 does not implement idle/absolute session expiry; that debt remains explicitly deferred.
+**Historical session-policy note (superseded by R64):** Every HTML response generates a fresh CSP nonce. Enforced CSP authorizes first-party script/style elements only with that nonce, rejects `script-src-attr` and `style-src-attr`, and retains `default-src 'self'`, `object-src 'none'`, `base-uri 'none'`, `frame-ancestors 'none'`, `form-action 'self'`, no-referrer and no-store boundaries. Server-rendered inline styles are normalized into deterministic generated classes inside one nonce-authorized style element. HTML inline event attributes were removed. PH-1 does not implement idle/absolute session expiry; that debt remains explicitly deferred.
 
 ## Platform Hardening PH-2 — PostgreSQL core security boundary
 
@@ -325,7 +371,7 @@ Every HTML response generates a fresh CSP nonce. Enforced CSP authorizes first-p
 - Structured collection failure is fail-closed by default. CLI fallback requires explicit per-device `allow_cli_fallback`; no automatic downgrade is performed.
 - Protocol trace integration remains metadata-only. Request/response bodies, RPC XML, protobuf material, authorization headers, usernames, passwords, tokens, and private-key material are excluded from trace payloads and error strings are secret-redacted.
 - `protocol:write` remains operator-or-higher; browser profile changes/collection retain authenticated session RBAC and CSRF. New read endpoints require `protocol:read`.
-- Session idle timeout / absolute session expiry remains deliberately deferred and was not changed by PH-3.
+**Historical session-policy note (superseded by R64):** - Session idle timeout / absolute session expiry remains deliberately deferred and was not changed by PH-3.
 
 PH-3 remains `IMPLEMENTED_TESTING_DEFERRED`: offline/fake-driver evidence does not qualify real NETCONF/RESTCONF/gNMI devices, TLS/mTLS interoperability, packaged `gnmic`, vendor-specific behavior, live PostgreSQL/OpenSSH/Net-SNMP services, or AlmaLinux RPM/systemd deployment.
 

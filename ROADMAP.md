@@ -1,10 +1,87 @@
 # Roadmap
 
-## Current baseline — R67.2 corrective RC
+## Operator-facing wording refresh — 2026-10-17
+
+The English console now uses task-oriented labels and instructions rather than
+internal release/slice codes and implementation wording. Coverage includes
+Dashboard, alerts/events, SNMP/MIB, service dependencies, integrations, database
+and monitoring settings, diagnostics/traces, and Operations/change workflows.
+Only display strings and generated human-readable workflow summaries change;
+routes, form names/values, settings keys, DB schema, machine-readable API fields,
+role/CSRF checks, approval and device-I/O behavior are unchanged. Raw diagnostic
+records, protocol identifiers and developer/historical documents retain their
+precise technical terms. This is not a global replacement of stored/user data.
+
+Validation: **119 PASS** (including **18 new console-copy page checks**); legacy
+selftest **ALL PASS**; **14 changed/new Python files compile**; **10 runtime
+modules retain identical non-text AST and machine-facing fields**. Ruff adds
+**0 new findings**; 10 existing findings remain. Three qualification/platform
+cases were deliberately deselected, not counted as PASS. No Git operations,
+RPM build/install, browser visual acceptance or LIVE_RC execution were performed.
+
+Release identity stays `2.0.0-67.2`, state `IMPLEMENTED_TESTING_DEFERRED`. The
+current source bytes changed: earlier candidate hashes/manifests/SBOM do not
+qualify this update. Regenerate them at the next user-approved candidate freeze
+and run the required LIVE_RC gates; no new feature phase or release is declared.
+
+## Web UI control coverage corrective — 2026-10-16
+
+The R67.2-based working tree now closes five console coverage gaps. Status remains `IMPLEMENTED_TESTING_DEFERRED`; package identity remains `2.0.0-67.2` pending the user's release decision.
+
+- **Users:** admins can enable, disable and delete accounts from `/users`. Console changes protect the current account and the last enabled admin; SQLite transactions and a PostgreSQL transaction advisory lock serialize access changes. Existing managed sessions reject deleted/disabled accounts on their next request. Password-reset inputs are masked.
+- **Device Collection:** approvers/admins can remove a saved protocol profile; inventory and vault secrets are retained and default collection is restored. Operators and above can explicitly run Capabilities, Read state and bounded gNMI Subscribe once. Collection now checks the existing `collect` capability. Page loads do not initiate protocol I/O.
+- **Diagnostics:** admins can create full or per-device captures, request a signature, verify archive signature/trust, view effective signing status and clean up older managed bundles with a minimum keep count of one. Signature validity and trusted-signer status are displayed separately. Device captures create their missing security subdirectory; cleanup uses file modification time across full/device archive prefixes.
+- **Settings → Evidence signing:** admin-only policy controls for `evidence_signing_required` and `evidence_trusted_fingerprints`; validated/normalized SHA-256 pins are saved only after all inputs pass. Environment policy overrides remain visible and environment-added pins are not copied into settings. Private keys remain outside the Web UI.
+- **Protocol Traces:** standalone `/traces` navigation, device/status filters, session detail and bounded event view. Operators and above can start/stop captures with TTL/event/byte budgets and optional Incident linkage. Viewers can read but cannot capture.
+
+All new console POST routes use session authentication, existing role checks and CSRF protection. Network configuration writes remain behind the existing approval chain; no schema or public bearer-REST contract changes are introduced. `web_feature_controls.py` holds the additional controls and preserves the PH-1 `web.py` structural limits.
+
+Validation on the Windows development host: **131 PASS** across **45 new HTTP/role/CSRF/access-lifecycle cases** and **86 related existing regressions**. Three pre-existing POSIX/qualification-runner cases were reproduced against the unmodified working folder and excluded from this compatible run; they require the appropriate runtime. Ten existing OpenSSL signing cases were skipped in the earlier expanded run because OpenSSL was not exposed to that runner. The Windows test harness supplies only a fail-closed `pty` import shim; any real POSIX SSH attempt raises rather than simulating success. This is source/local HTTP evidence, not live AlmaLinux, PostgreSQL concurrency, device interoperability, browser acceptance or cryptographic-signing qualification.
+
+Generated manifests, SBOM and artifact hashes remain pending regeneration for the next frozen candidate. Earlier candidate fingerprints do not qualify these changed bytes. No new version, MC slice or production release is declared. Git remains user-managed.
+
+Additional completed local checks: legacy selftest **ALL PASS** (including Application-only isolation and System-only regression), six changed runtime modules compile, and the existing canonical-state, compound-statement and PH-1 structure checks **3/3 PASS**. Selftest uses the same fail-closed Windows PTY import harness; this is not live SSH evidence.
+
+<!-- documentation-sync: 2026-10-13 -->
+> **Canonical project state — 2026-10-13:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) with unnumbered SNMP Vendor Profile and October Web UI / NetFlow corrective updates. **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included; schema `mc11-topology-change-planning-1` is unchanged. The working tree is not the previously frozen R67.2 candidate. Release numbering awaits an explicit user decision. Next: choose release identity, freeze a new candidate, execute all twelve mandatory `LIVE_RC` gates against its exact bytes, then perform R68 production release review. No new feature phase is assigned. All network mutation remains approval-gated. Local/source evidence does not establish production readiness. **Do not create MC-12.**
+
+> **Document applicability:** this document is maintained against [ROADMAP.md](ROADMAP.md) and [AI_HANDOFF.md](AI_HANDOFF.md). Older release-numbered sections, test counts, fingerprints and Current/Next pointers below are historical unless explicitly restated in this 2026-10-13 update.
+
+## Current roadmap disposition — 2026-10-13
+
+| Work | Current state | Remaining action |
+|---|---|---|
+| MC-1 through MC-11; NI-1 through NI-7; D.5, PH, VM, NA and HA foundations | Implemented in source | Qualify relevant behavior on real services and devices |
+| Q2 and R60 through R67 qualification/release engineering | Implemented tooling and hardening; `IMPLEMENTED_TESTING_DEFERRED` | Execute and retain candidate-bound live evidence |
+| R67.2 fresh database/bootstrap corrections | Implemented | Fresh SQLite/PostgreSQL install and upgrade/recovery acceptance |
+| 2026-09-29 SNMP Vendor Profile framework | Implemented | Live matching/collection/normalization and packaged-profile acceptance |
+| 2026-10-09 Web UI / NetFlow corrective | Implemented | Browser/operator and live exporter acceptance |
+| Application-only device isolation | Present in current source | Include Application, System, Network and mixed-type behavior in candidate acceptance |
+| Candidate identity and freeze | Pending explicit release-number decision and new artifact | Freeze current source/package bytes and record fingerprint |
+| Twelve mandatory `LIVE_RC` gates | Required; no current-candidate completion established by this documentation review | Execute the entire required matrix against the new candidate |
+| R68 production release decision | Pending qualification | Review exact candidate evidence before any `RELEASED` claim |
+
+No assigned feature-development slice remains unimplemented. There is no MC-12. Source implementation completion does not imply live qualification completion. Q2 is already implemented; older statements saying no Q-2 is assigned are historical.
+
+The October corrective adds SNMP profile upload/validate/reload/remove on `/snmp`, keeps packaged profiles read-only, restores indexed exporter/source lookup and bulk topology facts joins, and explains NetFlow exporter-IP mismatch, missing decoded records/templates, and no received traffic. Application-only entries save a neutral `generic` platform and omit Current raw, Current configuration, SNMP facts and Config backups; System/Network management panels remain available. These are current-source observations, not a new live-test result.
+
+Session idle/absolute expiry is **implemented by R64** (30 minutes idle, 12 hours absolute, with user/auth/role revalidation). It must be removed from the current unimplemented-security-debt list.
+
+### Unassigned future scope and current protocol limits
+
+- Site Edge/Collector runtime, local site alerts/cache/spool and store-and-forward during WAN isolation; optional out-of-band notification and separately authorized Execution Nodes.
+- Authenticated SNMPv3 Trap USM receiver and INFORM acknowledgements.
+- IPFIX/v10 decoding; the current decoder supports NetFlow v5/v9 and ignores IPFIX.
+- NETCONF base:1.1-only chunk framing.
+- Additional vendor-specific external-evidence adapters, richer FIB ingestion and production threshold calibration where justified by live evidence.
+
+These items need explicit scope selection before development. FortiGate firewall-policy and HA profile branches remain deliberately excluded from the current profile scope. Previously listed MIB summary and Configuration Baselines terminology candidates have already been delivered and are not pending feature work.
+
+The required LIVE_RC matrix is: independent clean checkout/CI; AlmaLinux fresh installation; supported installed-state upgrade/preservation; backup/restore/rollback; PostgreSQL migration/concurrency/outage/recovery including fresh bootstrap; multi-node HA/fencing; real protocols/vendors; production scale/performance; independent security/abuse; browser/operator acceptance; supportability drill; and MC-11 approved change/verification/rollback end-to-end. Each gate records `PASS`, `FAIL`, `BLOCKED_ENVIRONMENT` or `NOT_RUN`. Previous-candidate results do not qualify changed bytes.
+
+## R67.2 corrective implementation lineage
 
 > **2026-09-29 development update — SNMP Vendor Profile framework:** this working tree adds a data-only, hot-reloadable SNMP Vendor Profile engine on top of the refrozen R67.2 source line. This is a runtime/package payload change, so the previously frozen R67.2 exact-candidate fingerprint and candidate-bound `LIVE_RC` evidence do **not** qualify this working tree. The release identity has intentionally **not** been advanced; that remains an explicit user decision. Project state remains `IMPLEMENTED_TESTING_DEFERRED`; MC-11 remains the final Monitoring / Correlation / Change-Planning feature slice; no MC-12 and no new network-write authority are introduced. Profiles are JSON data, validated fail-closed, bounded to declared numeric OID roots, and cannot execute Python, shell, commands, URLs, or arbitrary expressions.
-
-> **Canonical project state — 2026-09-25:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) on top of the frozen R67 candidate. MC-1 through MC-11 remain implemented; **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice and schema revision remains `mc11-topology-change-planning-1`; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included. R67.2 repairs fresh login, additive migration/index ordering, fail-closed Core PostgreSQL preflight, Core/History PostgreSQL configuration separation, and fresh PostgreSQL Core bootstrap without adding network-write authority. **All network mutation remains approval-gated; local/offline qualification does not establish RC or production release readiness; all required `LIVE_RC` gates remain mandatory. Do not create MC-12.** R68 must be rerun against the exact R67.2 candidate after mandatory live qualification.
 
 Status: `IMPLEMENTED_TESTING_DEFERRED`. R67.2 is the active corrective RC after live-rescue and fresh-install database/bootstrap findings. It repairs fresh login, additive migration ordering, Core PostgreSQL preflight, Core/History database separation, and fresh PostgreSQL bootstrap without adding new feature or network-write authority. Prior R67/R67.1 candidate-bound evidence is invalidated by these source changes; R67.2 requires a fresh exact-candidate RC campaign. R68 remains the explicit production release decision and must be rerun only against the frozen R67.2 candidate.
 
@@ -35,9 +112,7 @@ Status: `IMPLEMENTED_TESTING_DEFERRED`. Implements durable correlation-run telem
 
 Status: `IMPLEMENTED_TESTING_DEFERRED`. Implements the operator console defined by MC-9: Dashboard summaries, converged Alerts/Events/Incidents/Maintenance navigation, explicit current-hypothesis support/contradiction presentation, service/dependency and connector-health context, and global FortiView-style traffic analytics over already-collected flow evidence. UI rendering remains side-effect free and does not trigger network polling or configuration actions. MC-10 production hardening/qualification remains next; MC-11 change planning remains final.
 
-> **Canonical project state — 2026-09-25:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) on top of the frozen R67 candidate. MC-1 through MC-11 remain implemented; **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice and schema revision remains `mc11-topology-change-planning-1`; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included. R67.2 repairs fresh login, additive migration/index ordering, fail-closed Core PostgreSQL preflight, Core/History PostgreSQL configuration separation, and fresh PostgreSQL Core bootstrap without adding network-write authority. **All network mutation remains approval-gated; local/offline qualification does not establish RC or production release readiness; all required `LIVE_RC` gates remain mandatory. Do not create MC-12.** R68 must be rerun against the exact R67.2 candidate after mandatory live qualification.
-
-## Current monitoring/correlation milestone
+## Implemented monitoring/correlation lineage
 
 - **R52 / MC-4 — Unified Alert Plane:** `IMPLEMENTED_TESTING_DEFERRED` (including the field-feedback correctness repair).
 - **R53 / MC-5 — Incident Evidence & Unified Timeline:** `IMPLEMENTED_TESTING_DEFERRED`. Typed durable references, source/receive-time ordering, late-arrival/retention handling, normalized change/external evidence stores, investigation API/CLI/Web presentation, and no automatic root-cause verdict are implemented.
@@ -111,16 +186,16 @@ The previously documented Central Controller + read-only Site Edge/Collector con
 
 
 > **Roadmap disposition — 2026-09-24:** **R59 / MC-11 is the final Monitoring & Correlation functional slice.** Do not create MC-12. After R59, stop feature expansion and use the Release / Qualification track: **Q2 Production Qualification Campaign → R60 Appliance Reliability & Lifecycle Hardening → R61 Scale & Performance Qualification → R62 PostgreSQL / Concurrency / Recovery Hardening → R63 HA / Failure-Domain Engineering → R64 Security Hardening & Independent Abuse Testing → R65 Operator Workflow Completion → R66 Observability / Supportability → R67 Release Candidate / Full Artifact Qualification → R68 v2 Production Release Decision**. Simulation never counts as live PASS; mandatory gates use `PASS / FAIL / BLOCKED_ENVIRONMENT / NOT_RUN`.
-## Recorded future architecture / UX candidates — NOT ASSIGNED
+## Historical architecture / UX candidate list — current disposition above
 
 The following decisions are recorded for a future roadmap selection but are **not** an assigned implementation phase:
 
 - distributed **Site Edge / Collector** architecture for site survivability and alert-path resilience, with local read-only polling, cache/spool, local health/alerts/UI, store-and-forward telemetry, and heartbeat to the Central Controller;
 - collectors remain read-only by default (SNMP GET/WALK, NETCONF/RESTCONF read, gNMI subscribe); configuration push and arbitrary SSH are not collector capabilities by default; future distributed writes require a separate **Execution Node** or explicitly authorized execution role;
 - local alert persistence/replay during central/WAN isolation, with possible future out-of-band fallback notification channels;
-- user-facing terminology **Configuration Baselines / Templates & Drift**;
+- **Delivered since this checkpoint:** user-facing terminology **Configuration Baselines / Templates & Drift**;
 - keep the current approval capability but do not expand approval orchestration now;
-- operator-oriented MIB sensor summaries from already-collected evidence, while keeping raw OIDs in Advanced and avoiding extra device I/O solely for visualization.
+- **Delivered since this checkpoint:** operator-oriented MIB sensor summaries from already-collected evidence, while keeping raw OIDs in Advanced and avoiding extra device I/O solely for visualization.
 
 These candidates do not create NI-8/Q-2 or any other phase until explicitly selected.
 
@@ -186,14 +261,14 @@ Implemented in source:
 - automation Change Request review renders frozen/current snapshots and SHA-256 drift status instead of presenting automation JSON as CLI commands;
 - all existing CSRF, RBAC, CSP nonce, vault, frozen-snapshot, audit and recovery invariants are retained.
 
-**CURRENT:** Release 46 / Operator Health Cards & UX Follow-through — `IMPLEMENTED_TESTING_DEFERRED`.
+**Historical Release 46 checkpoint:** Release 46 / Operator Health Cards & UX Follow-through — `IMPLEMENTED_TESTING_DEFERRED`.
 
 ### Future — Distributed Site Edge / Collector Survivability — `PLANNED`
 
 Documented design only; **not implemented in Release 46**. Future Site Edge/Collectors remain read-only by default and are intended for local polling/cache/health/alert survivability and store-and-forward operation during WAN isolation. Configuration push and arbitrary SSH are prohibited by default; future distributed writes require a separate Execution Node or an explicitly authorized execution role.
 
 
-**NEXT DEVELOPMENT PHASE:** **none assigned.** The post-NI-7 roadmap review is complete. Q-1 live qualification remains open and can be resumed independently; it is qualification work, not a new development phase. NI-8/Q-2 require an explicit future roadmap decision. Session idle/absolute expiry remains explicitly deferred security debt.
+**Historical session-policy note (superseded by R64):** **Historical next-phase checkpoint:** **none assigned.** The post-NI-7 roadmap review is complete. Q-1 live qualification remains open and can be resumed independently; it is qualification work, not a new development phase. NI-8/Q-2 require an explicit future roadmap decision. Session idle/absolute expiry remains explicitly deferred security debt.
 
 
 ## Release 33 implementation expansion — source complete, qualification pending
@@ -207,7 +282,7 @@ The following development phases are now implemented in source. All remain `IMPL
 - **NA-2 — Fleet Change Campaigns:** frozen fleet plan, canary/wave rollout, deterministic ordering, failure thresholds, explicit pause/resume/retry/abort, stable retry attempt identity, optional rollback-on-failure, campaign/device/model-pack drift fail-closed behavior, and approval-gated wave execution through the existing change-request workflow.
 - **HA-1 — Control-plane HA & Recovery Foundation:** durable ACTIVE/DRAINING/DRAINED node lifecycle on top of PH-2 cluster heartbeats, drain-aware scheduler leadership, explicit automation admission blocking while draining, active-node readiness, recovery/DR drill evidence, and safe leadership handoff primitives. Automatic database failover is not claimed.
 
-**Qualification Q-1 remains open** as `IMPLEMENTED_TESTING_DEFERRED`. Its real PostgreSQL, AlmaLinux RPM/systemd, OpenSSH/Net-SNMP, Ruff/mypy, and other service-backed gates still require actual execution. Session idle/absolute expiry remains explicitly deferred security debt.
+**Historical session-policy note (superseded by R64):** **Qualification Q-1 remains open** as `IMPLEMENTED_TESTING_DEFERRED`. Its real PostgreSQL, AlmaLinux RPM/systemd, OpenSSH/Net-SNMP, Ruff/mypy, and other service-backed gates still require actual execution. Session idle/absolute expiry remains explicitly deferred security debt.
 
 **Release 33 consolidated source verification:** automation/repository hygiene focused **23 passed**; PH-2 **9 passed**; PH-3 **22 passed**; Q-1 **11 passed**; full repository **168 passed / 7 skipped**; legacy selftest **ALL PASS**; compileall/launcher/shell syntax **PASS**; source CR/cache/symlink offenders **0**; required executable modes **7/7 = 0755**. Ruff and mypy remain `NOT_RUN` because neither binary is available in this isolated environment and package/binary retrieval is unavailable; no lint/type-check PASS is claimed.
 
@@ -215,11 +290,11 @@ The following development phases are now implemented in source. All remain `IMPL
 
 **Historical NEXT (Release 33):** rebuild and independently verify the formal Release 33 FULL ZIP, then execute the available Q-1 live gates and perform another roadmap/qualification review.
 
-> **Current continuation pointer:** use **Release 59 / MC-11 Topology-Aware Change Planning** (`2.0.0-59`) as the active full-source baseline once the final artifact gate below is frozen. Preserve `IMPLEMENTED_TESTING_DEFERRED`; do not promote to `TESTED` or `RELEASED` based on source simulation. MC-11 is the final functional slice and does not add direct execution authority. The immediate next track after artifact freeze is **Q2 Production Qualification Campaign**, not MC-12.
+> **Historical continuation pointer (superseded):** use **Release 59 / MC-11 Topology-Aware Change Planning** (`2.0.0-59`) as the active full-source baseline once the final artifact gate below is frozen. Preserve `IMPLEMENTED_TESTING_DEFERRED`; do not promote to `TESTED` or `RELEASED` based on source simulation. MC-11 is the final functional slice and does not add direct execution authority. The immediate next track after artifact freeze is **Q2 Production Qualification Campaign**, not MC-12.
 
 Status vocabulary for new work: `PLANNED`, `IMPLEMENTED_TESTING_DEFERRED`, `TESTED`, `RELEASED`. Older `IMPLEMENTED` labels predate this vocabulary and should not be interpreted as live-environment qualification.
 
-## Current execution roadmap summary
+## Historical execution roadmap summary
 
 Only the status vocabulary `PLANNED`, `IMPLEMENTED_TESTING_DEFERRED`, `TESTED`, and `RELEASED` is authoritative for current work. Historical prose later in this file is retained only for provenance.
 
@@ -243,7 +318,7 @@ Only the status vocabulary `PLANNED`, `IMPLEMENTED_TESTING_DEFERRED`, `TESTED`, 
 - **HA-1:** `IMPLEMENTED_TESTING_DEFERRED` — control-plane drain/readiness/recovery foundation complete in source.
 - **Qualification Q-1:** `IMPLEMENTED_TESTING_DEFERRED` — production/runtime qualification track remains open; real PostgreSQL, AlmaLinux RPM/systemd, Ruff/mypy and other service-backed gates are not yet all executed in this environment.
 
-Session idle/absolute expiry remains explicitly deferred security debt and is not part of Q-1. No Q-2 is assigned.
+**Historical session-policy note (superseded by R64):** Session idle/absolute expiry remains explicitly deferred security debt and is not part of Q-1. At this historical checkpoint, Q-2 had not yet been assigned; the current Q2 harness is implemented.
 
 ### Q-1 — Production Runtime & Service-backed Qualification — `IMPLEMENTED_TESTING_DEFERRED`
 
@@ -276,7 +351,7 @@ Historical Release 39 environment evidence:
 
 Q-1 remains `IMPLEMENTED_TESTING_DEFERRED`. It must not be promoted until the applicable live gates are actually executed and recorded. After Q-1 qualification, perform a new roadmap review; do not invent Q-2 automatically.
 
-## Current execution roadmap
+## Historical execution roadmap
 
 The lettered Slice A-G sequence below was created for the 2026-09-07 handover as a prioritization aid. It is no longer the primary execution numbering. Current development follows named tracks and numbered track phases; the historical mapping is retained later for provenance.
 
@@ -343,7 +418,7 @@ Historical A-G labels are provenance only. The canonical execution line is PH-1 
 
 ### PH-1 — Web-console Structural Hardening — `IMPLEMENTED_TESTING_DEFERRED`
 
-Implemented in source: API/UI helper extraction, reduced `web.py`, per-response CSP nonces, `script-src-attr 'none'`, `style-src-attr 'none'`, inline-handler removal, style normalization, and script-context escaping regression coverage. Session idle/absolute expiry remains explicitly deferred.
+**Historical session-policy note (superseded by R64):** Implemented in source: API/UI helper extraction, reduced `web.py`, per-response CSP nonces, `script-src-attr 'none'`, `style-src-attr 'none'`, inline-handler removal, style normalization, and script-context escaping regression coverage. Session idle/absolute expiry remains explicitly deferred.
 
 ### PH-2 — PostgreSQL Core & Distributed Operation — `IMPLEMENTED_TESTING_DEFERRED`
 
@@ -362,7 +437,7 @@ Offline evidence before final artifact packaging: **136 passed / 3 skipped**, fo
 
 ### After PH-3 — Qualification Track Q-1
 
-The required roadmap review selected **Q-1 — Production Runtime & Service-backed Qualification**. Q-1 is implemented in source and currently `IMPLEMENTED_TESTING_DEFERRED`; its remaining live gates are listed in the canonical Q-1 section above. No Q-2 is assigned.
+The required roadmap review selected **Q-1 — Production Runtime & Service-backed Qualification**. Q-1 is implemented in source and currently `IMPLEMENTED_TESTING_DEFERRED`; its remaining live gates are listed in the canonical Q-1 section above. At this historical checkpoint, Q-2 had not yet been assigned; the current Q2 harness is implemented.
 
 ## Historical 2026-09-07 lettered handover mapping
 
@@ -430,7 +505,7 @@ Status: **IMPLEMENTED_TESTING_DEFERRED**
 - Added scoped JSON API foundation: `incident:read` and operator-or-higher `incident:write`, including create, read, status transition, and diagnostic-bundle link operations.
 - Repaired the Phase 3D scope registry so `debug:download` and `debug:admin` are actually creatable by the API-token CLI.
 - Kept incident timeline/event correlation, case export, signed manifests, protocol traces, and Incident Web UI out of 4A; those remain Phase 4B+ work.
-- Console session idle/absolute expiry remains deliberately deferred and unchanged.
+**Historical session-policy note (superseded by R64):** - Console session idle/absolute expiry remains deliberately deferred and unchanged.
 
 At Phase 4A completion, the next phase was **D.5 Phase 4B — Incident Timeline**; it is now implemented below.
 
@@ -444,7 +519,7 @@ Status: **IMPLEMENTED_TESTING_DEFERRED**
 - Drift evidence pins the baseline/current archived configuration stamps at link time so later collection cannot rewrite the historical comparison.
 - Timeline dereferences authoritative records at read time. Retained links whose source has later been pruned/deleted remain visible as unavailable references instead of silently disappearing.
 - Added CLI evidence/timeline operations and scoped REST timeline/evidence endpoints under the existing `incident:read` / operator-or-higher `incident:write` boundary.
-- Case export, evidence signing, protocol trace capture, and Incident Web UI remain separate Phase 4C+ work. Console session idle/absolute expiry remains deliberately deferred.
+**Historical session-policy note (superseded by R64):** - Case export, evidence signing, protocol trace capture, and Incident Web UI remain separate Phase 4C+ work. Console session idle/absolute expiry remains deliberately deferred.
 
 At Phase 4B completion, the next phase was **D.5 Phase 4C — Support Case Export**; it is now implemented below.
 
@@ -460,7 +535,7 @@ Status: **IMPLEMENTED_TESTING_DEFERRED**
 - Export creation/download is audited against the Incident. Explicitly requested unlinked/missing bundles fail closed; default exports preserve missing linked bundles as metadata instead of fabricating replacement evidence.
 - Case export limits are 32 bundles / 512 MiB aggregate diagnostic-bundle input. Free-text case metadata applies credential-assignment redaction before export.
 - At Phase 4C completion, SHA-256 integrity was implemented while cryptographic authenticity remained for Phase 4D; Phase 4D is now implemented below. Protocol trace capture remains Phase 4E and Incident Web Console remains Phase 4F.
-- Console session idle/absolute expiry remains deliberately deferred and unchanged.
+**Historical session-policy note (superseded by R64):** - Console session idle/absolute expiry remains deliberately deferred and unchanged.
 
 Historical Phase 4C next step was **D.5 Phase 4D — Evidence / Manifest Signing**; that phase is now implemented below.
 
@@ -477,7 +552,7 @@ Status: **IMPLEMENTED_TESTING_DEFERRED**
 - Support-case export records persist signature state/algorithm/fingerprint via additive SQLite columns. Existing Phase 4C unsigned records remain compatible.
 - Added CLI `incident verify-export`, `debug verify`, `debug signing-status`, API case-export verify and debug signing/verify surfaces, plus audit evidence for verification and signature failures.
 - Signed case download still enforces the durable outer archive size/SHA-256 and additionally verifies the inner signature; configured trust pins fail closed on signer mismatch.
-- Phase 4E protocol trace capture and Phase 4F Incident Web Console remain separate. Session idle/absolute expiry remains deliberately deferred.
+**Historical session-policy note (superseded by R64):** - Phase 4E protocol trace capture and Phase 4F Incident Web Console remain separate. Session idle/absolute expiry remains deliberately deferred.
 
 Next: **D.5 Phase 4E — Protocol Trace Capture**.
 
@@ -844,7 +919,7 @@ R62.1 is an in-track corrective hotfix, not a new roadmap slice. Its security fi
 
 ## R63 — HA / Failure-Domain Engineering
 
-Status: `IMPLEMENTED_TESTING_DEFERRED`. R63 implements HA-capable coordination and failure-domain safety while keeping production HA claims gated on real multi-node evidence. PostgreSQL advisory ownership is session-generation-aware, every singleton scheduler revalidates leadership per pass, node identity is fenced, and distributed work uses claim token/generation/lease fencing with `RECOVERY_REQUIRED` on expiry. Only replay-safe tasks can be explicitly requeued; unknown device/network side effects are never automatically replayed. PostgreSQL primary failover remains external/operator-managed. The next approved track is R64 Security Hardening & Independent Abuse Testing and is not started by R63.
+Status: `IMPLEMENTED_TESTING_DEFERRED`. R63 implements HA-capable coordination and failure-domain safety while keeping production HA claims gated on real multi-node evidence. PostgreSQL advisory ownership is session-generation-aware, every singleton scheduler revalidates leadership per pass, node identity is fenced, and distributed work uses claim token/generation/lease fencing with `RECOVERY_REQUIRED` on expiry. Only replay-safe tasks can be explicitly requeued; unknown device/network side effects are never automatically replayed. PostgreSQL primary failover remains external/operator-managed. R64 Security Hardening & Independent Abuse Testing followed R63 and is now implemented with live qualification deferred.
 
 ## R63 verified clean-extract truth — 2026-09-24
 

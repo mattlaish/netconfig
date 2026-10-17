@@ -80,9 +80,9 @@ def test_ui1_viewer_can_read_all_operations_tabs_but_has_no_mutation_forms(tmp_p
     server, thread, token, _csrf = _start_console(manager, "viewer")
     try:
         expected = {
-            "structured": "Structured transaction ledger",
+            "structured": "Device change history",
             "telemetry": "Subscriptions",
-            "models": "Vendor model packs",
+            "models": "Device models",
             "desired": "Configuration baselines / templates",
             "campaigns": "Fleet campaigns",
             "ha": "HA readiness",
@@ -136,7 +136,7 @@ def test_ui1_structured_change_submits_durable_approval_without_network_write(tm
         status, _headers, data = _request(server, token, "GET", headers["Location"])
         text = data.decode()
         assert status == 200
-        assert "Frozen submitted intent" in text
+        assert "Submitted change details" in text
         assert "Submitted SHA-256" in text
         assert "CURRENT" in text
         assert "Execute approved automation" not in text
@@ -502,7 +502,7 @@ def test_ui1_intent_automation_tab_is_http_renderable(tmp_path):
         assert "Automation Requests" in text
         assert "Automation requests" in text
         assert "no automation requests" in text
-        assert "Start from the owning workflow" in text
+        assert "Choose a change workflow" in text
         assert "Server error" not in text
     finally:
         _stop(server, thread, manager)
@@ -538,7 +538,7 @@ def test_ui1_mib_library_explains_purpose_and_hides_raw_library_by_default(tmp_p
         assert status == 200
         assert "MIB support" in text
         assert "MIB files are dictionaries, not features." in text
-        assert "operator-facing health cards" in text
+        assert "device health cards" in text
         assert "sensor-grid" in text
         assert "Advanced: MIB library" in text
     finally:
@@ -586,7 +586,7 @@ def test_ui1_snmp_device_health_cards_use_cached_evidence_without_extra_poll(tmp
         text = data.decode()
         assert status == 200
         assert "Device health" in text
-        assert "Opening this page does not add polling or device I/O." in text
+        assert "Opening this page does not poll devices." in text
         assert "FDB / MAC learning" in text
         assert "ARP / IP neighbor" in text
         assert "Topology neighbors" in text
@@ -659,6 +659,6 @@ def test_ui1_snmp_device_renders_recent_sensor_transition_timeline(tmp_path):
         assert "Gi1/0/1" in text
         assert ">OK<" in text
         assert ">WARNING<" in text
-        assert "UNKNOWN means evidence is unavailable, not a failure verdict." in text
+        assert "Unknown means data is unavailable, not that the device has failed." in text
     finally:
         _stop(server, thread, manager)

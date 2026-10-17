@@ -1,13 +1,24 @@
 # NetConfig Production Qualification Validation Summary
 
-> **Canonical project state — 2026-09-25:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) on top of the frozen R67 candidate. MC-1 through MC-11 remain implemented; **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice and schema revision remains `mc11-topology-change-planning-1`; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included. R67.2 repairs fresh login, additive migration/index ordering, fail-closed Core PostgreSQL preflight, Core/History PostgreSQL configuration separation, and fresh PostgreSQL Core bootstrap without adding network-write authority. **All network mutation remains approval-gated; local/offline qualification does not establish RC or production release readiness; all required `LIVE_RC` gates remain mandatory. Do not create MC-12.** R68 must be rerun against the exact R67.2 candidate after mandatory live qualification.
+<!-- documentation-sync: 2026-10-13 -->
+> **Canonical project state — 2026-10-13:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) with unnumbered SNMP Vendor Profile and October Web UI / NetFlow corrective updates. **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included; schema `mc11-topology-change-planning-1` is unchanged. The working tree is not the previously frozen R67.2 candidate. Release numbering awaits an explicit user decision. Next: choose release identity, freeze a new candidate, execute all twelve mandatory `LIVE_RC` gates against its exact bytes, then perform R68 production release review. No new feature phase is assigned. All network mutation remains approval-gated. Local/source evidence does not establish production readiness. **Do not create MC-12.**
+
+> **Document applicability:** this document is maintained against [ROADMAP.md](ROADMAP.md) and [AI_HANDOFF.md](AI_HANDOFF.md). Older release-numbered sections, test counts, fingerprints and Current/Next pointers below are historical unless explicitly restated in this 2026-10-13 update.
+
+## Documentation reconciliation evidence — 2026-10-13
+
+This maintenance pass synchronizes Markdown state and inventories every discovered Markdown file. Checks cover canonical release/schema/next-action consistency, classification and local documentation links, historical-pointer labeling, corrected R64 session-expiry truth, and Markdown-only file changes. It does not execute the full product suite, browser acceptance, a new RPM build or LIVE_RC campaign.
+
+The September Vendor Profile checkpoint records 556 collected / 542 PASS / 14 SKIP / 0 FAIL and focused 8 PASS. These totals are historical checkpoint evidence, not current-tree qualification. The October corrective ledger records five profile-Web tests plus four NetFlow-diagnostic tests and reports a green full suite/no new Ruff findings without recording an exact aggregate; this pass does not synthesize one.
+
+Application-only isolation is present in source. Dedicated System-only and mixed-type candidate regression/acceptance evidence must be confirmed during qualification; this pass does not claim those checks have run. All twelve mandatory LIVE_RC gates remain required against the newly frozen bytes. Earlier candidate evidence cannot be transferred after code or packaged-document changes. Release/artifact manifests and SBOM/checksums must be regenerated and verified when freezing that candidate.
 
 ## Release 52 validation summary
 
 MC-4 focused: **11 passed**. Repository bounded groups total **289 passed / 1 skipped / 0 failed**; integration prerequisites add **7 skipped**, yielding **289 passed / 8 skipped / 0 failed** recorded source truth. Legacy selftest **ALL PASS**; compileall, launcher compile and shell syntax **PASS**; Ruff/mypy `NOT_RUN`. Live FortiGate/vendor, PostgreSQL, protocol-service and AlmaLinux/systemd/SELinux qualification remain deferred. Formal RPM was not built by roadmap decision.
 
 
-## Release 48 current status
+## Historical Release 48 status
 
 **Release 48 source qualification (2026-09-20):** focused Sensor Model/API coverage is **14 passed / 0 failed**. The full repository regression was executed in four bounded mutually exclusive groups and totals **236 passed / 8 skipped / 0 failed**; the eight skips are seven explicit live/service prerequisites plus the expected Git-index mode skip because `.git` is absent from this archive-derived workspace. Legacy selftest is **ALL PASS**; compileall, launcher `py_compile`, and packaging/tool shell syntax are **PASS**. Ruff `0.16.7` and mypy `2.3.1` remain **NOT_RUN** because their executables are unavailable. Canonical AlmaLinux 10 `rpmbuild`/DNF install-upgrade/systemd/SELinux, PostgreSQL live/backup-restore, protocol-service and vendor/device live gates remain **NOT_RUN / DEFERRED**. Final source-artifact integrity qualification and offline RPM build occur after this source/documentation sync and do not promote the project beyond `IMPLEMENTED_TESTING_DEFERRED`.
 
@@ -186,7 +197,7 @@ Offline source and clean-extraction artifact qualification are complete. NI-6 re
 - Candidate extracted-tree `install-rpm.sh` non-AlmaLinux fail-closed guard: PASS (exit `20` on Debian 13).
 - Binary RPM build/install remains `NOT_RUN` because this artifact runner is Debian 13 without the AlmaLinux 10 `rpmbuild`/Python 3.12 target environment.
 
-## Release 40 NI-7 current validation
+## Historical Release 40 NI-7 validation
 
 Source workspace validation before final artifact freeze: NI-7 focused **5 passed**; full repository **211 passed / 7 skipped / 0 failed**. NI-7 uses explicit managed route observations only and remains decision-support/read-only. Final artifact/fresh-clone evidence must be recorded after packaging; Q-1 live service, vendor/device, AlmaLinux and scale gates remain deferred/NOT_RUN.
 
@@ -245,3 +256,7 @@ The provisional source archive was extracted with system `unzip` and reproduced 
 ## R66 frozen clean-extract closeout
 
 The frozen clean extract reproduces **519 collected / 505 PASS / 14 SKIP / 0 FAIL**, R66+MC-11 focused **23/23 PASS**, compileall/py_compile/shell/selftest PASS, source-manifest/SHA verification PASS, and required source executable modes PASS. Offline RPM source and clean-extract rebuilds are byte-identical and independently verified. External live supportability qualification remains deferred.
+
+## 2026-10-13 documentation validation result
+
+Markdown inventory/applicability: **67/67 PASS** (54 maintained, 13 historical). Canonical-state consistency: **PASS**, executing the existing `test_release_67_rc_canonical_truth_is_consistent` assertion function directly. The pytest runner was **NOT_RUN** because the installed Python has no pytest module; direct assertion execution is not reported as a pytest-suite result. Local Markdown links and fenced-code balance pass the documentation audit. All **399 non-Markdown files** checked before/after synchronization are byte-unchanged. No Git operations, full product regression, RPM build or LIVE_RC gates were executed. Original Markdown is recoverable from the external temporary backup created for this sync.

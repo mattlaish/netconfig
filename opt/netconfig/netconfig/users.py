@@ -22,6 +22,7 @@ import hashlib
 import os
 import secrets
 import time
+from contextlib import nullcontext
 
 _ITERS = 600_000
 _ROLES = ("viewer", "operator", "approver", "admin")
@@ -114,6 +115,41 @@ class Users:
     def delete(self, username):
         self._conn.execute("DELETE FROM users WHERE username=?", (username,))
         self._conn.commit()
+
+    def change_access(self, username, *, actor, role=None, disabled=None, delete=False):
+        """Apply console access changes without losing the last enabled admin.
+
+        Serialize PostgreSQL account changes across nodes and SQLite account
+        changes across connections. Existing CLI primitives remain compatible.
+        """
+        if role is not None and role not in _ROLES:
+            raise ValueError("unknown role")
+        if username == actor and (delete or disabled is True or (role is not None and role != "admin")):
+            raise ValueError("You cannot delete, disable or demote your current account.")
+        conn = self._conn
+        with getattr(conn, "lock", nullcontext()):
+            postgres = callable(getattr(conn, "transaction", None))
+            transaction = conn.transaction() if postgres else getattr(conn, "_c", conn)
+            with transaction:
+                if postgres:
+                    conn.execute("SELECT pg_advisory_xact_lock(?)", (0x4E435553455253,))
+                elif not conn.in_transaction:
+                    conn.execute("BEGIN IMMEDIATE")
+                user = self.get(username)
+                if not user:
+                    raise ValueError("No such user.")
+                removing_admin = (delete or disabled is True or (role is not None and role != "admin"))
+                if user["role"] == "admin" and not user["disabled"] and removing_admin:
+                    count = conn.execute("SELECT COUNT(*) c FROM users WHERE role='admin' AND disabled=0").fetchone()["c"]
+                    if count <= 1:
+                        raise ValueError("The last enabled admin cannot be removed, disabled or demoted.")
+                if delete:
+                    conn.execute("DELETE FROM users WHERE username=?", (username,))
+                else:
+                    if role is not None:
+                        conn.execute("UPDATE users SET role=? WHERE username=?", (role, username))
+                    if disabled is not None:
+                        conn.execute("UPDATE users SET disabled=? WHERE username=?", (int(bool(disabled)), username))
 
     def verify(self, username, password):
         """Return the user dict on success, else None. Constant-time compare."""

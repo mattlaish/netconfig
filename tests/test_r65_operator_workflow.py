@@ -224,7 +224,7 @@ def test_r65_web_journey_renders_all_persisted_stages_for_viewer(tmp_path, monke
         for label in ("Incident", "Hypothesis", "Evidence", "Topology Path", "Proposed Change", "Approval", "Structured Change", "Validation"):
             assert label in text
         assert "does not poll devices" in text
-        assert "Submit frozen proposal for approval" not in text
+        assert "Submit reviewed proposal for approval" not in text
     finally:
         if server:
             server.shutdown(); server.server_close(); thread.join(timeout=5); web._SESSIONS.clear()
