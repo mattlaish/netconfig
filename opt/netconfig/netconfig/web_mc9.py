@@ -1,6 +1,7 @@
 """MC-9 Operations Correlation Console presentation mixin."""
 
 import html
+import time
 import urllib.parse
 
 from .web_ui import _fmt_ts
@@ -31,21 +32,111 @@ class WebMC9Mixin:
             f'<a class="tab {"active" if current == key else ""}" href="{href}">{label}</a>'
             for key, href, label in items) + '</div>'
 
+    def _network_glance(self, data):
+        """Network-first summary: device reachability, config changes, compliance,
+        approvals, alerts and traffic. Reads saved records only."""
+        m = self.manager
+        now = time.time()
+        devices = m.inv.all()
+        facts = m.inv.all_facts()
+        polled = [d for d in devices if d.get("snmp_version")]
+        down = [d for d in polled if facts.get(d["name"]) and not facts[d["name"]].get("reachable")]
+        up = sum(1 for d in polled if (facts.get(d["name"]) or {}).get("reachable"))
+        not_polled = len(polled) - up - len(down)
+        runs = m.inv.recent_runs(500)
+        day = [r for r in runs if float(r.get("ts") or 0) >= now - 86400]
+        changes = [r for r in day if r.get("changed")]
+        failed = [r for r in day if not r.get("ok")]
+        try:
+            pending = self.wf.pending()
+        except Exception:
+            pending = []
+        comp = m.db.conn.execute("SELECT * FROM compliance_runs ORDER BY ts DESC LIMIT 1").fetchone()
+        comp = dict(comp) if comp else None
+        drifted = []
+        for d in devices[:500]:
+            try:
+                if m.store.current(d["name"]) is not None and m.store.drift(d["name"]).get("drifted"):
+                    drifted.append(d["name"])
+            except Exception:
+                pass
+        critical = data.get("critical_alerts") or []
+
+        def card(state, title, value, detail):
+            return (f'<div class="sensor-card {state}"><div class="sensor-head"><span class="sensor-dot"></span>{html.escape(title)}</div>'
+                    f'<div class="sensor-value">{value}</div><div class="sensor-detail">{detail}</div></div>')
+        cards = ('<div class="sensor-grid dash-kpis">'
+                 + card("bad" if down else ("ok" if polled else "dim"), "Devices reachable",
+                        f'{up} / {len(polled)}' if polled else f'{len(devices)}',
+                        (f'{len(down)} unreachable · {not_polled} not polled yet' if polled
+                         else '<a href="/">no SNMP polling configured</a>'))
+                 + card("warn" if changes else "ok", "Config changes (24 h)", len(changes),
+                        f'<a href="/runs">{len(failed)} failed collection(s)</a>')
+                 + card("bad" if comp and comp.get("failed") else ("ok" if comp else "dim"), "Compliance",
+                        (f'{int(comp["failed"])} failed' if comp else "—"),
+                        (f'<a href="/compliance">{int(comp.get("passed") or 0)} passed · {_fmt_ts(comp.get("ts"))}</a>' if comp
+                         else '<a href="/compliance">not run yet</a>'))
+                 + card("warn" if pending else "ok", "Waiting for approval", len(pending),
+                        '<a href="/requests">change requests</a>')
+                 + card("bad" if critical else ("warn" if data.get("active_incident_count") else "ok"),
+                        "Critical alerts", len(critical),
+                        f'<a href="/alerts?view=active">open alerts</a> · '
+                        f'<a href="/incidents">{int(data.get("active_incident_count") or 0)} active incident(s)</a>')
+                 + '</div>')
+        items = []
+        for d in down[:10]:
+            items.append(f'<li><span class="badge b-bad">unreachable</span> <a href="/snmp?device={_q(d["name"])}">{html.escape(d["name"])}</a> '
+                         f'<span class="muted">{html.escape((facts.get(d["name"]) or {}).get("error") or "did not answer the last SNMP poll")}</span></li>')
+        for r in pending[:10]:
+            items.append(f'<li><span class="badge b-chg">approval</span> <a href="/request?id={_q(r.get("id"))}">{html.escape(r.get("title") or "Change request")}</a> '
+                         f'<span class="muted">requested by {html.escape(r.get("requested_by") or "")} · {_fmt_ts(r.get("requested_ts"))}</span></li>')
+        for a in critical[:10]:
+            items.append(f'<li><span class="badge b-bad">critical</span> <a href="/alerts?view=active">{html.escape(a.get("message") or a.get("event_type") or "alert")}</a> '
+                         f'<span class="muted">{html.escape(a.get("device") or "")}</span></li>')
+        for name in drifted[:10]:
+            items.append(f'<li><span class="badge b-chg">drift</span> <a href="/device?name={_q(name)}#tab-config">{html.escape(name)}</a> '
+                         '<span class="muted">configuration differs from its baseline</span></li>')
+        for r in failed[:10]:
+            items.append(f'<li><span class="badge b-bad">failed</span> <a href="/device?name={_q(r.get("device"))}">{html.escape(r.get("device") or "")}</a> '
+                         f'<span class="muted">{html.escape((r.get("message") or "")[:160])} · {_fmt_ts(r.get("ts"))}</span></li>')
+        attention = ('<div class="panel"><h2>Needs attention</h2>'
+                     + (f'<ul class="attention">{"".join(items)}</ul>' if items else
+                        '<p><span class="badge b-ok">all clear</span> Nothing needs attention right now.</p>')
+                     + '</div>')
+        change_rows = "".join(
+            f'<tr><td class=muted>{_fmt_ts(r.get("ts"))}</td><td><a href="/device?name={_q(r.get("device"))}#tab-config">{html.escape(r.get("device") or "")}</a></td>'
+            f'<td class=muted>{html.escape((r.get("message") or "")[:160])}</td></tr>' for r in changes[:8])
+        recent = ('<div class="panel"><h2>Recent configuration changes</h2>'
+                  + (f'<table><tr><th>Time</th><th>Device</th><th>Detail</th></tr>{change_rows}</table>' if change_rows
+                     else '<p class="muted">No configuration changes were collected in the last 24 hours.</p>')
+                  + '<p><a href="/runs">Open the run log</a></p></div>')
+        traffic = ""
+        if m.settings.get("netflow_enabled") and getattr(self, "netflow", None) is not None:
+            try:
+                from .web_traffic import fmt_bytes
+                t = m.operations_console.traffic(self.netflow, window_seconds=3600, bucket_seconds=300, view_limit=5)
+                rows = t["analysis"]["sources"][:5]
+                ids = t["analysis"].get("identities") or {}
+                body = "".join(
+                    f'<tr><td><a href="/traffic?view=destinations&q={_q(r["ip"])}">{html.escape(r["ip"])}</a></td>'
+                    f'<td>{html.escape((ids.get(r["ip"]) or {}).get("device") or (ids.get(r["ip"]) or {}).get("name") or "")}</td>'
+                    f'<td>{html.escape(fmt_bytes(r["bytes"]))}</td><td>{html.escape(", ".join(r["services"][:2]))}</td></tr>'
+                    for r in rows)
+                traffic = ('<div class="panel"><h2>Top traffic · last hour</h2>'
+                           + (f'<table><tr><th>Local host</th><th>Device</th><th>Bytes</th><th>Top services</th></tr>{body}</table>'
+                              if body else '<p class="muted">No flow records in the last hour.</p>')
+                           + '<p><a href="/traffic">Open Traffic Analytics</a></p></div>')
+            except Exception:
+                traffic = ""
+        return cards + '<div class="row">' + f'<div>{attention}</div><div>{recent}{traffic}</div></div>'
+
     def _mc9_dashboard_page(self, sess):
         data = self.manager.operations_console.dashboard()
-        cards = (
-            '<div class="sensor-grid">'
-            f'<div class="sensor-card {"warn" if data["active_incident_count"] else "ok"}"><div class="sensor-head"><span class="sensor-dot"></span>Active incidents</div><div class="sensor-value">{data["active_incident_count"]}</div><div class="sensor-detail">open / investigating</div></div>'
-            f'<div class="sensor-card {"warn" if data["impacted_services"] else "ok"}"><div class="sensor-head"><span class="sensor-dot"></span>Services impacted</div><div class="sensor-value">{len(data["impacted_services"])}</div><div class="sensor-detail">services identified in monitoring records</div></div>'
-            f'<div class="sensor-card {"bad" if data["critical_alerts"] else "ok"}"><div class="sensor-head"><span class="sensor-dot"></span>Critical alerts</div><div class="sensor-value">{len(data["critical_alerts"])}</div><div class="sensor-detail">open / acknowledged</div></div>'
-            f'<div class="sensor-card {"warn" if data["degraded_connectors"] else "ok"}"><div class="sensor-head"><span class="sensor-dot"></span>External source health</div><div class="sensor-value">{len(data["degraded_connectors"])}</div><div class="sensor-detail">degraded / failed</div></div>'
-            '</div>'
-        )
         health = data.get("correlation_health") or {}
         corr = health.get("correlation") or {}
         bounds = health.get("bounds") or {}
         correlation_health_panel = (
-            '<div class="panel"><h2>Analysis service health</h2>'
+            '<details class="panel"><summary><b>Analysis service health</b></summary>'
             '<p class="muted">Shows recent analysis activity and service limits. Viewing this page does not run checks or change devices.</p>'
             '<div class="sensor-grid">'
             f'<div class="sensor-card {"bad" if corr.get("failed") or corr.get("non_deterministic") else "ok"}"><div class="sensor-head"><span class="sensor-dot"></span>Correlation runs</div><div class="sensor-value">{int(corr.get("runs") or 0)}</div><div class="sensor-detail">last {int(health.get("window_seconds") or 0)}s</div></div>'
@@ -54,7 +145,7 @@ class WebMC9Mixin:
             f'<div class="sensor-card {"warn" if int(corr.get("queue_depth") or 0) else "ok"}"><div class="sensor-head"><span class="sensor-dot"></span>In flight / waiting</div><div class="sensor-value">{int(corr.get("inflight") or 0)} / {int(corr.get("queue_depth") or 0)}</div><div class="sensor-detail">maximum wait {float(bounds.get("lock_wait_seconds") or 0):.1f}s</div></div>'
             '</div>'
             f'<p class="muted">Analysis limits: {int(bounds.get("max_facts_per_run") or 0)} facts/run · {int(bounds.get("max_hypotheses_per_run") or 0)} hypotheses/run · dependency depth {int(bounds.get("max_relationship_depth") or 0)} · replay range {int(bounds.get("max_replay_range_seconds") or 0)}s.</p>'
-            '</div>'
+            '</details>'
         )
         incident_rows = []
         for row in data["active_incidents"]:
@@ -79,15 +170,29 @@ class WebMC9Mixin:
         alert_rows = ''.join(
             f'<tr><td>#{x.get("id")}</td><td>{html.escape(x.get("severity") or "")}</td><td>{html.escape(x.get("device") or "-")}</td><td>{html.escape(x.get("event_type") or "")}</td><td>{html.escape(x.get("message") or "")}</td></tr>'
             for x in data["critical_alerts"][:50])
-        body = (self._correlation_workspace_tabs("dashboard") + cards + correlation_health_panel
-                + '<div class="panel"><h2>Active incidents and current hypotheses</h2><p class="muted">Correlation is decision support only; causation and root cause remain unconfirmed.</p><div class="table-wrap"><table><tr><th>Incident</th><th>Title</th><th>Severity</th><th>Status</th><th>Current hypothesis</th><th>Confidence</th><th>Evidence-backed summary</th></tr>'
-                + (''.join(incident_rows) or '<tr><td colspan=7 class=muted>No active incidents.</td></tr>') + '</table></div></div>'
-                + '<div class="panel"><h2>Services impacted</h2><div class="table-wrap"><table><tr><th>Type</th><th>Service / entity</th><th>Key</th></tr>' + (service_rows or '<tr><td colspan=3 class=muted>No impacted service entity is established by active hypotheses.</td></tr>') + '</table></div></div>'
-                + '<div class="panel"><h2>Recent changes correlated to active hypotheses</h2><div class="table-wrap"><table><tr><th>Incident</th><th>Hypothesis</th><th>Change evidence</th><th>Summary</th></tr>' + (change_rows or '<tr><td colspan=4 class=muted>No change evidence is currently used by an active hypothesis.</td></tr>') + '</table></div></div>'
-                + '<div class="panel"><h2>Critical operational alerts</h2><div class="table-wrap"><table><tr><th>ID</th><th>Severity</th><th>Device</th><th>Event</th><th>Message</th></tr>' + (alert_rows or '<tr><td colspan=5 class=muted>No critical active alert.</td></tr>') + '</table></div></div>'
-                + '<div class="panel"><h2>Unhealthy dependency evidence</h2><p class="muted">UNKNOWN and STALE are evidence states, not proof of service failure.</p><div class="table-wrap"><table><tr><th>Source</th><th>Relationship</th><th>Target</th><th>Console state</th><th>Evidence</th></tr>' + (dep_rows or '<tr><td colspan=5 class=muted>No stale, unknown, or inactive dependency evidence.</td></tr>') + '</table></div></div>'
-                + '<div class="panel"><h2>External source health</h2><div class="table-wrap"><table><tr><th>Source</th><th>Type</th><th>Status</th><th>Auth</th><th>Last evidence</th></tr>' + (connector_rows or '<tr><td colspan=5 class=muted>No external sources configured.</td></tr>') + '</table></div></div>')
-        return self._send(self._page("Operations Correlation Dashboard", body, sess))
+
+        def section(title, head, rows, note=""):
+            if not rows:
+                return ""
+            return (f'<div class="panel"><h2>{title}</h2>{note}<div class="table-wrap"><table><tr>'
+                    + "".join(f"<th>{h}</th>" for h in head) + f'</tr>{rows}</table></div></div>')
+        sections = (
+            section("Active incidents and current hypotheses",
+                    ("Incident", "Title", "Severity", "Status", "Current hypothesis", "Confidence", "Evidence-backed summary"),
+                    "".join(incident_rows), '<p class="muted">Correlation is decision support only; causation and root cause remain unconfirmed.</p>')
+            + section("Services impacted", ("Type", "Service / entity", "Key"), service_rows)
+            + section("Recent changes correlated to active hypotheses", ("Incident", "Hypothesis", "Change evidence", "Summary"), change_rows)
+            + section("Critical operational alerts", ("ID", "Severity", "Device", "Event", "Message"), alert_rows)
+            + section("Unhealthy dependency evidence", ("Source", "Relationship", "Target", "Console state", "Evidence"), dep_rows,
+                      '<p class="muted">UNKNOWN and STALE are evidence states, not proof of service failure.</p>')
+            + section("External source health", ("Source", "Type", "Status", "Auth", "Last evidence"), connector_rows))
+        if not sections:
+            sections = ('<div class="panel"><h2>Incidents &amp; correlation</h2><p class="muted">No active incidents, '
+                        'impacted services, unhealthy dependencies or external sources to show. '
+                        '<a href="/incidents">Open incidents</a></p></div>')
+        body = (self._correlation_workspace_tabs("dashboard") + self._network_glance(data) + sections
+                + correlation_health_panel)
+        return self._send(self._page("Dashboard", body, sess))
 
     def _mc9_traffic_page(self, q, sess):
         from .web_traffic import render_traffic_body

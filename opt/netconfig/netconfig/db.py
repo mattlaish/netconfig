@@ -1361,9 +1361,10 @@ class Database:
             (time.time(), actor or "", action, target, detail))
         self.conn.commit()
 
-    def recent_audit(self, limit=200):
+    def recent_audit(self, limit=200, offset=0):
         rows = self.conn.execute(
-            "SELECT * FROM audit ORDER BY ts DESC LIMIT ?", (limit,)).fetchall()
+            "SELECT * FROM audit ORDER BY ts DESC, id DESC LIMIT ? OFFSET ?",
+            (int(limit), max(0, int(offset)))).fetchall()
         return [dict(r) for r in rows]
 
     # ---- monitor history ------------------------------------------------

@@ -7,17 +7,19 @@ from netconfig.web_ui import _CSS, _GRAPH_JS
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "opt/netconfig/netconfig/web.py"
 WEB_UI = ROOT / "opt/netconfig/netconfig/web_ui.py"
+WEB_UX = ROOT / "opt/netconfig/netconfig/web_ux.py"
 
 
 def test_all_css_custom_properties_referenced_by_console_are_defined():
     defined = set(re.findall(r"(--[A-Za-z0-9_-]+)\s*:", _CSS))
-    source = WEB.read_text(encoding="utf-8") + "\n" + WEB_UI.read_text(encoding="utf-8")
+    source = "\n".join(p.read_text(encoding="utf-8") for p in (WEB, WEB_UI, WEB_UX))
     used = set(re.findall(r"var\((--[A-Za-z0-9_-]+)", source))
     assert used - defined == set()
 
 
 def test_dashboard_no_results_uses_hidden_attribute_not_persistent_display_none():
-    source = WEB.read_text(encoding="utf-8")
+    # The Devices home renderer lives in web_ux.py (console shell module).
+    source = WEB.read_text(encoding="utf-8") + WEB_UX.read_text(encoding="utf-8")
     assert 'id="devnoresults" class="muted" hidden' in source
     assert 'style="display:none">No devices match your search.' not in source
 

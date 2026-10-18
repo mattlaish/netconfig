@@ -15,7 +15,7 @@ from pathlib import Path
 from . import compliance as _compliance
 from .users import can as _can
 from .workflow import Workflow, Scripts
-from .drivers import platforms as _platforms, get_driver as _get_driver
+from .drivers import get_driver as _get_driver
 from . import config as _config
 from .security import LoginThrottle, security_headers
 
@@ -34,6 +34,7 @@ from .web_mc9 import WebMC9Mixin
 from .web_supportability import WebSupportabilityMixin
 from .web_database import WebDatabaseMixin
 from .web_feature_controls import WebFeatureControlsMixin
+from .web_ux import WebUxMixin, render_tabs, safe_next_path
 
 from .web_security_runtime import (
     SESSION_IDLE_SECONDS, SESSION_ABSOLUTE_SECONDS, MAX_CONSOLE_SESSIONS,
@@ -45,10 +46,10 @@ from .web_security_runtime import (
 )
 
 from .web_ui import (
-    _CSS, _THEME_JS, _DASH_JS, _GRAPH_JS, _STATUS_BADGE,
-    _fmt_ts, _colorize_diff, _q, _render_markdown, _load_doc, APP_VERSION,
-    _DEVICE_TYPES, _dtypes, _is_managed_device, _ok_badge, _fmt_bps,
-    _fmt_speed, _oper_badge, apply_csp_nonce, render_sidebar_nav,
+    _CSS, _THEME_JS, _GRAPH_JS, _STATUS_BADGE,
+    _fmt_ts, _colorize_diff, _q, _render_markdown, _load_doc,
+    _dtypes, _is_managed_device, _ok_badge, _fmt_bps,
+    _fmt_speed, _oper_badge, apply_csp_nonce,
     render_snmp_health_summary, render_topology_page, render_events_page,
     render_netflow_section, render_incident_correlation,
     render_vendor_profile_admin,
@@ -57,7 +58,7 @@ from .web_ui import (
 _LOGIN_THROTTLE = LoginThrottle()
 
 
-class Console(WebFeatureControlsMixin, WebDatabaseMixin, WebSupportabilityMixin, WebMC9Mixin, WebOpsMixin, WebApiMixin, WebDependenciesMixin, WebIntegrationsMixin, http.server.BaseHTTPRequestHandler):
+class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupportabilityMixin, WebMC9Mixin, WebOpsMixin, WebApiMixin, WebDependenciesMixin, WebIntegrationsMixin, http.server.BaseHTTPRequestHandler):
     manager = None
     tls_enabled = False
     netflow = None
@@ -82,7 +83,8 @@ class Console(WebFeatureControlsMixin, WebDatabaseMixin, WebSupportabilityMixin,
     def _require_auth(self):
         _, sess = self._session()
         if sess is None:
-            self._redirect("/login")
+            nxt = safe_next_path(self.path) if self.command == "GET" else ""
+            self._redirect("/login" + (f"?next={urllib.parse.quote(nxt, safe='')}" if nxt and nxt != "/" else ""))
             return None
         return sess
 
@@ -140,44 +142,6 @@ class Console(WebFeatureControlsMixin, WebDatabaseMixin, WebSupportabilityMixin,
         _, sess = self._session()
         tok = sess["csrf"] if sess else ""
         return f'<input type=hidden name=csrf value="{html.escape(tok)}">'
-
-    def _nav(self,sess,current_path=""):
-        role=sess["role"]
-        groups=[
-            ("Overview", [("/dashboard","Dashboard")]),
-            ("Monitor", [("/alerts","Alerts"),("/incidents","Incidents"),("/traffic","Traffic")]),
-            ("Inventory", [("/","Devices"),("/groups","Groups"),("/endpoints","Endpoints"),("/topology","Topology"),("/dependencies","Dependencies")]),
-            ("Operations", [("/operations","Operations"),("/automation","Automation"),("/requests","Change Requests"),("/compliance","Compliance")]),
-            ("Collection", [("/protocols","Device Collection"),("/snmp","SNMP"),("/runs","Run Log"),("/diagnostics","Diagnostics"),("/traces","Protocol Traces")]),
-        ]
-        admin=[]
-        if _can(role,"manage_devices"):
-            admin.append(("/vault","Vault"))
-        admin.append(("/audit","Audit"))
-        if _can(role,"manage_users"):
-            admin.append(("/users","Users"))
-        if _can(role,"settings"):
-            admin.append(("/settings","Settings"))
-        groups += [("Administration",admin),("Advanced",[("/mib","MIB Library")]),("Help",[("/help","Help")])]
-        return render_sidebar_nav(groups,current_path)
-
-    def _topright(self,sess):
-        vault=('<span class="vault-open">● vault unlocked</span>' if self.manager.vault_ready()
-               else '<span class="vault-lock">● vault locked</span>')
-        return (f'<div class="top-right">{vault}'
-                f'<span class="who"><b>{html.escape(sess["username"])}</b><span class="role">{html.escape(sess["role"])}</span></span>'
-                f'<button type=button id="theme-toggle" class="ghost theme-toggle" aria-label="Toggle color theme" aria-pressed="false">Dark theme</button>'
-                f'<form method=post action="/logout" class="inline-form">{self._csrf_field()}<button class=ghost>Sign out</button></form></div>')
-
-    def _page(self,title,inner,sess,flash=None):
-        f=f'<div class="flash">{html.escape(flash)}</div>' if flash else ""
-        right=self._topright(sess) if sess else ""
-        shell=f'<aside class="sidebar">{self._nav(sess,self.path)}</aside>' if sess else ""
-        return f"""<!doctype html><html><head><meta charset=utf-8>
-<meta name=viewport content="width=device-width,initial-scale=1">
-<title>{html.escape(title)} · NetConfig</title><style>{_CSS}</style>{_THEME_JS}</head><body>
-<header><div class="brand"><span class="logo">NC</span><span class="appname">Net<span>Config</span> · Network Configuration</span></div>{right}</header>
-<div class="app-shell">{shell}<div class="content-shell"><main><h1>{html.escape(title)}</h1>{f}{inner}</main><footer class="footer"><span>NetConfig v{APP_VERSION}</span><span>Internal — Restricted</span></footer></div></div></body></html>"""
 
     def _content_length(self, max_bytes):
         return _bounded_content_length(self.headers, max_bytes)
@@ -773,8 +737,10 @@ class Console(WebFeatureControlsMixin, WebDatabaseMixin, WebSupportabilityMixin,
             "/vault": lambda s: self._vault_page(q, s),
             "/settings": lambda s: self._settings_page_v2(s, q=q),
             "/users": lambda s: self._users_page(s),
-            "/audit": lambda s: self._audit_page(s),
-            "/runs": lambda s: self._runs_page(s),
+            "/audit": lambda s: self._audit_page(s, q),
+            "/runs": lambda s: self._runs_page(s, q),
+            "/search": lambda s: self._search_page(q, s),
+            "/device-import": lambda s: self._device_import_page(q, s),
             "/help": lambda s: self._help_page(s),
             "/mib": lambda s: self._mib_page(q, s),
         }
@@ -803,6 +769,8 @@ class Console(WebFeatureControlsMixin, WebDatabaseMixin, WebSupportabilityMixin,
         form = self._read_post()
         if u.path == "/login":
             return self._do_login(form)
+        if u.path == "/setup-admin":
+            return self._do_setup_admin(form)
         if not self._require_auth():
             return
         _, sess = self._session()
@@ -848,6 +816,8 @@ class Console(WebFeatureControlsMixin, WebDatabaseMixin, WebSupportabilityMixin,
             "/incident-export-verify": lambda: self._do_incident_export_verify(form, sess),
             "/device-save": lambda: self._do_device_save(form, sess),
             "/device-delete": lambda: self._do_device_delete(form, sess),
+            "/device-test": lambda: self._do_device_test(form, sess),
+            "/device-import": lambda: self._do_device_import(form, sess),
             "/device-run": lambda: self._do_device_run(form, sess),
             "/group-save": lambda: self._do_group_save(form, sess),
             "/group-delete": lambda: self._do_group_delete(form, sess),
@@ -889,31 +859,6 @@ class Console(WebFeatureControlsMixin, WebDatabaseMixin, WebSupportabilityMixin,
             return h()
         self._send("not found", 404, "text/plain")
 
-    def _login_page(self, error=None):
-        if self.manager.users.count() == 0:
-            body = ('<div class="login-wrap"><div class="panel login">'
-                    '<div class="brand">Net<span>Config</span></div>'
-                    '<div class="sub">Security Operations \u00b7 v'+APP_VERSION+'</div>'
-                    '<div class="err">No users yet. Create the first admin:<br>'
-                    '<code>netconfig user add &lt;name&gt; --role admin</code></div></div></div>')
-            return self._send(f"<!doctype html><html><head><meta charset=utf-8>"
-                              f"<style>{_CSS}</style>{_THEME_JS}</head><body>{body}</body></html>")
-        err = f'<div class="err">{html.escape(error)}</div>' if error else ""
-        body = f"""<!doctype html><html><head><meta charset=utf-8>
-<meta name=viewport content="width=device-width,initial-scale=1">
-<title>Sign in \u00b7 NetConfig</title><style>{_CSS}</style>{_THEME_JS}</head><body>
-<div class="login-wrap"><div class="panel login">
-<div class="brand">Net<span>Config</span></div>
-<div class="sub">Security Operations \u00b7 v{APP_VERSION}</div>{err}
-<form method=post action="/login">
-<input type=text name=username placeholder="Username" autofocus autocomplete=username>
-<input type=password name=password placeholder="Password" autocomplete=current-password>
-<button style="width:100%">Sign in</button></form>
-<div class="muted" style="text-align:center;margin-top:14px">
-Local console \u00b7 bind 127.0.0.1 \u00b7 front with WAF for TLS</div>
-</div></div></body></html>"""
-        self._send(body)
-
     def _do_login(self, form):
         user = (form.get("username") or [""])[0].strip()
         pw = (form.get("password") or [""])[0]
@@ -937,7 +882,7 @@ Local console \u00b7 bind 127.0.0.1 \u00b7 front with WAF for TLS</div>
         METRICS.inc("netconfig_logins_total")
         _obs_event("auth_success", username=u["username"], source_ip=ip)
         secure = "; Secure" if (self.manager.settings.get("cookie_secure") or self.tls_enabled) else ""
-        self._redirect("/", headers=[
+        self._redirect(safe_next_path((form.get("next") or [""])[0]) or "/", headers=[
             ("Set-Cookie", f"ncsid={token}; HttpOnly; SameSite=Strict; Path=/{secure}")])
 
     def _do_logout(self):
@@ -959,117 +904,6 @@ Local console \u00b7 bind 127.0.0.1 \u00b7 front with WAF for TLS</div>
             return self._dashboard(sess, flash="Vault unlocked for this process.")
         except ValueError:
             return self._dashboard(sess, flash="Wrong master password.")
-
-    def _dashboard(self, sess, flash=None):
-        m = self.manager
-        devices = m.inv.all()
-        metas = {d["device"]: d for d in m.store.devices()}
-        facts = m.inv.all_facts()
-        def make_row(d):
-            managed = _is_managed_device(d)
-            meta = metas.get(d["name"], {})
-            last = _fmt_ts(meta.get("last_collected")) if managed else "—"
-            has_cfg = managed and m.store.current(d["name"]) is not None
-            st = (('<span class="badge b-ok">stored</span>' if has_cfg
-                   else '<span class="badge b-dim">none</span>') if managed
-                  else '<span class="muted">—</span>')
-            drift = m.store.drift(d["name"]) if has_cfg else {"baselined": False, "drifted": False}
-            if drift["baselined"]:
-                st += (' <span class="badge b-bad">drift</span>' if drift["drifted"]
-                       else ' <span class="badge b-ok">baseline</span>')
-            en = '' if d["enabled"] else ' <span class="badge b-dim">disabled</span>'
-            fx = facts.get(d["name"], {}) if managed else {}
-            snmp = ""
-            if fx:
-                snmp = ('<span class="badge b-ok">up</span>' if fx.get("reachable")
-                        else '<span class="badge b-bad">unreach</span>')
-                if fx.get("sysname"):
-                    snmp += f' <span class="muted">{html.escape(fx["sysname"])}</span>'
-            collect_btn = ""
-            if managed and _can(sess["role"], "collect"):
-                collect_btn = (f'<form method=post action="/collect" style="display:inline">'
-                               f'{self._csrf_field()}<input type=hidden name=name '
-                               f'value="{html.escape(d["name"])}">'
-                               f'<button style="padding:4px 12px">Collect</button></form>')
-            _typ = " ".join(f'<span class="badge b-dim">{t.capitalize()}</span>'
-                            for t in sorted(_dtypes(d)))
-            snmp_cell = snmp or '<span class=muted>\u2014</span>'
-            tags = d.get("tags") or []
-            # name (partial), IP/host, and tags are what the search box matches on
-            blob = " ".join([d["name"], d["host"]] + [str(t) for t in tags]).lower()
-            address = (f'{html.escape(d["host"])}:{d["port"]}' if managed
-                       else html.escape(d["host"]))
-            platform = html.escape(d["platform"]) if managed else '<span class="muted">—</span>'
-            return f"""<tr class="devrow" data-search="{html.escape(blob, quote=True)}">
-<td><a href="/device?name={_q(d['name'])}">{html.escape(d['name'])}</a>{en}</td>
-<td class="muted">{address}</td>
-<td>{_typ}</td>
-<td>{platform}</td>
-<td>{st}</td><td>{snmp_cell}</td>
-<td class="muted">{last}</td><td class="right">{collect_btn}</td></tr>"""
-
-        _thead = ("<table><tr><th>Device</th><th>Address</th><th>Type</th><th>Platform</th>"
-                  "<th>Config</th><th>SNMP</th><th>Last collected</th><th></th></tr>")
-        # Group by device type; a device with more than one type appears in each
-        # of its groups. Groups are collapsed by default.
-        by_type = {"network": [], "system": [], "application": []}
-        for d in devices:
-            for t in _dtypes(d):
-                if t in by_type:
-                    by_type[t].append(d)
-        groups_html = ""
-        for t, label in (("network", "Network"), ("system", "System"),
-                         ("application", "Application")):
-            ds = by_type[t]
-            if not ds:
-                continue
-            body = _thead + "".join(make_row(d) for d in ds) + "</table>"
-            groups_html += (
-                f'<details class="devgroup">'
-                f'<summary>{label} \u00b7 <span class="devcount">{len(ds)}</span></summary>'
-                f'{body}</details>')
-        if devices:
-            search_box = (
-                '<div class="panel" style="padding:10px 14px">'
-                '<input id="devsearch" type="search" autocomplete="off" '
-                'placeholder="Search devices by name, IP address, or tag\u2026" '
-                'style="width:100%;box-sizing:border-box;padding:9px 12px;font-size:15px">'
-                '</div>')
-            no_results = ('<p id="devnoresults" class="muted" hidden>'
-                          'No devices match your search.</p>')
-            listing = groups_html + no_results
-        else:
-            search_box = ""
-            listing = ('<p class="muted">No devices. Add one with '
-                       '<code>netconfig device add</code>.</p>')
-        vault_panel = ""
-        if not m.vault_ready() and _can(sess["role"], "unlock_vault"):
-            vault_panel = (f'<div class="panel"><h2>Vault locked</h2>'
-                           f'<p class="muted">Device credentials are needed to collect, '
-                           f'run jobs, or poll SNMP. Unlock for this process:</p>'
-                           f'<form method=post action="/unlock-vault" class="row">'
-                           f'{self._csrf_field()}'
-                           f'<input type=password name=master placeholder="Vault master password">'
-                           f'<div style="flex:0"><button>Unlock</button></div></form></div>')
-        collect_all = ""
-        if _can(sess["role"], "collect"):
-            collect_all = (f'<form method=post action="/collect" style="margin-left:auto">'
-                           f'{self._csrf_field()}<input type=hidden name=all value=1>'
-                           f'<button>Collect all enabled</button></form>')
-        add_dev = ""
-        if _can(sess["role"], "manage_devices"):
-            add_dev = ('<a class="btn" href="/device-new" '
-                       'style="margin-left:auto">+ Add device</a>')
-        header_actions = add_dev + collect_all
-        if add_dev and collect_all:
-            # keep both on the right, add-device first
-            header_actions = (add_dev
-                              + collect_all.replace('style="margin-left:auto"', 'style="margin-left:10px"'))
-        inner = f"""{vault_panel}{search_box}<div class="panel">
-<div style="display:flex;align-items:center;margin-bottom:12px">
-<h2 style="border:none;margin:0">Inventory \u00b7 {len(devices)} devices</h2>{header_actions}</div>
-{listing}</div>{_DASH_JS}"""
-        self._send(self._page("Devices", inner, sess, flash=flash))
 
     def _device_page(self, q, sess):
         name = (q.get("name") or [""])[0]
@@ -1258,18 +1092,23 @@ Local console \u00b7 bind 127.0.0.1 \u00b7 front with WAF for TLS</div>
         netflow_panel = self._netflow_section(dev) if "network" in _dt else ""
         portmon_panel = self._portmon_section(dev) if "system" in _dt else ""
         appmon_panel = self._appmon_section(dev) if "application" in _dt else ""
-        management_panels = ""
+        config_tab = ""
         if managed:
-            management_panels = (run_panel + drift_html + diff_picker
-                                 + f'<div class="panel"><h2>Current configuration</h2>{cfg_html}</div>'
-                                 + lastchange_html + snmp_panel
-                                 + f'<div class="panel"><h2>Config backups \u00b7 {len(versions)} saved</h2>'
-                                   f'<p class="muted">Each snapshot is a saved copy of the running config. '
-                                   f'The weekly backup keeps the newest {self.manager.settings.get("backup_keep",5)} per device.</p>'
-                                   f'<table><tr><th>Snapshot</th><th>SHA-256</th><th></th></tr>{vrows}</table></div>')
-        inner = meta + management_panels + netflow_panel + portmon_panel + appmon_panel
-        if "network" in _dt:
-            inner += self._arp_section(dev) + self._mac_port_section(dev)
+            config_tab = (drift_html + diff_picker
+                          + f'<div class="panel"><h2>Current configuration</h2>{cfg_html}</div>' + lastchange_html
+                          + f'<div class="panel"><h2>Config backups \u00b7 {len(versions)} saved</h2>'
+                            f'<p class="muted">Each snapshot is a saved copy of the running config. '
+                            f'The weekly backup keeps the newest {self.manager.settings.get("backup_keep",5)} per device.</p>'
+                            f'<table><tr><th>Snapshot</th><th>SHA-256</th><th></th></tr>{vrows}</table></div>')
+        addresses = (self._arp_section(dev) + self._mac_port_section(dev)) if "network" in _dt else ""
+        inner = render_tabs([
+            ("overview", "Overview", meta + (run_panel if managed else "")),
+            ("config", "Configuration", config_tab),
+            ("snmp", "SNMP", snmp_panel if managed else ""),
+            ("traffic", "Traffic", netflow_panel),
+            ("monitoring", "Monitoring", portmon_panel + appmon_panel),
+            ("addresses", "ARP / MAC", addresses),
+        ], "device-tabs")
         self._send(self._page(f"Device \u00b7 {name}", inner, sess))
 
     def _secret_datalist(self, list_id):
@@ -1298,256 +1137,6 @@ Local console \u00b7 bind 127.0.0.1 \u00b7 front with WAF for TLS</div>
             opts.append(f'<option value="{html.escape(n)}"{sel}>{html.escape(n)}</option>')
         idattr = f' id="{field_id}"' if field_id else ""
         return f'<select{idattr} name="{name}">{"".join(opts)}</select>'
-
-    def _device_form(self, q, sess):
-        if not _can(sess["role"], "manage_devices"):
-            return self._send(self._page("Device", '<div class="err">Not permitted.</div>', sess), 403)
-        name = (q.get("name") or [""])[0]
-        d = self.manager.inv.get(name) if name else None
-        editing = d is not None
-        title = f"Edit {name}" if editing else "Add device"
-        plats = "".join(
-            f'<option value="{p}"{" selected" if d and d["platform"]==p else ""}>{p}</option>'
-            for p in _platforms())
-        cur_types = _dtypes(d) if d else {"network"}
-        type_checks = "".join(
-            f'<label style="font-weight:400;margin-right:16px;display:inline-block">'
-            f'<input type=checkbox name=device_type value="{val}" style="width:auto"'
-            f'{" checked" if val in cur_types else ""}> {lab}</label>'
-            for val, lab in _DEVICE_TYPES)
-        snmp_opts = ""
-        for val, lab in (("", "none"), ("v2c", "v2c"), ("v3", "v3")):
-            sel = " selected" if d and (d.get("snmp_version") or "") == val else ""
-            snmp_opts += f'<option value="{val}"{sel}>{lab}</option>'
-
-        def v(k, default=""):
-            return html.escape(str(d[k])) if d and d.get(k) is not None else default
-
-        def chk(k):
-            return "checked" if d and d.get(k) else ""
-        # prefill SNMP fields from the device's referenced secret (when unlocked)
-        snmp_sec = {}
-        if d and d.get("snmp_ref") and self.manager.vault_ready():
-            try:
-                snmp_sec = self.manager.vault.get_secret(d["snmp_ref"])
-            except KeyError:
-                snmp_sec = {}
-        def sv(k):
-            return html.escape(str(snmp_sec.get(k, "")))
-        def sset(k):
-            return " \u2713 set" if snmp_sec.get(k) else ""
-        def _proto_opts(opts, cur):
-            o = '<option value="">\u2014</option>'
-            for val, lab in opts:
-                o += f'<option value="{val}"{" selected" if cur == val else ""}>{lab}</option>'
-            return o
-        auth_opts = _proto_opts([("sha", "SHA-1"), ("sha224", "SHA-224"), ("sha256", "SHA-256"),
-                                 ("sha384", "SHA-384"), ("sha512", "SHA-512"), ("md5", "MD5")],
-                                snmp_sec.get("snmp_auth_proto"))
-        priv_opts = _proto_opts([("aes", "AES-128"), ("aes192", "AES-192"), ("aes256", "AES-256"), ("aes192c", "AES-192-C (Cisco/Reeder)"), ("aes256c", "AES-256-C (Cisco/Reeder)")],
-                                snmp_sec.get("snmp_priv_proto"))
-        # Prefill SSH fields.
-        ssh_sec = {}
-        if d and d.get("secret_ref") and self.manager.vault_ready():
-            try:
-                ssh_sec = self.manager.vault.get_secret(d["secret_ref"])
-            except KeyError:
-                ssh_sec = {}
-        def uv(k):
-            return html.escape(str(ssh_sec.get(k, "")))
-        def uset(k):
-            return " \u2713 set" if ssh_sec.get(k) else ""
-        open_manual = " open" if not (d and (d.get('secret_ref') or d.get('snmp_ref'))) else ""
-        vault_hint = ("" if self.manager.vault_ready()
-                      else ' \u2014 <b>unlock the vault first</b> to store these')
-        tags = ", ".join(d["tags"]) if d else ""
-        name_field = (f'<input name=name value="{html.escape(name)}">'
-                      f'<input type=hidden name=orig_name value="{html.escape(name)}">'
-                      if editing else '<input name=name placeholder="e.g. core-sw1" autofocus>')
-        selected_platform = (d.get("platform") if d else "generic") or "generic"
-        try:
-            default_collect_command = _get_driver(selected_platform).config_command or "(none)"
-        except Exception:
-            default_collect_command = "(unknown platform)"
-        collect_override = html.escape(str((d.get("config_collect_command") if d else "") or ""))
-        platform_collect_commands = {}
-        for platform_name in _platforms():
-            try:
-                platform_collect_commands[platform_name] = _get_driver(platform_name).config_command or "(none)"
-            except Exception:
-                platform_collect_commands[platform_name] = "(unknown)"
-        collect_commands_json = json.dumps(platform_collect_commands, sort_keys=True)
-        body = f"""<div class="panel"><h2>{html.escape(title)}</h2>
-<form method=post action="/device-save">{self._csrf_field()}
-<div class="row">
-  <div><label>Name</label>{name_field}</div>
-  <div><label id=host_label>Host / IP</label><input name=host value="{v('host')}" placeholder="10.0.0.11"></div>
-  <div id=ssh_port_field style="max-width:120px"><label>SSH port</label><input name=port value="{v('port','22')}"></div>
-</div>
-<div class="row">
-  <div><label>Device type</label><div style="padding-top:6px">{type_checks}</div></div>
-  <div id=platform_field><label>Platform</label><select id=platform_select name=platform>{plats}</select></div>
-  <div><label>Tags (comma-separated)</label><input name=tags value="{html.escape(tags)}" placeholder="core, dc1"></div>
-</div>
-<div id=credentials_section>
-<h2 style="margin-top:14px">Configuration collection</h2>
-<p class="muted">Platform default: <code id=default_collect_command>{html.escape(default_collect_command)}</code>. If that command does not work on this device, set one read-only alternative below. Only one <code>show</code>, <code>display</code>, <code>get</code>, or exact <code>/export</code> command is allowed; <code>/export</code> arguments are rejected.</p>
-<label>Alternative config collection command <span class="muted">(optional)</span></label>
-<input name=config_collect_command value="{collect_override}" placeholder="e.g. show full-configuration">
-<h2 style="margin-top:14px">Credentials</h2>
-<p class="muted">Point the device at existing vault secrets (recommended). Pick one and its
-stored settings appear below — the vault keeps the passwords.{vault_hint}</p>
-<div class="row">
-  <div><label>SSH vault secret</label>{self._secret_select('secret_ref','secret_ref', d.get('secret_ref') if d else '')}{'' if self.manager.vault_ready() else '<div class=muted>Unlock the vault to choose a saved secret.</div>'}</div>
-  <div><label>SNMP vault secret</label>{self._secret_select('snmp_ref','snmp_ref', d.get('snmp_ref') if d else '')}</div>
-  <div><label>Enable vault secret (optional)</label>{self._secret_select('','enable_ref', d.get('enable_ref') if d else '')}</div>
-</div>
-<div id=secinfo class="muted" style="margin:-2px 0 10px"></div>
-<div class="row">
-  <div><label>SNMP version</label><select name=snmp_version>{snmp_opts}</select></div>
-  <div><label style="font-weight:400"><input type=checkbox name=use_key value=1 style="width:auto" {chk('use_key')}> device uses an SSH key (not a password)</label></div>
-  <div></div>
-</div>
-<details style="margin:8px 0"{open_manual}>
-<summary style="cursor:pointer;color:var(--navy);font-weight:600">Enter new credentials manually (creates a vault secret for this device)</summary>
-<h3>SSH login</h3>
-<div class="row">
-  <div><label>SSH username{uset('username')}</label><input id=ssh_username name=ssh_username value="{uv('username')}" placeholder="admin"></div>
-  <div><label>SSH password<span id=set_password>{uset('password')}</span></label><input type=password name=ssh_password></div>
-  <div><label>Enable password<span id=set_enable_password>{uset('enable_password')}</span></label><input type=password name=enable_password placeholder="Cisco enable mode"></div>
-</div>
-<div class="row">
-  <div><label>SSH private key path{uset('key_path')}</label><input name=key_path value="{uv('key_path')}" placeholder="/var/lib/netconfig/keys/id_ed25519"></div>
-  <div><label>Key passphrase{uset('key_passphrase')}</label><input type=password name=key_passphrase></div>
-  <div></div>
-</div>
-<h3>SNMP authentication</h3>
-<div class="row">
-  <div><label>SNMPv3 username{sset('snmp_user')}</label><input id=snmp_user name=snmp_user value="{sv('snmp_user')}" placeholder="snmp-admin"></div>
-  <div><label>v2c community<span id=set_community>{sset('community')}</span></label><input type=password name=community></div>
-  <div style="max-width:120px"><label>SNMP port</label><input id=snmp_port name=snmp_port value="{sv('snmp_port')}" placeholder="161"></div>
-</div>
-<div class="row">
-  <div><label>v3 auth proto</label><select id=snmp_auth_proto name=snmp_auth_proto>{auth_opts}</select></div>
-  <div><label>v3 auth pass<span id=set_snmp_auth_pass>{sset('snmp_auth_pass')}</span></label><input type=password name=snmp_auth_pass></div>
-  <div><label>v3 priv proto</label><select id=snmp_priv_proto name=snmp_priv_proto>{priv_opts}</select></div>
-  <div><label>v3 priv pass<span id=set_snmp_priv_pass>{sset('snmp_priv_pass')}</span></label><input type=password name=snmp_priv_pass></div>
-</div></details>
-</div>
-<div id=netflow_section{" hidden" if "network" not in cur_types else ""}>
-<h2 style="margin-top:14px">NetFlow</h2>
-<p class="muted">Receive NetFlow exports from this device. The collector listens on
-<code>udp/{self.manager.settings.get("netflow_port", 2055)}</code> (toggle it in Settings \u2192 NetFlow).
-Point this device's flow export at this server's IP on that port.</p>
-<label style="font-weight:400"><input type=checkbox name=netflow value=1 style="width:auto" {chk('netflow')}> collect NetFlow from this device</label>
-</div>
-<div id=portmon_section{" hidden" if "system" not in cur_types else ""}>
-<h2 style="margin-top:14px">TCP / UDP ports</h2>
-<p class="muted">Monitor port status on this system. List ports to check as
-<code>tcp/22, tcp/443, udp/53</code> (bare numbers default to TCP). Status is checked
-live when you open the device.</p>
-<label>Ports to monitor</label>
-<input name=monitor_ports value="{html.escape(str((d.get('monitor_ports') if d else '') or ''))}" placeholder="tcp/22, tcp/80, tcp/443, udp/161">
-</div>
-<div id=appmon_section{" hidden" if "application" not in cur_types else ""}>
-<h2 style="margin-top:14px">REST API / HTTPS</h2>
-<p class="muted">Monitor HTTP(S) endpoints for this application \u2014 one URL per line, with
-an optional expected status code. HTTPS URLs also get a TLS certificate check
-(validity + days to expiry). Examples:<br>
-<code>https://{html.escape((d.get('host') if d else '') or 'app.example.com')}/</code><br>
-<code>https://{html.escape((d.get('host') if d else '') or 'app.example.com')}/api/health 200</code></p>
-<label>Endpoints to monitor</label>
-<textarea name=monitor_urls placeholder="https://host/&#10;https://host/api/health 200" style="min-height:90px">{html.escape(str((d.get('monitor_urls') if d else '') or ''))}</textarea>
-</div>
-<script>
-(function(){{
-  var boxes=document.querySelectorAll('input[name=device_type]'),
-      collectCommands={collect_commands_json},
-      platformSelect=document.getElementById('platform_select'),
-      defaultCollect=document.getElementById('default_collect_command'),
-      nf=document.getElementById('netflow_section'),
-      pm=document.getElementById('portmon_section'),
-      am=document.getElementById('appmon_section'),
-      sshPort=document.getElementById('ssh_port_field'),
-      platform=document.getElementById('platform_field'),
-      credentials=document.getElementById('credentials_section'),
-      managementOptions=document.getElementById('management_options'),
-      hostLabel=document.getElementById('host_label');
-  function has(v){{ for(var i=0;i<boxes.length;i++){{ if(boxes[i].value===v&&boxes[i].checked) return true; }} return false; }}
-  function toggle(el,on,display){{
-    if(!el) return;
-    el.hidden=!on;
-    var controls=el.querySelectorAll('input,select,textarea,button');
-    for(var i=0;i<controls.length;i++) controls[i].disabled=!on;
-  }}
-  function upd(){{
-    var managed=has('system')||has('network');
-    toggle(nf,has('network'));
-    toggle(pm,has('system'));
-    toggle(am,has('application'));
-    toggle(sshPort,managed);
-    toggle(platform,managed);
-    toggle(credentials,managed);
-    toggle(managementOptions,managed,'flex');
-    if(hostLabel) hostLabel.textContent=managed?'Host / IP':
-        'Primary hostname / FQDN';
-    if(platformSelect&&defaultCollect) defaultCollect.textContent=collectCommands[platformSelect.value]||'(unknown)'; }}
-  for(var i=0;i<boxes.length;i++) boxes[i].addEventListener('change',upd);
-  if(platformSelect) platformSelect.addEventListener('change',upd);
-  upd();
-}})();
-</script>
-<script>
-(function(){{
-  var summ={{}};
-  function fill(id,val){{var e=document.getElementById(id); if(e&&val!=null&&val!=='') e.value=val;}}
-  function mark(id,on){{var e=document.getElementById('set_'+id); if(e) e.textContent=on?' \u2713 set':'';}}
-  function render(){{var el=document.getElementById('secinfo'); if(!el) return;
-    var parts=[]; if(summ.ssh) parts.push(summ.ssh); if(summ.snmp) parts.push(summ.snmp);
-    el.innerHTML=parts.join(' &nbsp;\u00b7&nbsp; ');}}
-  function load(name,kind){{
-    if(!name){{ summ[kind]=''; render(); return; }}
-    fetch('/secret-info?name='+encodeURIComponent(name)).then(function(r){{return r.json();}}).then(function(j){{
-      if(!j.exists){{ summ[kind]="no vault secret named '"+name+"'"; render(); return; }}
-      var f=j.fields||{{}}, s=j.set||{{}};
-      if(kind==='ssh'){{
-        fill('ssh_username',f.username); mark('password',s.password); mark('enable_password',s.enable_password);
-        var b=[]; if(f.username) b.push('user '+f.username); if(s.password) b.push('password set'); if(s.key_path) b.push('SSH key'); if(s.enable_password) b.push('enable set');
-        summ.ssh="SSH '"+name+"': "+(b.join(', ')||'no fields');
-      }} else {{
-        fill('snmp_user',f.snmp_user); fill('snmp_auth_proto',f.snmp_auth_proto); fill('snmp_priv_proto',f.snmp_priv_proto); fill('snmp_port',f.snmp_port);
-        mark('community',s.community); mark('snmp_auth_pass',s.snmp_auth_pass); mark('snmp_priv_pass',s.snmp_priv_pass);
-        var b2=[]; if(f.snmp_user) b2.push('user '+f.snmp_user); if(f.snmp_auth_proto) b2.push(f.snmp_auth_proto.toUpperCase()+(f.snmp_priv_proto?('/'+f.snmp_priv_proto.toUpperCase()):'')); if(s.community) b2.push('community set'); if(s.snmp_auth_pass) b2.push('auth set'); if(s.snmp_priv_pass) b2.push('priv set');
-        summ.snmp="SNMP '"+name+"': "+(b2.join(', ')||'no fields');
-      }}
-      render();
-    }}).catch(function(){{}});
-  }}
-  var sref=document.getElementById('secret_ref'), nref=document.getElementById('snmp_ref');
-  if(sref){{ sref.addEventListener('change',function(){{load(sref.value.trim(),'ssh');}}); if(sref.value.trim()) load(sref.value.trim(),'ssh'); }}
-  if(nref){{ nref.addEventListener('change',function(){{load(nref.value.trim(),'snmp');}}); if(nref.value.trim()) load(nref.value.trim(),'snmp'); }}
-}})();
-</script>
-<label>Notes</label><textarea name=notes style="min-height:60px">{v('notes')}</textarea>
-<div style="display:flex;gap:20px;flex-wrap:wrap;margin:6px 0 16px">
-  <div id=management_options style="display:flex;gap:20px;flex-wrap:wrap">
-    <label style="color:var(--text)"><input type=checkbox name=legacy value=1 style="width:auto" {chk('legacy')}> legacy algorithms</label>
-    <label style="color:var(--text)"><input type=checkbox name=scrub value=1 style="width:auto" {chk('scrub')}> scrub secrets in archive</label>
-  </div>
-  <label style="color:var(--text)"><input type=checkbox name=enabled value=1 style="width:auto" {"checked" if (not editing or d.get('enabled')) else ""}> enabled</label>
-</div>
-<button>{"Save changes" if editing else "Add device"}</button>
-<a class="btn ghost" href="{('/device?name='+_q(name)) if editing else '/'}" style="margin-left:8px">Cancel</a>
-</form></div>"""
-        del_panel = ""
-        if editing:
-            del_panel = (f'<div class="panel"><h2>Danger zone</h2>'
-                         f'<form method=post action="/device-delete" '
-                         f'data-confirm="Delete this device and its inventory entry? '
-                         f'Archived configs are kept on disk.\')">'
-                         f'{self._csrf_field()}<input type=hidden name=name value="{html.escape(name)}">'
-                         f'<button class=danger>Delete device</button></form></div>')
-        self._send(self._page(title, body + del_panel, sess))
 
     def _do_device_save(self, form, sess):
         if not _can(sess["role"], "manage_devices"):
@@ -1925,7 +1514,7 @@ an optional expected status code. HTTPS URLs also get a TLS certificate check
         elif section == "evidence":
             content = self._evidence_settings_content(sess)
 
-        body = (f'<h1>Settings</h1><p class="muted" style="margin-bottom:14px">Stored in '
+        body = (f'<p class="muted" style="margin-bottom:14px">Stored in '
                 f'<code>settings.json</code> in the data directory.</p><div class="settings-shell">'
                 f'<aside class="settings-menu" aria-label="Settings sections">{menu}</aside>'
                 f'<section class="settings-content">{content}</section></div>')
@@ -3387,34 +2976,6 @@ The client secret is stored in the vault.</p>
         m.db.audit(sess["username"], "compliance_run", standard or "all",
                    f'{t["compliant_devices"]}/{t["device_count"]} compliant')
         return self._redirect("/compliance" + (f"?standard={_q(standard)}" if standard else ""))
-
-    def _audit_page(self, sess):
-        rows = ""
-        for a in self.manager.db.recent_audit(300):
-            rows += (f'<tr><td class=muted>{_fmt_ts(a["ts"])}</td>'
-                     f'<td>{html.escape(a["actor"])}</td>'
-                     f'<td><span class="badge b-brass">{html.escape(a["action"])}</span></td>'
-                     f'<td class=muted>{html.escape(a["target"])}</td>'
-                     f'<td class=muted>{html.escape(a["detail"])}</td></tr>')
-        inner = (f'<div class="panel"><table>'
-                 f'<tr><th>Time</th><th>Actor</th><th>Action</th><th>Target</th><th>Detail</th></tr>'
-                 f'{rows or "<tr><td colspan=5 class=muted>no audit entries</td></tr>"}</table></div>')
-        self._send(self._page("Audit Trail", inner, sess))
-
-    def _runs_page(self, sess):
-        m = self.manager
-        rows = ""
-        for r in m.inv.recent_runs(200):
-            st = ('<span class="badge b-ok">ok</span>' if r["ok"]
-                  else '<span class="badge b-bad">error</span>')
-            ch = '<span class="badge b-chg">changed</span>' if r["changed"] else ""
-            rows += (f'<tr><td class="muted">{_fmt_ts(r["ts"])}</td>'
-                     f'<td>{html.escape(r["device"])}</td><td>{st} {ch}</td>'
-                     f'<td class="muted">{html.escape(r["message"])}</td></tr>')
-        inner = (f'<div class="panel"><table>'
-                 f'<tr><th>Time</th><th>Device</th><th>Result</th><th>Message</th></tr>'
-                 f'{rows or "<tr><td class=muted colspan=4>no runs yet</td></tr>"}</table></div>')
-        self._send(self._page("Run Log", inner, sess))
 
     def _do_collect(self, form, sess):
         if not _can(sess["role"], "collect"):

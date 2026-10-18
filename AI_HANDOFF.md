@@ -1,5 +1,26 @@
 # NetConfig AI Handover
 
+## Console usability round — 2026-10-18
+
+Source-only UX work; no schema or network-write authority change. Status stays
+`IMPLEMENTED_TESTING_DEFERRED`.
+
+- `web_ux.py` (`WebUxMixin`, first in `Console` bases) now owns `_page`, `_nav`,
+  `_topright`, `_login_page`, `_dashboard` (Devices home), `_device_form`,
+  `_audit_page`, `_runs_page`, plus `/search`, `/device-import`, `/device-test`
+  and `/setup-admin`. Keep web.py under the PH-1 gate by adding new screens there.
+- Shared client behavior is in `UX_JS` (sortable/filterable tables, tabs, phone
+  menu, device-form credential modes, connection test); everything is nonce'd,
+  with no inline handlers or style attributes added.
+- Dashboard (`web_mc9._network_glance`) is network-first; correlation sections
+  render only when non-empty; engine health sits in a closed `<details>`.
+- `Manager.test_device_connection()` is the only new device I/O and runs only on
+  an explicit approver/admin request; it stores nothing besides normal SSH
+  host-key pinning.
+- First-admin setup code: `web_ux.ensure_setup_code()` (log + 0600 file, 24 h).
+- Next: unchanged — choose release identity, freeze a candidate, run the twelve
+  LIVE_RC gates.
+
 ## Security policy fixes and NetFlow traffic analytics — 2026-10-17
 
 Source-only corrective on top of the operator-wording refresh; no schema, route

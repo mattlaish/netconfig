@@ -203,14 +203,15 @@ class Inventory:
             (device, time.time(), int(ok), int(changed), message))
         self._conn.commit()
 
-    def recent_runs(self, limit=100, device=None):
+    def recent_runs(self, limit=100, device=None, offset=0):
+        offset = max(0, int(offset))
         if device:
             rows = self._conn.execute(
-                "SELECT * FROM runs WHERE device=? ORDER BY ts DESC LIMIT ?",
-                (device, limit)).fetchall()
+                "SELECT * FROM runs WHERE device=? ORDER BY ts DESC, id DESC LIMIT ? OFFSET ?",
+                (device, limit, offset)).fetchall()
         else:
             rows = self._conn.execute(
-                "SELECT * FROM runs ORDER BY ts DESC LIMIT ?", (limit,)).fetchall()
+                "SELECT * FROM runs ORDER BY ts DESC, id DESC LIMIT ? OFFSET ?", (limit, offset)).fetchall()
         return [dict(r) for r in rows]
 
     # ---- SNMP facts ------------------------------------------------------

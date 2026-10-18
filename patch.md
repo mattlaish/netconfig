@@ -1,3 +1,56 @@
+## PATCH-20261018-01 — Console usability round
+
+- Status: Ready for integration (source/local validation only).
+
+Everyday-use improvements across the web console. No schema change, no new
+network-write authority; rendering still never contacts devices. The page shell,
+navigation, sign-in, Devices home, Add/Edit Device form, CSV import, search and
+paged Audit / Run Log now live in `web_ux.py` (`WebUxMixin`); `web.py` shrinks to
+~207 KB, well under the structural-split gate.
+
+- **Navigation:** collapsible sidebar groups (state remembered per browser) so
+  Settings/Users/Help are reachable without scrolling; change pages grouped under
+  **Changes** (Change requests, Change workspace, Scripts & quick runs, Compliance
+  & drift); on phones the menu collapses behind a **Menu** button so page content
+  comes first; header search box.
+- **Sign-in:** a signed-out GET is sent to `/login?next=…` and returns to that page
+  after sign-in; `safe_next_path` accepts only same-site paths (no `//host`,
+  schemes, backslashes, `/login`, `/logout`, `/api/`).
+- **First admin from the browser:** with no users, a one-time setup code (hash kept
+  in memory, 24 h) is written to the service log and a 0600 file
+  `first-admin-setup-code` in the data directory; `/setup-admin` needs the code,
+  enforces the password policy, is throttled, serialized, closes once a user exists,
+  and deletes the code. `netconfig user add` still works.
+- **Devices home:** groups open by default; new **Alerts** column (open/acknowledged
+  count, critical in red); **Import CSV** next to Add device.
+- **Dashboard:** network-first tiles (devices reachable, config changes 24 h,
+  compliance, waiting for approval, critical alerts + incidents), a **Needs
+  attention** list (unreachable devices, approvals, critical alerts, drift, failed
+  collections), recent configuration changes and top traffic; empty correlation
+  tables collapse to one line; analysis-engine stats move to a closed section.
+- **Add/Edit Device:** choose *saved vault secret* or *enter credentials* (the unused
+  set is disabled, so typed values can no longer merge into a shared secret by
+  accident); SNMP fields appear only for the selected version; options explained;
+  **Test connection** (`/device-test`, approver/admin, audited) signs in over SSH and
+  reads the SNMP system group without saving anything (the first SSH test pins the
+  host key, as the first collection would).
+- **CSV import** (`/device-import`): paste or choose a file, per-row validation and
+  preview, then create; credentials by vault secret name only; existing names are
+  never changed; template download; 1 MB / 2,000-row limits.
+- **Tables:** click-to-sort headers (keyboard accessible) and a row filter on tables
+  with 10+ rows, site-wide; Audit and Run Log page by 100 instead of truncating.
+- **Device page:** tabs (Overview, Configuration, SNMP, Traffic, Monitoring, ARP / MAC).
+- **Search** (`/search`): devices, IP/MAC (endpoints + ARP), alerts, incidents,
+  groups; saved records only.
+- **Small fixes:** footer shows the server time zone; duplicate Settings heading removed.
+
+Tests: new `tests/test_web_ux.py` (30); updated `test_css_regression_review.py`
+(reads `web_ux.py` too), `test_mc9_operations_correlation_console.py` (new dashboard
+heading). Legacy selftest ALL PASS. Full suite: **677 passed / 14 skipped /
+0 failed**; ruff adds no new findings. SBOM / release manifest regenerated (not a
+candidate freeze). Release stays `2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`;
+LIVE_RC gates remain mandatory.
+
 ## PATCH-20261017-02 — Security policy fixes and NetFlow traffic analytics
 
 - Status: Ready for integration (source/local validation only).

@@ -121,7 +121,7 @@ def test_mc9_viewer_routes_are_read_only_and_legacy_routes_remain_compatible(tmp
             status,text=_get(server,token,path); assert status==200, path
         status,_text=_get(server,token,"/op-alerts"); assert status==303
         _,dash=_get(server,token,"/dashboard")
-        assert "Operations Correlation Dashboard" in dash
+        assert "Needs attention" in dash and "Devices reachable" in dash
         assert "Run correlation" not in dash and "incident-correlate" not in dash and "maintenance-add" not in dash
         _,alerts=_get(server,token,"/alerts")
         assert 'href="/incidents"' in alerts and "Maintenance" in alerts

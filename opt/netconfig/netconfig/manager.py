@@ -456,6 +456,71 @@ class Manager:
             raise
         return tp, enable_pw
 
+    def test_device_connection(self, host, *, port=22, use_key=False, legacy=False, ssh=None, snmp=None):
+        """Explicit, read-only reachability test for an unsaved device definition.
+
+        Logs in over SSH and waits for the CLI prompt (no commands are sent), and
+        reads the SNMP system group. Nothing is stored except what any first SSH
+        connection does under the configured host-key policy (pinning the host key).
+        Returns [{"check", "ok", "detail"}]; credentials never appear in results.
+        """
+        def short(exc):
+            text = str(exc).strip() or type(exc).__name__
+            return text[:300]
+        results = []
+        if ssh is not None:
+            username = str(ssh.get("username") or "").strip()
+            if not username:
+                results.append({"check": "SSH login", "ok": False,
+                                "detail": "No SSH username: enter one or choose a saved secret that has one."})
+            else:
+                tp = SSHTransport(
+                    host, username, port=int(port),
+                    password=None if use_key else (ssh.get("password") or None),
+                    key_path=(ssh.get("key_path") or None) if use_key else None,
+                    key_passphrase=ssh.get("key_passphrase") or None,
+                    connect_timeout=self.settings["connect_timeout"],
+                    command_timeout=min(15, int(self.settings["command_timeout"])),
+                    known_hosts=self.paths.known_hosts, host_key_policy=self.settings["host_key_policy"],
+                    legacy=bool(legacy))
+                try:
+                    tp.connect()
+                    prompt = tp.discover_prompt()
+                    if isinstance(prompt, bytes):
+                        prompt = prompt.decode("utf-8", "replace")
+                    results.append({"check": "SSH login", "ok": True,
+                                    "detail": f"signed in as {username}" + (f", prompt {str(prompt)[:60]}" if prompt else "")})
+                except Exception as exc:
+                    results.append({"check": "SSH login", "ok": False, "detail": short(exc)})
+                finally:
+                    try:
+                        tp.close()
+                    except Exception:
+                        pass
+        if snmp is not None:
+            version = snmp.get("version") or "v2c"
+            try:
+                sport = int(snmp.get("snmp_port") or self.settings.get("snmp_port", 161))
+                if version == "v3":
+                    v3 = _snmp.V3Params(snmp.get("snmp_user") or snmp.get("username") or "",
+                                        auth_proto=snmp.get("snmp_auth_proto") or None,
+                                        auth_pass=snmp.get("snmp_auth_pass") or None,
+                                        priv_proto=snmp.get("snmp_priv_proto") or None,
+                                        priv_pass=snmp.get("snmp_priv_pass") or None)
+                    facts = _snmp.poll_system(host, port=sport, version="v3", v3=v3,
+                                              timeout=self.settings.get("snmp_timeout", 2.0))
+                else:
+                    community = snmp.get("community") or snmp.get("snmp_community") or "public"
+                    facts = _snmp.poll_system(host, port=sport, version="v2c", community=community,
+                                              timeout=self.settings.get("snmp_timeout", 2.0))
+                name = facts.get("sysname") or "no system name"
+                descr = (facts.get("sysdescr") or "").splitlines()[0][:120] if facts.get("sysdescr") else ""
+                results.append({"check": f"SNMP {version}", "ok": True,
+                                "detail": name + (f" ({descr})" if descr else "")})
+            except Exception as exc:
+                results.append({"check": f"SNMP {version}", "ok": False, "detail": short(exc)})
+        return results
+
     @staticmethod
     def _validate_config_collect_command(command):
         return validate_config_collect_command(command)

@@ -313,7 +313,7 @@ _DASH_JS = """<style>
         r.hidden=!match;
         if(match) shown++;
       });
-      if(terms.length===0){ g.hidden=false; g.open=false; }
+      if(terms.length===0){ g.hidden=false; g.open=true; }
       else{ g.hidden=!shown; g.open=shown>0; }
       if(shown>0) anyVisible=true;
       var c=g.querySelector('.devcount');
