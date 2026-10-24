@@ -11,6 +11,7 @@ import html
 import json
 import time
 import urllib.parse
+from .web_workflow_ux import STAGES, words, summary_text, advanced, proposal_summary, path_summary, guide
 
 
 _TABS = (
@@ -40,7 +41,7 @@ def _pretty(value):
 
 def _status(value):
     value = str(value or "UNKNOWN")
-    good = {"SUCCEEDED", "PASSED", "ACTIVE", "PUBLISHED", "IDLE", "COMPLETED"}
+    good = {"SUCCEEDED", "PASSED", "ACTIVE", "PUBLISHED", "IDLE", "COMPLETED", "COMPLETE", "VERIFIED", "ALREADY_COMPLIANT"}
     bad = {"FAILED", "RECOVERY_REQUIRED", "ERROR", "ABORTED", "ROLLBACK_FAILED"}
     cls = "b-ok" if value.upper() in good else ("b-bad" if value.upper() in bad else "b-chg")
     return f'<span class="badge {cls}">{_e(value)}</span>'
@@ -257,8 +258,8 @@ class WebOpsMixin:
         inc = view["incident"]
         key = inc["incident_key"]
         stage_rows = ''.join(
-            f'<tr><td>{idx + 1}</td><td><b>{_e(stage["key"].replace("_", " ").title())}</b></td>'
-            f'<td>{_status(stage["state"])}</td><td>{_e(stage["summary"])}</td></tr>'
+            f'<tr><td>{idx + 1}</td><td><b>{_e(STAGES.get(stage["key"], words(stage["key"])))}</b></td>'
+            f'<td>{_e(words(stage["state"]))}</td><td>{_e(summary_text(stage["summary"]))}</td></tr>'
             for idx, stage in enumerate(view["stages"])
         )
         header = (
@@ -276,7 +277,7 @@ class WebOpsMixin:
         investigation = (
             '<div class="panel"><h3>Investigation context</h3>'
             f'<p><b>Incident:</b> {_e(inc.get("title"))} · {_status(inc.get("status"))}</p>'
-            f'<p><b>Current hypothesis:</b> {_e(hyp.get("hypothesis_type") or "No active hypothesis")} · confidence {_e(hyp.get("confidence") or 0)}%</p>'
+            f'<p><b>Possible cause:</b> {_e(words(hyp.get("hypothesis_type")) if hyp else "Not identified")} · confidence {_e(hyp.get("confidence") or 0)}%</p>'
             f'<p>{_e(hyp.get("summary") or "Analyze the linked incident records before accepting a possible explanation.")}</p>'
             f'<p class="muted">Timeline/evidence items: {len(inv.get("timeline") or [])}. Correlation remains decision support, not causation proof.</p></div>'
         )
@@ -286,21 +287,24 @@ class WebOpsMixin:
         if plan:
             result = plan.get("result") or {}
             plan_panel = (
-                f'<div class="panel"><h3>Path Analysis · PLAN#{int(plan["id"])} · {_status(plan.get("planning_status"))}</h3>'
+                f'<div class="panel" id="workflow-plan"><h3>Path analysis #{int(plan["id"])}</h3><p>{_e(words(plan.get("planning_status")))}</p>'
                 f'<p><b>Source:</b> {_e(plan.get("source_selector"))} → <b>Destination:</b> {_e(plan.get("destination_selector"))} · VRF {_e(plan.get("vrf"))}</p>'
-                '<div class="row"><div><h4>Forward path</h4><pre>' + _pretty(result.get("forward_path")) + '</pre></div>'
-                '<div><h4>Return path</h4><pre>' + _pretty(result.get("return_path")) + '</pre></div></div>'
-                '<h4>Why here? / configuration gaps</h4><pre>' + _pretty(result.get("configuration_gaps")) + '</pre></div>'
+                '<div class="row"><div><h4>Forward path</h4>' + path_summary(result.get("forward_path")) + '</div>'
+                '<div><h4>Return path</h4>' + path_summary(result.get("return_path")) + '</div></div>'
+                '<h4>Items to investigate</h4><p>' + _e(str(len(result.get("configuration_gaps") or []))) + ' possible configuration issue(s). Review the proposed changes below; missing information is not proof of a fault.</p>'
+                + advanced(result.get("configuration_gaps"), "Detailed findings") + '</div>'
             )
         elif sess.get("role") in _OPERATOR_ROLES:
+            device_options = ''.join(f'<option value="{_e(d["name"])}">{_e(d["host"])}</option>' for d in self.manager.inv.all())
             plan_panel = (
-                '<div class="panel"><h3>Create a path plan for this incident</h3>'
+                '<div class="panel" id="workflow-plan"><h3>Analyze a network path</h3>'
                 '<p class="muted">Use already-collected topology, endpoint, route, dependency and policy evidence only; this action performs no device polling.</p>'
                 f'<form method="post" action="/ops-workflow-plan">{self._csrf_field()}'
                 f'<input type="hidden" name="incident" value="{_e(key)}">'
-                '<div class="row"><div><label>Source device / endpoint</label><input name="source" required></div>'
-                '<div><label>Destination device / endpoint</label><input name="destination" required></div>'
-                '<div><label>VRF</label><input name="vrf" value="default"></div></div>'
+                f'<datalist id="workflow-devices">{device_options}</datalist>'
+                '<div class="row"><div><label>Source device / endpoint</label><input name="source" list="workflow-devices" required><p class="muted">Choose a device name or enter a known endpoint.</p></div>'
+                '<div><label>Destination device / endpoint</label><input name="destination" list="workflow-devices" required></div>'
+                '<div><label>Routing context (VRF)</label><input name="vrf" value="default"><p class="muted">Use default unless this path uses a named VRF.</p></div></div>'
                 '<div class="row"><div><label>Destination prefix</label><input name="destination_prefix"></div>'
                 '<div><label>Source / return prefix</label><input name="source_prefix"></div>'
                 '<div><label>Service</label><input name="service" value="any"></div><div><label>Max hops</label><input name="max_hops" value="16"></div></div>'
@@ -319,8 +323,8 @@ class WebOpsMixin:
                         f'<input type="hidden" name="incident" value="{_e(key)}"><input type="hidden" name="plan_id" value="{int(plan["id"])}">'
                         f'<input type="hidden" name="proposal_index" value="{idx}"><button>Submit reviewed proposal for approval</button></form>'
                     )
-                items.append(f'<div class="ops-card"><h4>Proposal {idx + 1}</h4><pre>{_pretty(proposal)}</pre>{action}</div>')
-            proposals_panel = '<div class="panel"><h3>Proposed Structured Changes</h3><p class="muted">Submit the displayed proposal for separate approval. These controls cannot send arbitrary commands or bypass approval.</p><div class="ops-actions">' + ''.join(items) + '</div></div>'
+                items.append(f'<div class="ops-card"><h4>Proposed change {idx + 1}</h4>{proposal_summary(proposal)}{advanced(proposal)}{action}</div>')
+            proposals_panel = '<div class="panel" id="workflow-proposals"><h3>Proposed changes</h3><p class="muted">Check the device, setting and requested value, then submit for approval. Submitting does not change the device.</p><div class="ops-actions">' + ''.join(items) + '</div></div>'
 
         request_panel = ''
         selected_request = view.get("selected_request") or {}
@@ -330,28 +334,33 @@ class WebOpsMixin:
                 preview = self.wf.preview(int(req["id"]))
                 auto = (preview or {}).get("automation") or {}
                 snapshot_text = _pretty(auto.get("submitted_snapshot") or {})
+                reviewed_summary = proposal_summary(auto.get("intent") or {})
                 fresh = bool(auto.get("snapshot_matches"))
             except Exception as exc:
                 snapshot_text = _e(f"preview unavailable: {exc}")
+                reviewed_summary = '<p class="err">The reviewed change could not be loaded. Do not apply this request until its details can be checked.</p>'
                 fresh = False
             actions = ''
             if req.get("status") == "pending" and sess.get("role") in _APPROVER_ROLES:
                 actions = (
                     f'<form method="post" action="/ops-workflow-review">{self._csrf_field()}<input type="hidden" name="incident" value="{_e(key)}">'
-                    f'<input type="hidden" name="request_id" value="{int(req["id"])}"><button name="action" value="approve">Approve reviewed request</button> '
+                    f'<input type="hidden" name="request_id" value="{int(req["id"])}"><button name="action" value="approve" {"disabled" if not fresh else ""}>Approve reviewed request</button> '
                     '<input name="note" placeholder="rejection reason"><button class="danger" name="action" value="reject">Reject</button></form>'
                 )
             elif req.get("status") == "approved" and sess.get("role") in _APPROVER_ROLES:
                 locked = not self.manager.vault_ready()
                 actions = (
                     f'<form method="post" action="/ops-workflow-execute">{self._csrf_field()}<input type="hidden" name="incident" value="{_e(key)}">'
-                    f'<input type="hidden" name="request_id" value="{int(req["id"])}"><button {"disabled" if locked else ""}>Execute approved Structured Change</button></form>'
-                    + ('<span class="vault-lock">vault locked — unlock before execution</span>' if locked else '')
+                    f'<input type="hidden" name="request_id" value="{int(req["id"])}"><button {"disabled" if locked or not fresh else ""}>Apply approved change</button></form>'
+                    + ((f'<form method="post" action="/unlock-vault">{self._csrf_field()}'
+                        f'<input type="hidden" name="next" value="{_e(self._workflow_url(key, plan=int(plan["id"]) if plan else None, request=int(req["id"]), tx=int((view.get("selected_transaction") or {}).get("id") or 0)))}">'
+                        '<label>Vault master password</label><input type="password" name="master" required autocomplete="current-password"><button>Unlock and return here</button></form>') if locked else '')
                 )
             request_panel = (
-                f'<div class="panel"><h3>Approval · CR#{int(req["id"])} · {_status(req.get("status"))}</h3>'
-                f'<p><b>{_e(req.get("title"))}</b> · requested by {_e(req.get("requested_by"))}. Submitted change still matches: {_status("CURRENT" if fresh else "STALE")}</p>'
-                '<pre>' + snapshot_text + '</pre>' + actions + '</div>'
+                f'<div class="panel" id="workflow-approval"><h3>Approval request #{int(req["id"])} · {_e(words(req.get("status")))}</h3>'
+                f'<p><b>{_e(summary_text(req.get("title")))}</b> · requested by {_e(req.get("requested_by"))}. Change details: {"Still match the reviewed request" if fresh else "Need a new review"}</p>'
+                + reviewed_summary + '<details><summary>Advanced details</summary><pre>' + snapshot_text + '</pre></details>' + actions + '</div>'
+                + ('' if fresh else '<p class="err">This request no longer matches the current change details. Submit a new request for review before applying a change.</p>')
             )
 
         tx_panel = ''
@@ -361,25 +370,25 @@ class WebOpsMixin:
             if tx.get("state") == "RECOVERY_REQUIRED" and sess.get("role") in _ADMIN_ROLES:
                 recovery = (
                     f'<form method="post" action="/ops-workflow-recover">{self._csrf_field()}<input type="hidden" name="incident" value="{_e(key)}">'
-                    f'<input type="hidden" name="request_id" value="{int(req.get("id") or 0)}"><input type="hidden" name="txid" value="{int(tx["id"])}"><button>Reconcile interrupted transaction</button></form>'
+                    f'<input type="hidden" name="request_id" value="{int(req.get("id") or 0)}"><input type="hidden" name="txid" value="{int(tx["id"])}"><button>Check interrupted change</button></form>'
                 )
             tx_panel = (
-                f'<div class="panel"><h3>Structured Change · TX#{int(tx["id"])} · {_status(tx.get("state"))}</h3>'
-                f'<table><tr><th>Device</th><td>{_e(tx.get("device"))}</td></tr><tr><th>Resource</th><td>{_e(tx.get("resource"))}</td></tr>'
-                f'<tr><th>Approval</th><td>{_e(tx.get("approval_ref"))}</td></tr><tr><th>Verification</th><td>{_status(tx.get("verification_state") or "PENDING")}</td></tr>'
-                f'<tr><th>Rollback</th><td>{_e(tx.get("rollback_state") or "")}</td></tr></table>{recovery}</div>'
+                f'<div class="panel" id="workflow-result"><h3>Change result #{int(tx["id"])} · {_e(words(tx.get("state")))}</h3>'
+                f'<table><tr><th>Device</th><td>{_e(tx.get("device"))}</td></tr><tr><th>Setting</th><td>{_e(words(tx.get("resource")))}</td></tr>'
+                f'<tr><th>Approval</th><td>{_e(summary_text(tx.get("approval_ref")))}</td></tr><tr><th>Verification</th><td>{_e(words(tx.get("verification_state") or "PENDING"))}</td></tr>'
+                f'<tr><th>Rollback</th><td>{_e(words(tx.get("rollback_state") or "Not needed / not recorded"))}</td></tr></table>{recovery}</div>'
             )
         post_rows = ''.join(
             f'<tr><td>{int(x["event"]["id"])}</td><td>{_e(x["event"].get("event_type"))}</td><td>{_status(x["event"].get("status"))}</td><td>{_e(x["event"].get("summary"))}</td></tr>'
             for x in (view.get("post_change_evidence") or [])
         )
         validation = (
-            '<div class="panel"><h3>Validation & post-change evidence</h3>'
+            '<div class="panel"><h3>Verify results</h3>'
             '<p class="muted">Review the change verification results, then link them to this incident to compare before-and-after monitoring records.</p>'
             '<table><tr><th>Event</th><th>Type</th><th>Status</th><th>Summary</th></tr>'
             + (post_rows or '<tr><td colspan="4" class="muted">No linked post-change execution evidence yet.</td></tr>') + '</table></div>'
         )
-        return header + investigation + plan_panel + proposals_panel + request_panel + tx_panel + validation
+        return guide(self, view, sess) + header + investigation + plan_panel + proposals_panel + request_panel + tx_panel + validation
 
     def _do_ops_workflow_plan(self, form, sess):
         if not self._ops_require(sess, _OPERATOR_ROLES):

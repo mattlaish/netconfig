@@ -77,6 +77,7 @@ def render_tabs(tabs, tabset_id="tabs"):
 
 
 UX_CSS = """
+[id^="workflow-"]{scroll-margin-top:90px}
 .sidebar{padding:12px 12px}
 .side-group{margin:0 0 4px}
 .side-group>summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:6px 8px;margin:0;border-radius:8px}
@@ -510,6 +511,9 @@ class WebUxMixin:
     def _topright(self, sess):
         vault = ('<span class="vault-open">● vault unlocked</span>' if self.manager.vault_ready()
                  else '<span class="vault-lock">● vault locked</span>')
+        if not self.manager.vault_ready() and _can(sess["role"], "unlock_vault"):
+            nxt = safe_next_path(getattr(self, "path", "/")) if getattr(self, "command", "GET") == "GET" else "/"
+            vault += '<a href="/vault?next=' + _q(nxt or "/") + '">Unlock vault</a>'
         return ('<div class="top-right">'
                 '<form method=get action="/search" class="top-search" role="search">'
                 '<input type=search name=q placeholder="Search devices, IPs, MACs, alerts" '
@@ -522,6 +526,9 @@ class WebUxMixin:
                 '<button class=ghost>Sign out</button></form></div>')
 
     def _page(self, title, inner, sess, flash=None):
+        from .web_forms import take_feedback
+        queued = take_feedback(self, sess)
+        flash = flash or queued
         f = f'<div class="flash">{_e(flash)}</div>' if flash else ""
         right = self._topright(sess) if sess else ""
         shell = ""
@@ -918,12 +925,22 @@ class WebUxMixin:
         return self._dashboard(sess, flash=f"Imported {created} device(s)" + (f"; {skipped} skipped." if skipped else "."))
 
     # ---- Add / edit device -------------------------------------------------------
-    def _device_form(self, q, sess):
+    def _device_form(self, q, sess, draft=None, flash=None, status=200):
         if not _can(sess["role"], "manage_devices"):
             return self._send(self._page("Device", '<div class="err">Not permitted.</div>', sess), 403)
         name = (q.get("name") or [""])[0]
         d = self.manager.inv.get(name) if name else None
         editing = d is not None
+        if draft is not None:
+            d = dict(d or {})
+            d.setdefault("platform", "generic")
+            for k in ("host", "port", "platform", "notes", "monitor_ports", "monitor_urls", "config_collect_command", "snmp_version", "secret_ref", "snmp_ref", "enable_ref"):
+                if k in draft:
+                    d[k] = draft[k][0]
+            d["device_type"] = ",".join(draft.get("device_type", ["network"]))
+            d["tags"] = (draft.get("tags", [""])[0]).replace(",", " ").split()
+            for k in ("use_key", "legacy", "scrub", "enabled", "netflow"):
+                d[k] = bool(draft.get(k))
         title = f"Edit {name}" if editing else "Add device"
         plats = "".join(f'<option value="{p}"{" selected" if d and d["platform"] == p else ""}>{p}</option>'
                         for p in _platforms())
@@ -952,12 +969,17 @@ class WebUxMixin:
                         pass
 
         def sv(k):
+            if draft is not None and k in draft:
+                return _e(draft[k][0])
             return _e(snmp_sec.get(k, ""))
 
         def sset(k):
             return " ✓ set" if snmp_sec.get(k) else ""
 
         def uv(k):
+            field = "ssh_username" if k == "username" else k
+            if draft is not None and field in draft:
+                return _e(draft[field][0])
             return _e(ssh_sec.get(k, ""))
 
         def uset(k):
@@ -968,10 +990,10 @@ class WebUxMixin:
                 f'<option value="{val}"{" selected" if cur == val else ""}>{lab}</option>' for val, lab in opts)
         auth_opts = proto_opts([("sha", "SHA-1"), ("sha224", "SHA-224"), ("sha256", "SHA-256"),
                                 ("sha384", "SHA-384"), ("sha512", "SHA-512"), ("md5", "MD5")],
-                               snmp_sec.get("snmp_auth_proto"))
+                               (draft.get("snmp_auth_proto") or [""])[0] if draft is not None else snmp_sec.get("snmp_auth_proto"))
         priv_opts = proto_opts([("aes", "AES-128"), ("aes192", "AES-192"), ("aes256", "AES-256"),
                                 ("aes192c", "AES-192-C (Cisco/Reeder)"), ("aes256c", "AES-256-C (Cisco/Reeder)")],
-                               snmp_sec.get("snmp_priv_proto"))
+                               (draft.get("snmp_priv_proto") or [""])[0] if draft is not None else snmp_sec.get("snmp_priv_proto"))
         has_saved = False
         if vault_ready:
             try:
@@ -979,10 +1001,13 @@ class WebUxMixin:
             except Exception:
                 has_saved = False
         mode = "saved" if (d and (d.get("secret_ref") or d.get("snmp_ref"))) or (not d and has_saved) else "manual"
+        if draft is not None:
+            mode = (draft.get("cred_mode") or [mode])[0]
         vault_hint = "" if vault_ready else " <b>Unlock the vault first</b> to store or choose credentials."
         tags = ", ".join(d["tags"]) if d else ""
-        name_field = (f'<input name=name value="{_e(name)}"><input type=hidden name=orig_name value="{_e(name)}">'
-                      if editing else '<input name=name placeholder="e.g. core-sw1" autofocus>')
+        entered_name = (draft.get("name") or [name])[0] if draft is not None else name
+        name_field = (f'<input name=name value="{_e(entered_name)}" placeholder="e.g. core-sw1">'
+                      + (f'<input type=hidden name=orig_name value="{_e(name)}">' if editing else ""))
         selected_platform = (d.get("platform") if d else "generic") or "generic"
         try:
             default_collect_command = _get_driver(selected_platform).config_command or "(none)"
@@ -1032,6 +1057,7 @@ class WebUxMixin:
 </div>
 <div id=cred_manual>
 <h3>SSH login</h3>
+<p class="muted">Credentials entered here are saved separately for this device; shared credentials are not changed. Leave password fields blank to keep this device's previous passwords.</p>
 <div class="row">
   <div><label>SSH username{uset('username')}</label><input id=ssh_username name=ssh_username value="{uv('username')}" placeholder="admin" autocomplete=off></div>
   <div><label>SSH password<span id=set_password>{uset('password')}</span></label><input type=password name=ssh_password autocomplete=new-password></div>
@@ -1138,8 +1164,9 @@ class WebUxMixin:
     }}).catch(function(){{}});
   }}
   var sref=document.getElementById('secret_ref'), nref=document.getElementById('snmp_ref');
-  if(sref){{ sref.addEventListener('change',function(){{load(sref.value.trim(),'ssh');}}); if(sref.value.trim()) load(sref.value.trim(),'ssh'); }}
-  if(nref){{ nref.addEventListener('change',function(){{load(nref.value.trim(),'snmp');}}); if(nref.value.trim()) load(nref.value.trim(),'snmp'); }}
+  var manual=document.querySelector('input[name=cred_mode][value=manual]:checked');
+  if(sref){{ sref.addEventListener('change',function(){{load(sref.value.trim(),'ssh');}}); if(!manual && sref.value.trim()) load(sref.value.trim(),'ssh'); }}
+  if(nref){{ nref.addEventListener('change',function(){{load(nref.value.trim(),'snmp');}}); if(!manual && nref.value.trim()) load(nref.value.trim(),'snmp'); }}
 }})();
 </script>
 <label>Notes</label><textarea name=notes style="min-height:60px">{v('notes')}</textarea>
@@ -1160,7 +1187,7 @@ class WebUxMixin:
                          'data-confirm="Delete this device and its inventory entry? Archived configs are kept on disk.">'
                          f'{self._csrf_field()}<input type=hidden name=name value="{_e(name)}">'
                          '<button class=danger>Delete device</button></form></div>')
-        self._send(self._page(title, body + del_panel, sess))
+        self._send(self._page(title, body + del_panel, sess, flash=flash), status)
 
     def _do_device_test(self, form, sess):
         """Explicit, read-only connection test for the Add/Edit form. Saves nothing."""

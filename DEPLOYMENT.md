@@ -1,5 +1,43 @@
 # Deployment
 
+## NetFlow history deployment note — 2026-10-22 (newer than RPM below)
+
+The current source adds 24-hour PostgreSQL NetFlow storage; the earlier
+519551-byte project-root RPM below predates this implementation. Rebuild before
+deploying this feature; no new RPM or version has been produced in this step.
+
+Reuse the working History PostgreSQL connection and vault password. The service
+needs psycopg plus CREATE TABLE/INDEX, SELECT, INSERT and DELETE rights for its
+dedicated `netconfig_flow_history` table. The SNMP history switch/retention is
+independent. Enable **Save flow history for 24 hours**, restart NetConfig, unlock
+the vault (or use the established protected service unlock), and check the
+history status under NetFlow/Traffic. Confirm saved counts increase, pending
+drains, and history survives a service restart on the qualification host.
+
+Collection starts with new received flows; no old-memory or missing-flow
+backfill is performed. Maintenance requires the collector and database to run;
+read filters exclude >24 h even during cleanup backlog. Prolonged outage or
+hard shutdown can lose volatile pending flows. Capacity/disk growth and real
+PostgreSQL/AlmaLinux operation still require validation. External History DB
+tables are not magically included in a Core-SQLite filesystem backup.
+
+## Local RPM upgrade — 2026-10-22
+
+The user-requested current-source RPM is available in the project root:
+`netconfig-2.0.0-67.2.el10.noarch.rpm`. No version increase was requested.
+Copy it to AlmaLinux and, from its directory, use:
+
+```bash
+sudo dnf upgrade ./netconfig-2.0.0-67.2.el10.noarch.rpm
+sudo systemctl restart netconfig-web
+sudo systemctl status netconfig-web --no-pager
+```
+
+Back up current operational data before upgrading. This command updates an older
+installed EVR; if the same EVR is already installed it will not replace its bytes.
+The RPM is unsigned and offline-verified only, not AlmaLinux-install-qualified.
+See AI_HANDOFF.md and TESTING.md for exact build/source limits and test evidence.
+
 ## Operator-facing wording refresh — 2026-10-17
 
 This is a source-only console wording update. No RPM was built or installed.

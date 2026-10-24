@@ -1,5 +1,18 @@
 # NetConfig Documentation Status
 
+## NetFlow persistence synchronization — 2026-10-22
+
+Current README, Web guide, architecture, deployment, security, development,
+roadmap, testing, AI handoff and patch ledger now distinguish 24-hour PostgreSQL
+raw-flow storage from the existing SNMP interface-history store. They document
+connection reuse, queue/query limits, visible failure/loss, receive-time rate
+limitations and outstanding live qualification. Older dated memory-only release
+entries remain historical. No Markdown file was added in this update.
+Existing RPM predates these changes; package identity is unchanged. Source
+metadata is regenerated. Local validation: 136 PASS / 1 SKIP; selftest ALL PASS;
+93 Python files compile; no new Ruff findings. Real PostgreSQL/AlmaLinux
+qualification remains NOT_RUN, not inferred from SQLite bridge tests.
+
 ## Operator-facing wording refresh — 2026-10-17
 
 Current console terminology is synchronized across the operator guides,

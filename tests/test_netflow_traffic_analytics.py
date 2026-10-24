@@ -211,6 +211,28 @@ def test_traffic_warns_when_the_flow_ring_limits_coverage(traffic_console):
     assert status == 200 and "Flow memory is full" in body
 
 
+def test_traffic_page_uses_saved_history_and_reports_partial_results(traffic_console):
+    _m, get = traffic_console
+    now = time.time()
+
+    class History:
+        def read_window(self, since, until, exporter=None):
+            flows = [dict(f, exporter="192.0.2.1") for f in
+                     _pair(now - 7200, "10.4.5.6", "8.8.4.4", 51000, 443, "TCP", 100, 900)]
+            return {"flows": [f for f in flows if since <= f["ts"] <= until],
+                    "source": "postgres", "truncated": True, "query_limit": 200000,
+                    "status": {"pending": 2, "written": 8}}
+
+    Console.netflow.history = History()
+    Console.netflow.max_flows = 2
+    status, body = get("/traffic?window=86400")
+    assert status == 200 and "10.4.5.6" in body
+    assert "PostgreSQL flow history" in body and "Results are incomplete" in body
+    assert "Flow memory is full" not in body and "Records are held in memory" not in body
+    status, body = get("/traffic?window=3600")
+    assert status == 200 and "10.4.5.6" not in body
+
+
 def test_device_page_netflow_section_uses_the_analytics_views(traffic_console):
     _m, get = traffic_console
     status, body = get("/device?name=fgt")

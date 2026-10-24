@@ -1,5 +1,23 @@
 # Security
 
+## NetFlow history boundary — 2026-10-22
+
+Raw flow endpoints, ports and counters are now retained for 24 hours in the
+History PostgreSQL database when enabled. Restrict DB access/backups accordingly.
+Existing History connection/SSL policy and vault password are reused, not copied
+into settings. New errors expose operation/exception type, never DSN/password.
+SQL values are bound; table/index identifiers are fixed. UUID retries avoid
+duplicate inserts, not duplicate observations from different exporters.
+
+Only existing admin/CSRF-protected settings enable history. UDP receive remains
+unauthenticated and is not an inventory allowlist; this change does not claim
+anti-spoofing, sequence-loss accounting or reliable UDP delivery. Writer queue,
+batch/query sizes and DB statement/lock waits are bounded. Invalid counter/port
+records cannot poison a batch. Queue drops and DB fallback remain explicit.
+Logical expiry is 24 h; physical cleanup needs a running collector and reachable
+DB and may lag. External backups may outlive live-table expiry. No new device
+configuration authority or production/security qualification is claimed.
+
 ## Operator-facing wording refresh — 2026-10-17
 
 The English console now uses task-oriented labels and instructions rather than

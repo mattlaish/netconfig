@@ -895,15 +895,17 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
         self._redirect("/login", headers=[("Set-Cookie", "ncsid=; Max-Age=0; HttpOnly; SameSite=Strict; Path=/")])
 
     def _do_unlock(self, form, sess):
+        from .web_forms import feedback
+        target = safe_next_path((form.get("next") or [""])[0]) or "/vault"
         if not _can(sess["role"], "unlock_vault"):
-            return self._dashboard(sess, flash="Not permitted to unlock the vault.")
+            return feedback(self, sess, target, "Not permitted to unlock the vault.")
         pw = (form.get("master") or [""])[0]
         try:
             self.manager.unlock_vault(pw)
             self.manager.db.audit(sess["username"], "unlock_vault", "", "")
-            return self._dashboard(sess, flash="Vault unlocked for this process.")
+            return feedback(self, sess, target, "Vault unlocked. Continue your previous task.")
         except ValueError:
-            return self._dashboard(sess, flash="Wrong master password.")
+            return feedback(self, sess, target, "Wrong master password. The vault is still locked.")
 
     def _device_page(self, q, sess):
         name = (q.get("name") or [""])[0]
@@ -995,6 +997,7 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
                 _oid_row = ""
             snmp_html = (f'<table>'
                          f'<tr><th>Reachable</th><td>{"yes" if fx["reachable"] else "no"}</td></tr>'
+                         f'<tr><th>Last error</th><td>{html.escape(str(fx.get("error") or "—"))}</td></tr>'
                          f'<tr><th>sysName</th><td>{html.escape(fx["sysname"])}</td></tr>'
                          f'<tr><th>sysDescr</th><td>{html.escape(fx["sysdescr"])}</td></tr>'
                          f'{_oid_row}'
@@ -1139,101 +1142,8 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
         return f'<select{idattr} name="{name}">{"".join(opts)}</select>'
 
     def _do_device_save(self, form, sess):
-        if not _can(sess["role"], "manage_devices"):
-            return self._dashboard(sess, flash="Not permitted.")
-        def g(k, d=""):
-            return (form.get(k) or [d])[0]
-        name = g("name").strip()
-        if not name:
-            return self._dashboard(sess, flash="Device name required.")
-        device_types = [t for t in form.get("device_type", [])
-                        if t in ("system", "network", "application")]
-        if not device_types:
-            device_types = ["network"]
-        application_only = set(device_types) == {"application"}
-        orig = g("orig_name").strip()
-        if orig and orig != name:
-            try:
-                self.manager.rename_device(orig, name)
-            except (KeyError, ValueError) as e:
-                return self._dashboard(sess, flash=f"Rename failed: {e}")
-        try:
-            port = int(g("port", "22") or 22)
-        except ValueError:
-            port = 22
-        tags = [t.strip() for t in g("tags").replace(",", " ").split() if t.strip()]
-        snmp_version = "" if application_only else g("snmp_version").strip()
-        adv_ssh = g("secret_ref").strip() or None
-        adv_snmp = g("snmp_ref").strip() or None
-        enable_ref = g("enable_ref").strip() or None
-        ssh_fields = {
-            "username": g("ssh_username").strip(),
-            "password": g("ssh_password"),
-            "enable_password": g("enable_password"),
-            "key_path": g("key_path").strip(),
-            "key_passphrase": g("key_passphrase"),
-        }
-        ssh_provided = any(ssh_fields.values())
-        snmp_fields = {k: g(k).strip() for k in
-                       ("snmp_user", "community", "snmp_auth_proto", "snmp_auth_pass",
-                        "snmp_priv_proto", "snmp_priv_pass", "snmp_port")}
-        snmp_provided = any(snmp_fields.values())
-
-        secret_ref = adv_ssh
-        snmp_ref = adv_snmp
-        locked_warn = False
-        if not application_only and (ssh_provided or snmp_provided):
-            if self.manager.vault_ready():
-                existing_dev = self.manager.inv.get(name) or {}
-                sname = (adv_ssh or adv_snmp or existing_dev.get("secret_ref")
-                         or existing_dev.get("snmp_ref") or f"{name}-cred")
-                try:
-                    merged = dict(self.manager.vault.get_secret(sname))
-                except KeyError:
-                    merged = {}
-                for k, val in {**ssh_fields, **snmp_fields}.items():
-                    if val:
-                        merged[k] = val
-                self.manager.vault.set_secret(sname, **merged)
-                if ssh_provided:
-                    secret_ref = sname
-                if snmp_provided:
-                    snmp_ref = sname
-            else:
-                locked_warn = True
-        try:
-            config_collect_command = "" if application_only else _validate_config_collect_command(g("config_collect_command", ""))
-        except ValueError as exc:
-            return self._dashboard(sess, flash=f"Device not saved: {exc}")
-        if application_only:
-            # Hidden form controls are not a security boundary. A pure
-            # Application entry is an endpoint monitor, never an SSH/SNMP
-            # managed device, so discard stale or forged management values.
-            port = 22                    # neutral internal placeholder; not displayed
-            secret_ref = ""
-            snmp_ref = ""
-            enable_ref = ""
-        self.manager.inv.upsert(
-            name=name, host=g("host").strip(), port=port,
-            platform="generic" if application_only else (g("platform").strip() or "generic"),
-            device_type=",".join(device_types),
-            secret_ref=secret_ref,
-            enable_ref=enable_ref,
-            use_key=False if application_only else bool(form.get("use_key")),
-            legacy=False if application_only else bool(form.get("legacy")),
-            scrub=False if application_only else bool(form.get("scrub")),
-            enabled=bool(form.get("enabled")),
-            netflow=False if application_only else bool(form.get("netflow")),
-            monitor_ports="" if application_only else g("monitor_ports", ""),
-            monitor_urls=g("monitor_urls", ""),
-            config_collect_command=config_collect_command,
-            tags=tags, notes=g("notes"),
-            snmp_version=snmp_version, snmp_ref=snmp_ref)
-        self.manager.db.audit(sess["username"], "device_save", name, g("host"))
-        if locked_warn:
-            return self._dashboard(sess, flash=f"Device '{name}' saved, but credentials were "
-                                   f"NOT stored \u2014 unlock the vault, then edit the device.")
-        return self._redirect(f"/device?name={_q(name)}")
+        from .web_forms import save_device
+        return save_device(self, form, sess)
 
     def _do_device_delete(self, form, sess):
         if not _can(sess["role"], "manage_devices"):
@@ -1261,6 +1171,7 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
         self._send(self._page(f"Run \u00b7 {name}", body, sess))
 
     def _vault_page(self, q, sess):
+        next_path = html.escape(safe_next_path((q.get("next") or [""])[0]) or "/vault")
         if not _can(sess["role"], "manage_devices"):
             return self._send(self._page("Vault", '<div class="err">Not permitted.</div>', sess), 403)
         m = self.manager
@@ -1277,6 +1188,7 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
             body = (f'<div class="panel"><h2>Vault locked</h2>'
                     f'<p class="muted">Unlock to view and manage credentials.</p>'
                     f'<form method=post action="/unlock-vault" class="row">{self._csrf_field()}'
+                    f'<input type=hidden name=next value="{next_path}">'
                     f'<input type=password name=master placeholder="Vault master password">'
                     f'<div style="flex:0"><button>Unlock</button></div></form></div>')
             return self._send(self._page("Vault", body, sess))
@@ -1389,7 +1301,7 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
         self.manager.db.audit(sess["username"], "vault_secret_delete", name, "")
         return self._redirect("/vault")
 
-    def _settings_page_v2(self, sess, q=None, flash=None):
+    def _settings_page_v2(self, sess, q=None, flash=None, draft=None, status=200):
         if not _can(sess["role"], "settings"):
             return self._send(self._page("Settings", '<div class="err">Admin only.</div>', sess), 403)
         q = q or {}
@@ -1400,7 +1312,14 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
                     ("db", "Database"), ("evidence", "Evidence signing"))
         if section not in dict(sections):
             section = "general"
-        s = self.manager.settings
+        s = dict(self.manager.settings)
+        if draft:
+            from .web_forms import SECRET_FIELDS
+            s.update({k: values[0] for k, values in draft.items()
+                      if k in s and k not in SECRET_FIELDS and values})
+            for k in ("record_sessions", "scrub_sessions", "netflow_enabled", "netflow_resolve_names", "netflow_history_enabled", "syslog_enabled", "snmp_trap_enabled", "snmp_trap_targeted_repoll", "operational_notifications_enabled", "smtp_enabled", "smtp_starttls", "o365_enabled"):
+                if section in {"general", "netflow", "monitoring", "email"}:
+                    s[k] = bool(draft.get(k))
 
         def field(key, label, hint=""):
             return (f'<div><label>{html.escape(label)}</label>'
@@ -1445,10 +1364,18 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
 {form}<div class="row"><div><label>NetFlow collector</label>
 <label style="color:var(--text);font-weight:400"><input type=checkbox name=netflow_enabled value=1 style="width:auto" {"checked" if s.get("netflow_enabled") else ""}> receive NetFlow</label>
 <div class=muted>UDP listener for flow exports from network devices</div></div>
-{field("netflow_port","NetFlow UDP port","default 2055")}{field("netflow_max_flows","Recent flows kept per device","default 10000; more covers a longer period")}</div>
+{field("netflow_port","NetFlow UDP port","default 2055")}{field("netflow_max_flows","Recent flows kept per device","memory fallback only; default 10000")}</div>
+<label><input type=checkbox name=netflow_history_enabled value=1 {"checked" if s.get("netflow_history_enabled", True) else ""}> Save flow history for 24 hours</label>
+<p class=muted>Uses the History PostgreSQL connection and vault password from <a href="/settings?section=db">Database settings</a>, in a separate flow table. Independent of interface-history retention. Starts saving new records after restart; previously discarded flows cannot be recovered. Traffic pages show database failures and incomplete results.</p>
 <label style="color:var(--text);font-weight:400"><input type=checkbox name=netflow_resolve_names value=1 style="width:auto" {"checked" if s.get("netflow_resolve_names") else ""}> Look up host names (reverse DNS)</label>
 <div class=muted>Names are looked up in the background using this server's DNS resolver and cached; pages never wait for DNS.</div>
 <button>Save NetFlow settings</button></form></div>"""
+            history = getattr(getattr(self, "netflow", None), "history", None)
+            if history is not None:
+                from .web_traffic import history_notice
+                st = history.status()
+                content += history_notice({"source": "postgres" if st.get("last_write_ts") else "memory",
+                                           "status": st})
         elif section == "monitoring":
             content = f"""<div class="panel"><h2>Monitoring &amp; alerts</h2>
 <p class="muted">Background port, HTTP and TLS monitoring schedule and retention.</p>
@@ -1518,7 +1445,7 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
                 f'<code>settings.json</code> in the data directory.</p><div class="settings-shell">'
                 f'<aside class="settings-menu" aria-label="Settings sections">{menu}</aside>'
                 f'<section class="settings-content">{content}</section></div>')
-        self._send(self._page("Settings", body, sess, flash=flash))
+        self._send(self._page("Settings", body, sess, flash=flash), status)
 
     def _settings_page(self, sess, flash=None):
         if not _can(sess["role"], "settings"):
@@ -1659,7 +1586,8 @@ The client secret is stored in the vault.</p>
     def _do_settings_save_v2(self, form, sess):
         if not _can(sess["role"], "settings"):
             return self._settings_page_v2(sess, flash="Admin only.")
-        s = self.manager.settings
+        from .web_forms import numeric_value, safe_draft, commit_settings
+        s = dict(self.manager.settings)
         def g(k):
             return (form.get(k) or [""])[0].strip()
         section = g("section") or "general"
@@ -1671,6 +1599,9 @@ The client secret is stored in the vault.</p>
 
         if section == "db":
             return self._save_database_settings(form, sess, g)
+        def invalid(message):
+            return self._settings_page_v2(sess, q={"section": [section]},
+                                          flash=message, draft=safe_draft(form), status=400)
 
         string_keys = {
             "general": ("web_bind", "host_key_policy"),
@@ -1693,21 +1624,22 @@ The client secret is stored in the vault.</p>
         for key in int_keys:
             if g(key):
                 try:
-                    s[key] = int(g(key))
-                except ValueError:
-                    pass
+                    s[key] = numeric_value(key, g(key))
+                except ValueError as exc:
+                    return invalid(f"Settings not saved. {exc}")
 
         if section == "snmp" and g("snmp_timeout"):
             try:
-                s["snmp_timeout"] = float(g("snmp_timeout"))
-            except ValueError:
-                pass
+                s["snmp_timeout"] = numeric_value("snmp_timeout", g("snmp_timeout"))
+            except ValueError as exc:
+                return invalid(f"Settings not saved. {exc}")
         elif section == "general":
             s["record_sessions"] = bool(form.get("record_sessions"))
             s["scrub_sessions"] = bool(form.get("scrub_sessions"))
         elif section == "netflow":
             s["netflow_enabled"] = bool(form.get("netflow_enabled"))
             s["netflow_resolve_names"] = bool(form.get("netflow_resolve_names"))
+            s["netflow_history_enabled"] = bool(form.get("netflow_history_enabled"))
         elif section == "monitoring":
             s["syslog_enabled"] = bool(form.get("syslog_enabled"))
             s["snmp_trap_enabled"] = bool(form.get("snmp_trap_enabled"))
@@ -1720,24 +1652,19 @@ The client secret is stored in the vault.</p>
             s["smtp_enabled"] = bool(form.get("smtp_enabled"))
             s["smtp_starttls"] = bool(form.get("smtp_starttls"))
             s["o365_enabled"] = bool(form.get("o365_enabled"))
-            pw = (form.get("smtp_password") or [""])[0]
-            if pw:
-                from . import mailer as _mailer
-                try:
-                    if self.manager.vault_ready():
-                        self.manager.vault.set_secret(_mailer.SMTP_SECRET, password=pw)
-                except Exception:
-                    pass
-            secret = (form.get("o365_client_secret") or [""])[0]
-            if secret:
-                from . import oauth as _oauth
-                try:
-                    if self.manager.vault_ready():
-                        self.manager.vault.set_secret(_oauth.O365_SECRET, client_secret=secret)
-                except Exception:
-                    pass
-
-        _config.save_settings(self.manager.paths, s)
+        secrets = []
+        if section == "email":
+            from .mailer import SMTP_SECRET
+            from .oauth import O365_SECRET
+            for field, name, key in (("smtp_password", SMTP_SECRET, "password"),
+                                     ("o365_client_secret", O365_SECRET, "client_secret")):
+                value = (form.get(field) or [""])[0]
+                if value:
+                    secrets.append((name, {key: value}))
+        try:
+            commit_settings(self.manager, s, secrets)
+        except ValueError as exc:
+            return invalid(str(exc))
         self.manager.db.audit(sess["username"], "settings_save", section, "")
         labels = {"general": "General & SSH", "snmp": "SNMP polling",
                   "netflow": "NetFlow", "monitoring": "Monitoring",
@@ -2978,10 +2905,13 @@ The client secret is stored in the vault.</p>
         return self._redirect("/compliance" + (f"?standard={_q(standard)}" if standard else ""))
 
     def _do_collect(self, form, sess):
+        from .web_forms import feedback
+        name = (form.get("name") or [""])[0]
+        target = f"/device?name={_q(name)}#tab-config" if name else "/"
         if not _can(sess["role"], "collect"):
-            return self._dashboard(sess, flash="Not permitted to collect.")
+            return feedback(self, sess, target, "Not permitted to collect.")
         if not self.manager.vault_ready():
-            return self._dashboard(sess, flash="Vault locked \u2014 unlock to collect.")
+            return feedback(self, sess, target, "Vault locked — unlock to collect, then try again.")
         m = self.manager
         if (form.get("all") or [""])[0] == "1":
             results = m.collect_all()
@@ -2992,26 +2922,29 @@ The client secret is stored in the vault.</p>
         name = (form.get("name") or [""])[0]
         r = m.collect(name)
         m.db.audit(sess["username"], "collect", name, r.message)
-        return self._dashboard(sess, flash=f"{name}: {r.message}" + (" (changed)" if r.changed else ""))
+        return feedback(self, sess, target, f"{name}: {r.message}" + (" (changed)" if r.changed else ""))
 
     def _do_snmp(self, form, sess):
+        from .web_forms import feedback
+        name = (form.get("name") or [""])[0]
+        target = (f"/snmp?device={_q(name)}" if (form.get("back") or [""])[0] == "snmp"
+                  else f"/device?name={_q(name)}#tab-snmp") if name else "/snmp"
         if not _can(sess["role"], "collect"):
-            return self._dashboard(sess, flash="Not permitted.")
+            return feedback(self, sess, target, "Not permitted to poll SNMP.")
         if not self.manager.vault_ready():
-            return self._dashboard(sess, flash="Vault locked \u2014 unlock to poll SNMP.")
+            return feedback(self, sess, target, "Vault locked — unlock to poll SNMP, then try again.")
         if (form.get("all") or [""])[0] == "1":
             res = self.manager.snmp_poll_all(vendor_force=True)
             ok = sum(1 for r in res.values() if r.get("ok"))
             self.manager.db.audit(sess["username"], "snmp_poll_all", "",
                                   f"{ok}/{len(res)} reachable")
-            return self._redirect("/snmp")
+            return feedback(self, sess, "/snmp", f"SNMP polling complete: {ok}/{len(res)} devices reachable.")
         name = (form.get("name") or [""])[0]
         res = self.manager.snmp_poll(name, vendor_force=True)
         self.manager.db.audit(sess["username"], "snmp_poll", name,
                               "ok" if res.get("ok") else res.get("error", "fail"))
-        if (form.get("back") or [""])[0] == "snmp":
-            return self._redirect(f"/snmp?device={_q(name)}")
-        return self._redirect(f"/device?name={_q(name)}")
+        message = "SNMP poll completed." if res.get("ok") else "SNMP poll failed: " + str(res.get("error") or "No response. Check credentials and connectivity.")
+        return feedback(self, sess, target, message)
 
     def _topology_page(self, q, sess):
         self._send(self._page("Topology", render_topology_page(self, q, sess), sess))
@@ -3173,9 +3106,13 @@ def serve(manager, bind="127.0.0.1", port=8778):
     if manager.settings.get("netflow_enabled"):
         try:
             from . import netflow as _nf
+            from .netflow_history import FlowHistory, backend_for
+            history = (FlowHistory(lambda: backend_for(manager))
+                       if manager.settings.get("netflow_history_enabled", True) else None)
             col = _nf.Collector(bind="0.0.0.0",
                                 port=int(manager.settings.get("netflow_port", 2055)),
-                                max_flows=int(manager.settings.get("netflow_max_flows", 10000)))
+                                max_flows=int(manager.settings.get("netflow_max_flows", 10000)),
+                                history=history)
             col.start()
             Console.netflow = col
             manager.runtime_collectors["netflow"] = col

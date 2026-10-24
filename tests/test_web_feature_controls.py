@@ -94,6 +94,23 @@ def test_user_enable_disable_delete_revokes_existing_managed_sessions(console):
     assert {"user_enable", "user_disable", "user_delete"} <= actions
 
 
+def test_netflow_history_settings_roundtrip_and_access_guards(console):
+    settings = console.manager.settings
+    status, _, body = console.request("GET", "/settings?section=netflow")
+    assert status == 200 and "Save flow history for 24 hours" in body
+    original = dict(settings)
+    form = {"section": "netflow", "netflow_enabled": "1", "netflow_history_enabled": "1"}
+    assert console.request("POST", "/settings-save", form, csrf=False)[0] == 403
+    console.request("POST", "/settings-save", form, username="read-only", role="viewer")
+    assert settings == original
+    assert console.request("POST", "/settings-save", form)[0] == 200
+    assert settings["netflow_history_enabled"] is True
+    assert config.load_settings(console.manager.paths)["netflow_history_enabled"] is True
+    assert console.request("POST", "/settings-save", {"section": "netflow"})[0] == 200
+    assert settings["netflow_history_enabled"] is False
+    assert config.load_settings(console.manager.paths)["netflow_history_enabled"] is False
+
+
 @pytest.mark.parametrize("action", ["disable", "delete"])
 def test_current_account_cannot_be_disabled_or_deleted(console, action):
     assert console.request("POST", "/user-access", {"username": "owner", "action": action})[0] == 400

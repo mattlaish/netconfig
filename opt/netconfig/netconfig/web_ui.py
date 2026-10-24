@@ -1216,7 +1216,7 @@ def render_events_page(handler, q, sess):
 
 
 def render_netflow_section(handler, dev, collector):
-    from .web_traffic import fmt_bytes, render_device_traffic
+    from .web_traffic import fmt_bytes, render_device_traffic, history_notice
     m = handler.manager
     port = m.settings.get("netflow_port", 2055)
     col = collector
@@ -1231,6 +1231,14 @@ def render_netflow_section(handler, dev, collector):
                   f'{col.packet_count(dev["host"])} packet(s) received from this device')
 
     flows = col.flows_for(dev["host"], limit=max(50, int(m.settings.get("netflow_max_flows", 10000)))) if col else []
+    history = getattr(col, "history", None)
+    storage = {"source": "memory", "status": {"enabled": False}}
+    if history is not None:
+        now = time.time()
+        saved = history.read_window(now - 86400, now, exporter=dev["host"])
+        storage = saved or {"source": "memory", "status": history.status()}
+        if saved is not None:
+            flows = sorted(saved["flows"], key=lambda f: f["ts"], reverse=True)
     views = render_device_traffic(handler, dev, flows) if flows else ""
     raw_rows = ''.join(
         f'<tr><td class=muted>{time.strftime("%H:%M:%S", time.localtime(fl["ts"]))}</td>'
@@ -1270,7 +1278,7 @@ def render_netflow_section(handler, dev, collector):
             empty = (f'<p class="muted">No flows received yet. Configure this device to export NetFlow to '
                      f'this server on <code>udp/{port}</code>.</p>')
     return (f'<div class="panel"><h2>NetFlow traffic</h2><p class="muted">Traffic exported by <b>{html.escape(dev["host"])}</b>, '
-            f'from records held in memory. {status}</p>{offnote}{empty}</div>' + views + raw)
+            f'for the past 24 hours. {status}</p>{history_notice(storage)}{offnote}{empty}</div>' + views + raw)
 
 
 def render_vendor_profile_admin(handler, sess):

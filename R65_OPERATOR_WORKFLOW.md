@@ -1,5 +1,31 @@
 # R65 — Operator Workflow Completion
 
+## Operator presentation corrective — 2026-10-24
+
+The existing workflow now leads with a role-aware Next step, current status and
+devices to change. This list describes the reviewed change targets, not a complete
+service-impact assessment. Path summaries show hop names; proposed/reviewed changes
+show device, setting, selector and value. Technical records remain in closed
+Advanced details. Stage labels use operational language; no payload/schema or
+execution-authority change is introduced.
+
+An approved request with a locked vault provides an inline unlock form. Success
+and wrong-password results return to the same incident/plan/request/transaction;
+off-site return paths are rejected. A changed/unavailable reviewed snapshot disables
+Apply (and approval where applicable); server-side checks remain authoritative.
+Viewers have no approval, unlock or execution controls; uncertain outcomes still
+require administrator recovery. Page loads never collect device data.
+
+Related form changes validate before mutation, isolate device-only credentials,
+reject invalid Settings values and report locked-vault/credential-save failures.
+Cross-store writes are not one atomic transaction: an uncertain/partly committed
+device save explicitly asks for review, and attached credentials are retained.
+
+204 related source tests passed; legacy selftest ALL PASS. Isolated browser checks
+confirmed summaries, closed details, light/dark themes and unlock/return. Real
+device writes, PostgreSQL and AlmaLinux/LIVE_RC qualification remain NOT_RUN.
+Version remains `2.0.0-67.2`; no new RPM or release promotion is implied.
+
 <!-- documentation-sync: 2026-10-13 -->
 > **Canonical project state — 2026-10-13:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) with unnumbered SNMP Vendor Profile and October Web UI / NetFlow corrective updates. **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included; schema `mc11-topology-change-planning-1` is unchanged. The working tree is not the previously frozen R67.2 candidate. Release numbering awaits an explicit user decision. Next: choose release identity, freeze a new candidate, execute all twelve mandatory `LIVE_RC` gates against its exact bytes, then perform R68 production release review. No new feature phase is assigned. All network mutation remains approval-gated. Local/source evidence does not establish production readiness. **Do not create MC-12.**
 

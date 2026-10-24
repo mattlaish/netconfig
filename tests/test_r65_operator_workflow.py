@@ -221,7 +221,7 @@ def test_r65_web_journey_renders_all_persisted_stages_for_viewer(tmp_path, monke
             server, token,
             f"/operations?tab=workflow&incident={incident['incident_key']}&plan={plan['id']}")
         assert status == 200
-        for label in ("Incident", "Hypothesis", "Evidence", "Topology Path", "Proposed Change", "Approval", "Structured Change", "Validation"):
+        for label in ("Incident", "Possible cause", "Collected information", "Path analysis", "Proposed change", "Approval", "Apply change", "Verify results"):
             assert label in text
         assert "does not poll devices" in text
         assert "Submit reviewed proposal for approval" not in text

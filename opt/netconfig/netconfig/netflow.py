@@ -4,8 +4,9 @@ A small UDP listener that receives NetFlow export packets from network devices,
 parses flow records, and keeps a bounded in-memory ring of recent flows per
 exporter (keyed by the exporter's source IP, which maps to a device host).
 
-Only the Python standard library is used. IPFIX (v10) shares v9's structure and
-can be added later; unknown versions are counted and ignored.
+The receiver uses only the Python standard library. Optional 24-hour PostgreSQL
+history is written by a separate bounded background worker. IPFIX (v10) is not
+decoded; unknown versions are counted and ignored.
 """
 import ipaddress
 import queue
@@ -228,7 +229,8 @@ def summarize_flows(flows, limit=8):
 class Collector:
     """UDP NetFlow collector. Keeps a bounded ring of recent flows per exporter."""
 
-    def __init__(self, bind="0.0.0.0", port=2055, max_flows=500):
+    def __init__(self, bind="0.0.0.0", port=2055, max_flows=500, history=None):
+        self.history = history
         self.bind = bind
         self.port = int(port)
         self.max_flows = int(max_flows)
@@ -261,6 +263,8 @@ class Collector:
         self.started_at = time.time()
         self._thread = threading.Thread(target=self._loop, daemon=True)
         self._thread.start()
+        if self.history is not None:
+            self.history.start()
 
     def _loop(self):
         while self._running:
@@ -281,6 +285,8 @@ class Collector:
                 if flows:
                     self.total_flows += len(flows)
                     self._flows[exporter].extend(flows)
+            if flows and self.history is not None:
+                self.history.submit(flows)
 
     def stop(self):
         self._running = False
@@ -289,6 +295,10 @@ class Collector:
                 self._sock.close()
             except OSError:
                 pass
+        if self._thread is not None:
+            self._thread.join(timeout=1)
+        if self.history is not None:
+            self.history.stop()
 
     def flows_for(self, exporter_ip, limit=100):
         with self._lock:

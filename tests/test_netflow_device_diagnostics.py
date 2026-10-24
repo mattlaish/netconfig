@@ -7,6 +7,7 @@ section now says so and lists the exporters actually sending, so the operator
 can reconcile the device Host/IP (the common real-world NetFlow mismatch).
 """
 from netconfig.web_ui import render_netflow_section
+import time
 
 
 class _Settings(dict):
@@ -51,7 +52,7 @@ _DEV = {"host": "192.0.2.10", "netflow": 1}
 
 
 def test_flows_matching_device_host_render_summary():
-    flows = [{"ts": 1.0, "src": "10.0.0.1", "dst": "10.0.0.2", "sport": 1,
+    flows = [{"ts": time.time(), "src": "10.0.0.1", "dst": "10.0.0.2", "sport": 1,
               "dport": 443, "proto": "TCP", "packets": 5, "bytes": 4000}]
     col = _Collector(flows_by_host={"192.0.2.10": flows},
                      exporters={"192.0.2.10": 3}, packets={"192.0.2.10": 3})

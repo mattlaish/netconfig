@@ -4,6 +4,35 @@ Release 60 adds appliance lifecycle preservation/recovery without changing MC-11
 
 # NetConfig
 
+## Everyday workflow improvements — 2026-10-24
+
+Use **Enter credentials for this device** to save a device-only login without
+overwriting a shared secret. Leave password fields blank to keep this device's
+existing passwords; editing the shared entry in Vault still affects all its users.
+Invalid device/settings input keeps safe form values and explains what to fix.
+Secret fields are never filled back in after an error. Unlock the vault before
+saving new email/OAuth/History passwords.
+
+Collect and Poll SNMP return to the device's Configuration/SNMP tab and show the
+result. The Traffic exporter selector includes all known senders, not just the
+top ranking. Incident Workflow puts **Next step**, status and devices to change
+first, with readable setting/value summaries and technical records in closed
+Advanced details. Unlock there to return to the same approval request; applying
+a change still requires approval, matching reviewed details and safety checks.
+These are source changes; older RPMs do not gain them without a rebuild/upgrade.
+
+## NetFlow history — 2026-10-22 source update
+
+Received NetFlow v5/v9 records can now be saved for a rolling 24 hours to the
+existing History PostgreSQL connection, in a separate flow table. Enable
+**Save flow history for 24 hours** in Settings → NetFlow and restart the console.
+History DB credentials must be available through the existing vault mechanism.
+Traffic and device views prefer saved history, survive restarts, and explicitly
+show DB fallback, rejected/unsaved rows and the 200,000-row analysis limit.
+Older records within 24 hours remain stored when a query is truncated. No
+backfill of discarded records, lossless UDP or exact exporter-time rates are
+claimed. This is source work, pending live qualification; older RPMs lack it.
+
 ## Web UI control coverage corrective — 2026-10-16
 
 The R67.2-based working tree now closes five console coverage gaps. Status remains `IMPLEMENTED_TESTING_DEFERRED`; package identity remains `2.0.0-67.2` pending the user's release decision.

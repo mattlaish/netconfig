@@ -1,5 +1,16 @@
 # Roadmap
 
+## User-requested NetFlow persistence — 2026-10-22
+
+Current source implements rolling 24-hour raw NetFlow PostgreSQL persistence,
+database-first global/device views and explicit loss/fallback/query-limit status.
+This is the user's requested scope, not MC-12 or a release promotion. Local
+validation: 136 PASS / 1 SKIP plus selftest ALL PASS; PostgreSQL/AlmaLinux/load
+qualification remains open.
+IPFIX, disk spooling, exact exporter-time/sampling-aware rates, complete UDP
+receive quality control and long-term rollup warehousing remain unimplemented.
+Package remains `2.0.0-67.2`; the earlier RPM lacks this source update.
+
 ## Operator-facing wording refresh — 2026-10-17
 
 The English console now uses task-oriented labels and instructions rather than

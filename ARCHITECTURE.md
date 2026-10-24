@@ -1,5 +1,29 @@
 # NetConfig Architecture
 
+## NetFlow persistence — 2026-10-22
+
+Receive → per-exporter memory ring + bounded UUID write queue → one PostgreSQL
+worker → `netconfig_flow_history` → global/device Traffic analytics. The worker
+reuses History PostgreSQL connection details and vault password, not the Core
+Database dialect/connection. Opt-in driver import stays lazy. History defaults
+on for NetFlow; an unconfigured/unavailable DB leaves UDP reception operational
+with explicit memory-fallback and write-status warnings.
+
+Stored fields: UUID, receive timestamp, exporter, source/destination, ports,
+protocol, packets and bytes. Unsigned counters use numeric(20,0). Time and
+exporter/time indexes support 24-hour range reads and retention. Batch size 500,
+queue capacity 20,000; conflict-safe UUID writes permit retry after uncertain
+commit. Query snapshots merge committed/pending UUIDs without counting the ring
+again. All queries exclude >24-hour rows; cleanup runs at idle too, normally
+every 60 seconds in 10,000-row transactions (faster during backlog). No time
+partitioning, disk quota, spool or multi-resolution rollup is claimed.
+
+Queries have a 200,000-row newest-first cap and a five-second statement timeout;
+truncated results are marked incomplete before post-query IP/service filtering.
+Pending data and hard-stop losses are not durable. Rates still use receive time,
+not exporter flow intervals, and no sampling/sequence-loss correction is added.
+Core DB schema identity and device-write authority remain unchanged.
+
 ## Operator-facing wording refresh — 2026-10-17
 
 The English console now uses task-oriented labels and instructions rather than

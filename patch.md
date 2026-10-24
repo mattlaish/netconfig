@@ -1,3 +1,98 @@
+## PATCH-20261024-01 — Six workflow repairs and operator-first change guidance
+
+- Source-only corrective; no Git, version increase, RPM or deployment. Package
+  remains `2.0.0-67.2` / `IMPLEMENTED_TESTING_DEFERRED`.
+- Fixed device-only credentials overwriting shared secrets; manual SSH/SNMP now
+  use unique entries, preserve previous blank passwords and ignore manual inputs
+  in saved mode. Validation precedes rename/credential writes and errors retain
+  safe form fields, not secrets.
+- Fixed silently ignored Settings numbers and invalid ranges; explicit errors,
+  candidate-before-publish saves, created/unlocked-vault requirement and visible
+  email/OAuth/History credential storage failures. Prior credentials restored on
+  failure where possible; failed recovery is not hidden.
+- Fixed Collect/SNMP/unlock context loss with same-device tabs, per-session result
+  feedback, Last error and safe same-site return paths including workflow IDs.
+- Fixed exporter selection using a top-12 ranking: complete independent choices
+  include DB-only senders after restart, pending/current and selected empty sender;
+  DB lookup failure is visible. Raw analysis remains bounded at 200,000 DB rows.
+- Incident Workflow now presents next step, status, reviewed targets, readable
+  path/setting/value summaries and closed Advanced details; inline unlock retains
+  context. Approval, frozen snapshots, verification/recovery and RBAC/CSRF remain.
+- Honest partial-save reporting preserves possibly attached credentials; no
+  cross-file atomic-transaction guarantee or automatic device rollback is claimed.
+- Validation: 204 related PASS / 5 deliberate deselections; selftest ALL PASS;
+  isolated browser light/dark and unlock/return checked. Final wording/anchor
+  follow-up: 204 PASS / 5 deselected in 150.81 s; 98 Python files + new regressions
+  compile; Ruff 0 new / 9 baseline findings. No temporary source files or
+  private-key/access-token signatures found in checked changes.
+  Live PG/devices/AlmaLinux/LIVE_RC NOT_RUN.
+- README, packaged README, R65 guide, AI_HANDOFF and source metadata synchronized.
+  Existing RPM is stale; rebuild and live qualification remain separate tasks.
+
+## PATCH-20261022-02 — NetFlow 24-hour PostgreSQL history
+
+- Status: Ready for integration (source/local validation only).
+- Target release: unchanged `2.0.0-67.2`; `IMPLEMENTED_TESTING_DEFERRED`.
+- Scope: dedicated raw-flow PostgreSQL table, bounded asynchronous batch writer,
+  UUID-idempotent retry, fixed rolling 24-hour reads/idle retention maintenance,
+  database-first global/device Traffic, visible fallback/drop/truncation status,
+  NetFlow settings, offline tests and opt-in real PostgreSQL qualification.
+- Credentials: reuse the existing History PostgreSQL connection and vault
+  password; independent of SNMP History enable/retention. No private credentials
+  are duplicated into configuration or status. No Core DB migration.
+- Limits: queue 20,000; batch 500; newest 200,000 DB rows per analysis plus
+  bounded pending, with explicit incomplete-results warning. No disk spool,
+  exporter-time/sampling correction, IPFIX or cross-exporter deduplication.
+- Retention: reads exclude >24 h immediately; cleanup normally every minute,
+  bounded deletion transactions, faster while backlog remains. Physical cleanup
+  can lag and requires an active collector/database connection.
+- Validation: **136 PASS / 1 SKIP** focused/related regressions; selftest ALL
+  PASS; 93 Python files compile in memory; Ruff 0 new findings (8 pre-existing).
+  Real PostgreSQL, Linux service,
+  actual upgrade, sustained-load and LIVE_RC tests are not inferred from fakes.
+- Packaging: existing RPM is stale relative to these sources. No new package
+  build, version change or Git synchronization. Source metadata regenerated.
+- Initial test harness/case-placement errors were corrected; one interrupted
+  expanded run is not counted as PASS. Final evidence is the completed 136/1 run.
+- Rollback: disable Save flow history and restart; receiver retains its original
+  memory mode. Dedicated history table is left intact; no destructive rollback.
+- Next: complete local checks, qualify on isolated PostgreSQL/AlmaLinux, then
+  rebuild an explicitly selected package. Existing expired data cannot be restored.
+
+## PATCH-20261022-01 — Same-version RPM for installed-host upgrade
+
+At the user's explicit request, built the current canonical source into
+`netconfig-2.0.0-67.2.el10.noarch.rpm` **without increasing the version**.
+The user reports their installed version is older and explicitly wants
+`dnf upgrade`; use that command for the delivered local package. If a future
+host already has the same EVR installed, upgrade will not replace it and an
+explicit reinstall would be required; no Epoch/version trick was introduced.
+
+- Source: `C:\Users\mattlai\Projects\netconfig`, including the current Web UX,
+  security-policy, NetFlow and operator-wording work. The separate October 7
+  sensor-history-rollup ZIP was **not merged**; its missing-from-current-tree
+  history changes remain unresolved and are not claimed to be in this RPM.
+- Builder: existing dependency-free offline RPM tool, not Linux rpmbuild.
+  Package identity remains `2.0.0-67.2.el10.noarch`; the source spec is unchanged.
+- Output: project-root RPM, 519551 bytes, 113 payload entries.
+  SHA-256: `ebe868756cf78b9ebecb6fd883849daf0ee27e21b31ff18cb9c720ce4dcded56`.
+- Independent verifier PASS: package headers/digests, payload/source bytes,
+  permissions, scriptlets, dependencies and config noreplace flags. Two builds
+  with the same epoch `1792660193` are byte-identical. Launcher is LF-normalized
+  and executable; existing data/vault contents are not shipped in the payload.
+- Focused local regression: **109 PASS / 1 Windows-host-limited failure**.
+  `test_first_admin_setup_with_one_time_code` stops at its POSIX 0600 assertion
+  because Windows reports 0666; production code still creates/chmods 0600.
+  No assertion was weakened, and this is not reported as a full-suite PASS.
+  Legacy selftest: **ALL PASS**.
+- RPM is unsigned. AlmaLinux RPM/DNF install-upgrade, systemd/SELinux, live
+  PostgreSQL/devices and LIVE_RC gates are **NOT_RUN**, not inferred from offline
+  verification. Status stays `IMPLEMENTED_TESTING_DEFERRED`.
+- Source release metadata/SBOM is regenerated for the handover change; this is
+  not candidate freeze or production-release promotion. No Git operations.
+- External build/rebuild proof:
+  `C:\Users\mattlai\AppData\Local\Temp\netconfig-rpm-install-20261022-92f9e3e97e404cbd875a8727aa21777b\build-result.json`.
+
 ## PATCH-20261018-01 — Console usability round
 
 - Status: Ready for integration (source/local validation only).

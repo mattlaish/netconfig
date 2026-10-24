@@ -1,7 +1,7 @@
 """MC-9 read-only operations correlation console aggregation.
 
 This service is deliberately presentation-oriented.  It consumes persisted
-NetConfig evidence plus the bounded in-memory NetFlow collector ring and never
+NetConfig evidence plus 24-hour PostgreSQL NetFlow history (memory fallback) and never
 initiates device I/O, external connector actions, or configuration changes.
 """
 
@@ -147,7 +147,13 @@ class OperationsCorrelationConsole:
         flows = []
         ring_full = []
         exporter_counts = collector.exporters() if collector is not None else {}
-        if collector is not None:
+        history = getattr(collector, "history", None)
+        saved = history.read_window(cutoff, now, exporter=exporter) if history is not None else None
+        storage = saved or {"source": "memory", "truncated": False,
+                            "status": history.status() if history is not None else {"enabled": False}}
+        if saved is not None:
+            flows = saved["flows"]
+        elif collector is not None:
             max_flows = max(1, int(getattr(collector, "max_flows", 500)))
             for exp in sorted(exporter_counts):
                 if exporter and exp != exporter:
@@ -200,6 +206,13 @@ class OperationsCorrelationConsole:
         analysis["ring_full_exporters"] = ring_full
         for row in exporters:
             row["device"] = host_to_device.get(row["exporter"], "")
+        choices = set(exporter_counts) | set(exporter_buckets)
+        if exporter:
+            choices.add(str(exporter))
+        if history is not None and hasattr(history, "exporter_choices"):
+            choices.update(history.exporter_choices(cutoff, now))
+            storage["status"] = history.status()
+        exporter_choices = [{"exporter": exp, "device": host_to_device.get(exp, "")} for exp in sorted(choices)]
 
         return {
             "window_seconds": window_seconds,
@@ -207,9 +220,11 @@ class OperationsCorrelationConsole:
             "cutoff_ts": cutoff,
             "generated_ts": now,
             "ring_bounded": True,
+            "storage": {k: v for k, v in storage.items() if k != "flows"},
             "analysis": analysis,
             "summary": summary,
             "exporters": exporters[:limit],
+            "exporter_choices": exporter_choices,
             "trend": trend_rows,
             "raw_flows": list(reversed(flows))[:200],
             "collector_status": collector.status() if collector is not None else {"running": False, "exporters": 0},

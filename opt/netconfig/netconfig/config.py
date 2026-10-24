@@ -93,6 +93,7 @@ DEFAULT_SETTINGS = {
     "netflow_port": 2055,              # UDP port to receive NetFlow exports
     "netflow_max_flows": 10000,        # recent flows kept per exporter (in memory, ~1 KB each)
     "netflow_resolve_names": False,    # reverse-DNS host names on traffic views (background, cached)
+    "netflow_history_enabled": True,   # 24h PostgreSQL flows using History DB credentials
     "syslog_enabled": False,          # bounded UDP syslog receiver for change-triggered collect
     "syslog_bind": "0.0.0.0",
     "syslog_port": 5514,               # non-privileged default; forward udp/514 if desired

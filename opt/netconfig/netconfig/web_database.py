@@ -1,8 +1,5 @@
 import html
 
-from . import config as _config
-
-
 class WebDatabaseMixin:
     """R67.2 Core/History PostgreSQL settings and fail-closed preflight."""
 
@@ -72,6 +69,7 @@ Main database credential status: <b>{core_secret_label}</b>.</p>
 <p class="muted">Optional long-term interface-rate history. This connection is independent from
 the Core Database. Existing installations temporarily inherit legacy shared PostgreSQL fields until
 these History settings are saved.</p>
+<p class=muted>NetFlow can reuse this connection to save flow records for a separate, fixed 24-hour period. Enable it and check saving status in <a href="/settings?section=netflow">NetFlow settings</a>. The interface-history switch and retention below do not control NetFlow.</p>
 {history_form}<div class="row"><div><label>Interface history store</label>
 <label style="color:var(--text);font-weight:400"><input type=checkbox name=if_history_enabled value=1 style="width:auto" {"checked" if s.get("if_history_enabled") else ""}> enabled</label></div>
 {hfield("if_history_pg_host","pg_host","History PostgreSQL host","hostname or IP")}
@@ -80,13 +78,17 @@ these History settings are saved.</p>
 {hfield("if_history_pg_user","pg_user","History database username")}
 <div><label>History SSL mode</label><select name=if_history_pg_sslmode>{history_sslmodes}</select></div></div>
 <div class="row"><div><label>Interface-history password{" ✓ set" if history_pw_set else ""}</label>
-<input type=password name=if_history_pg_password placeholder="history store only; kept in vault"></div>
+<input type=password name=if_history_pg_password placeholder="interface and flow history; kept in vault"></div>
 {field("if_history_hours","History retention (hours)","default graph window; e.g. 24")}
 {field("if_history_bucket_seconds","Downsample bucket (s)","points averaged into this bucket")}</div>
 <button>Save Interface History settings</button>
 <button formaction="/history-db-test" formmethod="post" class=ghost style="margin-left:8px">Test History PostgreSQL</button></form></div>"""
 
     def _save_database_settings(self, form, sess, g):
+        from .web_forms import numeric_value, safe_draft, commit_settings
+        def invalid(message):
+            return self._settings_page_v2(sess, q={"section": ["db"]}, flash=message,
+                                          draft=safe_draft(form), status=400)
         s = self.manager.settings
         scope = g("db_scope") or "core"
         if scope == "core":
@@ -97,10 +99,9 @@ these History settings are saved.</p>
             for key in ("pg_port", "cluster_stale_seconds", "distributed_task_lease_seconds"):
                 if g(key):
                     try:
-                        candidate[key] = int(g(key))
-                    except ValueError:
-                        return self._settings_page_v2(
-                            sess, q={"section": ["db"]}, flash=f"Invalid integer value for {key}.")
+                        candidate[key] = numeric_value(key, g(key))
+                    except ValueError as exc:
+                        return invalid(f"Settings not saved. {exc}")
             backend = (candidate.get("core_db_backend") or "sqlite").lower()
             if backend not in {"sqlite", "postgres"}:
                 return self._settings_page_v2(sess, q={"section": ["db"]},
@@ -120,12 +121,10 @@ these History settings are saved.</p>
                         sess, q={"section": ["db"]},
                         flash=("Core PostgreSQL settings NOT saved — preflight failed at "
                                f"{result.get('stage','unknown')}: {result.get('error','unknown error')}"))
-            for key in ("core_db_backend", "core_db_application_name", "cluster_node_id",
-                        "cluster_failure_domain", "pg_host", "pg_port", "pg_dbname", "pg_user",
-                        "pg_sslmode", "cluster_stale_seconds", "distributed_task_lease_seconds"):
-                if key in candidate:
-                    s[key] = candidate[key]
-            _config.save_settings(self.manager.paths, s)
+            try:
+                commit_settings(self.manager, candidate)
+            except ValueError as exc:
+                return invalid(str(exc))
             self.manager.db.audit(sess["username"], "settings_save", "db-core", backend)
             suffix = " Restart NetConfig to activate the backend change."
             if backend == "postgres":
@@ -143,27 +142,14 @@ these History settings are saved.</p>
             for key in ("if_history_pg_port", "if_history_hours", "if_history_bucket_seconds"):
                 if g(key):
                     try:
-                        candidate[key] = int(g(key))
-                    except ValueError:
-                        return self._settings_page_v2(
-                            sess, q={"section": ["db"]}, flash=f"Invalid integer value for {key}.")
+                        candidate[key] = numeric_value(key, g(key))
+                    except ValueError as exc:
+                        return invalid(f"Settings not saved. {exc}")
             pw = (form.get("if_history_pg_password") or [""])[0]
-            if pw:
-                try:
-                    if self.manager.vault_ready():
-                        self.manager.vault.set_secret(_ifh.VAULT_SECRET, password=pw)
-                    else:
-                        return self._settings_page_v2(
-                            sess, q={"section": ["db"]},
-                            flash="Unlock the vault before saving a History password.")
-                except Exception as exc:
-                    return self._settings_page_v2(
-                        sess, q={"section": ["db"]}, flash="History password save failed: " + str(exc)[:240])
-            s.update({k: candidate[k] for k in (
-                "if_history_enabled", "if_history_pg_host", "if_history_pg_port",
-                "if_history_pg_dbname", "if_history_pg_user", "if_history_pg_sslmode",
-                "if_history_hours", "if_history_bucket_seconds") if k in candidate})
-            _config.save_settings(self.manager.paths, s)
+            try:
+                commit_settings(self.manager, candidate, [(_ifh.VAULT_SECRET, {"password": pw})] if pw else [])
+            except ValueError as exc:
+                return invalid(str(exc))
             self.manager._ifhist_key = None
             self.manager.db.audit(sess["username"], "settings_save", "db-history", "")
             flash = "Interface History settings saved."
@@ -233,6 +219,7 @@ these History settings are saved.</p>
         if res["ok"]:
             msg = ("History PostgreSQL OK — history table created." if res["created"]
                    else "History PostgreSQL OK — history table already present.")
+            msg += " Interface history check only; see NetFlow settings for flow-saving status."
         else:
             msg = "History PostgreSQL failed: " + (res["error"] or "unknown error")
         return self._settings_page_v2(sess, q={"section": ["db"]}, flash=msg)

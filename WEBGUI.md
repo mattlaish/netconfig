@@ -1,5 +1,22 @@
 # NetConfig Web Console — Operations and UI
 
+## Save and view NetFlow history — 2026-10-22
+
+Use **Settings → Database → Interface History Store** to configure the History
+PostgreSQL connection and password. **Settings → NetFlow → Save flow history
+for 24 hours** uses that same connection, but has its own table and fixed
+24-hour retention; the interface-history enable checkbox and hours do not
+control flow storage. Restart the console after changing NetFlow settings.
+
+**Traffic** offers 5 min through 24 hours; device Traffic uses the past 24 hours.
+Saved records survive restarts. Selected period is a filter, not proof that
+data exists for the full period. Pending writes, rejected/expired queue rows,
+DB read/write/cleanup failures and query truncation are visible. DB failures
+use recent memory only, without pretending the result is complete. Above
+200,000 saved records per query, choose a shorter period or one exporter;
+IP/service filters are applied to those bounded results. Raw detail is latest
+100. No new device polling or configuration writes occur when viewing traffic.
+
 ## Operator-facing wording refresh — 2026-10-17
 
 The console remains in English. Labels now describe what you can do:

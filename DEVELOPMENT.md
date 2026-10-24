@@ -1,5 +1,16 @@
 # R67.2 corrective RC — current development truth
 
+## NetFlow history continuation — 2026-10-22
+
+User-authorized source work adds `netflow_history.py`, raw PostgreSQL flow
+storage with fixed 24-hour logical retention, bounded asynchronous writes,
+global/device DB-first queries and operator status. Existing History credentials
+are reused; no new Core DB dialect or device-write path. Tests include a clearly
+labelled SQLite bridge and an opt-in isolated-schema PostgreSQL gate, not a
+simulated live PASS. Local verification: 136 PASS / 1 SKIP, selftest ALL PASS,
+93 Python compile checks, no new Ruff findings. R67.2 identity and
+`IMPLEMENTED_TESTING_DEFERRED` remain; no new RPM or Git synchronization.
+
 ## Operator-facing wording refresh — 2026-10-17
 
 The English console now uses task-oriented labels and instructions rather than

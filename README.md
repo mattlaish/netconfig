@@ -1,5 +1,44 @@
 # NetConfig
 
+## Safer everyday workflows — 2026-10-24 source update
+
+- Editing credentials for one device now creates separate credentials rather
+  than changing a shared login. Blank password fields keep that device's
+  previous passwords. Editing a shared secret in Vault still changes it for
+  every device using it.
+- Device changes are checked before renaming or saving credentials. Errors
+  return to the form with safe fields retained; secret fields must be re-entered.
+- Settings reject invalid numbers and ranges. New email/OAuth/History secrets
+  require an unlocked vault; failed saves no longer report success.
+- Collect and Poll SNMP return to the same device and the relevant tab, with
+  a result message. Unlocking the vault can return to the previous task.
+- Traffic's exporter selector lists all known senders, independently of its
+  top-12 ranking, including saved 24-hour senders after a restart.
+- Incident Workflow shows the next step, current status, devices to change and
+  readable setting/value summaries. Technical records are under Advanced
+  details. Approvals, safety checks and administrator recovery remain required.
+
+Source validation: 204 related tests passed; legacy selftest ALL PASS. Browser
+checks used isolated fake data in light/dark themes, including unlock/return.
+This is not live device, PostgreSQL or AlmaLinux upgrade qualification. Version
+remains `2.0.0-67.2`; the existing RPM does not include this source update.
+
+## Flow history — 2026-10-22 source update
+
+NetFlow can now save received flow records to PostgreSQL for a rolling 24 hours.
+In **Settings → NetFlow**, enable **Save flow history for 24 hours** (default on)
+and restart NetConfig after changing collector settings. It uses the existing
+History PostgreSQL connection/password in **Settings → Database**, separately
+from interface-rate history. The Traffic page and each device's Traffic view
+read saved history, including after a restart. Collection starts with newly
+received records; previously discarded traffic cannot be recovered.
+
+Database failures, unsaved/dropped records and incomplete query results are
+shown explicitly. A single analysis is capped at 200,000 saved records; use a
+shorter period or one exporter if warned. The database still retains older
+records within 24 hours. Source/local validation does not establish production
+qualification. The previously delivered RPM does **not** contain this update.
+
 ## Operator-facing wording refresh — 2026-10-17
 
 The console remains in English. Labels now describe what you can do:

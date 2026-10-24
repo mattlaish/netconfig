@@ -1,7 +1,7 @@
 """FortiView-style NetFlow traffic views for the web console.
 
-Presentation only. Data comes from ``analyze_traffic`` over the in-memory flow
-ring; rendering never contacts devices. Every dynamic value is HTML-escaped
+Presentation only. Data comes from ``analyze_traffic`` over PostgreSQL history
+or the memory fallback; rendering never contacts devices. Every dynamic value is HTML-escaped
 (reverse-DNS names and device names are untrusted text). Bars are SVG geometry
 with theme classes, so no per-element style attributes are emitted.
 """
@@ -418,8 +418,8 @@ def render_traffic_body(handler, q):
     data = handler.manager.operations_console.traffic(
         collector, window_seconds=window, bucket_seconds=_BUCKET[window], now=now,
         query=params["q"], exporter=params["exporter"] or None, view_limit=50)
-    all_exporters = data.get("exporters") or []
-    if params["exporter"]:  # keep every exporter selectable while one is filtered
+    all_exporters = data.get("exporter_choices", data.get("exporters") or [])
+    if params["exporter"] and "exporter_choices" not in data:
         unfiltered = handler.manager.operations_console.traffic(
             collector, window_seconds=window, bucket_seconds=_BUCKET[window], now=now, view_limit=1)
         all_exporters = unfiltered.get("exporters") or all_exporters
@@ -427,19 +427,22 @@ def render_traffic_body(handler, q):
     settings = handler.manager.settings
     st = data.get("collector_status") or {}
     notes = []
+    storage = data.get("storage") or {"source": "memory"}
+    notes.append(history_notice(storage))
+    if (storage.get("status") or {}).get("exporter_error"):
+        notes.append('<p class="err">' + _e(storage["status"]["exporter_error"]) + '</p>')
     if not settings.get("netflow_enabled"):
         notes.append('<p class="err">The NetFlow collector is off. Turn it on in '
                      '<a href="/settings?section=netflow">Settings → NetFlow</a> and restart NetConfig.</p>')
     elif not st.get("running"):
         notes.append('<p class="err">The NetFlow collector is not running. Check the port in Settings → NetFlow.</p>')
     else:
-        cov = min(a["coverage_seconds"], window)
         notes.append(f'<p class="muted nf-status">Listening on UDP {_e(st.get("port", ""))} · '
-                     f'{_fmt_count(st.get("exporters", 0))} exporter(s) · showing the last {_e(_fmt_span(cov))} '
-                     f'of {_e(_fmt_span(window))}.</p>')
+                     f'{_fmt_count(st.get("exporters", 0))} exporter(s) sending this run · '
+                     f'selected period: {_e(_fmt_span(window))}.</p>')
         if a.get("ring_full_exporters"):
-            notes.append(f'<p class="err">Flow memory is full for {_e(", ".join(a["ring_full_exporters"]))}, so only '
-                         f'the last {_e(_fmt_span(cov))} is available. Increase “Recent flows kept per device” in '
+            notes.append(f'<p class="err">Flow memory is full for {_e(", ".join(a["ring_full_exporters"]))}; '
+                         'the selected period may be incomplete. Enable database history or increase “Recent flows kept per device” in '
                          '<a href="/settings?section=netflow">Settings → NetFlow</a> (needs a restart).</p>')
         if not a.get("resolve_names"):
             notes.append('<p class="muted">Host names: turn on “Look up host names (reverse DNS)” in '
@@ -479,7 +482,7 @@ def render_traffic_body(handler, q):
             + kpi_tiles(a) + throughput_chart(a, now)
             + f'<div class="panel"><h2>{_e(title)}</h2>'
             + (f'<p class="muted">{_e(hint)}</p>' if hint else "") + table
-            + '<p class="muted">Records are held in memory and cleared when NetConfig restarts; opening this page does '
+            + '<p class="muted">Opening this page does '
               'not contact any device. Service names are identified by port, not by inspecting traffic content. '
               'Sessions are estimated from unique address and port pairs. Average rate is total bytes divided by the '
               'period shown.</p></div>'
@@ -491,10 +494,35 @@ def render_traffic_body(handler, q):
             + f'<script>{TRAFFIC_JS}</script>')
 
 
+def history_notice(storage):
+    """Shared English operator status; never expose connection strings/secrets."""
+    st = storage.get("status") or {}
+    text = ('PostgreSQL flow history · retention 24 hours · includes pending writes.'
+            if storage.get("source") == "postgres" else
+            'Records are held in memory and cleared when NetConfig restarts.')
+    notes = [f'<p class=muted>{_e(text)}</p>']
+    for key in ("write_error", "read_error", "maintenance_error"):
+        if st.get(key):
+            notes.append(f'<p class=err>{_e(st[key])}</p>')
+    if st.get("enabled"):
+        notes.append(f'<p class=muted>Pending: {int(st.get("pending") or 0)} · '
+                     f'Saved this run: {int(st.get("written") or 0)}.</p>')
+    if st.get("dropped") or st.get("expired"):
+        notes.append(f'<p class=err>History is incomplete: {int(st.get("dropped") or 0)} record(s) '
+                     f'could not be queued; {int(st.get("expired") or 0)} expired before saving. '
+                     'Counters cover this service run; missing records cannot be recovered.</p>')
+    if storage.get("truncated"):
+        notes.append(f'<p class=err>Results are incomplete: only the newest '
+                     f'{int(storage.get("query_limit") or 0)} saved records are included. '
+                     'Select a shorter period or one exporter. Older records remain stored for 24 hours.</p>')
+    return "".join(notes)
+
+
 def render_device_traffic(handler, dev, flows, now=None, identities=None):
     """Compact per-exporter view for the device page (top 8 of each view)."""
     now = time.time() if now is None else now
     m = handler.manager
+    flows = [f for f in flows if now - 86400 <= float(f.get("ts") or 0) <= now]
     local_ips, host_to_device, arp = set(), {}, {}
     try:
         from .operations_correlation import traffic_host_context, traffic_identities

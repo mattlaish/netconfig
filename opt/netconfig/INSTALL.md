@@ -4,6 +4,17 @@ R60 adds a fail-closed lifecycle workflow for supported R59→R60 upgrades. Use 
 
 # NetConfig — Install & Operations
 
+## NetFlow history — 2026-10-22 source addition
+
+This update requires a newly built package; the previously delivered RPM
+predates it. Reuse the working History PostgreSQL connection and vault password.
+The service's PostgreSQL account needs schema/table/index creation plus SELECT,
+INSERT and DELETE for `netconfig_flow_history`; psycopg is required only for
+PostgreSQL use. Enable 24-hour flow history under Settings → NetFlow, restart
+and provide the existing vault unlock. Check saved/pending/error status, then
+verify that saved history survives restart on a qualification host. No package
+installation, production DB or live-device validation is claimed by source tests.
+
 <!-- documentation-sync: 2026-10-13 -->
 > **Canonical project state — 2026-10-13:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) with unnumbered SNMP Vendor Profile and October Web UI / NetFlow corrective updates. **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included; schema `mc11-topology-change-planning-1` is unchanged. The working tree is not the previously frozen R67.2 candidate. Release numbering awaits an explicit user decision. Next: choose release identity, freeze a new candidate, execute all twelve mandatory `LIVE_RC` gates against its exact bytes, then perform R68 production release review. No new feature phase is assigned. All network mutation remains approval-gated. Local/source evidence does not establish production readiness. **Do not create MC-12.**
 

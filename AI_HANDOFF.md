@@ -1,5 +1,138 @@
 # NetConfig AI Handover
 
+## Six workflow repairs + operator presentation — 2026-10-24
+
+User authorized all six findings from the preceding workflow audit, plus the
+engineering-oriented incident/change page. Implemented in the canonical root
+`C:\Users\mattlai\Projects\netconfig`; no Git operations, version change or build.
+
+- `web_forms.py`: device form validates required fields, numeric ports, name
+  collisions and collection override before rename/credential writes. Manual
+  credentials fork unique SSH/SNMP vault entries from their separate old sources;
+  blank passwords retain previous values. Saved mode ignores forged manual fields.
+  Application-only isolation and System management remain covered. Error forms
+  retain safe fields/original edit identity, never submitted passwords/community.
+- Numeric Settings validation rejects malformed/out-of-range/non-finite values
+  before publishing changes. Candidate settings do not mutate the live dict until
+  storage succeeds. Mail/OAuth/History credential saves require a created/unlocked
+  vault; errors are explicit/sanitized, with prior-secret compensation on failure.
+  Database settings retain existing Core connection/setup checks.
+- Cross-file vault/archive/inventory/settings changes are NOT one ACID operation.
+  Device storage failures inspect actual rename/reference state, retain attached
+  credentials and report uncertain/partial saves rather than promising rollback.
+  Failed secret compensation explicitly requires administrator review.
+- Collect/Poll SNMP return via 303 to the same device Configuration/SNMP tab (or
+  fleet SNMP detail) with short-lived per-session result feedback; device facts
+  show Last error. Unlock validates same-site `next`, preserves workflow IDs and
+  reports success/wrong password. Header unlock link also carries safe context.
+- Traffic uses separate complete `exporter_choices`, not the top-12 list. Choices
+  merge current senders, saved DISTINCT exporters in the period, pending rows and
+  selected zero-record sender. Independent lookup survives raw-query truncation;
+  failure is visible/sanitized. Existing 200,000-row analysis bound is unchanged.
+- `web_workflow_ux.py` + `web_ops.py`: role-aware next step/status/change-target
+  summary, readable path/proposal/reviewed-intent tables, closed technical details,
+  device suggestions, safer stale controls and inline unlock/return. Targets are
+  NOT a complete impact assessment. Existing frozen proposal, approval, execution,
+  verification/recovery authority and no-I/O rendering are unchanged.
+- Validation: 204 related tests PASS (10 modules; 5 deliberately deselected:
+  Windows POSIX-mode first-admin assertion and separate qualification-runner gates).
+  Legacy selftest ALL PASS. Initial new-test failures were corrected harness
+  assumptions (session replacement and header-vs-inline next links); final run green.
+  Browser fake-data light/dark, summaries/details and real unlock/return verified.
+  Final wording/anchor source follow-up rechecked: 204 PASS / 5 deselected in
+  150.81 s. 98 runtime/selftest Python files plus new regressions compile in
+  memory. Ruff: 0 new findings, 9 retained baseline findings in this checked set.
+  No accidental private-key/access-token signatures or temporary source files
+  found in the checked changes. Temporary browser preview is closed/stopped.
+  Real PostgreSQL, live devices, AlmaLinux RPM upgrade/service and LIVE_RC NOT_RUN.
+- Source metadata regenerated; package remains `2.0.0-67.2`, status
+  `IMPLEMENTED_TESTING_DEFERRED`. Existing root RPM is stale and excludes both
+  this work and the Oct 22 flow-history changes. No new artifact is claimed.
+- Backups/proof: `C:\Users\mattlai\AppData\Local\Temp\netconfig-workflow-fix-00d7577cc87046118ad5398cc6ac1f65`.
+- Next: user-selected RPM build/release identity and isolated AlmaLinux/PostgreSQL
+  verification. Do not redo baseline analysis or create MC-12.
+
+## NetFlow 24-hour PostgreSQL history — 2026-10-22
+
+User explicitly requested database-backed NetFlow retention. This supersedes
+earlier descriptions of NetFlow as memory-only; it does not merge the separate
+October 7 sensor-history lineage or add MC-12. Package identity is unchanged.
+
+- `netflow_history.py`: dedicated `netconfig_flow_history` PostgreSQL table;
+  receive timestamp, exporter, IPv4/IPv6 endpoints, ports, protocol, packet/byte
+  counters and retry-stable UUID. Indexes on time and exporter/time. Numeric
+  counters preserve unsigned 64-bit values. Core DB/schema identity unchanged.
+- `netflow_history_enabled` defaults true. Uses existing History PostgreSQL
+  connection keys/legacy DSN and `__pg_history__` vault password independently
+  of `if_history_enabled` and `if_history_hours`. No duplicated credentials.
+  Settings → NetFlow exposes enable/status; restart to activate changes.
+- UDP receive stays DB-free. One worker batches 500 rows with a 20,000-record
+  volatile queue; timeout/retry and UUID conflict handling avoid double writes.
+  Queue rejects, expired pending rows, pending/saved counts and sanitized
+  read/write/maintenance errors appear in Traffic and device views. Recovery
+  refreshes vault credentials; missing schema can be retried after a write error.
+- Logical reads always exclude records older than 24 h. Worker cleanup runs even
+  without incoming flows, normally every 60 s, deleting 10,000 expired rows per
+  transaction and speeding retries during backlog. Physical deletion can lag;
+  disk space is not a fixed quota or guaranteed immediate reclamation.
+- Global Traffic and device Traffic prefer committed history plus pending rows
+  deduplicated by UUID; they never add the memory ring to DB totals. DB read
+  failure explicitly falls back to the ring. Restarted collectors can read old
+  saved exporters even before new datagrams arrive. The displayed period is a
+  query range, not a claim of uninterrupted collection.
+- One analysis reads at most 200,000 newest saved rows, plus bounded pending;
+  results are explicitly marked incomplete at that limit. Filter to a shorter
+  period/exporter; older records remain stored until expiry. IP/service filtering
+  runs after this bound. Raw display remains latest 100. No new rollup warehouse.
+- Receive-time rate estimates, port-based service guesses, UDP/template loss and
+  cross-exporter duplicate observations are unchanged. A hard stop/prolonged DB
+  outage can lose queued flows; no disk spool or historical backfill is claimed.
+  Graceful shutdown drains multiple batches within a short budget.
+- Validation: **136 PASS / 1 SKIP** focused/related regressions, selftest ALL
+  PASS, 93 Python files compile in memory. Ruff: 0 new findings; 8 pre-existing
+  findings remain in the checked set. Real PostgreSQL/AlmaLinux qualification
+  remains NOT_RUN; isolated SQLite SQL-bridge tests are not PostgreSQL evidence.
+  An opt-in `tests/integration/test_netflow_history_postgres.py` gate uses
+  `NETCONFIG_TEST_FLOW_PG_DSN` and an isolated temporary schema.
+- Existing project-root RPM predates this change and does NOT include it. No
+  new RPM/version/Git synchronization or production deployment is performed.
+  Status remains `IMPLEMENTED_TESTING_DEFERRED`; source metadata regenerated.
+  Proof/backups: `C:\Users\mattlai\AppData\Local\Temp\netconfig-flow24-21ca8b20d4aa41f99b7db186fdf6ee0d`.
+
+## RPM installation build — 2026-10-22
+
+At the user's explicit request, built the current canonical source into
+`netconfig-2.0.0-67.2.el10.noarch.rpm` **without increasing the version**.
+The user reports their installed version is older and explicitly wants
+`dnf upgrade`; use that command for the delivered local package. If a future
+host already has the same EVR installed, upgrade will not replace it and an
+explicit reinstall would be required; no Epoch/version trick was introduced.
+
+- Source: `C:\Users\mattlai\Projects\netconfig`, including the current Web UX,
+  security-policy, NetFlow and operator-wording work. The separate October 7
+  sensor-history-rollup ZIP was **not merged**; its missing-from-current-tree
+  history changes remain unresolved and are not claimed to be in this RPM.
+- Builder: existing dependency-free offline RPM tool, not Linux rpmbuild.
+  Package identity remains `2.0.0-67.2.el10.noarch`; the source spec is unchanged.
+- Output: project-root RPM, 519551 bytes, 113 payload entries.
+  SHA-256: `ebe868756cf78b9ebecb6fd883849daf0ee27e21b31ff18cb9c720ce4dcded56`.
+- Independent verifier PASS: package headers/digests, payload/source bytes,
+  permissions, scriptlets, dependencies and config noreplace flags. Two builds
+  with the same epoch `1792660193` are byte-identical. Launcher is LF-normalized
+  and executable; existing data/vault contents are not shipped in the payload.
+- Focused local regression: **109 PASS / 1 Windows-host-limited failure**.
+  `test_first_admin_setup_with_one_time_code` stops at its POSIX 0600 assertion
+  because Windows reports 0666; production code still creates/chmods 0600.
+  No assertion was weakened, and this is not reported as a full-suite PASS.
+  Legacy selftest: **ALL PASS**.
+- RPM is unsigned. AlmaLinux RPM/DNF install-upgrade, systemd/SELinux, live
+  PostgreSQL/devices and LIVE_RC gates are **NOT_RUN**, not inferred from offline
+  verification. Status stays `IMPLEMENTED_TESTING_DEFERRED`.
+- Source release metadata/SBOM is regenerated for the handover change; this is
+  not candidate freeze or production-release promotion. No Git operations.
+- External build/rebuild proof:
+  `C:\Users\mattlai\AppData\Local\Temp\netconfig-rpm-install-20261022-92f9e3e97e404cbd875a8727aa21777b\build-result.json`.
+
 ## Console usability round — 2026-10-18
 
 Source-only UX work; no schema or network-write authority change. Status stays

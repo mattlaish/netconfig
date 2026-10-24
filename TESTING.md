@@ -1,5 +1,63 @@
 # R67.2 corrective RC — current testing truth
 
+## NetFlow PostgreSQL history — 2026-10-22
+
+Completed: **136 passed / 1 skipped / 0 failed** across NetFlow/history,
+Operations, Web controls, DB settings, CSP/structure, operator wording, CSS,
+metadata-cache and selected no-Git source checks. Legacy selftest ALL PASS;
+93 Python files compile in memory. Ruff comparison against backed-up originals:
+0 new findings, 8 pre-existing findings in the checked set. This is not a full
+repository or live qualification PASS. An initial test bridge/case-placement
+failure was repaired; an interrupted expanded run is not counted as PASS.
+
+Focused offline tests exercise actual
+history DDL/DML through a test-only SQLite bridge, queue/retry/idempotency,
+24-hour boundary/idle cleanup, restart reads, exporter filtering, IPv6,
+pending/committed deduplication, failure/fallback, UDP reception and Web controls.
+These do not qualify psycopg/PostgreSQL syntax, locks, permissions or production
+load. The separate opt-in real PostgreSQL gate is
+`tests/integration/test_netflow_history_postgres.py`: set
+`NETCONFIG_TEST_FLOW_PG_DSN` only to a disposable qualification database whose
+account can create/drop an isolated schema. It verifies actual unsigned 64-bit
+counters, idempotent writes, restart reads, exporter filtering and expiry.
+No production connection is assumed. The skipped case requires that explicit
+test DSN; PostgreSQL/AlmaLinux/service/load qualification remains NOT_RUN.
+Existing RPM predates the new source; no package install qualification claimed.
+
+## RPM installation build — 2026-10-22
+
+At the user's explicit request, built the current canonical source into
+`netconfig-2.0.0-67.2.el10.noarch.rpm` **without increasing the version**.
+The user reports their installed version is older and explicitly wants
+`dnf upgrade`; use that command for the delivered local package. If a future
+host already has the same EVR installed, upgrade will not replace it and an
+explicit reinstall would be required; no Epoch/version trick was introduced.
+
+- Source: `C:\Users\mattlai\Projects\netconfig`, including the current Web UX,
+  security-policy, NetFlow and operator-wording work. The separate October 7
+  sensor-history-rollup ZIP was **not merged**; its missing-from-current-tree
+  history changes remain unresolved and are not claimed to be in this RPM.
+- Builder: existing dependency-free offline RPM tool, not Linux rpmbuild.
+  Package identity remains `2.0.0-67.2.el10.noarch`; the source spec is unchanged.
+- Output: project-root RPM, 519551 bytes, 113 payload entries.
+  SHA-256: `ebe868756cf78b9ebecb6fd883849daf0ee27e21b31ff18cb9c720ce4dcded56`.
+- Independent verifier PASS: package headers/digests, payload/source bytes,
+  permissions, scriptlets, dependencies and config noreplace flags. Two builds
+  with the same epoch `1792660193` are byte-identical. Launcher is LF-normalized
+  and executable; existing data/vault contents are not shipped in the payload.
+- Focused local regression: **109 PASS / 1 Windows-host-limited failure**.
+  `test_first_admin_setup_with_one_time_code` stops at its POSIX 0600 assertion
+  because Windows reports 0666; production code still creates/chmods 0600.
+  No assertion was weakened, and this is not reported as a full-suite PASS.
+  Legacy selftest: **ALL PASS**.
+- RPM is unsigned. AlmaLinux RPM/DNF install-upgrade, systemd/SELinux, live
+  PostgreSQL/devices and LIVE_RC gates are **NOT_RUN**, not inferred from offline
+  verification. Status stays `IMPLEMENTED_TESTING_DEFERRED`.
+- Source release metadata/SBOM is regenerated for the handover change; this is
+  not candidate freeze or production-release promotion. No Git operations.
+- External build/rebuild proof:
+  `C:\Users\mattlai\AppData\Local\Temp\netconfig-rpm-install-20261022-92f9e3e97e404cbd875a8727aa21777b\build-result.json`.
+
 ## Operator-facing wording refresh — 2026-10-17
 
 Validation: **119 PASS** (including **18 new console-copy page checks**); legacy

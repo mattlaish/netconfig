@@ -1,5 +1,20 @@
 # NetConfig — Web Console Operator Guide
 
+## NetFlow history — 2026-10-22
+
+**Settings → NetFlow → Save flow history for 24 hours** reuses the History
+PostgreSQL connection/password from Database settings. It has a separate table
+and fixed 24-hour retention, independent of SNMP interface-history settings.
+Restart after changing NetFlow settings. New received records become available
+in Traffic (up to 24-hour selection) and device Traffic, including after a
+restart. The interface-history connection test is not a NetFlow write test;
+check NetFlow status for pending/saved records and errors.
+
+The writer queue is volatile; long DB outages/hard shutdown can lose records.
+Memory fallback and incomplete query results are labelled. One analysis reads
+at most 200,000 saved records plus pending rows; shorten the period or select
+one exporter when warned. No earlier discarded traffic can be restored.
+
 ## Operator-facing wording refresh — 2026-10-17
 
 The console remains in English. Labels now describe what you can do:
