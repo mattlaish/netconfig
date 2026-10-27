@@ -29,7 +29,9 @@ def digest(path: Path, algorithm: str) -> str:
 
 def source_files():
     result = []
-    for path in sorted(ROOT.rglob("*")):
+    # Sort by the POSIX relative path: Path ordering is case-insensitive on Windows,
+    # which made Windows-generated metadata fail the drift check on Linux.
+    for path in sorted(ROOT.rglob("*"), key=lambda p: p.relative_to(ROOT).as_posix()):
         if not path.is_file() or any(part in EXCLUDE_PARTS for part in path.parts):
             continue
         if path.name in EXCLUDE_NAMES or path.suffix in {".pyc", ".rpm"}:

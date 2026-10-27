@@ -376,3 +376,46 @@ def test_first_admin_setup_with_one_time_code(empty_console):
 def test_table_enhancement_script_is_served_with_pages(console):
     _s, _h, text = console.request("GET", "/runs", token=console.session())
     assert "th.classList.add('sortable')" in text and "Filter these rows" in text
+
+
+# ---- account / self-service password -------------------------------------------
+
+def _managed_login(console, username, password):
+    code, headers, _ = console.request("POST", "/login", {"username": username, "password": password})
+    assert code == 303
+    return headers["Set-Cookie"].split("ncsid=", 1)[1].split(";", 1)[0]
+
+
+def test_viewer_can_change_own_password_and_other_sessions_end(console):
+    m = console.m
+    m.users.create("vera", "vera-password-1", role="viewer")
+    tok = _managed_login(console, "vera", "vera-password-1")
+    other = _managed_login(console, "vera", "vera-password-1")
+    csrf = web._SESSIONS[tok]["csrf"]
+    code, _, page = console.request("GET", "/account", token=tok)
+    assert code == 200 and "Change password" in page and 'href="/account"' in page
+    code, _, page = console.request("POST", "/account-password", {"csrf": csrf, "current_password": "wrong-password-1",
+                                    "new_password": "vera-password-2", "confirm_password": "vera-password-2"}, token=tok)
+    assert code == 400 and "Current password is incorrect" in page and "vera-password-2" not in page
+    code, _, page = console.request("POST", "/account-password", {"csrf": csrf, "current_password": "vera-password-1",
+                                    "new_password": "short", "confirm_password": "short"}, token=tok)
+    assert code == 400 and "at least" in page
+    code, headers, _ = console.request("POST", "/account-password", {"csrf": csrf, "current_password": "vera-password-1",
+                                       "new_password": "vera-password-2", "confirm_password": "vera-password-2"}, token=tok)
+    assert code == 303 and headers["Location"].endswith("/account")
+    fresh = headers["Set-Cookie"].split("ncsid=", 1)[1].split(";", 1)[0]
+    assert m.users.verify("vera", "vera-password-2") and not m.users.verify("vera", "vera-password-1")
+    code, _, page = console.request("GET", "/account", token=fresh)
+    assert code == 200 and "Password changed" in page
+    assert console.request("GET", "/account", token=other)[0] in (302, 303)   # signed out
+    assert console.request("GET", "/account", token=tok)[0] in (302, 303)
+    assert any(r["action"] == "password_change" for r in m.db.recent_audit(20))
+
+
+def test_account_password_change_requires_csrf(console):
+    console.m.users.create("vera", "vera-password-1", role="viewer")
+    tok = _managed_login(console, "vera", "vera-password-1")
+    code, _, _ = console.request("POST", "/account-password", {"current_password": "vera-password-1",
+                                 "new_password": "vera-password-2", "confirm_password": "vera-password-2"}, token=tok)
+    assert code in (400, 403)
+    assert console.m.users.verify("vera", "vera-password-1")

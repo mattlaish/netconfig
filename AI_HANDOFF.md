@@ -1,5 +1,20 @@
 # NetConfig AI Handover
 
+## Review fixes after the 2026-10-24 workflow repairs — 2026-10-25
+
+Source-only; status stays `IMPLEMENTED_TESTING_DEFERRED`. See PATCH-20261025-01.
+
+- `web_forms.device_owned_ref()` identifies form-created per-device vault entries;
+  `_release_replaced_refs()` deletes replaced ones only when unreferenced by devices
+  and protocol profiles. Never extend it to user-named secrets.
+- `FlowHistory` has a `configured` state: provider `None` (no History DB host/name)
+  means memory mode with no buffering and no error notices; exceptions still mean an
+  outage. Tests that simulate an outage must use a failing backend, not `None`.
+- `/account` + `/account-password` in `web_ux.py` (self-service password change).
+- Release metadata sorts by POSIX relative path; regenerate on any OS.
+- Next: unchanged — choose release identity, freeze a candidate, run the twelve
+  LIVE_RC gates.
+
 ## Six workflow repairs + operator presentation — 2026-10-24
 
 User authorized all six findings from the preceding workflow audit, plus the

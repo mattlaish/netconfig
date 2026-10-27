@@ -42,7 +42,7 @@
     "artifact": "SBOM.spdx.json",
     "files_analyzed": 476,
     "format": "SPDX-2.3",
-    "package_verification_code": "d6f7a4a19f9d516bb685f6ad0b6c5e69baec80e7"
+    "package_verification_code": "13e978ebf2322cbbe570fc0c8a5ded9cebe3a494"
   },
   "schema_revision": "mc11-topology-change-planning-1",
   "status": "IMPLEMENTED_TESTING_DEFERRED",

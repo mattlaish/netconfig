@@ -501,6 +501,10 @@ def history_notice(storage):
             if storage.get("source") == "postgres" else
             'Records are held in memory and cleared when NetConfig restarts.')
     notes = [f'<p class=muted>{_e(text)}</p>']
+    if st.get("enabled") and st.get("configured") is False:
+        return "".join(notes) + ('<p class=muted>24-hour flow history is not saved: no History PostgreSQL '
+                                 'database is set. Add one in <a href="/settings?section=db">Database settings</a> '
+                                 'to keep a full day.</p>')
     for key in ("write_error", "read_error", "maintenance_error"):
         if st.get(key):
             notes.append(f'<p class=err>{_e(st[key])}</p>')

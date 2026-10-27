@@ -117,8 +117,16 @@ def test_inflight_and_committed_rows_merge_without_double_count(store, monkeypat
     assert len(worker.read_window(time.time() - 60, time.time())["flows"]) == 1
 
 
+class _Unreachable:
+    """A configured History database that is temporarily unreachable."""
+    _schema_ready = False
+
+    def ensure_schema(self):
+        raise ConnectionError("refused")
+
+
 def test_queue_capacity_expiry_and_recovery_are_visible(store):
-    worker = nh.FlowHistory(lambda: None, capacity=2)
+    worker = nh.FlowHistory(lambda: _Unreachable(), capacity=2)
     worker.submit([flow(time.time() - 86401), flow(), flow()])
     assert worker.status()["dropped"] == 1
     assert not worker.flush_once()
@@ -186,7 +194,15 @@ def test_global_analysis_reads_history_beyond_ring_and_after_restart(store, tmp_
 
 def test_database_failure_falls_back_to_ring_with_visible_error(tmp_path):
     now = time.time()
-    col = netflow.Collector(history=nh.FlowHistory(lambda: None))
+
+    class Down:
+        def read(self, *a, **kw):
+            raise ConnectionError("refused")
+
+        def exporters(self, *a, **kw):
+            raise ConnectionError("refused")
+
+    col = netflow.Collector(history=nh.FlowHistory(lambda: Down()))
     col._flows["192.0.2.1"].append(flow(now))
     col._counts["192.0.2.1"] = 1
     m = Manager(str(tmp_path / "home"))
@@ -260,3 +276,30 @@ def test_invalid_counter_cannot_poison_the_batch(store):
     worker.submit([flow(bytes=1 << 80), flow(ts=float("nan")), flow()])
     assert worker.status()["dropped"] == 2
     assert worker.flush_once() and worker.status()["written"] == 1
+
+
+def test_unconfigured_history_is_quiet_and_buffers_nothing():
+    # Default install: history switch on, but no History PostgreSQL database set.
+    h = nh.FlowHistory(lambda: None, capacity=5, batch_size=2)
+    h.submit([flow() for _ in range(3)])            # before the first check: buffered
+    assert h.flush_once() is False
+    st = h.status()
+    assert st["configured"] is False and st["pending"] == 0 and not st["write_error"]
+    h.submit([flow() for _ in range(50)])           # afterwards: not buffered, not "lost"
+    st = h.status()
+    assert st["pending"] == 0 and st["dropped"] == 0
+    assert h.read_window(time.time() - 60, time.time()) is None and not h.status()["read_error"]
+    assert h.exporter_choices(time.time() - 60, time.time()) == [] and not h.status().get("exporter_error")
+    notice = history_notice({"source": "memory", "status": h.status()})
+    assert "class=err" not in notice and "Database settings" in notice
+
+
+def test_history_becomes_active_once_a_database_is_set(store):
+    backend = {"value": None}
+    h = nh.FlowHistory(lambda: backend["value"], capacity=10, batch_size=2)
+    h.flush_once()
+    assert h.status()["configured"] is False
+    backend["value"] = store
+    assert h.flush_once() is True and h.status()["configured"] is True
+    h.submit([flow(), flow()])
+    assert h.flush_once() is True and h.status()["written"] == 2

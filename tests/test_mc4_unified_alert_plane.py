@@ -158,10 +158,12 @@ def test_endpoint_api_accepts_ip_search(tmp_path):
 
 
 def test_netflow_summary_is_aggregated_and_raw_rows_are_advanced(tmp_path):
+    now = time.time()
     flows = [
-        {"ts":1,"src":"10.0.0.1","dst":"8.8.8.8","sport":50000,"dport":443,"proto":"TCP","packets":10,"bytes":1000},
-        {"ts":2,"src":"10.0.0.1","dst":"8.8.8.8","sport":50001,"dport":443,"proto":"TCP","packets":5,"bytes":500},
-        {"ts":3,"src":"10.0.0.2","dst":"1.1.1.1","sport":53000,"dport":53,"proto":"UDP","packets":2,"bytes":100},
+        # Recent timestamps: the device view covers the past 24 hours.
+        {"ts":now-30,"src":"10.0.0.1","dst":"8.8.8.8","sport":50000,"dport":443,"proto":"TCP","packets":10,"bytes":1000},
+        {"ts":now-20,"src":"10.0.0.1","dst":"8.8.8.8","sport":50001,"dport":443,"proto":"TCP","packets":5,"bytes":500},
+        {"ts":now-10,"src":"10.0.0.2","dst":"1.1.1.1","sport":53000,"dport":53,"proto":"UDP","packets":2,"bytes":100},
     ]
     summary = netflow.summarize_flows(flows)
     assert summary["total_bytes"] == 1600 and summary["top_sources"][0]["label"] == "10.0.0.1"

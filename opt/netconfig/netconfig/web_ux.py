@@ -77,6 +77,7 @@ def render_tabs(tabs, tabset_id="tabs"):
 
 
 UX_CSS = """
+.account-form{max-width:520px}
 [id^="workflow-"]{scroll-margin-top:90px}
 .sidebar{padding:12px 12px}
 .side-group{margin:0 0 4px}
@@ -519,7 +520,7 @@ class WebUxMixin:
                 '<input type=search name=q placeholder="Search devices, IPs, MACs, alerts" '
                 'aria-label="Search devices, IP addresses, MAC addresses, alerts and incidents"></form>'
                 f'{vault}'
-                f'<span class="who"><b>{_e(sess["username"])}</b><span class="role">{_e(sess["role"])}</span></span>'
+                f'<a class="who" href="/account" title="Your account"><b>{_e(sess["username"])}</b><span class="role">{_e(sess["role"])}</span></a>'
                 '<button type=button id="theme-toggle" class="ghost theme-toggle" aria-label="Toggle color theme" '
                 'aria-pressed="false">Dark theme</button>'
                 f'<form method=post action="/logout" class="inline-form">{self._csrf_field()}'
@@ -771,6 +772,68 @@ class WebUxMixin:
         self._send(self._page("Run Log", inner, sess))
 
     # ---- Global search ---------------------------------------------------------
+    # ---- Account (every signed-in user) ---------------------------------------
+    def _account_page(self, sess, error=None, status=200):
+        u = self.manager.users.get(sess["username"])
+        if not u:
+            body = ('<div class="panel"><h2>Account</h2><p class="muted">This session is not linked to a '
+                    'local user account, so its password cannot be changed here.</p></div>')
+            return self._send(self._page("Account", body, sess), status)
+        last = u.get("last_login")
+        last_txt = time.strftime("%Y-%m-%d %H:%M", time.localtime(last)) if last else "—"
+        err = f'<div class="err">{_e(error)}</div>' if error else ""
+        body = (f'<div class="panel"><h2>Your account</h2><table>'
+                f'<tr><th>Username</th><td>{_e(u["username"])}</td></tr>'
+                f'<tr><th>Role</th><td>{_e(u["role"])}</td></tr>'
+                f'<tr><th>Last sign-in</th><td>{_e(last_txt)}</td></tr></table>'
+                '<p class="muted">Roles are changed by an administrator on the Users page.</p></div>'
+                f'<div class="panel"><h2>Change password</h2>{err}'
+                f'<form method=post action="/account-password" class="account-form" autocomplete=off>{self._csrf_field()}'
+                '<label>Current password</label><input type=password name=current_password required autocomplete=current-password>'
+                f'<label>New password</label><input type=password name=new_password required minlength={MIN_PASSWORD_LENGTH} autocomplete=new-password>'
+                '<label>Confirm new password</label><input type=password name=confirm_password required autocomplete=new-password>'
+                f'<p class="hint">At least {MIN_PASSWORD_LENGTH} characters. Changing it signs out your other sessions.</p>'
+                '<button>Change password</button></form></div>')
+        return self._send(self._page("Account", body, sess), status)
+
+    def _do_account_password(self, form, sess):
+        from .web import _LOGIN_THROTTLE, _create_managed_session, _SESSIONS, _SESSIONS_LOCK
+        username = sess["username"]
+        if not self.manager.users.get(username):
+            return self._account_page(sess, error="This session has no local user account.", status=400)
+        current = (form.get("current_password") or [""])[0]
+        new = (form.get("new_password") or [""])[0]
+        confirm = (form.get("confirm_password") or [""])[0]
+        ip = self._client_ip()
+        retry = _LOGIN_THROTTLE.retry_after(ip, username)
+        if retry:
+            return self._account_page(sess, error=f"Too many failed attempts. Try again in {int(retry)} seconds.", status=429)
+        if not self.manager.users.verify(username, current):
+            _LOGIN_THROTTLE.failure(ip, username)
+            self.manager.db.audit(username, "password_change_failure", "console", f"source={ip}")
+            return self._account_page(sess, error="Current password is incorrect.", status=400)
+        _LOGIN_THROTTLE.success(ip, username)
+        try:
+            if new != confirm:
+                raise ValueError("The new passwords do not match.")
+            if new == current:
+                raise ValueError("Choose a password different from the current one.")
+            validate_password(new, username)
+            self.manager.users.set_password(username, new)
+        except ValueError as exc:
+            return self._account_page(sess, error=str(exc), status=400)
+        self.manager.db.audit(username, "password_change", "console", f"source={ip}")
+        # The password change invalidates every session of this user (auth
+        # fingerprint); give this browser a fresh one so it stays signed in.
+        old_token, _ = self._session()
+        token, record = _create_managed_session(self.manager.users.get(username))
+        record["operation_feedback"] = {"target": "/account", "message": "Password changed. Other sessions were signed out.",
+                                        "expires": time.time() + 120}
+        with _SESSIONS_LOCK:
+            _SESSIONS.pop(old_token, None)
+        secure = "; Secure" if (self.manager.settings.get("cookie_secure") or self.tls_enabled) else ""
+        return self._redirect("/account", headers=[("Set-Cookie", f"ncsid={token}; HttpOnly; SameSite=Strict; Path=/{secure}")])
+
     def _search_page(self, q, sess):
         query = str((q.get("q") or [""])[0]).strip()[:120]
         needle = query.lower()
@@ -1000,7 +1063,11 @@ class WebUxMixin:
                 has_saved = bool(self.manager.vault.list_secrets())
             except Exception:
                 has_saved = False
-        mode = "saved" if (d and (d.get("secret_ref") or d.get("snmp_ref"))) or (not d and has_saved) else "manual"
+        refs = [d.get(k) for k in ("secret_ref", "snmp_ref") if d and d.get(k)] if d else []
+        # Entries the form created for this device are "this device's credentials", not shared ones.
+        from .web_forms import device_owned_ref
+        own = bool(refs) and all(device_owned_ref(r, name) for r in refs)
+        mode = "manual" if own else "saved" if refs or (not d and has_saved) else "manual"
         if draft is not None:
             mode = (draft.get("cred_mode") or [mode])[0]
         vault_hint = "" if vault_ready else " <b>Unlock the vault first</b> to store or choose credentials."

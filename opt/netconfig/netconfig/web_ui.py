@@ -67,7 +67,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:18px;ba
 .brand .appname{border-left:1px solid var(--border);padding-left:14px}
 .brand span{color:var(--navy)}
 .top-right{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-left:auto}
-.who{color:var(--grey);font-size:13px;display:inline-flex;align-items:center;gap:6px}
+.who{color:var(--grey);font-size:13px;display:inline-flex;align-items:center;gap:6px;text-decoration:none}
 .who b{color:var(--navy)}
 .role{background:var(--navy10);color:var(--navy);border-radius:999px;padding:2px 8px;font-size:11px;font-weight:700;text-transform:uppercase}
 .inline-form{display:inline;margin:0}

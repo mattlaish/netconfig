@@ -128,7 +128,10 @@ class FlowHistory:
         self._stop = threading.Event()
         self._thread = None
         self._next_prune = 0.0
-        self._status = {"enabled": True, "retention_hours": 24, "written": 0,
+        # None = not yet known; False = no History database is set, so nothing is
+        # buffered and nothing is reported as lost (memory mode is the setup).
+        self._configured = None
+        self._status = {"enabled": True, "configured": None, "retention_hours": 24, "written": 0,
                         "dropped": 0, "expired": 0, "last_write_ts": None,
                         "last_maintenance_ts": None, "write_error": "Waiting for database connection.",
                         "read_error": "", "maintenance_error": ""}
@@ -141,6 +144,8 @@ class FlowHistory:
 
     def submit(self, flows):
         with self._lock:
+            if self._configured is False:
+                return
             for f in flows:
                 try:
                     row = {k: f[k] for k in COLUMNS if k != "record_id"}
@@ -171,6 +176,15 @@ class FlowHistory:
         with self._lock:
             self._status[key] = message
 
+    def _set_configured(self, configured):
+        with self._lock:
+            self._configured = configured
+            self._status["configured"] = configured
+            if not configured:
+                self._pending.clear()
+                for key in ("write_error", "read_error", "maintenance_error", "exporter_error"):
+                    self._status[key] = ""
+
     def flush_once(self, now=None):
         """One bounded batch; only the background worker calls this in production."""
         now = time.time() if now is None else float(now)
@@ -183,8 +197,9 @@ class FlowHistory:
         try:
             backend = self.provider()
             if backend is None:
-                self._error("write_error", "Set History PostgreSQL host/database in Settings → Database and unlock the vault.")
+                self._set_configured(False)
                 return False
+            self._set_configured(True)
             backend.ensure_schema()
             if batch:
                 backend.write(batch)
@@ -244,7 +259,8 @@ class FlowHistory:
         try:
             backend = self.provider()
             if backend is None:
-                raise RuntimeError("history connection unavailable")
+                self._set_configured(False)
+                return sorted(names)
             names.update(backend.exporters(since, until))
         except Exception:
             self._error("exporter_error", "Some saved exporters could not be listed. Check the database connection or enter a shorter period.")
@@ -261,7 +277,8 @@ class FlowHistory:
         try:
             backend = self.provider()
             if backend is None:
-                raise RuntimeError("history connection unavailable")
+                self._set_configured(False)
+                return None
             stored, truncated = backend.read(since, until, exporter=exporter, limit=limit)
         except Exception as exc:
             self._error("read_error", f"Database history unavailable ({type(exc).__name__}); showing recent memory only.")

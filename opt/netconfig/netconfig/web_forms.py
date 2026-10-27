@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import time
 import math
+import re
 import uuid
 import urllib.parse
 
@@ -102,6 +103,42 @@ def commit_settings(manager, candidate, secrets=()):
     manager.settings.update(candidate)
 
 
+_OWNED_SUFFIX = re.compile(r"-(?:ssh|snmp)-[0-9a-f]{32}")
+
+
+def device_owned_ref(ref, name):
+    """True for vault entries created by the device form for this device only:
+    ``<name>-ssh-<uuid>`` / ``<name>-snmp-<uuid>``, or the legacy ``<name>-cred``."""
+    ref, name = str(ref or ""), str(name or "")
+    if not name or not ref.startswith(name + "-"):
+        return False
+    return ref == name + "-cred" or bool(_OWNED_SUFFIX.fullmatch(ref[len(name):]))
+
+
+def _release_replaced_refs(m, old, names, keep):
+    """Delete this device's previous own credential entries once nothing uses them.
+
+    Shared (user-named) secrets are never deleted. Failures are ignored: an
+    orphaned entry is harmless, deleting a referenced one is not."""
+    candidates = {old.get(k) for k in ("secret_ref", "snmp_ref", "enable_ref")} - set(keep) - {None, ""}
+    candidates = {r for r in candidates if any(device_owned_ref(r, n) for n in names)}
+    if not candidates or not m.vault_ready():
+        return
+    try:
+        used = set()
+        for dev in m.inv.all():
+            used.update(dev.get(k) for k in ("secret_ref", "snmp_ref", "enable_ref"))
+        for prof in m.protocol_profiles.list():
+            used.add(prof.get("secret_ref"))
+    except Exception:
+        return
+    for ref in candidates - used:
+        try:
+            m.vault.delete_secret(ref)
+        except Exception:
+            pass
+
+
 def save_device(handler, form, sess):
     if not can(sess["role"], "manage_devices"):
         return handler._dashboard(sess, flash="Not permitted.")
@@ -153,7 +190,10 @@ def save_device(handler, form, sess):
                     if kind == "ssh" and old.get("enable_ref"):
                         enabled = m.vault.get_secret(old["enable_ref"])
                         merged["enable_password"] = enabled.get("enable_password") or enabled.get("password", "")
+                    unchanged = dict(merged)
                     merged.update({k: v for k, v in fields.items() if v})
+                    if previous and merged == unchanged and device_owned_ref(previous, orig or name) and not (orig and orig != name):
+                        continue  # nothing new for this device's own entry; keep it
                     ref = f"{name}-{kind}-{uuid.uuid4().hex}"
                     staged.append(ref)
                     m.vault.set_secret(ref, **merged)
@@ -195,4 +235,8 @@ def save_device(handler, form, sess):
                 pass
         return error("Device not saved: credentials or inventory could not be updated. Check storage access and saved credential names.")
     m.db.audit(sess["username"], "device_save", name, g("host"))
+    if not app:
+        _release_replaced_refs(m, old, {orig, name}, {ssh_ref, snmp_ref, enable_ref})
+    else:
+        _release_replaced_refs(m, old, {orig, name}, set())
     return handler._redirect("/device?" + urllib.parse.urlencode({"name": name}))

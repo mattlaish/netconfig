@@ -312,3 +312,52 @@ def test_changed_post_routes_still_require_csrf(console, path, form):
     before = dict(console.m.settings)
     code, _, _ = console.request("POST", path, form, token=console.session())
     assert code == 403 and console.m.settings == before and not console.m.inv.get("forged")
+
+
+def _own_entries(m, name):
+    from netconfig.web_forms import device_owned_ref
+    return sorted(n for n in m.vault.list_secrets() if device_owned_ref(n, name))
+
+
+def test_repeated_manual_saves_do_not_accumulate_device_secrets(console):
+    m = console.m
+    vault(m)
+    m.vault.set_secret("shared", username="old-user", password="old-password")
+    _device(m, "a", "192.0.2.1", secret_ref="shared")
+    assert post(console, "/device-save", **device_form(cred_mode="manual", ssh_username="u1", ssh_password="p1"))[0] == 303
+    first = m.inv.get("a")["secret_ref"]
+    assert _own_entries(m, "a") == [first]
+    # Re-saving with the prefilled username and blank password keeps the same entry.
+    assert post(console, "/device-save", **device_form(cred_mode="manual", ssh_username="u1"))[0] == 303
+    assert m.inv.get("a")["secret_ref"] == first and _own_entries(m, "a") == [first]
+    # A real change replaces the device's own entry and removes the old one.
+    assert post(console, "/device-save", **device_form(cred_mode="manual", ssh_username="u1", ssh_password="p2"))[0] == 303
+    second = m.inv.get("a")["secret_ref"]
+    assert second != first and _own_entries(m, "a") == [second]
+    assert m.vault.get_secret(second) == {"username": "u1", "password": "p2"}
+    # Switching back to a shared secret releases the own entry; shared ones are never deleted.
+    assert post(console, "/device-save", **device_form(cred_mode="saved", secret_ref="shared"))[0] == 303
+    assert _own_entries(m, "a") == [] and "shared" in m.vault.list_secrets()
+
+
+def test_device_secret_still_referenced_elsewhere_is_kept(console):
+    m = console.m
+    vault(m)
+    _device(m, "a", "192.0.2.1")
+    assert post(console, "/device-save", **device_form(cred_mode="manual", ssh_username="u1", ssh_password="p1"))[0] == 303
+    ref = m.inv.get("a")["secret_ref"]
+    _device(m, "b", "192.0.2.2", secret_ref=ref)
+    assert post(console, "/device-save", **device_form(cred_mode="manual", ssh_username="u1", ssh_password="p2"))[0] == 303
+    assert ref in m.vault.list_secrets()
+
+
+def test_device_with_own_credentials_opens_in_manual_mode(console):
+    m = console.m
+    vault(m)
+    m.vault.set_secret("shared", username="s", password="s")
+    _device(m, "a", "192.0.2.1")
+    assert post(console, "/device-save", **device_form(cred_mode="manual", ssh_username="u1", ssh_password="p1"))[0] == 303
+    _, _, body = console.request("GET", "/device-new?name=a", token=console.session())
+    import re
+    radio = re.search(r"<input[^>]*name=cred_mode value=manual[^>]*>", body).group(0)
+    assert "checked" in radio

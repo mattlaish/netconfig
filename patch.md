@@ -1,3 +1,39 @@
+## PATCH-20261025-01 — Review of the 2026-10-24 changes: credential cleanup, quiet unconfigured flow history, Account page
+
+- Status: Ready for integration (source/local validation only). Package stays
+  `2.0.0-67.2` / `IMPLEMENTED_TESTING_DEFERRED`; no schema change.
+- **Device credentials no longer pile up in the vault.** The PATCH-20261024-01 form
+  created a new `<device>-ssh-<id>` / `<device>-snmp-<id>` entry on every save in
+  "Enter credentials for this device" mode (the username field is prefilled, and the
+  SNMPv3 protocol selects always post), and never removed the previous one. Now an
+  unchanged own entry is kept as is; a replaced own entry is deleted after the device
+  is saved, but only if no device or protocol profile still refers to it. Shared
+  (user-named) secrets are never deleted. A device whose credentials are its own
+  entries reopens in "Enter credentials" mode instead of showing the generated name.
+- **NetFlow history stays quiet when no History database is set.** The 24-hour
+  history switch is on by default; on installs without a History PostgreSQL
+  database the receiver buffered 20,000 flows it could never save, and Traffic pages
+  showed permanent red "write error" / "History is incomplete" messages. A missing
+  database is now "not configured": nothing is buffered or counted as lost, and a
+  muted note links to Database settings. An unreachable configured database still
+  buffers and reports errors exactly as before. Picks up a newly set database within
+  about 5 seconds.
+- **Account page** (`/account`, `/account-password`): every signed-in user can see
+  their role and change their own password (current password required, password
+  policy, failed attempts throttled with the sign-in limiter and audited). Other
+  sessions of that user end; this browser gets a fresh session. The header user name
+  links to it. Previously only administrators could change passwords in the UI.
+- **Release metadata order is OS-independent.** `tools/release_metadata.py` sorted
+  `Path` objects, which compare case-insensitively on Windows, so Windows-generated
+  SBOMs failed `--check` on Linux. Files are now sorted by POSIX relative path.
+- Test fixes: `test_netflow_summary_is_aggregated_and_raw_rows_are_advanced` used 1970
+  timestamps that the new 24-hour device window correctly drops (was failing on the
+  pulled tree); two history tests that modelled an outage with "no database" now use
+  an unreachable database. New tests: 3 credential-cleanup, 2 unconfigured-history,
+  2 account.
+- Validation: full suite **748 passed / 15 skipped / 0 failed**; legacy selftest ALL PASS; ruff clean on changed files. Release
+  metadata regenerated (not a candidate freeze). Live PG/devices/LIVE_RC NOT_RUN.
+
 ## PATCH-20261024-01 — Six workflow repairs and operator-first change guidance
 
 - Source-only corrective; no Git, version increase, RPM or deployment. Package
