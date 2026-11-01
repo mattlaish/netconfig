@@ -137,7 +137,9 @@ def test_endpoint_lookup_joins_gateway_arp_to_switch_fdb_before_filter(tmp_path)
     rows = m.endpoint_inventory(device="fw1", query="10.20.30.40")
     assert len(rows) == 1
     row = rows[0]
-    assert row["attachment"]["device"] == "access1" and row["attachment"]["ifdescr"] == "1/1/5"
+    # A single switch-port observation is a possible location, not proof of attachment.
+    assert row["status"] == "CANDIDATE" and row["attachment"] is None
+    assert row["observed_location"]["device"] == "access1" and row["observed_location"]["ifdescr"] == "1/1/5"
     assert row["evidence_chain"]["ip_neighbors"][0]["device"] == "fw1"
     assert row["evidence_chain"]["fdb_candidates"][0]["device"] == "access1"
     m.db.close()
@@ -152,7 +154,8 @@ def test_endpoint_api_accepts_ip_search(tmp_path):
     try:
         st, payload = _api(server, raw, "/api/v1/endpoints?q=" + urllib.parse.quote("10.0.0.9"))
         assert st == 200 and payload["summary"]["total"] == 1
-        assert payload["endpoints"][0]["attachment"]["ifdescr"] == "Gi1/0/7"
+        assert payload["endpoints"][0]["attachment"] is None
+        assert payload["endpoints"][0]["observed_location"]["ifdescr"] == "Gi1/0/7"
     finally:
         server.shutdown(); server.server_close(); thread.join(timeout=5); m.db.close()
 
@@ -387,8 +390,8 @@ def test_stale_arp_downgrades_combined_endpoint_confidence(tmp_path):
     m.db.conn.execute("UPDATE vlan_fdb SET ts=? WHERE device='sw1' AND mac=?", (time.time(), mac))
     m.db.conn.commit()
     row = m.endpoint_inventory(query="10.0.0.9")[0]
-    assert row["status"] == "ATTACHED"
-    assert row["confidence"] == "PARTIAL"
+    assert row["status"] == "CANDIDATE"
+    assert row["confidence"] == "LOW"
     assert row["ip_mapping_fresh"] is False
     assert row["evidence_chain"]["ip_neighbors"][0]["fresh"] is False
     m.close()

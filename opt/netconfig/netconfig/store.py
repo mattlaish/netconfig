@@ -218,6 +218,19 @@ class ConfigStore:
         except FileNotFoundError:
             return None
 
+    def has_current(self, device):
+        return os.path.exists(os.path.join(self._dir(device), "current.cfg"))
+
+    def drift_state(self, device):
+        """{baselined, drifted} for lists and summaries: hash comparison, no diff."""
+        b = self.get_baseline(device)
+        if not b:
+            return {"baselined": False, "drifted": False}
+        base = self.baseline_text(device)
+        cur = self.current(device)
+        return {"baselined": True,
+                "drifted": base is not None and cur is not None and _sha256(cur) != _sha256(base)}
+
     def drift(self, device):
         """Compare current config to the baseline.
         Returns {baselined, drifted, diff, baseline_stamp}."""

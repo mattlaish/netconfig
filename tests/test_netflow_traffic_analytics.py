@@ -253,3 +253,15 @@ def test_throughput_panel_always_renders_with_a_reason_when_no_chart_is_possible
                              + _pair(now - 5, "192.168.1.10", "8.8.8.8", 50002, 443, "TCP", 10, 20),
                              now=now, bucket_seconds=120)
     assert 'class="nf-chart"' in throughput_chart(two, now)
+
+
+def test_possible_switch_location_is_labelled_as_unproven():
+    from netconfig.operations_correlation import traffic_identities
+    from netconfig.web_traffic import _who
+    analysis = {"sources": [{"ip": "10.0.0.9"}], "destinations": []}
+    endpoints = {"10.0.0.9": {"mac": "00:11:22:33:44:55", "attachment": None,
+                              "observed_location": {"device": "sw1", "ifdescr": "Gi1/0/7"}}}
+    ident = traffic_identities(analysis, {}, {}, endpoints)["10.0.0.9"]
+    assert ident["attachment"] == "" and ident["seen_on"] == "sw1 Gi1/0/7"
+    html = _who("10.0.0.9", ident)
+    assert "probably on sw1 Gi1/0/7" in html and "port sw1" not in html

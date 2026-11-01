@@ -186,6 +186,8 @@ def _who(ip, ident):
                    + (f' · learned on {_e(ident["learned_on"])}' if ident.get("learned_on") else ""))
     if ident.get("attachment"):
         sub.append("port " + _e(ident["attachment"]))
+    elif ident.get("seen_on"):
+        sub.append("probably on " + _e(ident["seen_on"]))
     return head + "".join(f'<span class="nf-sub">{x}</span>' for x in sub)
 
 

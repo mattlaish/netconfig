@@ -1,5 +1,20 @@
 # NetConfig AI Handover
 
+## Review of the November 1 restore + October 31 audit items — 2026-11-01
+
+Source-only; status stays `IMPLEMENTED_TESTING_DEFERRED`. See PATCH-20261101-03.
+
+- List/summary pages must use `ConfigStore.drift_state()` / `has_current()`; never
+  `drift()` (builds a full diff) in loops. This was the probable login delay.
+- Device-page Monitoring panels read `monitor_results`; live checks only via
+  `/device-monitor-check` or the background monitor.
+- `/compliance-run` requires the `collect` permission.
+- Dashboard reachability ignores polls older than 3× interval (min 1 h) or 24 h.
+- `Manager.collect` isolates route-learning failures; never let L3 bookkeeping
+  discard a config snapshot.
+- Next: unchanged — choose release identity, freeze a candidate, run the twelve
+  LIVE_RC gates.
+
 ## Restored evidence repairs, merged with October 25 changes — 2026-11-01
 
 User requested restoring the three missing files and their required integration.

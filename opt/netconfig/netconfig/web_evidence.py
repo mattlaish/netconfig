@@ -61,7 +61,7 @@ def route_learning_panel(handler, sess, *, device=None, summary=None, include_st
         action = ''
         if state.get("route_collection_available", state.get("supports_cli_collection")) and can(sess["role"], "collect"):
             action = (f'<form method="post" action="/collect">{handler._csrf_field()}'
-                      f'<input type="hidden" name="name" value="{e(name)}"><input type="hidden" name="back" value="routes">'
+                      f'<input type="hidden" name="name" value="{e(name)}"><input type="hidden" name="back" value="{"device-routes" if device else "routes"}">'
                       '<button>Collect config + routes</button></form>')
         reason = state.get("error") or state.get("action_hint") or ""
         rows.append(f'<tr><td><a href="/device?name={urllib.parse.quote(name, safe="")}">{e(name)}</a></td>'
@@ -97,9 +97,11 @@ def vendor_measurements_panel(handler, device, q=None):
                if str(r.get("source") or "").startswith(f"vendor-profile:{profile.id}/")]
     head = (f'<div class="panel" id="vendor-measurements"><h2>Vendor profile telemetry</h2><p><b>{e(profile.vendor)} {e(profile.product)}</b> · '
             f'{len(sensors)} monitoring measurement(s).</p>'
-            '<p>Health follows the active monitoring profile, not the MIB name. Bundled FortiGate CPU defaults: warning at 80%, critical at 95%; '
-            'memory: warning at 80%, critical at 90%. These are adjustable NetConfig defaults, not vendor-certified limits. '
-            'Updated rules take effect on the next SNMP poll. Unknown is not a healthy result.</p>')
+            '<p>Health follows the active monitoring profile, not the MIB name. '
+            + ('Bundled FortiGate CPU defaults: warning at 80%, critical at 95%; memory: warning at 80%, critical at 90%. '
+               'These are adjustable NetConfig defaults, not vendor-certified limits. '
+               if profile.id == "fortinet.fortigate" else 'Each measurement shows the health rule its profile defines. ')
+            + 'Updated rules take effect on the next SNMP poll. Unknown is not a healthy result.</p>')
     if not sensors:
         return head + '<p>No mapped measurements collected yet. Use Poll now above; check raw vendor values and the active profile if the device returns no matching OIDs.</p></div>'
     rows = []

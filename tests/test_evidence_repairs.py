@@ -220,3 +220,28 @@ def test_structured_profile_is_not_silently_bypassed_for_route_learning(console)
     assert status['supports_cli_collection'] and not status['route_collection_available']
     _, _, page = console.request('GET', '/topology?view=l3', token=console.session())
     assert 'does not learn CLI routes' in page and '<button>Collect config + routes' not in page
+
+
+def test_route_collect_from_device_page_returns_to_that_device(console, monkeypatch):
+    _device(console.m, 'router', '192.0.2.1', platform='aruba_aoscx')
+    tp = _EvidenceTransport('1/1/1 10.0.0.1/30 up up\n', 'C    10.0.0.0/30 is directly connected, 1/1/1\n')
+    monkeypatch.setattr(console.m, '_connect', lambda dev: (tp, None))
+    token = console.session()
+    _, _, device_page = console.request('GET', '/device?name=router', token=token)
+    assert 'name="back" value="device-routes"' in device_page
+    code, headers, _ = console.request('POST', '/collect', {'csrf': 'ux-csrf', 'name': 'router', 'back': 'device-routes'}, token=token)
+    assert code == 303 and headers['Location'] == '/device?name=router#tab-overview'
+    _, _, page = console.request('GET', '/device?name=router', token=token)
+    assert 'Routes learned: 1' in page
+
+
+def test_route_learning_error_never_discards_the_config_snapshot(console, monkeypatch):
+    _device(console.m, 'router', '192.0.2.1', platform='aruba_aoscx')
+    tp = _EvidenceTransport('1/1/1 10.0.0.1/30 up up\n', 'C    10.0.0.0/30 is directly connected, 1/1/1\n')
+    monkeypatch.setattr(console.m, '_connect', lambda dev: (tp, None))
+
+    def broken(*a, **kw):
+        raise RuntimeError('route store unavailable')
+    monkeypatch.setattr(console.m.l3_topology, 'collect_from_session', broken)
+    result = console.m.collect('router')
+    assert result.ok and result.l3['status'] == 'ERROR'

@@ -419,3 +419,83 @@ def test_account_password_change_requires_csrf(console):
                                  "new_password": "vera-password-2", "confirm_password": "vera-password-2"}, token=tok)
     assert code in (400, 403)
     assert console.m.users.verify("vera", "vera-password-1")
+
+
+# ---- device page never runs live checks; explicit Check now ------------------------
+
+def test_device_page_shows_saved_checks_without_contacting_the_device(console, monkeypatch):
+    from netconfig import portmon, appmon
+    def boom(*a, **kw):
+        raise AssertionError("page render must not contact the device")
+    monkeypatch.setattr(portmon, "check_ports", boom)
+    monkeypatch.setattr(appmon, "check_all", boom)
+    m = console.m
+    _device(m, "srv1", "192.0.2.10", device_type="system,application",
+            monitor_ports="tcp/22", monitor_urls="https://192.0.2.10/health 200")
+    m.db.record_result("srv1", "port", "tcp/22", "open", 3)
+    m.db.record_result("srv1", "http", "https://192.0.2.10/health", "200", 41)
+    m.db.record_result("srv1", "tls", "https://192.0.2.10/health", "valid", 90)
+    code, _, page = console.request("GET", "/device?name=srv1", token=console.session())
+    assert code == 200
+    assert "tcp/22" in page and "open" in page and "valid · 90d left" in page
+    assert "does not contact the device" in page and "Check now" in page
+    _, _, viewer_page = console.request("GET", "/device?name=srv1", token=console.session("viewer", "viewer1"))
+    assert "Check now" not in viewer_page
+
+
+def test_check_now_runs_checks_saves_results_and_is_role_gated(console, monkeypatch):
+    from netconfig import portmon
+    calls = []
+    monkeypatch.setattr(portmon, "check_ports", lambda host, spec, timeout=1.5: calls.append(host) or
+                        [{"proto": "tcp", "port": 22, "state": "closed", "ms": None}])
+    m = console.m
+    _device(m, "srv1", "192.0.2.10", device_type="system", monitor_ports="tcp/22")
+    code, _, _ = console.request("POST", "/device-monitor-check", {"csrf": "ux-csrf", "name": "srv1"},
+                                 token=console.session("viewer", "viewer1"))
+    assert code == 303 and calls == []
+    code, headers, _ = console.request("POST", "/device-monitor-check", {"csrf": "ux-csrf", "name": "srv1"},
+                                       token=console.session())
+    assert code == 303 and headers["Location"].endswith("#tab-monitoring") and calls == ["192.0.2.10"]
+    assert m.db.result_history("srv1", kind="port")[0]["status"] == "closed"
+    assert any(r["action"] == "device_monitor_check" for r in m.db.recent_audit(10))
+
+
+def test_viewer_cannot_start_a_compliance_audit(console):
+    viewer = console.session("viewer", "viewer1")
+    _, _, page = console.request("GET", "/compliance", token=viewer)
+    assert "Run compliance audit" not in page
+    code, _, _ = console.request("POST", "/compliance-run", {"csrf": "ux-csrf"}, token=viewer)
+    assert code == 403
+    assert console.m.db.conn.execute("SELECT COUNT(*) FROM compliance_runs").fetchone()[0] == 0
+    code, _, _ = console.request("POST", "/compliance-run", {"csrf": "ux-csrf"}, token=console.session("operator", "op1"))
+    assert code == 303
+
+
+def test_dashboard_reachability_ignores_old_polls(console):
+    import time as _t
+    m = console.m
+    for name, host in (("fresh", "192.0.2.21"), ("old", "192.0.2.22")):
+        _device(m, name, host, snmp_version="v2c")
+    m.inv.set_facts("fresh", reachable=True, last_polled=_t.time() - 60)
+    m.inv.set_facts("old", reachable=True, last_polled=_t.time() - 3 * 86400)
+    _, _, page = console.request("GET", "/dashboard", token=console.session())
+    assert "1 / 2" in page and "1 not polled in the last 24 h" in page
+
+
+def test_devices_home_uses_light_drift_check_not_full_diff(console, monkeypatch):
+    m = console.m
+    _device(m, "sw1", "192.0.2.31")
+    m.store.save("sw1", "hostname sw1\n")
+    m.store.set_baseline("sw1")
+    m.store.save("sw1", "hostname sw1-changed\n")
+    assert m.store.drift_state("sw1") == {"baselined": True, "drifted": True}
+    assert m.store.drift("sw1")["drifted"] is True
+
+    def no_full_diff(*a, **kw):
+        raise AssertionError("list pages must not build full diffs")
+    monkeypatch.setattr(m.store, "drift", no_full_diff)
+    for path in ("/", "/dashboard"):
+        code, _, page = console.request("GET", path, token=console.session())
+        assert code == 200, path
+    _, _, home = console.request("GET", "/", token=console.session())
+    assert "drift" in home

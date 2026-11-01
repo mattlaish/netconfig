@@ -78,6 +78,7 @@ def render_tabs(tabs, tabset_id="tabs"):
 
 UX_CSS = """
 .account-form{max-width:520px}
+td.break{word-break:break-all}
 [id^="workflow-"]{scroll-margin-top:90px}
 .sidebar{padding:12px 12px}
 .side-group{margin:0 0 4px}
@@ -505,6 +506,96 @@ def parse_device_csv(text, manager):
 # The mixin
 # --------------------------------------------------------------------------
 
+def drift_flags(store, name):
+    """{baselined, drifted} without building a diff (falls back for minimal stores)."""
+    light = getattr(store, "drift_state", None)
+    return light(name) if light else store.drift(name)
+
+
+def has_config(store, name):
+    light = getattr(store, "has_current", None)
+    return light(name) if light else store.current(name) is not None
+
+
+# ---- Saved port / endpoint checks (device page; no device I/O on render) ----------
+
+def _latest_checks(manager, device, kind):
+    newest = {}
+    for row in manager.db.result_history(device, kind=kind, limit=500):
+        newest.setdefault(row["target"], row)          # rows are newest first
+    return newest
+
+
+def _check_controls(handler, dev, sess, what):
+    sess = sess or {}
+    interval = int(handler.manager.settings.get("monitor_poll_interval") or 0)
+    schedule = (f"Background checks run every {interval // 60 or 1} minute(s)." if interval
+                else 'Background checks are off; turn them on in '
+                     '<a href="/settings?section=monitoring">Settings → Monitoring</a>.')
+    button = ""
+    if _can(sess.get("role", ""), "collect"):
+        button = (f'<form method=post action="/device-monitor-check" class="inline-form">{handler._csrf_field()}'
+                  f'<input type=hidden name=name value="{_e(dev["name"])}"><button class=ghost>Check now</button></form>')
+    return (f'<p class="muted">Last saved {what} results. Opening this page does not contact the device. '
+            f'{schedule}</p>{button}')
+
+
+def saved_port_checks(handler, dev, sess=None):
+    spec = (dev.get("monitor_ports") or "").strip()
+    if not spec:
+        return ('<div class="panel"><h2>TCP / UDP ports</h2>'
+                '<p class="muted">No ports configured. Edit the device and list ports to '
+                'monitor, e.g. <code>tcp/22, tcp/443, udp/53</code>.</p></div>')
+    from .web_ui import _fmt_ts
+    latest = _latest_checks(handler.manager, dev["name"], "port")
+    rows = ""
+    for target, r in sorted(latest.items()):
+        st = r["status"]
+        cls = ("b-ok" if st == "open" else "b-bad" if st == "closed"
+               else "b-chg" if st in ("filtered", "error") else "b-dim")
+        ms = f'{int(float(r["value"]))} ms' if r.get("value") not in (None, "") else "—"
+        rows += (f'<tr><td>{_e(target)}</td><td><span class="badge {cls}">{_e(st)}</span></td>'
+                 f'<td class="muted">{_e(ms)}</td><td class="muted">{_fmt_ts(r["ts"])}</td></tr>')
+    table = (f'<table><tr><th>Port</th><th>Status</th><th>Latency</th><th>Checked</th></tr>{rows}</table>'
+             if rows else '<p class="muted">Not checked yet.</p>')
+    return (f'<div class="panel"><h2>TCP / UDP ports</h2>{_check_controls(handler, dev, sess, "port")}'
+            f'<p class="muted">Configured: <code>{_e(spec)}</code>. UDP is best-effort '
+            f'(<code>open|filtered</code> when the port is silent).</p>{table}</div>')
+
+
+def saved_endpoint_checks(handler, dev, sess=None):
+    spec = (dev.get("monitor_urls") or "").strip()
+    if not spec:
+        return ('<div class="panel"><h2>REST API / HTTPS</h2>'
+                '<p class="muted">No endpoints configured. Edit the device and list HTTP(S) '
+                'URLs to monitor, e.g. <code>https://host/api/health 200</code>.</p></div>')
+    from .web_ui import _fmt_ts
+    http = _latest_checks(handler.manager, dev["name"], "http")
+    tls = _latest_checks(handler.manager, dev["name"], "tls")
+    rows = ""
+    for target, r in sorted(http.items()):
+        code = r["status"]
+        ok = code not in ("down", "") and str(code)[:1] in "23"
+        ms = f'{int(float(r["value"]))} ms' if r.get("value") not in (None, "") else "—"
+        t = tls.get(target)
+        if not t:
+            tls_cell = '<span class="muted">—</span>'
+        elif t["status"] == "valid":
+            days = t.get("value")
+            left = f" · {int(float(days))}d left" if days not in (None, "") else ""
+            warn = days not in (None, "") and float(days) <= 14
+            tls_cell = f'<span class="badge {"b-chg" if warn else "b-ok"}">valid{left}</span>'
+        else:
+            tls_cell = '<span class="badge b-bad">invalid</span>'
+        rows += (f'<tr><td class="break">{_e(target)}</td>'
+                 f'<td><span class="badge {"b-ok" if ok else "b-bad"}">{_e(code)}</span></td>'
+                 f'<td class="muted">{_e(ms)}</td><td>{tls_cell}</td><td class="muted">{_fmt_ts(r["ts"])}</td></tr>')
+    table = (f'<table><tr><th>Endpoint</th><th>HTTP</th><th>Time</th><th>TLS cert</th><th>Checked</th></tr>{rows}</table>'
+             if rows else '<p class="muted">Not checked yet.</p>')
+    return (f'<div class="panel"><h2>REST API / HTTPS</h2>{_check_controls(handler, dev, sess, "endpoint")}'
+            f'<p class="muted">Alert rules use the same saved results; HTTPS rows include certificate validity.</p>{table}</div>')
+
+
 class WebUxMixin:
     """Shell, navigation and everyday workflow pages for the Console."""
 
@@ -642,11 +733,11 @@ class WebUxMixin:
             managed = _is_managed_device(d)
             meta = metas.get(d["name"], {})
             last = _fmt_ts(meta.get("last_collected")) if managed else "—"
-            has_cfg = managed and m.store.current(d["name"]) is not None
+            has_cfg = managed and has_config(m.store, d["name"])
             st = (('<span class="badge b-ok">stored</span>' if has_cfg
                    else '<span class="badge b-dim">none</span>') if managed
                   else '<span class="muted">—</span>')
-            drift = m.store.drift(d["name"]) if has_cfg else {"baselined": False, "drifted": False}
+            drift = drift_flags(m.store, d["name"]) if has_cfg else {"baselined": False, "drifted": False}
             if drift["baselined"]:
                 st += (' <span class="badge b-bad">drift</span>' if drift["drifted"]
                        else ' <span class="badge b-ok">baseline</span>')
@@ -1258,6 +1349,21 @@ class WebUxMixin:
                          f'{self._csrf_field()}<input type=hidden name=name value="{_e(name)}">'
                          '<button class=danger>Delete device</button></form></div>')
         self._send(self._page(title, body + del_panel, sess, flash=flash), status)
+
+    def _do_device_monitor_check(self, form, sess):
+        """Explicit, read-only port/HTTP/TLS check; results saved like background checks."""
+        from .web_forms import feedback
+        from . import monitor
+        name = (form.get("name") or [""])[0]
+        target = f"/device?name={_q(name)}#tab-monitoring"
+        if not _can(sess["role"], "collect"):
+            return feedback(self, sess, target, "Not permitted to run checks.")
+        dev = self.manager.inv.get(name)
+        if not dev:
+            return feedback(self, sess, "/", "Device not found.")
+        results = monitor.run_device_checks(self.manager, dev)
+        self.manager.db.audit(sess["username"], "device_monitor_check", name, f"{len(results)} result(s)")
+        return feedback(self, sess, target, f"{name}: {len(results)} check result(s) saved.")
 
     def _do_device_test(self, form, sess):
         """Explicit, read-only connection test for the Add/Edit form. Saves nothing."""

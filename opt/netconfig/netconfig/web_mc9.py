@@ -40,8 +40,18 @@ class WebMC9Mixin:
         devices = m.inv.all()
         facts = m.inv.all_facts()
         polled = [d for d in devices if d.get("snmp_version")]
-        down = [d for d in polled if facts.get(d["name"]) and not facts[d["name"]].get("reachable")]
-        up = sum(1 for d in polled if (facts.get(d["name"]) or {}).get("reachable"))
+        # Only recent polls count; an old "reachable" result is not current status.
+        interval = int(m.settings.get("snmp_poll_interval") or 0)
+        max_age = max(3 * interval, 3600) if interval > 0 else 86400
+
+        def recent(name):
+            fx = facts.get(name) or {}
+            try:
+                return fx if now - float(fx.get("last_polled") or 0) <= max_age else None
+            except (TypeError, ValueError):
+                return None
+        down = [d for d in polled if recent(d["name"]) and not recent(d["name"]).get("reachable")]
+        up = sum(1 for d in polled if (recent(d["name"]) or {}).get("reachable"))
         not_polled = len(polled) - up - len(down)
         runs = m.inv.recent_runs(500)
         day = [r for r in runs if float(r.get("ts") or 0) >= now - 86400]
@@ -53,14 +63,18 @@ class WebMC9Mixin:
             pending = []
         comp = m.db.conn.execute("SELECT * FROM compliance_runs ORDER BY ts DESC LIMIT 1").fetchone()
         comp = dict(comp) if comp else None
+        from .web_ux import drift_flags
         drifted = []
         for d in devices[:500]:
             try:
-                if m.store.current(d["name"]) is not None and m.store.drift(d["name"]).get("drifted"):
+                if drift_flags(m.store, d["name"]).get("drifted"):
                     drifted.append(d["name"])
             except Exception:
                 pass
         critical = data.get("critical_alerts") or []
+
+        def _span(seconds):
+            return f"{seconds // 3600} h" if seconds >= 3600 else f"{seconds // 60} min"
 
         def card(state, title, value, detail):
             return (f'<div class="sensor-card {state}"><div class="sensor-head"><span class="sensor-dot"></span>{html.escape(title)}</div>'
@@ -68,7 +82,7 @@ class WebMC9Mixin:
         cards = ('<div class="sensor-grid dash-kpis">'
                  + card("bad" if down else ("ok" if polled else "dim"), "Devices reachable",
                         f'{up} / {len(polled)}' if polled else f'{len(devices)}',
-                        (f'{len(down)} unreachable · {not_polled} not polled yet' if polled
+                        (f'{len(down)} unreachable · {not_polled} not polled in the last {_span(max_age)}' if polled
                          else '<a href="/">no SNMP polling configured</a>'))
                  + card("warn" if changes else "ok", "Config changes (24 h)", len(changes),
                         f'<a href="/runs">{len(failed)} failed collection(s)</a>')

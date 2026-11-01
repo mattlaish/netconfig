@@ -591,7 +591,10 @@ class Manager:
                 # Reuse the authenticated CLI session. L3 evidence is an
                 # independent best-effort read: a parse/command failure must not
                 # discard a valid configuration snapshot.
-                l3_result = self.l3_topology.collect_from_session(device, driver, tp)
+                try:
+                    l3_result = self.l3_topology.collect_from_session(device, driver, tp)
+                except Exception as exc:
+                    l3_result = {"status": "ERROR", "routes": 0, "interfaces": 0, "error": str(exc)[:200]}
             from . import scrub as _scrub
             stored = raw
             if device["scrub"]:

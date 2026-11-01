@@ -350,7 +350,11 @@ class L3TopologyService:
     def collect_from_session(self, device, driver, transport):
         """Collect L3 evidence using the already-authenticated config SSH session."""
         if not getattr(driver, "l3_route_command", None):
-            self._set_state(device["name"], platform=driver.name, status="UNSUPPORTED", received_ts=time.time(), error="This platform has no route collection command.")
+            try:
+                self._set_state(device["name"], platform=_platform(getattr(driver, "name", None) or device.get("platform")),
+                                status="UNSUPPORTED", received_ts=time.time(), error="This platform has no route collection command.")
+            except Exception:
+                pass  # status bookkeeping only; never fail the config collection
             return {"status": "UNSUPPORTED", "routes": 0, "interfaces": 0}
         now = time.time()
         cid = f"cli-{int(now * 1000)}-{uuid.uuid4().hex[:10]}"

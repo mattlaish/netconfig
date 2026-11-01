@@ -133,6 +133,7 @@ class OperationsCorrelationConsole:
                     "status": row.get("status") or "",
                     "confidence": row.get("confidence") or "",
                     "attachment": row.get("attachment"),
+                    "observed_location": row.get("observed_location"),
                 }
         return index
 
@@ -257,8 +258,12 @@ def traffic_identities(analysis, host_to_device, arp, endpoints=None, *, resolve
         if ep:
             ident["mac"] = ep.get("mac") or ident["mac"]
             att = ep.get("attachment") or {}
+            seen = ep.get("observed_location") or {}
             if att.get("device"):
                 ident["attachment"] = f'{att.get("device")} {att.get("ifdescr") or ""}'.strip()
+            elif seen.get("device"):
+                # Possible location only (one MAC-table port); worded as such.
+                ident["seen_on"] = f'{seen.get("device")} {seen.get("ifdescr") or ""}'.strip()
         if resolve_names:
             ident["name"] = REVERSE_DNS.name(ip, now=now)
         out[ip] = ident

@@ -1,3 +1,49 @@
+## PATCH-20261101-03 — Review of PATCH-20261101-02: four October 31 audit items fixed, collection robustness
+
+- Status: Ready for integration (source/local validation only). Package stays
+  `2.0.0-67.2` / `IMPLEMENTED_TESTING_DEFERRED`; no schema change.
+- **Login delay (probable root cause):** the landing page after sign-in (Devices
+  home) built a full unified diff of baseline vs current config for every device
+  just to show a drift badge, and also read each full config to test that it
+  exists. Measured locally: 40 drifted devices with 9,000-line configs took 22.8 s
+  vs 0.05 s with the new `ConfigStore.drift_state()` hash check (identical
+  answers). It was intermittent because cost appears only when configs drift. The
+  dashboard's drift count uses the same light check. Full diffs remain on the device
+  page and the drift API.
+- **Hidden live checks on device tabs:** rendering a System/Application device page
+  ran live TCP/UDP port checks (1.5 s timeout each) and HTTP/TLS checks (5 s each),
+  even when the Monitoring tab was never opened. The panels now show the latest
+  saved results (same table background monitoring and alert rules use) with the
+  check time, and an explicit **Check now** button (`/device-monitor-check`,
+  operator/approver/admin, audited). Background checks are off by default; the
+  panel links to Settings → Monitoring.
+- **Viewer compliance execution:** `/compliance-run` had no role check; any
+  signed-in user could start a fleet audit that writes results. Now operator or
+  higher (the `collect` permission); viewers still read results and see no button.
+- **Stale overview status:** the dashboard counted a device as reachable from its
+  last SNMP poll however old. Only polls within 3× the poll interval (minimum 1 h),
+  or 24 h when the poller is off, now count; older ones show as "not polled in the
+  last …".
+- **Route learning can no longer fail config collection:** the new UNSUPPORTED
+  branch in `collect_from_session` ran outside error handling (and read
+  `driver.name` directly). It is now guarded, and `Manager.collect` isolates any
+  route-learning exception so the config snapshot is always saved, as its comment
+  promises. The device-page "Collect config + routes" button now returns to that
+  device instead of the routing topology page.
+- **Possible location wording kept consistent:** Traffic host labels used only the
+  old `attachment` field, which is now always empty for single FDB observations;
+  they show "probably on <switch port>" from `observed_location`. The vendor
+  telemetry panel quotes the FortiGate CPU/memory defaults only for the FortiGate
+  profile.
+- Tests: three `test_mc4` endpoint tests updated to the PATCH-20261101-02 rule (a
+  single FDB port is CANDIDATE / LOW, `attachment` None, `observed_location` set);
+  new tests for light drift checks, saved monitoring results without device I/O,
+  Check now RBAC/audit, viewer compliance 403, dashboard poll freshness, route
+  collection isolation, device-page return, and the Traffic location label.
+- Validation: full suite **794 passed / 15 skipped / 0 failed**; legacy selftest ALL PASS; ruff adds no
+  findings. Release metadata regenerated (not a candidate freeze). Live
+  PG/devices/LIVE_RC NOT_RUN.
+
 ## PATCH-20261101-02 — Restore evidence files without reverting October 25 changes
 
 - Restored `web_evidence.py`, `vendor_measurements.py`, `test_evidence_repairs.py`

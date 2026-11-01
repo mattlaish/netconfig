@@ -818,6 +818,7 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
             "/device-save": lambda: self._do_device_save(form, sess),
             "/device-delete": lambda: self._do_device_delete(form, sess),
             "/device-test": lambda: self._do_device_test(form, sess),
+            "/device-monitor-check": lambda: self._do_device_monitor_check(form, sess),
             "/account-password": lambda: self._do_account_password(form, sess),
             "/device-import": lambda: self._do_device_import(form, sess),
             "/device-run": lambda: self._do_device_run(form, sess),
@@ -1098,6 +1099,7 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
         if "network" in _dt and hasattr(m, "l3_topology"):
             from .web_evidence import route_learning_panel
             meta += route_learning_panel(self, sess, device=name)
+        self._viewing_sess = sess  # per-request handler; panels keep their one-argument form
         portmon_panel = self._portmon_section(dev) if "system" in _dt else ""
         appmon_panel = self._appmon_section(dev) if "application" in _dt else ""
         config_tab = ""
@@ -2168,68 +2170,12 @@ The client secret is stored in the vault.</p>
         return render_netflow_section(self, dev, Console.netflow)
 
     def _portmon_section(self, dev):
-        spec = (dev.get("monitor_ports") or "").strip()
-        if not spec:
-            return ('<div class="panel"><h2>TCP / UDP ports</h2>'
-                    '<p class="muted">No ports configured. Edit the device and list ports to '
-                    'monitor, e.g. <code>tcp/22, tcp/443, udp/53</code>.</p></div>')
-        from . import portmon
-        results = portmon.check_ports(dev["host"], spec, timeout=1.5)
-        rows = ""
-        for r in results:
-            st = r["state"]
-            cls = ("b-ok" if st == "open" else "b-bad" if st == "closed"
-                   else "b-chg" if st in ("filtered", "error") else "b-dim")
-            svc = f' <span class="muted">{html.escape(r["service"])}</span>' if r.get("service") else ""
-            ms = f'{r["ms"]} ms' if r.get("ms") is not None else "\u2014"
-            detail = f' <span class="muted">{html.escape(r.get("detail", ""))}</span>' if r.get("detail") else ""
-            rows += (f'<tr><td>{r["proto"].upper()}</td><td>{r["port"]}{svc}</td>'
-                     f'<td><span class="badge {cls}">{html.escape(st)}</span>{detail}</td>'
-                     f'<td class="muted">{ms}</td></tr>')
-        return (f'<div class="panel"><h2>TCP / UDP ports</h2>'
-                f'<p class="muted">Live status for <b>{html.escape(dev["host"])}</b> \u2014 reload '
-                f'to re-check. UDP is best-effort (shows <code>open|filtered</code> when the port '
-                f'is silent).</p>'
-                f'<table><tr><th>Proto</th><th>Port</th><th>Status</th><th>Latency</th></tr>'
-                f'{rows}</table></div>')
+        from .web_ux import saved_port_checks
+        return saved_port_checks(self, dev, getattr(self, "_viewing_sess", None))
 
     def _appmon_section(self, dev):
-        spec = (dev.get("monitor_urls") or "").strip()
-        if not spec:
-            return ('<div class="panel"><h2>REST API / HTTPS</h2>'
-                    '<p class="muted">No endpoints configured. Edit the device and list HTTP(S) '
-                    'URLs to monitor, e.g. <code>https://host/api/health 200</code>.</p></div>')
-        from . import appmon
-        results = appmon.check_all(spec, dev["host"], timeout=5.0)
-        rows = ""
-        for r in results:
-            status = r.get("status")
-            http_badge = (f'<span class="badge {"b-ok" if r.get("ok") else "b-bad"}">'
-                          f'{status if status is not None else "down"}</span>')
-            if r.get("expect"):
-                http_badge += f' <span class="muted">exp {r["expect"]}</span>'
-            if r.get("error"):
-                http_badge += f' <span class="muted">{html.escape(r["error"][:60])}</span>'
-            ms = f'{r["ms"]} ms' if r.get("ms") is not None else "\u2014"
-            tls = r.get("tls")
-            if not tls:
-                tls_cell = '<span class="muted">\u2014</span>'
-            elif tls.get("valid"):
-                dleft = tls.get("expires_days")
-                cls = "b-ok" if (dleft is None or dleft > 14) else "b-chg"
-                extra = f' \u00b7 {dleft}d left' if dleft is not None else ""
-                tls_cell = (f'<span class="badge {cls}">valid{extra}</span> '
-                            f'<span class="muted">{html.escape(tls.get("version",""))}</span>')
-            else:
-                tls_cell = (f'<span class="badge b-bad">invalid</span> '
-                            f'<span class="muted">{html.escape((tls.get("error") or "")[:60])}</span>')
-            rows += (f'<tr><td style="word-break:break-all">{html.escape(r["url"])}</td>'
-                     f'<td>{http_badge}</td><td class="muted">{ms}</td><td>{tls_cell}</td></tr>')
-        return (f'<div class="panel"><h2>REST API / HTTPS</h2>'
-                f'<p class="muted">Live endpoint status \u2014 reload to re-check. HTTPS URLs also '
-                f'show certificate validity and days to expiry.</p>'
-                f'<table><tr><th>Endpoint</th><th>HTTP</th><th>Time</th><th>TLS cert</th></tr>'
-                f'{rows}</table></div>')
+        from .web_ux import saved_endpoint_checks
+        return saved_endpoint_checks(self, dev, getattr(self, "_viewing_sess", None))
 
     def _arp_section(self, dev):
         entries = self.manager.db.get_arp(dev["name"])
@@ -2809,7 +2755,9 @@ The client secret is stored in the vault.</p>
         sel = "".join(
             f'<option value="{html.escape(s)}"{" selected" if s==standard else ""}>{html.escape(s)}</option>'
             for s in stds)
-        controls = (f'<div class="panel"><h2>Run audit</h2>'
+        controls = ('<div class="panel"><h2>Run audit</h2><p class="muted">Viewers can read the latest results; '
+                    'an operator, approver or administrator starts a new audit.</p></div>') if not _can(sess["role"], "collect") else (
+                    f'<div class="panel"><h2>Run audit</h2>'
                     f'<form method=post action="/compliance-run" class="row">{self._csrf_field()}'
                     f'<div><label>Standard</label><select name=standard>'
                     f'<option value="">All standards</option>{sel}</select></div>'
@@ -2856,6 +2804,8 @@ The client secret is stored in the vault.</p>
         self._send(self._page("Compliance", controls + report_html, sess, flash=flash))
 
     def _do_compliance_run(self, form, sess):
+        if not _can(sess["role"], "collect"):
+            return self._send(self._page("Compliance", '<div class="err">Not permitted to run a compliance audit.</div>', sess), 403)
         standard = (form.get("standard") or [""])[0] or None
         m = self.manager
         devices = m.inv.all(only_enabled=False)
@@ -2875,9 +2825,12 @@ The client secret is stored in the vault.</p>
         from .web_forms import feedback
         name = (form.get("name") or [""])[0]
         target = f"/device?name={_q(name)}#tab-config" if name else "/"
-        routing = (form.get("back") or [""])[0] == "routes"
-        if routing:
+        back = (form.get("back") or [""])[0]
+        routing = back in {"routes", "device-routes"}
+        if back == "routes":
             target = "/topology?view=l3"
+        elif back == "device-routes" and name:
+            target = f"/device?name={_q(name)}#tab-overview"
         if not _can(sess["role"], "collect"):
             return feedback(self, sess, target, "Not permitted to collect.")
         if not self.manager.vault_ready():
