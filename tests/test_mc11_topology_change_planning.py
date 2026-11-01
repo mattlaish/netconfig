@@ -106,12 +106,22 @@ def test_mc11_forward_return_paths_and_endpoint_attachment(tmp_path):
             destination_prefix="10.2.2.20/32", source_prefix="10.1.1.10/32",
             service="tcp/443", actor="alice")
         result = plan["result"]
+        # FDB-only endpoint evidence is a candidate, not a proven attachment.
+        assert result["source"]["status"] == "UNKNOWN"
+        assert result["destination"]["status"] == "UNKNOWN"
+        assert not result["source"].get("device")
+        # Explicit managed devices still support the same forward/return plan.
+        plan = manager.change_planning.plan(
+            source="r1", destination="r2", vrf="blue",
+            destination_prefix="10.2.2.20/32", source_prefix="10.1.1.10/32",
+            service="tcp/443", actor="alice")
+        result = plan["result"]
         assert result["source"]["device"] == "r1"
         assert result["destination"]["device"] == "r2"
         assert [x["device"] for x in result["forward_path"]["hops"]] == ["r1", "fw1", "r2"]
         assert [x["device"] for x in result["return_path"]["hops"]] == ["r2", "fw1", "r1"]
         assert result["forward_path"]["hops"][0]["outgoing_interface"] == "Gi0/1"
-        assert result["endpoint_attachment_evidence"]["source"]["vlan_id"] == "10"
+        assert result["endpoint_attachment_evidence"]["source"] is None
     finally:
         manager.close()
 

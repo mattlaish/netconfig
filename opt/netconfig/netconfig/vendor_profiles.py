@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json, os, re, tempfile
 from pathlib import Path
+from .vendor_measurements import validate_numeric, reading
 _SCHEMA_VERSION = 1
 _PROFILE_ID_RE = re.compile('^[a-z0-9][a-z0-9._-]{0,127}$')
 _NUMERIC_OID_RE = re.compile('^\\.?\\d+(?:\\.\\d+)*$')
@@ -124,7 +125,7 @@ def validate_profile(raw, *, source_path=''):
         raise ValueError('metrics must be a bounded array')
     metrics = []
     for i, item in enumerate(mr):
-        allowed = {'id', 'oid', 'sensor_type', 'resource', 'unit', 'status', 'value_map', 'message'}
+        allowed = {'id', 'oid', 'sensor_type', 'resource', 'unit', 'status', 'value_map', 'message', 'numeric'}
         if not isinstance(item, dict) or set(item) - allowed:
             raise ValueError(f'metrics[{i}] has unsupported fields')
         oid = _oid(item.get('oid'), field=f'metrics[{i}].oid')
@@ -136,7 +137,7 @@ def validate_profile(raw, *, source_path=''):
         status = str(item.get('status') or 'OK').upper()
         if status not in {'OK', 'WARNING', 'CRITICAL', 'UNKNOWN'}:
             raise ValueError(f'metrics[{i}].status is invalid')
-        metrics.append({'id': _bounded_text(item.get('id') or f'metric-{i}', f'metrics[{i}].id', 64), 'oid': oid, 'sensor_type': _bounded_text(item.get('sensor_type'), f'metrics[{i}].sensor_type', 128, True), 'resource': _validate_template(item.get('resource') or '', f'metrics[{i}].resource'), 'unit': _bounded_text(item.get('unit') or '', f'metrics[{i}].unit', 32), 'status': status, 'value_map': {str(k): str(v) for k, v in vm.items()}, 'message': _validate_template(item.get('message') or '', f'metrics[{i}].message')})
+        metrics.append({'id': _bounded_text(item.get('id') or f'metric-{i}', f'metrics[{i}].id', 64), 'oid': oid, 'sensor_type': _bounded_text(item.get('sensor_type'), f'metrics[{i}].sensor_type', 128, True), 'resource': _validate_template(item.get('resource') or '', f'metrics[{i}].resource'), 'unit': _bounded_text(item.get('unit') or '', f'metrics[{i}].unit', 32), 'status': status, 'value_map': {str(k): str(v) for k, v in vm.items()}, 'message': _validate_template(item.get('message') or '', f'metrics[{i}].message'), 'numeric': validate_numeric(item.get('numeric'))})
     tr = raw.get('tables') or []
     if not isinstance(tr, list) or len(tr) > _MAX_TABLES:
         raise ValueError('tables must be a bounded array')
@@ -161,7 +162,7 @@ def validate_profile(raw, *, source_path=''):
             raise ValueError(f'tables[{ti}].sensors must be a non-empty bounded array')
         ns = []
         for si, s in enumerate(sensors):
-            allowed = {'sensor_type', 'resource', 'value_from', 'value_map', 'unit', 'status', 'status_from', 'status_map', 'message', 'required_fields'}
+            allowed = {'sensor_type', 'resource', 'value_from', 'value_map', 'unit', 'status', 'status_from', 'status_map', 'message', 'required_fields', 'numeric'}
             if not isinstance(s, dict) or set(s) - allowed:
                 raise ValueError(f'tables[{ti}].sensors[{si}] has unsupported fields')
             vf = str(s.get('value_from') or '').strip()
@@ -179,7 +180,7 @@ def validate_profile(raw, *, source_path=''):
                 raise ValueError('table value_map/status_map must be objects')
             if any((str(x).upper() not in {'OK', 'WARNING', 'CRITICAL', 'UNKNOWN'} for x in sm.values())):
                 raise ValueError('table status_map contains invalid status')
-            ns.append({'sensor_type': _bounded_text(s.get('sensor_type'), 'sensor_type', 128, True), 'resource': _validate_template(s.get('resource') or '{index}', 'resource'), 'value_from': vf, 'value_map': {str(k): str(v) for k, v in vm.items()}, 'unit': _bounded_text(s.get('unit') or '', 'unit', 32), 'status': status, 'status_from': sf, 'status_map': {str(k): str(v).upper() for k, v in sm.items()}, 'message': _validate_template(s.get('message') or '', 'message'), 'required_fields': tuple((str(x) for x in req))})
+            ns.append({'sensor_type': _bounded_text(s.get('sensor_type'), 'sensor_type', 128, True), 'resource': _validate_template(s.get('resource') or '{index}', 'resource'), 'value_from': vf, 'value_map': {str(k): str(v) for k, v in vm.items()}, 'unit': _bounded_text(s.get('unit') or '', 'unit', 32), 'status': status, 'status_from': sf, 'status_map': {str(k): str(v).upper() for k, v in sm.items()}, 'message': _validate_template(s.get('message') or '', 'message'), 'required_fields': tuple((str(x) for x in req)), 'numeric': validate_numeric(s.get('numeric'))})
         tables.append({'id': tid, 'columns': ncols, 'sensors': ns})
     return VendorProfile(pid, version, vendor, product, prefixes, tuple(collections), excludes, tuple(metrics), tuple(tables), str(source_path or ''))
 
@@ -298,10 +299,10 @@ def _fmt(template, ctx):
 
         def __missing__(self, key):
             return ''
-    return template.format_map(Safe({k: str(v or '') for k, v in ctx.items()}))
+    return template.format_map(Safe({k: str(v if v is not None else '') for k, v in ctx.items()}))
 
 def normalize(profile, rows):
-    by_oid = {str(r.get('oid') or '').lstrip('.'): str(r.get('value') or '') for r in rows or []}
+    by_oid = {str(r.get('oid') or '').lstrip('.'): str(r.get('value') if r.get('value') is not None else '') for r in rows or []}
     out = []
     base = f'vendor-profile:{profile.id}'
     for m in profile.metrics:
@@ -309,8 +310,10 @@ def normalize(profile, rows):
             continue
         raw = by_oid[m['oid']]
         value = m['value_map'].get(raw, raw)
+        value, status, note, threshold = reading(m, value, m['status'])
         ctx = {'value': value, 'raw': raw}
-        out.append({'sensor_type': m['sensor_type'], 'resource': _fmt(m['resource'], ctx), 'value': value, 'unit': m['unit'], 'status': m['status'], 'message': _fmt(m['message'], ctx), 'source': f"{base}/{m['id']}"})
+        message = ' '.join(x for x in (_fmt(m['message'], ctx), note) if x)
+        out.append({'sensor_type': m['sensor_type'], 'resource': _fmt(m['resource'], ctx), 'value': value, 'unit': m['unit'], 'status': status, 'message': message, 'threshold': threshold, 'source': f"{base}/{m['id']}"})
     for t in profile.tables:
         entries = {}
         for cname, prefix in t['columns'].items():
@@ -328,7 +331,9 @@ def normalize(profile, rows):
                 status = s['status']
                 if s['status_from']:
                     status = s['status_map'].get(str(ctx.get(s['status_from'], '')), 'UNKNOWN')
+                value, status, note, threshold = reading(s, value, status)
                 mc = dict(ctx)
                 mc.update({'value': value, 'raw': raw})
-                out.append({'sensor_type': s['sensor_type'], 'resource': _fmt(s['resource'], mc), 'value': value, 'unit': s['unit'], 'status': status, 'message': _fmt(s['message'], mc), 'source': f"{base}/{t['id']}"})
+                message = ' '.join(x for x in (_fmt(s['message'], mc), note) if x)
+                out.append({'sensor_type': s['sensor_type'], 'resource': _fmt(s['resource'], mc), 'value': value, 'unit': s['unit'], 'status': status, 'message': message, 'threshold': threshold, 'source': f"{base}/{t['id']}"})
     return out

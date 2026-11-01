@@ -423,3 +423,18 @@ NI-6.4 adds no new Web route or operator action in this delivery. Failure-risk r
 ## R67.2 Database settings split
 
 Settings → Database separates **Core Database** from the optional **Interface History Store**. Core PostgreSQL Save is fail-closed on credential/driver/connectivity/schema preflight. History uses dedicated `if_history_pg_*` fields and its vault-backed password. Core and History test actions are distinct; `/db-test` remains a compatibility alias for the History test.
+## Network evidence corrective — 2026-11-01
+
+Inventory → Routing topology exposes learned routes, collection status and old-data
+warnings. Collect config + routes is an explicit authorized CLI configuration
+collection and also saves its snapshot. SNMP Poll does not update these routes.
+Structured collection profiles are not silently bypassed; no GET performs collection.
+
+MAC / Endpoints now label learned locations as candidates or transit evidence, not
+proven physical directness. FDB candidates do not auto-resolve endpoint-IP plans.
+SNMP Vendor profile telemetry shows readable measurements, units, thresholds and
+latest-50 history. Numeric values outside valid ranges and CPU/memory profiles
+without policy are Unknown. FortiGate defaults: CPU warning/critical 80/95%, memory
+80/90%; these are adjustable product policies. Re-poll after a profile update.
+A MIB alone does not supply complete semantic health monitoring for every vendor.
+

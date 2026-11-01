@@ -1,5 +1,38 @@
 # NetConfig Web Console — Operations and UI
 
+## MAC locations, route learning and vendor measurement health — 2026-11-01
+
+- **Endpoints / device ARP-MAC:** Candidate means a possible observation port,
+  not physical directness. A known neighbor-facing port is transit evidence.
+  Multiple candidates and outdated records are shown separately. Missing neighbor
+  discovery is never proof that no downstream switch exists.
+- **Inventory → Routing topology:** shows Layer 3 and Combined views, platforms,
+  last successful collection, route/interface counts and next action/error for
+  every Network device. Collect config + routes uses existing SSH settings,
+  performs normal configuration collection and saves a snapshot. It requires
+  collection permission and an unlocked vault. Structured methods are not forced
+  into CLI fallback. One-hour-old routes are excluded from current graphs; use
+  Show outdated route evidence to inspect them. Graph GETs never poll devices.
+- **SNMP → device → Vendor profile telemetry:** readable values, units, active
+  health rules and History links. History is the latest 50 saved evaluations,
+  not a promise of continuous sampling. The selected history must belong to this
+  device's displayed profile. No profile means raw MIB values are not health-scored.
+- Optional JSON profile `numeric` fields: positive `scale`, `offset`, `minimum`,
+  `maximum`, `warning_above`, `critical_above`, `warning_below`, `critical_below`.
+  Threshold comparisons include equality and apply after conversion. Numbers and
+  policy ordering are validated. Invalid/out-of-range readings become Unknown.
+  Old CPU/memory profiles without health policy are also Unknown. Existing
+  enumeration status maps remain; no scripts/expressions are accepted.
+- Bundled FortiGate CPU policy: warning >=80%, critical >=95%; memory: warning
+  >=80%, critical >=90%, range 0..100. These are adjustable NetConfig defaults.
+  Updated rules apply on the next SNMP poll and use existing history/event/alert
+  recovery handling. A measurement rule does not grant configuration-write rights.
+
+API consumers: single FDB candidates now return `status=CANDIDATE`, `confidence=LOW`,
+`attachment=null`, `observed_location={...}`, `direct_connection_proven=false`.
+The summary retains `attached` and adds `candidate`. Candidates cannot automatically
+select the source/destination device for a change plan; choose managed devices.
+
 ## Save and view NetFlow history — 2026-10-22
 
 Use **Settings → Database → Interface History Store** to configure the History

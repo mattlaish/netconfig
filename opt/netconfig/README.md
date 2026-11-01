@@ -4,6 +4,22 @@ Release 60 adds appliance lifecycle preservation/recovery without changing MC-11
 
 # NetConfig
 
+## Network evidence and measurement health — 2026-11-01
+
+Use **Routing topology** to view learned route relationships and collection status.
+**Collect config + routes** performs a normal CLI configuration collection and
+saves its snapshot; SNMP Poll does not refresh the route graph. Outdated routes
+are explained and can be shown separately, never silently treated as fresh.
+MAC-table ports are observation locations, not proof of physical directness.
+Known transit paths and uncertain candidates are labelled explicitly.
+
+SNMP vendor measurements show health rules and History. Numeric CPU/memory values
+now follow declared thresholds; invalid readings or profiles without a numeric
+health policy are Unknown. Bundled FortiGate thresholds are adjustable NetConfig
+defaults (CPU 80/95%, memory 80/90%), not manufacturer-certified limits. Poll again
+after updating a profile. Uploaded MIBs without a matching measurement profile
+remain raw data; automatic all-vendor semantic coverage is not claimed.
+
 ## Everyday workflow improvements — 2026-10-24
 
 Use **Enter credentials for this device** to save a device-only login without

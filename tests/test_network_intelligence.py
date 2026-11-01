@@ -105,9 +105,10 @@ def test_correlation_prefers_single_non_neighbor_facing_access_port(tmp_path):
     rows = correlate(db, max_age=3600)
     assert len(rows) == 1
     row = rows[0]
-    assert row["status"] == "ATTACHED" and row["confidence"] == "HIGH"
-    assert row["attachment"]["device"] == "access"
-    assert row["attachment"]["vlan_id"] == "20"
+    assert row["status"] == "CANDIDATE" and row["confidence"] == "LOW"
+    assert row["attachment"] is None and not row["direct_connection_proven"]
+    assert row["observed_location"]["device"] == "access"
+    assert row["observed_location"]["vlan_id"] == "20"
     assert row["ipv4"] == ["192.0.2.10"]
     assert len(row["transit_observations"]) == 1
     assert row["transit_observations"][0]["downstream"][0]["neighbor"] == "access"
@@ -171,7 +172,8 @@ def test_endpoint_scope_cli_parser_and_api(tmp_path):
         conn.request("GET", "/api/v1/endpoints", headers={"Authorization": "Bearer " + raw})
         response = conn.getresponse(); payload = json.loads(response.read())
         assert response.status == 200
-        assert payload["summary"]["attached"] == 1
-        assert payload["endpoints"][0]["attachment"]["vlan_id"] == "20"
+        assert payload["summary"]["attached"] == 0 and payload["summary"]["candidate"] == 1
+        assert payload["endpoints"][0]["attachment"] is None
+        assert payload["endpoints"][0]["observed_location"]["vlan_id"] == "20"
     finally:
         conn.close(); server.shutdown(); server.server_close(); thread.join(timeout=5); manager.db.close()

@@ -1,3 +1,31 @@
+## PATCH-20261101-02 — Restore evidence files without reverting October 25 changes
+
+- Restored `web_evidence.py`, `vendor_measurements.py`, `test_evidence_repairs.py`
+  from the prior completed checkpoint, plus required runtime/UI/profile/CLI/test
+  integration. All three new files match that checkpoint's exact SHA-256 hashes.
+- Single FDB locations remain CANDIDATE / LOW with `attachment=null` and a useful
+  `observed_location`; they do not prove direct attachment or auto-select an
+  endpoint-IP planning target. Known transit, ambiguity and old data are explicit.
+- Routing topology navigation, per-device collection status and explicit config +
+  route collection restored. Collection saves a config snapshot; opening pages
+  does not collect. Existing methods, expiry and RBAC/CSRF remain enforced.
+- Declarative numeric measurements, range/threshold checks and scoped history
+  restored. FortiGate CPU defaults 80/95%, memory 80/90%, valid range 0..100.
+  Defaults are adjustable product policy; invalid readings/missing CPU-memory
+  policy are Unknown. Uploaded MIBs alone do not supply all-vendor health rules.
+- Preserved October 25 Account/password, per-device credential cleanup, quiet
+  unconfigured NetFlow history and POSIX metadata sorting. Six protected files
+  are byte-identical; four protected Account/form functions are AST-identical.
+- Validation: 335 PASS / 2 Windows POSIX-mode assertions deselected, 23 modules,
+  161.84 s; legacy selftest ALL PASS; 100 runtime files + changed regressions
+  compile; Ruff 0 new / 23 baseline. No secret signatures/temporary files
+  found in checked changes. Existing RPM hash unchanged.
+- READMEs, Web guides and AI_HANDOFF synchronized; source metadata regenerated
+  and checked at closeout. Package stays `2.0.0-67.2` / IMPLEMENTED_TESTING_DEFERRED.
+  No Git, RPM build, new visual review, live device/PostgreSQL/AlmaLinux or LIVE_RC
+  claim. Login delay and unrelated October 31 audit issues remain unresolved.
+- External proof: `C:\Users\mattlai\AppData\Local\Temp\netconfig-restore-merge-5846c8b23b8c48be884419f485a5fc10`.
+
 ## PATCH-20261025-01 — Review of the 2026-10-24 changes: credential cleanup, quiet unconfigured flow history, Account page
 
 - Status: Ready for integration (source/local validation only). Package stays

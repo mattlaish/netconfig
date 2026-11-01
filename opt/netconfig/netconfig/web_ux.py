@@ -284,7 +284,7 @@ def nav_groups(role):
         ("Overview", [("/dashboard", "Dashboard"), ("/search", "Search")]),
         ("Monitor", [("/alerts", "Alerts"), ("/incidents", "Incidents"), ("/traffic", "Traffic")]),
         ("Inventory", [("/", "Devices"), ("/groups", "Groups"), ("/endpoints", "Endpoints"),
-                       ("/topology", "Topology"), ("/dependencies", "Dependencies")]),
+                       ("/topology", "Topology"), ("/topology?view=l3", "Routing topology"), ("/dependencies", "Dependencies")]),
         ("Changes", [("/requests", "Change requests"), ("/operations", "Change workspace"),
                      ("/automation", "Scripts & quick runs"), ("/compliance", "Compliance & drift")]),
         ("Collection", [("/protocols", "Device Collection"), ("/snmp", "SNMP"), ("/runs", "Run Log"),
@@ -296,6 +296,9 @@ def nav_groups(role):
 def _nav_active(url, current_path):
     cur = urllib.parse.urlsplit(current_path or "")
     path_only = cur.path or "/"
+    if urllib.parse.urlsplit(url).path == "/topology" and path_only == "/topology":
+        routing = (urllib.parse.parse_qs(cur.query).get("view") or ["physical"])[0] == "l3"
+        return ("view=l3" in url) == routing
     if url == "/requests":
         return path_only == "/requests" or path_only.startswith("/request")
     if url == "/vault":
@@ -853,7 +856,7 @@ class WebUxMixin:
             try:
                 for ep in m.endpoint_inventory(query=query)[:50]:
                     ips = list(ep.get("ipv4") or []) + list(ep.get("ipv6") or [])
-                    att = ep.get("attachment") or {}
+                    att = ep.get("attachment") or ep.get("observed_location") or {}
                     key = (ep.get("mac") or "", tuple(ips))
                     seen.add(key)
                     addr_rows.append(

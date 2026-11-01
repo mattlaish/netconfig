@@ -6,6 +6,7 @@ observations already persisted by NetConfig and makes ambiguity explicit.
 from __future__ import annotations
 
 import re
+import math
 import time
 
 from . import topology as _topology
@@ -29,7 +30,8 @@ def normalize_mac(value):
 
 def _fresh(ts, now, max_age):
     try:
-        return now - float(ts or 0) <= max_age
+        timestamp = float(ts or 0)
+        return math.isfinite(timestamp) and timestamp > 0 and -60 <= now - timestamp <= max_age
     except (TypeError, ValueError):
         return False
 
@@ -57,7 +59,7 @@ def correlate(db, device=None, *, inventory=None, max_age=1800, now=None):
 
     Fresh FDB observations on ports with LLDP/CDP neighbours are treated as
     transit observations.  A single fresh non-neighbour-facing observation is
-    considered a direct attachment candidate.  Multiple candidates remain
+    considered only a possible location, never proof of direct attachment. Multiple candidates remain
     AMBIGUOUS rather than being guessed.
     """
     now = time.time() if now is None else float(now)
@@ -138,16 +140,14 @@ def correlate(db, device=None, *, inventory=None, max_age=1800, now=None):
         fresh = [r for r in fdb if r.get("fresh")]
         direct = [r for r in fresh if not r.get("neighbor_facing")]
         fresh_ip = [r for r in ips if r.get("fresh")]
-        stale_ip_mapping = bool(ips) and not fresh_ip
         status = "UNRESOLVED"
         confidence = "NONE"
-        attachment = None
+        observation = None
         if len(direct) == 1:
-            attachment = direct[0]
-            if str(attachment.get("vlan_id", "")):
-                status, confidence = "ATTACHED", ("PARTIAL" if stale_ip_mapping else "HIGH")
-            else:
-                status, confidence = "ATTACHED", "PARTIAL"
+            observation = direct[0]
+            # One observed non-neighbour-facing port is NOT proof of direct
+            # attachment: an unmanaged bridge may exist beyond it.
+            status, confidence = "CANDIDATE", "LOW"
         elif len(direct) > 1:
             status, confidence = "AMBIGUOUS", "LOW"
         elif fresh:
@@ -165,6 +165,9 @@ def correlate(db, device=None, *, inventory=None, max_age=1800, now=None):
             "status": status,
             "confidence": confidence,
             "attachment": None,
+            "observed_location": None,
+            "direct_connection_proven": False,
+            "location_note": "FDB observations do not prove a direct physical connection.",
             "candidates": direct,
             "transit_observations": transit,
             "neighbor_observations": ips,
@@ -184,16 +187,16 @@ def correlate(db, device=None, *, inventory=None, max_age=1800, now=None):
                 } for r in fdb],
             },
         }
-        if attachment:
-            record["attachment"] = {
-                "device": attachment.get("device", ""),
-                "vlan_id": str(attachment.get("vlan_id", "") or ""),
-                "fdb_id": str(attachment.get("fdb_id", "") or ""),
-                "ifindex": str(attachment.get("ifindex", "") or ""),
-                "ifdescr": attachment.get("ifdescr", ""),
-                "bridge_port": str(attachment.get("bridge_port", "") or ""),
-                "source": attachment.get("source", ""),
-                "ts": attachment.get("ts"),
+        if observation:
+            record["observed_location"] = {
+                "device": observation.get("device", ""),
+                "vlan_id": str(observation.get("vlan_id", "") or ""),
+                "fdb_id": str(observation.get("fdb_id", "") or ""),
+                "ifindex": str(observation.get("ifindex", "") or ""),
+                "ifdescr": observation.get("ifdescr", ""),
+                "bridge_port": str(observation.get("bridge_port", "") or ""),
+                "source": observation.get("source", ""),
+                "ts": observation.get("ts"),
             }
         if device:
             observed_devices = {str(r.get("device") or "") for r in ips + fdb}
@@ -221,7 +224,7 @@ def endpoint_matches(row, needle):
 
 
 def summary(rows):
-    stats = {"total": len(rows), "attached": 0, "ambiguous": 0, "transit_only": 0,
+    stats = {"total": len(rows), "attached": 0, "candidate": 0, "ambiguous": 0, "transit_only": 0,
              "stale": 0, "unresolved": 0, "with_ipv4": 0, "with_ipv6": 0}
     for r in rows:
         key = str(r.get("status", "unresolved")).lower()

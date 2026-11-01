@@ -906,7 +906,7 @@ def cmd_endpoints(m, args):
         print(json.dumps({"summary": m.endpoint_summary(args.device), "endpoints": rows}, indent=2, sort_keys=True))
         return
     for row in rows:
-        att = row.get("attachment") or {}
+        att = row.get("attachment") or row.get("observed_location") or {}
         ips = ",".join((row.get("ipv4") or []) + (row.get("ipv6") or [])) or "-"
         loc = "-"
         if att:

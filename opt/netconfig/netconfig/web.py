@@ -1095,6 +1095,9 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
                                '<p class="muted">Only one saved copy so far \u2014 a comparison '
                                'appears once the config changes and a second copy is stored.</p></div>')
         netflow_panel = self._netflow_section(dev) if "network" in _dt else ""
+        if "network" in _dt and hasattr(m, "l3_topology"):
+            from .web_evidence import route_learning_panel
+            meta += route_learning_panel(self, sess, device=name)
         portmon_panel = self._portmon_section(dev) if "system" in _dt else ""
         appmon_panel = self._appmon_section(dev) if "application" in _dt else ""
         config_tab = ""
@@ -1812,7 +1815,7 @@ The client secret is stored in the vault.</p>
             iftbl = self._interface_table(device) or '<p class="muted">No interface data yet \u2014 poll the device.</p>'
             graph = self._live_graph(device) if dev.get("snmp_version") else ""
             walk_panel = self._snmp_walk_panel(device, q) if dev.get("snmp_version") else ""
-            profile_panel = self._vendor_profile_section(device) if dev.get("snmp_version") else ""
+            profile_panel = self._vendor_profile_section(device, q) if dev.get("snmp_version") else ""
             vendor_panel = self._vendor_mib_section(device) if dev.get("snmp_version") else ""
             health = render_snmp_health_summary(self, device, dev, fx)
             inner = (f'<div class="panel"><h2>{html.escape(device)} \u00b7 SNMP '
@@ -2296,27 +2299,9 @@ The client secret is stored in the vault.</p>
         self.manager.db.audit(sess["username"], "vendor_profile_reload", str(n), "snmp")
         return self._redirect("/snmp?profile_notice=" + _q(f"reloaded {n} profile(s)"))
 
-    def _vendor_profile_section(self, device):
-        facts=self.manager.inv.get_facts(device) or {}
-        profile=self.manager.vendor_profiles.match(facts.get("sysobjectid", ""))
-        if profile is None:
-            return ""
-        sensors=[r for r in self.manager.sensors.list(device=device,limit=2000) if str(r.get("source") or "").startswith(f"vendor-profile:{profile.id}")]
-        if not sensors:
-            return (f'<div class="panel"><h2>Vendor profile telemetry</h2><p><b>{html.escape(profile.vendor)} {html.escape(profile.product)}</b> '
-                    f'<span class="badge b-dim">{html.escape(profile.id)} {html.escape(profile.version)}</span></p>'
-                    '<p class="muted">A monitoring profile matches this device, but no vendor measurements have been collected yet. Use Poll now to collect them.</p></div>')
-        rows=""
-        for item in sorted(sensors,key=lambda r:(str(r.get("sensor_type") or ""),str(r.get("resource") or ""))):
-            status=str(item.get("status") or "UNKNOWN").upper(); badge={"OK":"b-ok","WARNING":"b-chg","CRITICAL":"b-bad"}.get(status,"b-dim")
-            value=html.escape(str(item.get("value") or "")); unit=html.escape(str(item.get("unit") or ""))
-            rows += (f'<tr><td><b>{html.escape(str(item.get("sensor_type") or ""))}</b></td><td>{html.escape(str(item.get("resource") or "")) or "—"}</td>'
-                     f'<td>{value}{(" "+unit) if unit else ""}</td><td><span class="badge {badge}">{html.escape(status)}</span></td>'
-                     f'<td class="muted">{html.escape(str(item.get("message") or ""))}</td></tr>')
-        return (f'<div class="panel"><h2>Vendor profile telemetry</h2><p><b>{html.escape(profile.vendor)} {html.escape(profile.product)}</b> '
-                f'<span class="badge b-dim">{html.escape(profile.id)} {html.escape(profile.version)}</span> · {len(sensors)} monitoring measurement(s)</p>'
-                '<p class="muted">Shows the latest collected SNMP measurements. Opening this page does not poll the device.</p>'
-                f'<table><tr><th>Sensor</th><th>Resource</th><th>Value</th><th>Status</th><th>Detail</th></tr>{rows}</table></div>')
+    def _vendor_profile_section(self, device, q=None):
+        from .web_evidence import vendor_measurements_panel
+        return vendor_measurements_panel(self, device, q)
 
     def _vendor_mib_section(self, device):
         values = self.manager.db.get_mib_values(device)
@@ -2346,28 +2331,8 @@ The client secret is stored in the vault.</p>
                 f'{error_html}{detail}</div>')
 
     def _mac_port_section(self, dev):
-        macs = self.manager.db.get_mac_table(dev["name"])
-        arp = self.manager.db.get_arp(dev["name"])
-        arp_by_mac = {a["mac"]: a["ip"] for a in arp}
-        rows = ""
-        for e in macs:
-            ip = arp_by_mac.get(e["mac"], "")
-            portlbl = e["ifdescr"] or (f'if{e["ifindex"]}' if e["ifindex"] else e["port"])
-            rows += (f'<tr><td><code>{html.escape(e["mac"])}</code></td>'
-                     f'<td>{html.escape(portlbl)}</td>'
-                     f'<td class="muted">{html.escape(ip)}</td></tr>')
-        if rows:
-            table = (f'<table><tr><th>MAC address</th><th>Port</th><th>IP (from ARP)</th></tr>'
-                     f'{rows}</table>')
-        else:
-            table = ('<p class="muted">No MAC-address-table entries collected yet. Poll this device '
-                     'over SNMP (SNMP section) \u2014 the bridge forwarding table (BRIDGE-MIB) and ARP '
-                     'table are collected automatically for network devices with SNMP enabled. '
-                     'Non-switch devices won\u2019t have a forwarding table.</p>')
-        return (f'<div class="panel"><h2>MAC address \u2192 port</h2>'
-                f'<p class="muted">Layer-2 forwarding table for this switch \u2014 which MAC is learned '
-                f'on which port ({len(macs)} entries, {len(arp)} ARP). Auto-collected on SNMP poll.</p>'
-                f'{table}</div>')
+        from .web_evidence import mac_port_section
+        return mac_port_section(self, dev)
 
     def _diff_page(self, q, sess):
         name = (q.get("name") or [""])[0]
@@ -2910,6 +2875,9 @@ The client secret is stored in the vault.</p>
         from .web_forms import feedback
         name = (form.get("name") or [""])[0]
         target = f"/device?name={_q(name)}#tab-config" if name else "/"
+        routing = (form.get("back") or [""])[0] == "routes"
+        if routing:
+            target = "/topology?view=l3"
         if not _can(sess["role"], "collect"):
             return feedback(self, sess, target, "Not permitted to collect.")
         if not self.manager.vault_ready():
@@ -2924,7 +2892,14 @@ The client secret is stored in the vault.</p>
         name = (form.get("name") or [""])[0]
         r = m.collect(name)
         m.db.audit(sess["username"], "collect", name, r.message)
-        return feedback(self, sess, target, f"{name}: {r.message}" + (" (changed)" if r.changed else ""))
+        detail = ""
+        if routing:
+            l3 = getattr(r, "l3", None) or {}
+            if l3.get("status") == "OK":
+                detail = f' Routes learned: {int(l3.get("routes") or 0)}; interface addresses: {int(l3.get("interfaces") or 0)}.'
+            else:
+                detail = " Route learning did not complete. Check the collection status and configured CLI method below."
+        return feedback(self, sess, target, f"{name}: {r.message}" + (" (changed)" if r.changed else "") + detail)
 
     def _do_snmp(self, form, sess):
         from .web_forms import feedback
@@ -2965,12 +2940,12 @@ The client secret is stored in the vault.</p>
             opts.append(f'<option value="{html.escape(name)}"{sel}>{html.escape(name)}</option>')
         body_rows = []
         for r in rows:
-            att = r.get("attachment") or {}
+            att = r.get("attachment") or r.get("observed_location") or {}
             ips = (r.get("ipv4") or []) + (r.get("ipv6") or [])
             ip_html = "<br>".join(html.escape(x) for x in ips) or '<span class="muted">—</span>'
             if att:
                 port = att.get("ifdescr") or (f'if{att.get("ifindex")}' if att.get("ifindex") else att.get("bridge_port", ""))
-                loc = f'<b>{html.escape(att.get("device", ""))}</b><br><span class="muted">{html.escape(str(port))}</span>'
+                loc = f'<b>{html.escape(att.get("device", ""))}</b><br><span class="muted">{html.escape(str(port))} · candidate, not proven direct</span>'
                 vlan = html.escape(att.get("vlan_id", "")) or '<span class="muted">unresolved</span>'
             else:
                 loc = '<span class="muted">not uniquely resolved</span>'; vlan = '<span class="muted">—</span>'
@@ -3001,13 +2976,13 @@ The client secret is stored in the vault.</p>
                 f'<tr><td>{ip_html}</td><td><code>{html.escape(r.get("mac", ""))}</code></td>'
                 f'<td>{loc}</td><td>{vlan}</td><td><span class="badge {badge}">{html.escape(r.get("status", ""))}</span><br><span class="muted">{html.escape(r.get("confidence", ""))}</span></td>'
                 f'<td>{evidence_html}</td><td class=right>{candidates}</td></tr>')
-        summary = (f'<b>{stats["total"]}</b> observed · <b>{stats["attached"]}</b> attached · '
+        summary = (f'<b>{stats["total"]}</b> observed · <b>{stats["candidate"]}</b> candidate location(s) · '
                    f'<b>{stats["ambiguous"]}</b> ambiguous · <b>{stats["transit_only"]}</b> transit-only · '
                    f'<b>{stats["stale"]}</b> stale · <b>{stats["with_ipv4"]}</b> with IPv4')
         table = "".join(body_rows) or '<tr><td colspan="7" class="muted">No endpoint matches. Poll the L3 gateway/firewall for ARP/IP-neighbor evidence and switches for FDB/MAC evidence.</td></tr>'
         inner = (f'<div class="panel"><h2>Endpoint lookup</h2><p class="muted">Search an IP or MAC. NetConfig joins ARP/IP-neighbor evidence from L3 devices to FDB/MAC evidence from switches before applying the device filter, so the gateway and access switch do not need to be the same device.</p>'
                  f'<form method=get action="/endpoints"><div class="row"><div><label>IP / MAC / switch / port</label><input name=q value="{html.escape(search)}" placeholder="e.g. 192.168.1.25"></div><div><label>Evidence device</label><select name=device>{"".join(opts)}</select></div><div style="flex:0"><label>&nbsp;</label><button>Find endpoint</button></div></div></form><p>{summary}</p>'
-                 '<p class="muted">A port is reported as ATTACHED only when fresh evidence leaves one non-transit FDB candidate. LLDP/CDP and R51-HF1 managed-device FDB path evidence can mark transit ports; unresolved choices stay AMBIGUOUS rather than being guessed.</p></div>'
+                 '<p class="muted">A single FDB candidate is a possible observation location, not proof of direct attachment. Known neighbor-facing ports are transit observations. Multiple candidates, outdated data and unknown locations remain explicit; an unseen downstream switch may still exist.</p></div>'
                  f'<div class="panel"><div class="table-wrap"><table><tr><th>IP</th><th>MAC</th><th>Likely switch / port</th><th>VLAN</th><th>Result</th><th>Evidence chain</th><th>Candidates</th></tr>{table}</table></div></div>')
         self._send(self._page("Endpoints", inner, sess))
 

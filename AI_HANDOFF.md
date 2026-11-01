@@ -1,5 +1,71 @@
 # NetConfig AI Handover
 
+## Restored evidence repairs, merged with October 25 changes — 2026-11-01
+
+User requested restoring the three missing files and their required integration.
+`web_evidence.py` (the requested `eb_evidence.py`), `vendor_measurements.py`
+and `test_evidence_repairs.py` match their earlier completed SHA-256 checkpoint.
+Existing October 25 Account, credential cleanup, unconfigured History DB and
+cross-OS metadata ordering changes are preserved. See PATCH-20261101-02.
+This restores the previously completed repairs described below. Canonical
+source remains `C:\Users\mattlai\Projects\netconfig`. No Git operations, RPM build,
+version increase or live deployment; status remains `IMPLEMENTED_TESTING_DEFERRED`.
+
+- Endpoint correlation: a single fresh non-transit FDB record is now CANDIDATE /
+  LOW, not ATTACHED / HIGH. `attachment` is null; `observed_location` retains the
+  useful switch/port/VLAN observation, with `direct_connection_proven=false`.
+  The old `summary.attached` key is retained; `summary.candidate` is additive.
+  API/CLI consumers must not treat a candidate as a physical attachment. Search,
+  Endpoints and device MAC tables retain candidate locations and explicitly show
+  known-neighbor transit, multiple candidates, outdated and unclassified data.
+  FDB alone does not distinguish a directly plugged-in host from an unseen
+  bridge. Invalid/future timestamps are not fresh. No direct-proof engine added.
+- Safety consequence: MC-11 endpoint-IP planning no longer auto-selects a device
+  from FDB-only candidates. Explicit managed-device source/destination planning
+  still works. Existing approval, frozen snapshot and mutation controls unchanged.
+- Routing topology: independent Inventory → Routing topology entry, prominent
+  Physical / Layer 3 / Combined links, collection status for all Network devices
+  (including unsupported/not collected), visible stale/error hints and device
+  Overview route panel. Old route data remains hidden from current graphs after
+  one hour, with an explicit explanation and Show outdated link, not deletion.
+  Collect config + routes reuses authenticated, CSRF/RBAC-protected `/collect`,
+  configured CLI method/credentials, then returns to routing view with results.
+  This is explicit device I/O and also saves a config snapshot. GET does not
+  collect. Structured protocol profiles are not silently bypassed; unsupported
+  method/platform is explained. No new automatic polling or forced fallback.
+- `vendor_measurements.py`: optional declarative `numeric` conversion/range/
+  upper/lower warning/critical thresholds on profile metrics and table sensors.
+  Finite bounded rule validation, positive scale, range/order checks; no scripts,
+  expressions, unbounded walks or relaxed enterprise-root restrictions. Values
+  outside range, invalid/NaN/Inf readings are UNKNOWN. Numeric zero is preserved.
+- Bundled FortiGate CPU/processor/VDOM CPU defaults warn >=80%, critical >=95%;
+  memory/VDOM memory warn >=80%, critical >=90%, valid range 0..100. These are
+  adjustable NetConfig policies, not asserted manufacturer recommendations.
+  Numeric CPU/memory profiles without policy now return UNKNOWN, including old
+  runtime overrides, rather than blindly OK. Other explicit enumeration mappings
+  remain. Threshold text is saved with Sensors. Existing Sensor observations,
+  transitions, operational events and alert open/recovery paths are reused.
+- SNMP Vendor profile telemetry now shows readable measurement names, units,
+  health rules, last evaluation and a scoped latest-50 history view. Old CPU/
+  memory snapshots without thresholds show Unknown until polled under the new
+  policy. An unmatched profile explicitly explains that uploaded MIB names/raw
+  values are not automatic semantic monitoring. No claim of all-vendor MIB
+  coverage, arbitrary-MIB auto-interpretation or new AlmaLinux metric mappings.
+- Validation: 335 related tests PASS / 2 Windows POSIX-mode assertions deselected
+  (23 modules, 161.84 s); legacy selftest ALL PASS; 100 runtime Python
+  files and changed regressions compile. Ruff: 0 new / 23 baseline findings.
+  Six protected files are byte-identical and four Account/form functions are
+  AST-identical to the current pre-merge tree. Checked changes have no secret
+  signatures or temporary source files. Source metadata regenerated/checked
+  at closeout. No new browser/live PostgreSQL, real-device, AlmaLinux service
+  or LIVE_RC verification is claimed.
+- Out of scope: intermittent login delay (root cause still unproven), viewer
+  compliance execution, stale global overview status and hidden live checks on
+  other device tabs from the October 31 audit are NOT repaired by this change.
+- Existing project RPM is stale; rebuilding/real-host verification is a separate
+  user-selected step. Backups/proof:
+  `C:\Users\mattlai\AppData\Local\Temp\netconfig-restore-merge-5846c8b23b8c48be884419f485a5fc10`.
+
 ## Review fixes after the 2026-10-24 workflow repairs — 2026-10-25
 
 Source-only; status stays `IMPLEMENTED_TESTING_DEFERRED`. See PATCH-20261025-01.

@@ -925,10 +925,13 @@ def _topology_view_tabs(active):
     for key, label in (("physical", "Physical"), ("l3", "Layer 3"), ("combined", "Combined")):
         cls = "badge b-ok" if active == key else "badge b-dim"
         items.append(f'<a class="{cls}" href="/topology?view={key}">{label}</a>')
-    return '<div class="panel"><b>Topology view</b> · ' + ' '.join(items) + '</div>'
+    return ('<div class="panel"><h2>Topology view</h2><nav aria-label="Topology views">' + ' '.join(items)
+            + '</nav><p>Physical shows neighbor links. Layer 3 shows routes learned from device CLI collection. Combined overlays both. '
+            '<a href="/topology?view=l3#route-learning">Check route learning status</a></p></div>')
 
 
 def _render_l3_topology_page(handler, q, sess, view):
+    from .web_evidence import route_learning_panel
     include_stale = str((q.get("include_stale") or [""])[0]).lower() in {"1", "true", "yes", "on"}
     graph = (handler.manager.combined_topology_graph(include_stale=include_stale)
              if view == "combined" else handler.manager.l3_topology_graph(include_stale=include_stale))
@@ -981,16 +984,6 @@ def _render_l3_topology_page(handler, q, sess, view):
             f'<td>{html.escape(str(edge.get("resolution_state") or ""))}</td>'
             f'<td>{int(edge.get("route_count") or 0)}</td></tr>')
 
-    status_rows = ''
-    for row in graph.get("collection_status", []):
-        state = str(row.get("status") or "UNKNOWN")
-        badge = "b-ok" if state == "OK" else ("b-bad" if state == "ERROR" else "b-dim")
-        status_rows += (
-            f'<tr><td>{html.escape(str(row.get("device") or ""))}</td><td><span class="badge {badge}">{html.escape(state)}</span></td>'
-            f'<td>{html.escape(str(row.get("platform") or ""))}</td><td>{int(row.get("interface_count") or 0)}</td>'
-            f'<td>{int(row.get("route_count") or 0)}</td><td>{_fmt_ts(row.get("observed_ts"))}</td>'
-            f'<td class="muted">{html.escape(str(row.get("error") or ""))}</td></tr>')
-
     issue_rows = ''
     for row in graph.get("ambiguous_next_hops", []):
         issue_rows += (f'<tr><td><span class="badge b-bad">AMBIGUOUS</span></td><td>{html.escape(row.get("device", ""))}</td>'
@@ -1013,11 +1006,10 @@ def _render_l3_topology_page(handler, q, sess, view):
             '<span><i class="topology-swatch unknown"></i>Subnet / unknown evidence</span></div>'
             '<p class="topology-note">This view uses previously collected network data. Opening it does not poll devices. '
             'A next-hop IP becomes a managed-device edge only when it uniquely matches fresh interface evidence in the same VRF.</p>')
-    return (_topology_view_tabs(view) + f'<div class="panel">{toolbar}{note}{"".join(svg)}</div>{_TOPOLOGY_JS}'
+    learning = route_learning_panel(handler, sess, summary=summary, include_stale=include_stale)
+    return (_topology_view_tabs(view) + learning + f'<div class="panel">{toolbar}{note}{"".join(svg)}</div>{_TOPOLOGY_JS}'
             f'<div class="panel"><h3>L3 evidence</h3><table><tr><th>Kind</th><th>From</th><th>To</th><th>VRF</th><th>Next hop</th><th>Interface</th><th>Evidence</th><th>Resolution</th><th>Routes</th></tr>'
             f'{edge_rows or "<tr><td colspan=9 class=muted>No fresh L3 graph evidence yet. Run normal configuration collection on supported Layer-3 devices.</td></tr>"}</table></div>'
-            f'<div class="panel"><h3>L3 collection status</h3><table><tr><th>Device</th><th>Status</th><th>Platform</th><th>Interfaces</th><th>Routes</th><th>Observed</th><th>Error</th></tr>'
-            f'{status_rows or "<tr><td colspan=7 class=muted>No L3 collection has completed yet.</td></tr>"}</table></div>'
             f'<div class="panel"><h3>Unresolved / ambiguous next hops</h3><table><tr><th>State</th><th>Device</th><th>VRF</th><th>Destination</th><th>Next hop</th><th>Evidence</th></tr>'
             f'{issue_rows or "<tr><td colspan=6 class=muted>No unresolved or ambiguous next-hop evidence.</td></tr>"}</table></div>')
 

@@ -1,5 +1,23 @@
 # NetConfig
 
+## Clearer network evidence and MIB health — 2026-11-01 source update
+
+- MAC locations distinguish known transit paths from candidates. A unique learned
+  port does not prove a directly attached host; candidate locations no longer
+  authorize automatic endpoint-IP path selection. Choose managed devices explicitly.
+- Open **Inventory → Routing topology** for learned Layer 3 routes, collection
+  errors and outdated-data explanations. **Collect config + routes** uses the
+  configured CLI credentials and saves a configuration snapshot too. SNMP Poll
+  does not refresh these routes; opening the graph performs no device collection.
+- SNMP vendor measurements show units, health rules and saved history. Bundled
+  FortiGate CPU policy warns at 80%, critical at 95%; memory warns at 80%, critical
+  at 90%. These are adjustable product defaults. Invalid values or missing CPU/
+  memory health rules are Unknown, not healthy. Re-poll to apply updated rules.
+- A MIB alone does not define complete monitoring. Unmatched devices explain the
+  missing profile rather than implying all raw OIDs have meaningful health rules.
+
+This is source work, not a new RPM or live AlmaLinux/device qualification.
+
 ## Safer everyday workflows — 2026-10-24 source update
 
 - Editing credentials for one device now creates separate credentials rather

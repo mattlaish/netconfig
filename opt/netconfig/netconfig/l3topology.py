@@ -292,10 +292,36 @@ class L3TopologyService:
         return dict(row) if row else None
 
     def collection_status(self, device=None):
+        from .drivers import get_driver
+        saved = {r["device"]: dict(r) for r in self.conn.execute("SELECT * FROM l3_collection_state ORDER BY device").fetchall()}
+        profiles = {p["device"]: p for p in self.manager.protocol_profiles.list()}
+        devices = [self.manager.inv.get(device)] if device else self.manager.inv.all()
+        rows = []
+        for dev in devices:
+            if not dev or (not device and "network" not in str(dev.get("device_type") or "network").replace(",", " ").split()):
+                continue
+            try:
+                supported = bool(getattr(get_driver(dev.get("platform") or "generic"), "l3_route_command", None))
+            except Exception:
+                supported = False
+            supported = supported and "network" in str(dev.get("device_type") or "network").replace(",", " ").split()
+            row = dict(saved.get(dev["name"]) or {"device": dev["name"], "status": "NOT_COLLECTED" if supported else "UNSUPPORTED",
+                       "collection_id": "", "route_count": 0, "interface_count": 0, "observed_ts": 0, "error": ""})
+            row["platform"] = dev.get("platform") or "generic"
+            row["supports_cli_collection"] = supported
+            profile = profiles.get(dev["name"]) or {}
+            uses_cli = not (profile.get("enabled") and profile.get("protocol") != "cli_ssh")
+            row["route_collection_available"] = supported and uses_cli
+            row["display_status"] = row["status"]
+            if row["status"] == "OK" and not self._fresh({"observed_ts": row.get("observed_ts"), "max_age_seconds": self.MAX_AGE_SECONDS}, time.time()):
+                row["display_status"] = "STALE"
+            row["action_hint"] = ("Choose a supported Network platform to collect route data." if not supported else
+                                  "The selected structured collection method does not learn CLI routes. Review Collection settings; no fallback is forced." if not uses_cli else
+                                  "Collect config + routes. The existing SSH credentials and collection method are used.")
+            rows.append(row)
         if device:
-            row = self._state(device)
-            return row or {"device": device, "status": "NOT_COLLECTED", "collection_id": "", "route_count": 0, "interface_count": 0, "error": ""}
-        return [dict(r) for r in self.conn.execute("SELECT * FROM l3_collection_state ORDER BY device").fetchall()]
+            return rows[0] if rows else {"device": device, "status": "NOT_COLLECTED", "display_status": "NOT_COLLECTED", "supports_cli_collection": False}
+        return rows
 
     def _set_state(self, device, **values):
         current = self._state(device)
@@ -324,6 +350,7 @@ class L3TopologyService:
     def collect_from_session(self, device, driver, transport):
         """Collect L3 evidence using the already-authenticated config SSH session."""
         if not getattr(driver, "l3_route_command", None):
+            self._set_state(device["name"], platform=driver.name, status="UNSUPPORTED", received_ts=time.time(), error="This platform has no route collection command.")
             return {"status": "UNSUPPORTED", "routes": 0, "interfaces": 0}
         now = time.time()
         cid = f"cli-{int(now * 1000)}-{uuid.uuid4().hex[:10]}"

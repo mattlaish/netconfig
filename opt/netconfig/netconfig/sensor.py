@@ -514,6 +514,7 @@ class SensorEngine:
                 item["sensor_type"], device=device, resource=item.get("resource", ""),
                 value=item.get("value", ""), unit=item.get("unit", ""),
                 status=item.get("status", "UNKNOWN"), message=item.get("message", ""),
+                threshold=item.get("threshold", ""),
                 source=item.get("source", f"vendor-profile:{profile.id}"))
             active.add((item["sensor_type"], item.get("resource", "")))
         for row in self.conn.execute(
