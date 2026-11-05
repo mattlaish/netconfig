@@ -134,7 +134,7 @@ def test_r61_history_is_preserved_under_release_63():
     spec=(ROOT/'packaging/netconfig.spec').read_text()
     installer=(ROOT/'packaging/install-rpm.sh').read_text()
     alma=(ROOT/'packaging/q1-qualify-almalinux.sh').read_text()
-    assert 'Release:        67.2%{?dist}' in spec
+    assert 'Release:        67.6%{?dist}' in spec
     assert '${RELEASE%%.*} != "67"' in installer
     assert '2.0.0-67.*.noarch' in alma
 

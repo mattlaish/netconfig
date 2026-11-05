@@ -1,5 +1,81 @@
 # NetConfig
 
+## RSA 512+ SSH compatibility RPM — 2026-11-04
+
+Version 2.0.0-67.6.el10 changes the per-device **Older-device SSH
+compatibility** option to an isolated Paramiko 3.5 SSHv2 backend. It covers the
+legacy KEX, cipher and MAC families needed by older appliances and accepts RSA
+host keys from 512 bits upward. The live host key is checked or pinned before
+any password/private-key authentication. Devices without this option continue
+to use system OpenSSH. The RPM requires `python3-paramiko >= 3.5` and `< 5`,
+available for AlmaLinux 10 through EPEL. Existing state and prior SNMPv3,
+Endpoint CSV, history/evidence/workflow fixes remain. Loopback RSA 512/1024/2048
+tests pass; live Cisco/AlmaLinux upgrade qualification remains deferred.
+
+Windows delivery: C:\Users\mattlai\Downloads\netconfig-20261104-67.6
+
+## Older-device SSH compatibility — 2026-11-04 historical 67.5 note
+
+SSH version 2 devices remain supported. If an older switch reports incompatible
+SSH key exchange, open Edit device and enable **Older-device SSH compatibility**
+(called **legacy algorithms** in delivered 67.4), then save/test that device.
+The first 67.5 repair filtered the algorithms passed to local OpenSSH. Release
+67.6 supersedes that implementation for opted-in devices because OpenSSH cannot
+lower its RSA host-key minimum below 1024 bits. Other devices keep OpenSSH.
+
+## SNMPv3 credential feedback — 2026-11-04 historical 67.5 note
+
+Missing SNMPv3 usernames/passwords now produce a clear field error. Test connection
+uses manual edits and keeps saved device passwords when their fields are blank;
+saved-secret mode uses the selected secret. Password spaces are preserved. For
+the currently installed 67.4 package, save corrected SNMP credentials before Poll
+now. This correction was packaged in 67.5 and remains in 67.6.
+
+## Endpoint CSV RPM — 2026-11-03
+
+The 2.0.0-67.4.el10 package includes **Endpoints → Export CSV** for matching
+IP/MAC and likely switch/port, including IPv6 and uncertainty. Use dnf upgrade
+from 67.3, then restart netconfig-web. Earlier source-only notes below are
+historical; this feature is included in 67.4. The separate large-database startup
+delay remains under investigation; wait for current initialization to finish
+before upgrading. No manual SQL is required. Offline verification is not live
+AlmaLinux installation/runtime qualification.
+
+Windows delivery folder: `C:\Users\mattlai\Downloads\netconfig-20261103-67.4`.
+
+## Endpoint export — 2026-11-03 source update
+
+Endpoints now has **Export CSV** for the current search/device filter. The file
+contains IP, MAC, likely switch/port, VLAN and the result/confidence, with separate
+candidate, transit and outdated observations. Each IP gets a row; MAC-only results
+remain. An uncertain location stays uncertain. This source update is not included
+in the earlier 67.3 RPM already delivered today; it needs a later package build.
+
+## Corrective RPM — 2026-11-03
+
+The 2.0.0-67.3.el10 RPM now includes the November 2 Sign-in fix,
+November 1 network evidence/vendor measurements and October workflow repairs.
+Windows delivery folder: `C:\Users\mattlai\Downloads\netconfig-20261103`.
+Use the RPM and adjacent checksums from that folder; the older project-root RPM
+does not include these repairs. Use `dnf upgrade` to update an existing
+installation, including 67.2, then restart netconfig-web. No manual SQL is required. First startup
+may need extra time for index creation. This unsigned offline-verified package
+still needs real AlmaLinux installation and runtime verification.
+
+## Sign-in responsiveness — 2026-11-02 source update
+
+Sensor history cleanup now uses small batches and a separate SQLite connection
+so it can run without occupying the connection lock needed by Sign in. A busy
+cleanup waits for a later retry; newly saved monitoring history is retained.
+Time indexes are added automatically at startup; a large existing database may
+take extra time on its first updated startup. No manual SQL is needed. Sensor
+retention stays 30 days for observations and 180 days for status changes; physical
+deletion may lag during backlog or inactivity. NetFlow retention is unchanged.
+
+Local regression includes HTTP Sign in while cleanup SQL is paused. The existing
+RPM does not contain this source fix; installation and real-host timing remain
+unverified. Version stays 2.0.0-67.2.
+
 ## Clearer network evidence and MIB health — 2026-11-01 source update
 
 - MAC locations distinguish known transit paths from candidates. A unique learned
@@ -114,8 +190,8 @@ Generated manifests, SBOM and artifact hashes remain pending regeneration for th
 
 Additional completed local checks: legacy selftest **ALL PASS** (including Application-only isolation and System-only regression), six changed runtime modules compile, and the existing canonical-state, compound-statement and PH-1 structure checks **3/3 PASS**. Selftest uses the same fail-closed Windows PTY import harness; this is not live SSH evidence.
 
-<!-- documentation-sync: 2026-10-13 -->
-> **Canonical project state — 2026-10-13:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) with unnumbered SNMP Vendor Profile and October Web UI / NetFlow corrective updates. **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included; schema `mc11-topology-change-planning-1` is unchanged. The working tree is not the previously frozen R67.2 candidate. Release numbering awaits an explicit user decision. Next: choose release identity, freeze a new candidate, execute all twelve mandatory `LIVE_RC` gates against its exact bytes, then perform R68 production release review. No new feature phase is assigned. All network mutation remains approval-gated. Local/source evidence does not establish production readiness. **Do not create MC-12.**
+<!-- documentation-sync: 2026-11-04 -->
+> **Canonical project state — 2026-11-04:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.6 / RSA 512+ SSH Compatibility RPM** (`2.0.0-67.6`, `IMPLEMENTED_TESTING_DEFERRED`). Older-device SSH compatibility now uses an isolated Paramiko 3.5 SSHv2 backend for legacy KEX/cipher/MAC and RSA host keys from 512 bits, with managed host-key verification before authentication; normal devices remain on system OpenSSH. Prior SNMPv3, Endpoint CSV, history/evidence/workflow corrections are preserved. **MC-11 Topology-Aware Change Planning** remains the final feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** and schema `mc11-topology-change-planning-1` remain. **Do not create MC-12.** Loopback RSA 512/1024/2048 validation does not replace live Cisco/AlmaLinux qualification. All twelve LIVE_RC gates and an explicit R68 decision remain required. Git stays user-managed.
 
 > **Document applicability:** this document is maintained against [ROADMAP.md](ROADMAP.md) and [AI_HANDOFF.md](AI_HANDOFF.md). Older release-numbered sections, test counts, fingerprints and Current/Next pointers below are historical unless explicitly restated in this 2026-10-13 update.
 

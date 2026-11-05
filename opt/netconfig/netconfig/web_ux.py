@@ -1242,6 +1242,7 @@ class WebUxMixin:
   <div><label>v3 privacy protocol</label><select id=snmp_priv_proto name=snmp_priv_proto>{priv_opts}</select></div>
   <div><label>v3 privacy password<span id=set_snmp_priv_pass>{sset('snmp_priv_pass')}</span></label><input type=password name=snmp_priv_pass autocomplete=new-password></div>
 </div>
+<p class="muted" data-snmp="v3">Enter an SNMPv3 username and the password for the selected authentication protocol. Blank password fields keep this device's saved SNMP passwords. If no separate privacy password is saved, the authentication password is used.</p>
 </div>
 </div>
 <h2 style="margin-top:14px">Configuration collection</h2>
@@ -1333,7 +1334,7 @@ class WebUxMixin:
 <label>Notes</label><textarea name=notes style="min-height:60px">{v('notes')}</textarea>
 <div style="display:flex;gap:20px;flex-wrap:wrap;margin:6px 0 16px">
   <div id=management_options style="display:flex;gap:20px;flex-wrap:wrap">
-    <label style="color:var(--text)"><input type=checkbox name=legacy value=1 style="width:auto" {chk('legacy')}> legacy algorithms<span class=hint>Allow older SSH ciphers/key exchange for devices that cannot use modern ones</span></label>
+    <label style="color:var(--text)"><input type=checkbox name=legacy value=1 style="width:auto" {chk('legacy')}> Older-device SSH compatibility<span class=hint>Use the isolated legacy SSHv2 backend for this device. Supports older key exchange, ciphers, MACs and RSA host keys from 512 bits while retaining host-key verification.</span></label>
     <label style="color:var(--text)"><input type=checkbox name=scrub value=1 style="width:auto" {chk('scrub')}> scrub secrets in archive<span class=hint>Remove passwords and keys from saved configuration copies</span></label>
   </div>
   <label style="color:var(--text)"><input type=checkbox name=enabled value=1 style="width:auto" {"checked" if (not editing or d.get('enabled')) else ""}> enabled<span class=hint>Disabled devices are skipped by collect-all and background polling</span></label>
@@ -1396,17 +1397,29 @@ class WebUxMixin:
             except KeyError as exc:
                 raise ValueError(f"No vault secret named '{ref}'.") from exc
         try:
+            mode = g("cred_mode", "manual")
+            if mode not in {"manual", "saved"}:
+                raise ValueError("Choose saved credentials or credentials for this device.")
             manual_ssh = {"username": g("ssh_username").strip(), "password": g("ssh_password"),
                           "key_path": g("key_path").strip(), "key_passphrase": g("key_passphrase")}
-            ssh = from_vault(g("secret_ref").strip())
-            if not ssh and any(manual_ssh.values()):
-                ssh = manual_ssh
+            old = (self.manager.inv.get(g("orig_name").strip()) or {}) if mode == "manual" and g("orig_name").strip() else {}
+            ssh_ref = (old.get("secret_ref") or g("secret_ref").strip()) if mode == "manual" else g("secret_ref").strip()
+            ssh = from_vault(ssh_ref)
+            if mode == "manual":
+                ssh = {**(ssh or {}), **{k: v for k, v in manual_ssh.items() if v}} or None
             snmp_version = g("snmp_version").strip()
             snmp = None
             if snmp_version in ("v2c", "v3"):
-                snmp = from_vault(g("snmp_ref").strip()) or {
-                    k: g(k).strip() for k in ("community", "snmp_user", "snmp_auth_proto", "snmp_auth_pass",
-                                              "snmp_priv_proto", "snmp_priv_pass", "snmp_port")}
+                snmp_ref = (old.get("snmp_ref") or g("snmp_ref").strip()) if mode == "manual" else g("snmp_ref").strip()
+                if mode == "saved" and not snmp_ref:
+                    raise ValueError("Choose a saved SNMP secret before testing.")
+                snmp = from_vault(snmp_ref) or {}
+                if mode == "manual":
+                    manual_snmp = {k: g(k) for k in ("community", "snmp_user", "snmp_auth_proto", "snmp_auth_pass",
+                                                    "snmp_priv_proto", "snmp_priv_pass", "snmp_port")}
+                    for key in ("snmp_user", "snmp_auth_proto", "snmp_priv_proto", "snmp_port"):
+                        manual_snmp[key] = manual_snmp[key].strip()
+                    snmp.update({k: v for k, v in manual_snmp.items() if v})
                 snmp["version"] = snmp_version
         except ValueError as exc:
             return out({"error": str(exc)}, 400)

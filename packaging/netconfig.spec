@@ -1,6 +1,6 @@
 Name:           netconfig
 Version:        2.0.0
-Release:        67.2%{?dist}
+Release:        67.6%{?dist}
 Summary:        Network configuration and security operations console
 License:        Proprietary
 BuildArch:      noarch
@@ -13,6 +13,8 @@ BuildRequires:  systemd-rpm-macros
 Requires:       /usr/bin/python3.12
 Requires:       /usr/bin/ssh
 Requires:       /usr/bin/openssl
+Requires:       python3-paramiko >= 3.5
+Requires:       python3-paramiko < 5
 Suggests:       python3.12dist(psycopg) >= 3
 Requires(pre):  shadow-utils
 %{?systemd_requires}
@@ -93,6 +95,24 @@ exit 0
 %dir %attr(0700,netconfig,netconfig) %{_localstatedir}/lib/netconfig
 
 %changelog
+* Wed Nov 04 2026 OpenAI <noreply@openai.com> - 2.0.0-67.6
+- Add an opt-in isolated SSHv2 compatibility backend for legacy KEX/cipher/MAC and RSA host keys from 512 bits.
+- Verify or pin the device host key before authentication; normal devices continue to use system OpenSSH.
+
+* Wed Nov 04 2026 OpenAI <noreply@openai.com> - 2.0.0-67.5
+- Filter unsupported per-device legacy SSH algorithms, including removed ssh-dss; give actionable negotiation errors.
+- Validate missing SNMPv3 credentials and honor manual/saved connection-test credentials without stripping password spaces.
+- Preserve SSHv2, host-key checking and prior Endpoint CSV/history fixes; live device qualification remains deferred.
+
+* Tue Nov 03 2026 OpenAI <noreply@openai.com> - 2.0.0-67.4
+- Add authenticated filtered Endpoints CSV export of IP, MAC and likely switch/port with uncertainty retained.
+- Preserve 67.3 history cleanup fixes; no new fix for the still-investigated large-database startup delay.
+
+* Tue Nov 03 2026 OpenAI <noreply@openai.com> - 2.0.0-67.3
+- Package indexed, bounded Sensor cleanup with a separate SQLite maintenance connection to keep sign-in responsive.
+- Include restored evidence/routing/vendor measurements and October workflow corrections; preserve configuration and state.
+- Corrective upgrade from 67.2; live AlmaLinux qualification remains deferred.
+
 * Fri Sep 25 2026 OpenAI <noreply@openai.com> - 2.0.0-67.2
 - Corrective RC: repair fresh login, migration ordering, Core PostgreSQL preflight, Core/History DB separation, and fresh PostgreSQL bootstrap.
 

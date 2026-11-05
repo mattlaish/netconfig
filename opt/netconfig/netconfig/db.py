@@ -16,6 +16,7 @@ import hashlib
 import json
 import sqlite3
 import threading
+from pathlib import Path
 
 
 
@@ -122,6 +123,8 @@ CREATE INDEX IF NOT EXISTS idx_sensor_observations_type_time
     ON sensor_observations(sensor_type, observed_at);
 CREATE INDEX IF NOT EXISTS idx_sensor_observations_resource_time
     ON sensor_observations(resource, observed_at);
+CREATE INDEX IF NOT EXISTS idx_sensor_observations_time
+    ON sensor_observations(observed_at, id);
 
 CREATE TABLE IF NOT EXISTS sensor_transitions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -148,6 +151,8 @@ CREATE INDEX IF NOT EXISTS idx_sensor_transitions_type_time
     ON sensor_transitions(sensor_type, observed_at);
 CREATE INDEX IF NOT EXISTS idx_sensor_transitions_resource_time
     ON sensor_transitions(resource, observed_at);
+CREATE INDEX IF NOT EXISTS idx_sensor_transitions_time
+    ON sensor_transitions(observed_at, id);
 
 -- ---- groups ----------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS groups (
@@ -1193,6 +1198,24 @@ class _Result:
         return iter(self._rows)
 
 
+def delete_sensor_history_batch(conn, observation_before, transition_before, limit):
+    """Delete at most one indexed batch per table, committing each separately.
+
+    The primary-key subquery is portable to SQLite and PostgreSQL; DELETE LIMIT
+    is not. Callers own connection isolation/locking and error recovery.
+    """
+    counts = []
+    for table, cutoff in (("sensor_observations", observation_before),
+                          ("sensor_transitions", transition_before)):
+        cur = conn.execute(
+            f"DELETE FROM {table} WHERE id IN ("
+            f"SELECT id FROM {table} WHERE observed_at<? "
+            "ORDER BY observed_at,id LIMIT ?)", (cutoff, limit))
+        conn.commit()
+        counts.append(cur.rowcount)
+    return counts
+
+
 class _LockedConn:
     """A thread-safe front for a single sqlite3.Connection. Every statement (and
     its result fetch) runs while holding one re-entrant lock, so request threads
@@ -1202,6 +1225,33 @@ class _LockedConn:
     def __init__(self, conn, lock):
         self._c = conn
         self.lock = lock
+        # Resolve the already-open database, never the process cwd. In-memory
+        # databases have no filename and must keep using their original handle.
+        filename = next((r[2] for r in conn.execute("PRAGMA database_list")
+                         if r[1] == "main"), "")
+        self._maintenance_uri = Path(filename).as_uri() + "?mode=rw" if filename else None
+
+    def prune_sensor_history_batch(self, observation_before, transition_before, limit):
+        if self._maintenance_uri:
+            # WAL readers (including /login) keep their own shared handle/lock.
+            # Refuse to create a missing DB; abandon a busy writer quickly.
+            raw = sqlite3.connect(self._maintenance_uri, uri=True, timeout=0.05)
+            try:
+                return delete_sensor_history_batch(raw, observation_before, transition_before, limit)
+            finally:
+                raw.close()  # rolls back only this maintenance handle on failure
+        if not self.lock.acquire(blocking=False):
+            return None
+        try:
+            if self._c.in_transaction:
+                return None  # never commit another caller's pending writes
+            try:
+                return delete_sensor_history_batch(self._c, observation_before, transition_before, limit)
+            except Exception:
+                self._c.rollback()
+                raise
+        finally:
+            self.lock.release()
 
     def execute(self, sql, params=()):
         with self.lock:

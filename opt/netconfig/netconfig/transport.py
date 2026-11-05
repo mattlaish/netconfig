@@ -1,10 +1,11 @@
 """
-transport.py -- SSH transport for network devices, pure stdlib.
+transport.py -- SSH transport for network devices.
 
-Python stdlib has no SSH client. Rather than reimplement the SSH transport
-protocol in Python (a large, security-critical undertaking) or take a third-party
-dependency (paramiko/netmiko), this drives the system OpenSSH client as a
-subprocess behind a stdlib pty and interacts with it expect-style.
+Normal devices use the system OpenSSH client behind a stdlib pty. Devices with
+the explicit older-device compatibility option use Paramiko's isolated SSHv2
+backend because current OpenSSH has a non-configurable 1024-bit RSA floor. The
+compatibility backend accepts RSA host keys from 512 bits, supports the legacy
+KEX/cipher/MAC families Paramiko exposes, and keeps per-device host-key pinning.
 
 Why a pty and not plain pipes: ssh reads passwords and passphrases from the
 controlling terminal, not stdin. Without a tty it will not prompt and auth fails.
@@ -31,7 +32,11 @@ import re
 import select
 import shutil
 import signal
+import socket
+import subprocess
+import threading
 import time
+from functools import lru_cache
 
 
 # Resolve the ssh binary to an absolute path at import so a hijacked $PATH can't
@@ -61,9 +66,57 @@ _RE_MORE = re.compile(rb"--\s*more\s*--|<--- more --->", re.I)
 # A device CLI prompt: last line ending in > or # (optionally after a mode paren).
 _RE_PROMPT = re.compile(rb"[\r\n]([^\r\n]{1,80}?[>#])\s*$")
 
-_DEFAULT_LEGACY_KEX = "diffie-hellman-group14-sha1,diffie-hellman-group1-sha1,diffie-hellman-group-exchange-sha1"
+_RE_NEGOTIATION_FAIL = re.compile(rb"(?i)no matching (key exchange method|host key type|cipher|MAC) found")
+
+_DEFAULT_LEGACY_KEX = "diffie-hellman-group14-sha1,diffie-hellman-group-exchange-sha1,diffie-hellman-group1-sha1"
 _DEFAULT_LEGACY_HOSTKEY = "ssh-rsa,ssh-dss"
 _DEFAULT_LEGACY_CIPHERS = "aes256-cbc,aes192-cbc,aes128-cbc,3des-cbc"
+_MIN_COMPAT_RSA_BITS = 512
+_KNOWN_HOSTS_LOCK = threading.Lock()
+
+
+@lru_cache(maxsize=32)
+def _supported_ssh_algorithms(binary, category, identity):
+    """Query local compiled capabilities, never a device or a global SSH policy.
+
+    identity invalidates cached results when the SSH executable is replaced.
+    Compiled support does not guarantee that system crypto policy permits use.
+    """
+    try:
+        result = subprocess.run([binary, "-Q", category], stdin=subprocess.DEVNULL,
+                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                text=True, timeout=2, check=False)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise TransportError("Could not check local SSH compatibility. Ask the administrator to verify the SSH client.") from exc
+    if result.returncode != 0:
+        raise TransportError("Could not check local SSH compatibility. Ask the administrator to verify the SSH client.")
+    return frozenset(result.stdout.split())
+
+
+def _legacy_algorithms(category, requested):
+    try:
+        info = os.stat(_SSH_BIN)
+        identity = (info.st_mtime_ns, info.st_size)
+    except OSError:
+        identity = None
+    supported = _supported_ssh_algorithms(_SSH_BIN, category, identity)
+    return ",".join(algorithm for algorithm in requested.split(",") if algorithm in supported)
+
+
+def _negotiation_message(data, legacy):
+    match = _RE_NEGOTIATION_FAIL.search(data)
+    if not match:
+        return None
+    kind = match.group(1).decode("ascii").lower()
+    message = f"SSH {kind} mismatch. "
+    if legacy:
+        message += ("Older-device SSH compatibility is already enabled. The local SSH client or system policy may still reject this device. Update the device's SSH support.")
+    else:
+        message += ("Edit this device, enable 'Older-device SSH compatibility', and test again.")
+    offer = re.search(rb"(?i)Their offer:\s*([A-Za-z0-9@._,+-]+)", data)
+    if offer:
+        message += " Device offers: " + offer.group(1).decode("ascii")[:220]
+    return message
 
 
 class SSHTransport:
@@ -94,6 +147,8 @@ class SSHTransport:
 
         self._pid = None
         self._fd = None
+        self._compat_transport = None
+        self._compat_channel = None
         self._buf = b""
         self.prompt = None          # bytes, the discovered base prompt line
         self.transcript = bytearray()
@@ -125,9 +180,9 @@ class SSHTransport:
             # Force password path; don't let it silently try (and burn) agent keys.
             argv += ["-o", "PubkeyAuthentication=no",
                      "-o", "PreferredAuthentications=password,keyboard-interactive"]
-        kex = self.kex or (_DEFAULT_LEGACY_KEX if self.legacy else None)
-        hka = self.host_key_algos or (_DEFAULT_LEGACY_HOSTKEY if self.legacy else None)
-        ciph = self.ciphers or (_DEFAULT_LEGACY_CIPHERS if self.legacy else None)
+        kex = self.kex or (_legacy_algorithms("kex", _DEFAULT_LEGACY_KEX) if self.legacy else None)
+        hka = self.host_key_algos or (_legacy_algorithms("key", _DEFAULT_LEGACY_HOSTKEY) if self.legacy else None)
+        ciph = self.ciphers or (_legacy_algorithms("cipher", _DEFAULT_LEGACY_CIPHERS) if self.legacy else None)
         if kex:
             argv += ["-o", f"KexAlgorithms=+{kex}"]
         if hka:
@@ -161,6 +216,135 @@ class SSHTransport:
         self._pid = pid
         self._fd = fd
 
+    @staticmethod
+    def _compat_list(value):
+        return tuple(part.strip() for part in str(value or "").split(",") if part.strip())
+
+    def _compat_host_name(self):
+        return self.host if int(self.port) == 22 else f"[{self.host}]:{int(self.port)}"
+
+    def _verify_compat_host_key(self, paramiko, key):
+        """Verify or pin the live key before any credential is transmitted."""
+        key_name = key.get_name()
+        key_bits = int(key.get_bits())
+        if key_name == "ssh-rsa" and key_bits < _MIN_COMPAT_RSA_BITS:
+            raise TransportError(
+                f"SSH RSA host key is {key_bits} bits; older-device compatibility requires at least "
+                f"{_MIN_COMPAT_RSA_BITS} bits. Regenerate the device SSH key."
+            )
+        if not self.known_hosts:
+            raise TransportError("Older-device SSH compatibility requires a managed known_hosts file.")
+        policy = str(self.host_key_policy or "accept-new").lower()
+        if policy not in {"accept-new", "yes", "no"}:
+            raise TransportError(f"Unsupported SSH host-key policy: {policy}")
+        host_name = self._compat_host_name()
+        try:
+            with _KNOWN_HOSTS_LOCK:
+                keys = paramiko.HostKeys()
+                if os.path.exists(self.known_hosts):
+                    keys.load(self.known_hosts)
+                entries = keys.lookup(host_name)
+                same_type = entries.get(key_name) if entries else None
+                if same_type is not None:
+                    if same_type.asbytes() != key.asbytes():
+                        raise TransportError(
+                            f"SSH host key verification failed for {host_name}: the pinned {key_name} key changed."
+                        )
+                    return
+                if policy == "yes":
+                    raise TransportError(
+                        f"SSH host key verification failed for {host_name}: no pinned {key_name} key."
+                    )
+                parent = os.path.dirname(os.path.abspath(self.known_hosts))
+                if parent:
+                    os.makedirs(parent, mode=0o700, exist_ok=True)
+                line = f"{host_name} {key_name} {key.get_base64()}\n".encode("ascii")
+                fd = os.open(self.known_hosts, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+                try:
+                    os.write(fd, line)
+                finally:
+                    os.close(fd)
+        except TransportError:
+            raise
+        except Exception as exc:
+            raise TransportError("Could not read or update the managed SSH known_hosts file.") from exc
+
+    def _connect_compat(self, ready_pattern=None, ready_max_bytes=None):
+        try:
+            import paramiko
+        except ImportError as exc:
+            raise TransportError(
+                "Older-device SSH compatibility requires the python3-paramiko package."
+            ) from exc
+        if self.extra_ssh_options:
+            raise TransportError("OpenSSH-only extra options cannot be used with older-device SSH compatibility.")
+        transport = None
+        sock = None
+        try:
+            sock = socket.create_connection((self.host, int(self.port)), timeout=self.connect_timeout)
+            transport = paramiko.Transport(
+                sock,
+                disabled_algorithms={
+                    "keys": ["rsa-sha2-512", "rsa-sha2-256"],
+                    "pubkeys": ["rsa-sha2-512", "rsa-sha2-256"],
+                },
+            )
+            transport.banner_timeout = self.connect_timeout
+            transport.auth_timeout = self.connect_timeout
+            security = transport.get_security_options()
+            if self.kex:
+                security.kex = self._compat_list(self.kex)
+            if self.host_key_algos:
+                security.key_types = self._compat_list(self.host_key_algos)
+            if self.ciphers:
+                security.ciphers = self._compat_list(self.ciphers)
+            transport.start_client(timeout=self.connect_timeout)
+            host_key = transport.get_remote_server_key()
+            self._verify_compat_host_key(paramiko, host_key)
+            if self.key_path:
+                key = paramiko.PKey.from_path(self.key_path, passphrase=self.key_passphrase)
+                transport.auth_publickey(self.username, key)
+            elif self.password is not None:
+                transport.auth_password(self.username, self.password, fallback=True)
+            else:
+                raise AuthError("SSH password or private key is required")
+            if not transport.is_authenticated():
+                raise AuthError(f"authentication rejected by {self.host}")
+            channel = transport.open_session(timeout=self.connect_timeout)
+            if self.subsystem:
+                channel.invoke_subsystem(self.subsystem)
+            else:
+                channel.get_pty(term="vt100", width=200, height=100)
+                channel.invoke_shell()
+            channel.settimeout(0.0)
+            self._compat_transport = transport
+            self._compat_channel = channel
+            self._fd = channel.fileno()
+            ready = ready_pattern or _RE_PROMPT
+            _idx, match, consumed = self._read_until(
+                [ready], self.connect_timeout, max_bytes=ready_max_bytes
+            )
+            self.ready_data = consumed
+            if ready_pattern is None:
+                self.prompt = match.group(1).strip()
+        except (AuthError, TransportError):
+            if transport is not None:
+                transport.close()
+            elif sock is not None:
+                sock.close()
+            raise
+        except paramiko.AuthenticationException as exc:
+            if transport is not None:
+                transport.close()
+            raise AuthError(f"authentication rejected by {self.host}") from exc
+        except (paramiko.SSHException, OSError, EOFError) as exc:
+            if transport is not None:
+                transport.close()
+            elif sock is not None:
+                sock.close()
+            detail = str(exc).strip() or type(exc).__name__
+            raise TransportError(f"older-device SSH connection to {self.host} failed: {detail[:240]}") from exc
+
     # ---- low-level expect ------------------------------------------------
     def _read_until(self, patterns, timeout, feed_transcript=True, max_bytes=None):
         """patterns: list of compiled bytes-regex. Returns (index, match, consumed)."""
@@ -177,6 +361,22 @@ class SSHTransport:
                 raise TransportError(
                     f"timeout after {timeout}s; last data: "
                     f"{self._buf[-200:]!r}")
+            if self._compat_channel is not None:
+                channel = self._compat_channel
+                if channel.recv_ready():
+                    data = channel.recv(65536)
+                    if not data:
+                        raise EOFError("SSH channel ended: " + repr(bytes(self._buf[-200:])))
+                    self._buf += data
+                    if max_bytes is not None and len(self._buf) > int(max_bytes):
+                        raise TransportError(f"protocol response exceeded {int(max_bytes)} byte limit")
+                    if feed_transcript:
+                        self.transcript += data
+                    continue
+                if channel.closed or channel.exit_status_ready():
+                    raise EOFError("SSH channel ended: " + repr(bytes(self._buf[-200:])))
+                time.sleep(min(remaining, 0.02))
+                continue
             try:
                 r, _, _ = select.select([self._fd], [], [], min(remaining, 0.5))
             except (OSError, ValueError) as exc:
@@ -198,7 +398,10 @@ class SSHTransport:
     def _write(self, data, echo_to_transcript=False):
         if isinstance(data, str):
             data = data.encode()
-        os.write(self._fd, data)
+        if self._compat_channel is not None:
+            self._compat_channel.sendall(data)
+        else:
+            os.write(self._fd, data)
         if echo_to_transcript:
             self.transcript += data
 
@@ -206,18 +409,29 @@ class SSHTransport:
     def connect(self, ready_pattern=None, ready_max_bytes=None):
         started = time.monotonic()
         self._trace("connect_start", operation="ssh connect", host=self.host, port=self.port)
+        if self.legacy:
+            self._connect_compat(ready_pattern=ready_pattern, ready_max_bytes=ready_max_bytes)
+            self._trace("connect", operation="ssh connect", status="ok",
+                        duration_ms=(time.monotonic()-started)*1000, host=self.host, port=self.port,
+                        compatibility="rsa-512-plus")
+            return
         self._spawn()
         # Auth phase: we may see a host-key confirm, passphrase, password, an
         # error, or land straight at a device prompt (key auth, no passphrase).
         ready = ready_pattern or _RE_PROMPT
         patterns = [_RE_HOSTKEY_CONFIRM, _RE_PASSPHRASE, _RE_PASSWORD,
-                    _RE_PERM_DENIED, _RE_CONN_FAIL, ready]
+                    _RE_PERM_DENIED, _RE_CONN_FAIL, ready, _RE_NEGOTIATION_FAIL]
         password_sent = False
         for _ in range(8):  # bounded interaction loop
             try:
                 idx, m, consumed = self._read_until(patterns, self.connect_timeout, max_bytes=ready_max_bytes)
             except EOFError as e:
+                message = _negotiation_message(self._buf, self.legacy)
+                if message:
+                    raise TransportError(message) from e
                 raise AuthError(f"connection to {self.host} closed during auth: {e}") from e
+            if idx == 6:
+                raise TransportError(_negotiation_message(consumed + self._buf, self.legacy))
             if idx == 0:  # host key confirm (only if policy=yes)
                 self._write("yes\n")
             elif idx == 1:  # key passphrase
@@ -325,6 +539,19 @@ class SSHTransport:
 
     # ---- teardown --------------------------------------------------------
     def close(self):
+        if self._compat_channel is not None:
+            try:
+                self._compat_channel.close()
+            except Exception:
+                pass
+            self._compat_channel = None
+        if self._compat_transport is not None:
+            try:
+                self._compat_transport.close()
+            except Exception:
+                pass
+            self._compat_transport = None
+            self._fd = None
         if self._fd is not None:
             try:
                 self._write("exit\n")

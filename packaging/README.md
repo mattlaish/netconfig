@@ -8,8 +8,45 @@ Q2 production qualification executes against the frozen R59 product with `packag
 
 # NetConfig RPM build and installation (AlmaLinux 10)
 
-<!-- documentation-sync: 2026-10-13 -->
-> **Canonical project state — 2026-10-13:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) with unnumbered SNMP Vendor Profile and October Web UI / NetFlow corrective updates. **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included; schema `mc11-topology-change-planning-1` is unchanged. The working tree is not the previously frozen R67.2 candidate. Release numbering awaits an explicit user decision. Next: choose release identity, freeze a new candidate, execute all twelve mandatory `LIVE_RC` gates against its exact bytes, then perform R68 production release review. No new feature phase is assigned. All network mutation remains approval-gated. Local/source evidence does not establish production readiness. **Do not create MC-12.**
+## RSA 512+ SSH compatibility RPM — 2026-11-04
+
+Version 2.0.0-67.6.el10 uses an isolated Paramiko 3.5 SSHv2 backend only for
+devices with **Older-device SSH compatibility** enabled. It supports legacy
+KEX/cipher/MAC and RSA host keys from 512 bits while verifying the host key
+before authentication. Normal devices continue to use OpenSSH. The RPM requires
+`python3-paramiko >= 3.5` and `< 5` from EPEL 10. Enable EPEL before the upgrade
+if it is not already configured. Existing NetConfig state is retained.
+
+Windows delivery: C:\Users\mattlai\Downloads\netconfig-20261104-67.6
+
+## Endpoint CSV RPM — 2026-11-03
+
+The 2.0.0-67.4.el10 package includes **Endpoints → Export CSV** for matching
+IP/MAC and likely switch/port, including IPv6 and uncertainty. Use dnf upgrade
+from 67.3, then restart netconfig-web. Earlier source-only notes below are
+historical; this feature is included in 67.4. The separate large-database startup
+delay remains under investigation; wait for current initialization to finish
+before upgrading. No manual SQL is required. Offline verification is not live
+AlmaLinux installation/runtime qualification.
+
+Windows delivery folder: `C:\Users\mattlai\Downloads\netconfig-20261103-67.4`.
+
+## Current delivery — 2026-11-03
+
+The corrective binary is 2.0.0-67.3.el10, raised from the confirmed installed
+67.2 so dnf upgrade applies the repairs. Delivery is in the dated folder
+`C:\Users\mattlai\Downloads\netconfig-20261103` with SHA256SUMS and an external
+build report. The old project-root RPM stays unchanged. Restart netconfig-web
+after upgrade. Preliminary same-version test builds are not delivered.
+
+Built with the existing stdlib-only offline builder; canonical AlmaLinux
+rpmbuild/install/upgrade/service/SELinux verification is still NOT_RUN. No SRPM
+is emitted by this helper. Two final builds, payload/source verification and
+in-memory compilation are recorded in the external report. Earlier frozen
+fingerprints and release-specific examples below remain historical.
+
+<!-- documentation-sync: 2026-11-04 -->
+> **Canonical project state — 2026-11-04:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.6 / RSA 512+ SSH Compatibility RPM** (`2.0.0-67.6`, `IMPLEMENTED_TESTING_DEFERRED`). Older-device SSH compatibility now uses an isolated Paramiko 3.5 SSHv2 backend for legacy KEX/cipher/MAC and RSA host keys from 512 bits, with managed host-key verification before authentication; normal devices remain on system OpenSSH. Prior SNMPv3, Endpoint CSV, history/evidence/workflow corrections are preserved. **MC-11 Topology-Aware Change Planning** remains the final feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** and schema `mc11-topology-change-planning-1` remain. **Do not create MC-12.** Loopback RSA 512/1024/2048 validation does not replace live Cisco/AlmaLinux qualification. All twelve LIVE_RC gates and an explicit R68 decision remain required. Git stays user-managed.
 
 > **Document applicability:** this document is maintained against [ROADMAP.md](../ROADMAP.md) and [AI_HANDOFF.md](../AI_HANDOFF.md). Older release-numbered sections, test counts, fingerprints and Current/Next pointers below are historical unless explicitly restated in this 2026-10-13 update.
 

@@ -743,6 +743,8 @@ def get_v2c(host, community, oids, port=161, timeout=2.0, retries=1):
 # ---- v3 USM -------------------------------------------------------------
 def password_to_key(password, engine_id, hash_ctor):
     """RFC 3414 password-to-key with engine localization."""
+    if not isinstance(password, str) or not password:
+        raise SNMPError("SNMPv3 password is missing. Enter the authentication or privacy password in the SNMP credentials.")
     pw = password.encode()
     plen = len(pw)
     h = hash_ctor()
@@ -820,6 +822,8 @@ def net_snmp_priv_name(proto):
 class V3Params:
     def __init__(self, username, auth_proto=None, auth_pass=None,
                  priv_proto=None, priv_pass=None):
+        if not isinstance(username, str) or not username:
+            raise SNMPError("SNMPv3 username is missing. Enter it in the SNMP credentials.")
         self.username = username
         self.auth_proto = _norm_auth(auth_proto)          # md5|sha1|sha224|sha256|sha384|sha512
         self.auth_pass = auth_pass
@@ -828,7 +832,11 @@ class V3Params:
         self._localized_keys = {}
         self._engines = {}
         if self.priv_proto and not self.auth_proto:
-            raise SNMPError("priv requires auth (authPriv)")
+            raise SNMPError("SNMPv3 encryption requires an authentication protocol (authPriv).")
+        if self.auth_proto and (not isinstance(self.auth_pass, str) or not self.auth_pass):
+            raise SNMPError("SNMPv3 authentication password is missing. Enter it in the SNMP credentials.")
+        if self.priv_proto and (not isinstance(self.priv_pass, str) or not self.priv_pass):
+            raise SNMPError("SNMPv3 privacy password is missing. Enter it in the SNMP credentials.")
 
     @property
     def level(self):

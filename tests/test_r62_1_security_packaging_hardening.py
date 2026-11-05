@@ -124,6 +124,6 @@ def test_reviewed_dead_code_is_removed():
 def test_r62_1_hotfix_history_is_preserved_under_r64():
     spec = (ROOT / "packaging/netconfig.spec").read_text(encoding="utf-8")
     road = (ROOT / "ROADMAP.md").read_text(encoding="utf-8")
-    assert "Release:        67.2%{?dist}" in spec
+    assert "Release:        67.6%{?dist}" in spec
     assert "2.0.0-62.1" in spec
     assert "R64" in road and "IMPLEMENTED_TESTING_DEFERRED" in road

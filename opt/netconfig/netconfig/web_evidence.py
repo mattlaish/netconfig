@@ -1,5 +1,7 @@
 """Read-only operator explanations for MAC locations, route learning and measurements."""
+import csv
 import html
+import io
 import urllib.parse
 
 from .users import can
@@ -8,6 +10,53 @@ from .network_intelligence import normalize_mac, _port_keys
 
 def e(value):
     return html.escape(str(value if value is not None else ""))
+
+
+def _csv_cell(value):
+    text = str(value if value is not None else "").replace("\x00", "")
+    # Quoting alone does not prevent spreadsheet formula evaluation.
+    if text.lstrip().startswith(("=", "+", "-", "@")) or text.startswith(("\t", "\r", "\n")):
+        text = "'" + text
+    return text
+
+
+def endpoints_csv(endpoints):
+    """Export the existing filtered evidence, never infer a physical attachment.
+
+    One row per IP (or a blank IP for MAC-only evidence); extra locations stay
+    separate from the single likely location, so ambiguity is not lost in Excel.
+    """
+    stream = io.StringIO(newline="")
+    writer = csv.writer(stream)
+    writer.writerow(["IP", "MAC", "Likely switch", "Likely port", "VLAN", "Result", "Confidence",
+                     "Direct connection proven", "IP mapping fresh", "Candidate locations",
+                     "Transit observations", "Outdated observations"])
+    for endpoint in endpoints:
+        status = endpoint.get("status") or "UNRESOLVED"
+        location = ((endpoint.get("attachment") or endpoint.get("observed_location") or {})
+                    if status in {"CANDIDATE", "ATTACHED"} else {})
+        port = location.get("ifdescr") or location.get("ifindex") or location.get("bridge_port") or ""
+        observations = (endpoint.get("evidence_chain") or {}).get("fdb_candidates") or []
+        groups = {"candidate": set(), "transit": set(), "outdated": set()}
+        for observation in observations:
+            observed_port = (observation.get("ifdescr") or observation.get("ifindex")
+                             or observation.get("bridge_port") or "?")
+            label = f'{observation.get("device") or "?"}: {observed_port}'
+            if observation.get("vlan_id"):
+                label += f' (VLAN {observation["vlan_id"]})'
+            group = ("outdated" if not observation.get("fresh")
+                     else "transit" if observation.get("transit") else "candidate")
+            groups[group].add(label)
+        freshness = endpoint.get("ip_mapping_fresh")
+        values = [endpoint.get("mac", ""), location.get("device", ""), port, location.get("vlan_id", ""),
+                  status, endpoint.get("confidence", "NONE"),
+                  "Yes" if endpoint.get("direct_connection_proven") else "No",
+                  "Unknown" if freshness is None else "Yes" if freshness else "No",
+                  *["; ".join(sorted(groups[group])) for group in ("candidate", "transit", "outdated")]]
+        ips = list(dict.fromkeys((endpoint.get("ipv4") or []) + (endpoint.get("ipv6") or []))) or [""]
+        for ip in ips:
+            writer.writerow([_csv_cell(value) for value in [ip, *values]])
+    return "\ufeff" + stream.getvalue()
 
 
 def mac_observation(endpoint, device, entry):

@@ -73,6 +73,9 @@ TAG_PROVIDES = 1047
 TAG_REQUIREFLAGS = 1048
 TAG_REQUIRES = 1049
 TAG_REQUIREVERSION = 1050
+RPMSENSE_LESS = 1 << 1
+RPMSENSE_GREATER = 1 << 2
+RPMSENSE_EQUAL = 1 << 3
 TAG_PREINPROG = 1085
 TAG_POSTINPROG = 1086
 TAG_PREUNPROG = 1087
@@ -337,7 +340,16 @@ def build_rpm(repo_root: Path, output: Path, dist: str, source_date_epoch: int) 
 
     basenames, dirindexes, dirnames = _file_path_indexes(files)
     provides_version = f"{version}-{release}"
-    requires = ["/bin/sh", "/usr/bin/python3.12", "/usr/bin/ssh", "/usr/bin/openssl", "shadow-utils", "systemd"]
+    requirements = [
+        ("/bin/sh", "", 0),
+        ("/usr/bin/python3.12", "", 0),
+        ("/usr/bin/ssh", "", 0),
+        ("/usr/bin/openssl", "", 0),
+        ("python3-paramiko", "3.5", RPMSENSE_GREATER | RPMSENSE_EQUAL),
+        ("python3-paramiko", "5", RPMSENSE_LESS),
+        ("shadow-utils", "", 0),
+        ("systemd", "", 0),
+    ]
 
     main: dict[int, HeaderEntry] = {
         TAG_HEADER_I18N: _string("C"),
@@ -371,9 +383,9 @@ def build_rpm(repo_root: Path, output: Path, dist: str, source_date_epoch: int) 
         TAG_SOURCERPM: _string(f"{name}-{version}-{release}.src.rpm"),
         TAG_FILEVERIFYFLAGS: _int32([0xFFFFFFFF for _ in files]),
         TAG_PROVIDES: _strings([name]),
-        TAG_REQUIREFLAGS: _int32([0 for _ in requires]),
-        TAG_REQUIRES: _strings(requires),
-        TAG_REQUIREVERSION: _strings(["" for _ in requires]),
+        TAG_REQUIREFLAGS: _int32([flags for _name, _version, flags in requirements]),
+        TAG_REQUIRES: _strings([name for name, _version, _flags in requirements]),
+        TAG_REQUIREVERSION: _strings([version for _name, version, _flags in requirements]),
         TAG_PREINPROG: _string("/bin/sh"),
         TAG_POSTINPROG: _string("/bin/sh"),
         TAG_PREUNPROG: _string("/bin/sh"),

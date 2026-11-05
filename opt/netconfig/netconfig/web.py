@@ -2884,6 +2884,17 @@ The client secret is stored in the vault.</p>
         device = (q.get("device") or [""])[0].strip() or None
         search = (q.get("q") or [""])[0].strip()
         rows = self.manager.endpoint_inventory(device=device, query=search)
+        if (q.get("format") or [""])[0] == "csv":
+            from .web_evidence import endpoints_csv
+            return self._send(endpoints_csv(rows), 200, "text/csv; charset=utf-8",
+                              headers=[("Content-Disposition", 'attachment; filename="netconfig-endpoints.csv"'),
+                                       ("Cache-Control", "no-store")])
+        export_params = {"format": "csv"}
+        if search:
+            export_params["q"] = search
+        if device:
+            export_params["device"] = device
+        export_url = html.escape("/endpoints?" + urllib.parse.urlencode(export_params), quote=True)
         stats = _ni.summary(rows)
         devices = self.manager.inv.all()
         opts = ['<option value="">All evidence devices</option>']
@@ -2933,7 +2944,7 @@ The client secret is stored in the vault.</p>
                    f'<b>{stats["ambiguous"]}</b> ambiguous · <b>{stats["transit_only"]}</b> transit-only · '
                    f'<b>{stats["stale"]}</b> stale · <b>{stats["with_ipv4"]}</b> with IPv4')
         table = "".join(body_rows) or '<tr><td colspan="7" class="muted">No endpoint matches. Poll the L3 gateway/firewall for ARP/IP-neighbor evidence and switches for FDB/MAC evidence.</td></tr>'
-        inner = (f'<div class="panel"><h2>Endpoint lookup</h2><p class="muted">Search an IP or MAC. NetConfig joins ARP/IP-neighbor evidence from L3 devices to FDB/MAC evidence from switches before applying the device filter, so the gateway and access switch do not need to be the same device.</p>'
+        inner = (f'<div class="panel"><h2>Endpoint lookup</h2><p><a class="btn ghost" href="{export_url}">Export CSV</a> <span class="muted">Export matching results; one row per IP address.</span></p><p class="muted">Search an IP or MAC. NetConfig joins ARP/IP-neighbor evidence from L3 devices to FDB/MAC evidence from switches before applying the device filter, so the gateway and access switch do not need to be the same device.</p>'
                  f'<form method=get action="/endpoints"><div class="row"><div><label>IP / MAC / switch / port</label><input name=q value="{html.escape(search)}" placeholder="e.g. 192.168.1.25"></div><div><label>Evidence device</label><select name=device>{"".join(opts)}</select></div><div style="flex:0"><label>&nbsp;</label><button>Find endpoint</button></div></div></form><p>{summary}</p>'
                  '<p class="muted">A single FDB candidate is a possible observation location, not proof of direct attachment. Known neighbor-facing ports are transit observations. Multiple candidates, outdated data and unknown locations remain explicit; an unseen downstream switch may still exist.</p></div>'
                  f'<div class="panel"><div class="table-wrap"><table><tr><th>IP</th><th>MAC</th><th>Likely switch / port</th><th>VLAN</th><th>Result</th><th>Evidence chain</th><th>Candidates</th></tr>{table}</table></div></div>')

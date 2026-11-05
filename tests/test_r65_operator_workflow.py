@@ -236,7 +236,7 @@ def test_r65_release_identity_and_no_mc12_contract():
     root = Path(__file__).resolve().parents[1]
     spec = (root / "packaging" / "netconfig.spec").read_text()
     roadmap = (root / "ROADMAP.md").read_text()
-    assert "Release:        67.2%{?dist}" in spec
+    assert "Release:        67.6%{?dist}" in spec
     assert "R65" in roadmap and "R66" in roadmap
     assert "do not create mc-12" in roadmap.lower()
 

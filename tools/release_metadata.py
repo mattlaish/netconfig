@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate/check deterministic R67.2 corrective-RC release metadata and SPDX 2.3 source SBOM."""
+"""Generate/check deterministic corrective-RPM release metadata and SPDX 2.3 source SBOM."""
 from __future__ import annotations
 
 import argparse
@@ -8,8 +8,8 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-RELEASE = "67.2"
-VERSION = "2.0.0-67.2"
+RELEASE = "67.6"
+VERSION = "2.0.0-67.6"
 SCHEMA = "mc11-topology-change-planning-1"
 EXCLUDE_NAMES = {
     "SBOM.spdx.json", "RELEASE_MANIFEST.json", "RELEASE_MANIFEST_SHA256.txt",
@@ -106,14 +106,14 @@ def build_release_manifest(sbom):
         "version": "2.0.0",
         "current_release": RELEASE,
         "current_package": VERSION,
-        "current_slice": "R67.2 Fresh Database Bootstrap Hardening Corrective RC",
-        "base_track": "R67.2 corrective RC on frozen R67",
+        "current_slice": "R67.6 RSA 512+ SSH Compatibility RPM",
+        "base_track": "Corrective packaging on R67.5; frozen MC-11 feature lineage",
         "status": "IMPLEMENTED_TESTING_DEFERRED",
         "schema_revision": SCHEMA,
         "feature_freeze": True,
         "mc12_defined": False,
         "monitoring_correlation_lineage": "CLOSED at R59/MC-11; do not create MC-12",
-        "authority_boundary": "R67.2 remains feature-frozen; this unnumbered corrective development update adds bounded read-only data-driven SNMP Vendor Profiles and grouped operator navigation. Network mutation authority is unchanged and remains exclusively approval-gated.",
+        "authority_boundary": "Feature lineage remains frozen; R67.6 adds an isolated, per-device SSHv2 compatibility backend for legacy algorithms and RSA host keys from 512 bits while preserving prior SNMPv3, Endpoint CSV, history and workflow fixes. Network mutation authority is unchanged and remains exclusively approval-gated.",
         "release_candidate_policy": {
             "candidate_evidence_bound_to_exact_fingerprint": True,
             "changes_invalidate_prior_rc_evidence": True,
@@ -127,8 +127,8 @@ def build_release_manifest(sbom):
             "package_verification_code": sbom["packages"][0]["packageVerificationCode"]["packageVerificationCodeValue"],
         },
         "qualification": {
-            "source_tree": "556 collected / 542 passed / 14 skipped / 0 failed (12 bounded groups)",
-            "vendor_profile_focused": "8/8 PASS",
+            "source_tree": "2026-11-04 RSA 512/1024/2048 loopback and related SSH/SNMPv3/Web/protocol regression: 99 passed / 2 explicit Windows POSIX-mode exclusions; selftest ALL PASS",
+            "vendor_profile_focused": "Historical September checkpoint: 8/8 PASS; November evidence repairs covered by focused source regression",
             "legacy_selftest": "ALL PASS",
             "release_candidate_qualified": False,
             "production_release_claim": False,
@@ -149,7 +149,7 @@ def build_release_manifest(sbom):
         ],
         "release_promotion": "NOT_PERFORMED",
         "production_release_claim": False,
-        "next_track": "R68 v2 Production Release Decision rerun after R67.2 live qualification",
+        "next_track": "R68 v2 Production Release Decision only after exact current candidate live qualification",
     }
 
 
@@ -178,7 +178,7 @@ def main():
         path.write_text(content)
     manifest_hash = digest(ROOT / "RELEASE_MANIFEST.json", "sha256")
     (ROOT / "RELEASE_MANIFEST_SHA256.txt").write_text(f"{manifest_hash}  RELEASE_MANIFEST.json\n")
-    print(f"wrote R67.2 release metadata: {len(sbom['files'])} SPDX source files")
+    print(f"wrote {VERSION} release metadata: {len(sbom['files'])} SPDX source files")
     return 0
 
 

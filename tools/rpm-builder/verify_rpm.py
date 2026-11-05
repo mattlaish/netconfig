@@ -29,6 +29,11 @@ from rpm_builder import (  # noqa: E402
     TAG_FILEUSERNAME,
     TAG_FILEGROUPNAME,
     TAG_REQUIRES,
+    TAG_REQUIREFLAGS,
+    TAG_REQUIREVERSION,
+    RPMSENSE_LESS,
+    RPMSENSE_GREATER,
+    RPMSENSE_EQUAL,
     TAG_PREIN,
     TAG_POSTIN,
     TAG_PREUN,
@@ -157,10 +162,22 @@ def verify(rpm_path: Path, repo_root: Path) -> list[str]:
                 errors.append(f"/etc/default/netconfig flags expected 17, got {flags}")
         except ValueError:
             errors.append("/etc/default/netconfig missing from RPM header")
-    requires = set(h.get(TAG_REQUIRES, []))
-    for req in ("/bin/sh", "/usr/bin/python3.12", "/usr/bin/ssh", "/usr/bin/openssl", "shadow-utils", "systemd"):
+    require_names = h.get(TAG_REQUIRES, [])
+    require_versions = h.get(TAG_REQUIREVERSION, [])
+    require_flags = h.get(TAG_REQUIREFLAGS, [])
+    requires = set(require_names)
+    for req in ("/bin/sh", "/usr/bin/python3.12", "/usr/bin/ssh", "/usr/bin/openssl", "python3-paramiko", "shadow-utils", "systemd"):
         if req not in requires:
             errors.append(f"missing requirement: {req}")
+    paramiko_bounds = {
+        (version, flags)
+        for name, version, flags in zip(require_names, require_versions, require_flags)
+        if name == "python3-paramiko"
+    }
+    if ("3.5", RPMSENSE_GREATER | RPMSENSE_EQUAL) not in paramiko_bounds:
+        errors.append("missing python3-paramiko >= 3.5 requirement")
+    if ("5", RPMSENSE_LESS) not in paramiko_bounds:
+        errors.append("missing python3-paramiko < 5 requirement")
     for tag, label in ((TAG_PREIN, "prein"), (TAG_POSTIN, "postin"), (TAG_PREUN, "preun"), (TAG_POSTUN, "postun")):
         if not h.get(tag):
             errors.append(f"missing {label} scriptlet")

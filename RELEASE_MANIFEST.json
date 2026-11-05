@@ -1,9 +1,9 @@
 {
-  "authority_boundary": "R67.2 remains feature-frozen; this unnumbered corrective development update adds bounded read-only data-driven SNMP Vendor Profiles and grouped operator navigation. Network mutation authority is unchanged and remains exclusively approval-gated.",
-  "base_track": "R67.2 corrective RC on frozen R67",
-  "current_package": "2.0.0-67.2",
-  "current_release": "67.2",
-  "current_slice": "R67.2 Fresh Database Bootstrap Hardening Corrective RC",
+  "authority_boundary": "Feature lineage remains frozen; R67.6 adds an isolated, per-device SSHv2 compatibility backend for legacy algorithms and RSA host keys from 512 bits while preserving prior SNMPv3, Endpoint CSV, history and workflow fixes. Network mutation authority is unchanged and remains exclusively approval-gated.",
+  "base_track": "Corrective packaging on R67.5; frozen MC-11 feature lineage",
+  "current_package": "2.0.0-67.6",
+  "current_release": "67.6",
+  "current_slice": "R67.6 RSA 512+ SSH Compatibility RPM",
   "deferred": [
     "all 12 required LIVE_RC gates",
     "external/upstream Git-index 100755 fresh-clone verification",
@@ -18,7 +18,7 @@
   "mc12_defined": false,
   "monitoring_correlation_lineage": "CLOSED at R59/MC-11; do not create MC-12",
   "name": "NetConfig",
-  "next_track": "R68 v2 Production Release Decision rerun after R67.2 live qualification",
+  "next_track": "R68 v2 Production Release Decision only after exact current candidate live qualification",
   "offline_rpm": {
     "artifact_evidence": "see external artifact packaging integrity gate",
     "boundary": "offline helper RPM only; deterministic artifact evidence is external to source metadata to avoid a source/artifact hash cycle"
@@ -28,8 +28,8 @@
     "legacy_selftest": "ALL PASS",
     "production_release_claim": false,
     "release_candidate_qualified": false,
-    "source_tree": "556 collected / 542 passed / 14 skipped / 0 failed (12 bounded groups)",
-    "vendor_profile_focused": "8/8 PASS"
+    "source_tree": "2026-11-04 RSA 512/1024/2048 loopback and related SSH/SNMPv3/Web/protocol regression: 99 passed / 2 explicit Windows POSIX-mode exclusions; selftest ALL PASS",
+    "vendor_profile_focused": "Historical September checkpoint: 8/8 PASS; November evidence repairs covered by focused source regression"
   },
   "release_candidate_policy": {
     "all_required_live_rc_gates_required": true,
@@ -40,9 +40,9 @@
   "release_promotion": "NOT_PERFORMED",
   "sbom": {
     "artifact": "SBOM.spdx.json",
-    "files_analyzed": 479,
+    "files_analyzed": 484,
     "format": "SPDX-2.3",
-    "package_verification_code": "9ebccea0c184c47c9fee43078b7d6848cb2809aa"
+    "package_verification_code": "e12a80587b42446d98adf7c0d33cabb351d7dde9"
   },
   "schema_revision": "mc11-topology-change-planning-1",
   "status": "IMPLEMENTED_TESTING_DEFERRED",
