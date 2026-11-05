@@ -4,7 +4,7 @@ set -euo pipefail
 RPM_PATH=${1:-}
 if [[ -z "$RPM_PATH" || "$RPM_PATH" == "-h" || "$RPM_PATH" == "--help" ]]; then
     cat <<'USAGE'
-usage: sudo ./packaging/install-rpm.sh ./netconfig-2.0.0-67.2.el10.noarch.rpm
+usage: sudo ./packaging/install-rpm.sh ./netconfig-2.0.0-67.6.el10.noarch.rpm
 
 Installs or upgrades the NetConfig RPM on AlmaLinux 10. The script deliberately
 DOES NOT create the first admin, create/unlock the credential vault, or start the

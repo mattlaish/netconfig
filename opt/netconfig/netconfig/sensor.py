@@ -5,7 +5,11 @@ must never cause device I/O, broaden a walk, or shorten a polling interval.
 """
 from __future__ import annotations
 
+import logging
+import threading
 import time
+
+from .db import delete_sensor_history_batch
 
 
 _SENSOR_STATUSES = {"OK", "WARNING", "CRITICAL", "UNKNOWN"}
@@ -31,6 +35,10 @@ _SENSOR_VALUE_THRESHOLDS = {
 _SENSOR_OBSERVATION_RETENTION_SECONDS = 30 * 24 * 60 * 60
 _SENSOR_TRANSITION_RETENTION_SECONDS = 180 * 24 * 60 * 60
 _SENSOR_HISTORY_PRUNE_INTERVAL_SECONDS = 60 * 60
+_SENSOR_HISTORY_BATCH_ROWS = 500
+_SENSOR_HISTORY_BACKLOG_RETRY_SECONDS = 1
+_SENSOR_HISTORY_ERROR_RETRY_SECONDS = 60
+_LOG = logging.getLogger(__name__)
 
 
 def _mib_truth(value):
@@ -54,7 +62,8 @@ class SensorHistoryRecorder:
 
     def __init__(self, conn):
         self.conn = conn
-        self._last_prune = 0.0
+        self._next_prune = 0.0
+        self._prune_lock = threading.Lock()
 
     @staticmethod
     def key(sensor_type, device, resource):
@@ -95,15 +104,45 @@ class SensorHistoryRecorder:
         return str(previous_status or "UNKNOWN").upper() != str(new_status or "UNKNOWN").upper()
 
     def _prune_history(self, now):
-        if now - self._last_prune < _SENSOR_HISTORY_PRUNE_INTERVAL_SECONDS:
+        if time.monotonic() < self._next_prune or not self._prune_lock.acquire(blocking=False):
             return
-        self.conn.execute(
-            "DELETE FROM sensor_observations WHERE observed_at<?",
-            (now - _SENSOR_OBSERVATION_RETENTION_SECONDS,))
-        self.conn.execute(
-            "DELETE FROM sensor_transitions WHERE observed_at<?",
-            (now - _SENSOR_TRANSITION_RETENTION_SECONDS,))
-        self._last_prune = now
+        try:
+            if time.monotonic() < self._next_prune:
+                return
+            # Avoid one failed cleanup attempt per sensor during a DB outage.
+            self._next_prune = time.monotonic() + _SENSOR_HISTORY_ERROR_RETRY_SECONDS
+            args = (now - _SENSOR_OBSERVATION_RETENTION_SECONDS,
+                    now - _SENSOR_TRANSITION_RETENTION_SECONDS, _SENSOR_HISTORY_BATCH_ROWS)
+            prune = getattr(self.conn, "prune_sensor_history_batch", None)
+            if prune is not None:
+                counts = prune(*args)
+            else:
+                # Other adapters retain their own connection contract. Skip a
+                # busy shared handle instead of queuing behind web requests.
+                lock = getattr(self.conn, "lock", None)
+                if lock is not None and not lock.acquire(blocking=False):
+                    counts = None
+                else:
+                    try:
+                        counts = delete_sensor_history_batch(self.conn, *args)
+                    except Exception:
+                        try:
+                            self.conn.rollback()
+                        except Exception:
+                            pass
+                        raise
+                    finally:
+                        if lock is not None:
+                            lock.release()
+            more = counts is None or any(n >= _SENSOR_HISTORY_BATCH_ROWS for n in counts)
+            delay = (_SENSOR_HISTORY_BACKLOG_RETRY_SECONDS if more
+                     else _SENSOR_HISTORY_PRUNE_INTERVAL_SECONDS)
+            self._next_prune = time.monotonic() + delay
+        except Exception as exc:
+            # No SQL, connection strings or device values in service logs.
+            _LOG.warning("Sensor history cleanup deferred (%s)", type(exc).__name__)
+        finally:
+            self._prune_lock.release()
 
     def record(self, previous, current):
         """Record one observation and, when severity changed, one transition.
@@ -115,7 +154,6 @@ class SensorHistoryRecorder:
         """
         try:
             now = time.time()
-            self._prune_history(now)
             sensor_type = str(current.get("sensor_type") or "")
             device = str(current.get("device") or "")
             resource = str(current.get("resource") or "")
@@ -150,6 +188,8 @@ class SensorHistoryRecorder:
                         (key, sensor_type, device, resource, old_status, status,
                          old_value, value, source, now, metadata, now))
             self.conn.commit()
+            # Cleanup cannot discard the new observation or its transition.
+            self._prune_history(now)
         except Exception:
             # The current Sensor row is already committed by SensorEngine.upsert().
             # History is diagnostic evidence and must fail independently.

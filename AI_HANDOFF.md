@@ -1,5 +1,324 @@
 # NetConfig AI Handover
 
+## 67.6 RSA 512+ SSH compatibility — 2026-11-04
+
+User requires one reusable older-device mode that supports RSA host keys from
+512 bits upward, rather than adding one device/key length at a time. OpenSSH's
+`RequiredRSASize` cannot lower its built-in 1024-bit floor, so opted-in devices
+now use an isolated Paramiko 3.5 SSHv2 backend. Normal devices still use system
+OpenSSH. No IP-specific rule or global crypto-policy change was added.
+
+- Compatibility backend supports Paramiko 3.5's legacy KEX/cipher/MAC families
+  and forces `ssh-rsa` signatures for the old RSA path. Live RSA key size is
+  checked before credentials; 512+ proceeds and below 512 fails clearly.
+- Managed known_hosts is loaded before authentication. Matching keys proceed;
+  changed same-type keys always fail; `yes` rejects unknown keys; `accept-new`
+  and explicit `no` pin unknown keys. Nonstandard ports use `[host]:port`.
+- Password/keyboard-interactive and private-key authentication, CLI PTY and
+  NETCONF subsystem channels share the existing command/trace/timeout interface.
+  OpenSSH-only extra options fail clearly in this isolated backend.
+- Actual loopback SSHv2 handshakes pass with RSA 512, 1024 and 2048 host keys,
+  password auth, prompt and command execution. Changed keys and RSA below 512
+  are rejected before password. Related regression retains normal OpenSSH mode.
+  Final related suite: 99 PASS / 2 explicit Windows POSIX-mode exclusions in
+  38.47 s. Exclusions are first-admin 0600 and release-tool 0755 assertions;
+  RPM mode verification remains independent. Legacy selftest ALL PASS.
+- RPM identity advances to 2.0.0-67.6 and requires `python3-paramiko >= 3.5`
+  and `< 5`; Paramiko 5 removes the required SHA-1 KEX/signature algorithms.
+  Fedora EPEL 10 currently supplies 3.5.x. Live Cisco/AlmaLinux qualification
+  remains NOT_RUN; status stays IMPLEMENTED_TESTING_DEFERRED.
+- Offline builder produced two byte-identical RPMs from epoch 1793750400;
+  independent structure/source/mode/scriptlet/versioned-dependency verification
+  passes. Final SHA-256 is `1b9727d7761ce03ebd7e80eead5fcfe682db49eacd86c857bce8dccb8a41c0c4`.
+  Delivery: `C:\Users\mattlai\Downloads\netconfig-20261104-67.6\netconfig-2.0.0-67.6.el10.noarch.rpm`
+  with SHA256SUMS and RPM_BUILD_REPORT.json. Unsigned helper RPM; no SRPM.
+- Preserve prior SNMPv3, Endpoint CSV, evidence/routing/vendor, Sensor cleanup
+  and operator-workflow repairs. No Git operations, deployment or R68 promotion.
+
+## 67.5 SSH/SNMPv3 RPM delivery — 2026-11-04
+
+User confirmed the legacy-mode error on Cisco 192.168.0.205 is exactly
+Bad key types '+ssh-rsa,ssh-dss'. The unsupported ssh-dss list is the existing
+legacy-mode bug fixed by compiled-capability filtering. Package both today's
+SSH and SNMPv3 fixes as real Release 67.5 for upgrade from 67.4.
+User also reported Cisco show snmp: 26 Unknown community name. This is a
+cumulative unknown-community packet counter, not error code 26; it can remain
+after a fix. Compare before/after an explicit poll, accounting for other pollers.
+User confirmed Cisco uses SNMP v2c; the community value itself was not supplied.
+Added explicit v2c manual community override regression; do not promise the RPM corrects a mismatched
+Cisco/server setting or erases historical counters. Community values stay private.
+
+- Runtime hashes match the immediately preceding 150 PASS / 6 Windows-excluded
+  source checkpoint, selftest ALL PASS. New packaging/identity/SSH/SNMPv3 focused
+  checks and final artifact verification are recorded in the external report.
+  Final packaging regression: 51 PASS / 3 deliberate exclusions, 14.36 s,
+  including the new v2c community case. Exclusions are two qualification-runner
+  environment cases and the POSIX CI mode assertion; no Git-index test executed.
+- Keep this device's Older-device SSH compatibility enabled after upgrade.
+  No inventory edit/default downgrade/global crypto-policy change is made here.
+  This removes the reported unsupported-list error; it does not prove that the
+  Cisco will pass every subsequent SSH negotiation/authentication stage.
+- Build uses the existing Python offline builder, epoch 1793750400. Two final
+  builds compared; independent RPM/source/mode/launcher/config/scriptlet verifier
+  and packaged-Python compilation precede delivery. Unsigned; canonical AlmaLinux
+  rpmbuild/install/upgrade/systemd/SELinux and live Cisco/FortiGate/PG NOT_RUN.
+- Delivery: C:\Users\mattlai\Downloads\netconfig-20261104-67.5\netconfig-2.0.0-67.5.el10.noarch.rpm
+  with SHA256SUMS and RPM_BUILD_REPORT.json. Prior 67.4 artifact remains unchanged.
+  No SRPM. Actual artifact hashes live outside source to avoid a hash cycle.
+- Spec, installer example, canonical banners, identity tests and source metadata
+  synchronized to 67.5. Earlier source-only notes below are historical; both
+  repairs are included in 67.5. Status IMPLEMENTED_TESTING_DEFERRED, no Git/live
+  deployment/R68 promotion or inherited frozen-candidate evidence.
+- Earlier 104 GB startup cause remains unverified; later user reports include
+  Web NetFlow and connection-test responses. Do not assert old no-8778 status
+  remains current, or claim this SSH package diagnosed that historical delay.
+
+## Per-device SSH compatibility repair — 2026-11-04
+
+User reported Cisco 192.168.0.205 offering only diffie-hellman-group-exchange-sha1,
+group14-sha1 and group1-sha1, then clarified it supports SSH version 2. SSHv2 is
+already the intended protocol; the reported failure is KEX algorithm agreement,
+before password authentication. Do not tell the user to find SSHv3 or blame SSHv2.
+SNMPv3 missing-credential fixes from the preceding section are preserved.
+
+- Existing per-device legacy flag is now labelled Older-device SSH compatibility.
+  It stays opt-in. No automatic weaker retry, inventory migration or global
+  ssh_config/crypto-policy changes. The previously delivered 67.4 label is
+  legacy algorithms; enable it on this device to request its existing mode.
+- transport queries the resolved local SSH binary with ssh -Q kex/key/cipher
+  only when default legacy additions are needed. Each subprocess has 2 s timeout,
+  no shell, input or device connection. Cache is bounded and keyed by binary
+  path/category/mtime/size. Append only compiled-supported legacy candidates;
+  removed ssh-dss/3des/etc are omitted rather than invalidating the whole command.
+  Empty subsets add no invalid empty options. Explicit algorithm overrides keep
+  their previous behavior. Prefer group14, then group-exchange, then group1.
+- Modern/default mode makes no capability probes/additions. Host-key checking,
+  known_hosts, target-after-- and password/key selection remain. Compiled support
+  is not system-policy approval; FIPS/crypto policy may still reject old methods.
+- Detect standard KEX/host-key/cipher/MAC mismatch output during negotiation or
+  EOF and produce an actionable TransportError instead of misleading auth/bytes
+  repr. When mode is off, direct user to this per-device checkbox; when already
+  enabled, explain local support/policy limitation and device SSH update. No
+  password send, fallback connection or authentication retry is introduced.
+- Validation: 150 PASS / 6 deliberate Windows exclusions,
+  100.42 s / 7 modules. Includes 17 new SSH cases and the prior SNMPv3 cases;
+  one initial checkbox assertion wrongly depended on inline style stripped by
+  CSP, corrected to inspect the actual checked attribute. First broad run hit
+  five pre-existing gNMI fchmod-dependent cases unavailable on Windows; excluded
+  without changing their security code, alongside first-admin POSIX mode case.
+  Legacy selftest ALL PASS; 100 runtime + new SSH test compile; Ruff 0 findings
+  in changed Python. Local Windows OpenSSH -G parsing PASS (no device connection).
+  SNMP module hash and _do_device_test AST match the prior credential repair.
+- No live Cisco/FortiGate/AlmaLinux/PG test or browser visual acceptance claimed.
+  Source-only, identity 2.0.0-67.4 / IMPLEMENTED_TESTING_DEFERRED, no Git/build/
+  deployment. Delivered 67.4 remains unchanged and excludes BOTH today's SNMPv3
+  and SSH fixes. A future upgrade RPM needs a higher Release. Source docs/metadata
+  synchronized; do not overwrite old artifact or claim a production resolution.
+- Reference: https://www.openssh.org/legacy.html (per-host appends and ssh -Q).
+- Proof: C:\Users\mattlai\AppData\Local\Temp\netconfig-ssh-compat-cbfefbdb31b74131b8c1ac51e6c3dd3a.
+
+## SNMPv3 missing-credential and connection-test repair — 2026-11-04
+
+User reported Failed SNMP v3: 'NoneType' object has no attribute 'encode'.
+Reproduced locally with missing authentication password; V3Params also allowed
+None usernames. Manager's connection-test path normalizes missing usernames to
+empty strings, so its reported None.encode path points to password localization.
+Do not claim the actual user's vault contents were inspected.
+
+- snmp.V3Params validates nonempty text username, selected auth password and
+  compatible auth/privacy configuration before discovery/network I/O. Direct
+  password_to_key rejects None/empty/non-text input before encode/modulo. Errors
+  identify the field, never echo secret values. Explicit noAuthNoPriv remains
+  supported; missing passwords do not silently downgrade security. Existing
+  privacy-password reuse of auth password is preserved; whitespace is retained.
+  This adds presence/type validation, not a new passphrase-length policy.
+- Test connection now honors cred_mode. Manual mode merges nonempty edits over
+  the original device's separate SSH/SNMP entries; blank passwords retain saved
+  values even when hidden reference selects are disabled/not posted. Saved mode
+  ignores manual fields and requires a selected SNMP secret. No credential or
+  inventory writes; existing audit/host-key behavior remains. Password/community
+  whitespace is no longer stripped. Never substitute SSH password for SNMP auth.
+- Manual SNMP form explains required auth fields and password reuse. On existing
+  67.4, user can enter SNMPv3 username/passwords in device Edit, Save changes, then
+  Poll now to use persisted credentials; Test connection could otherwise use an
+  old selected secret or lose blank saved fields in the unfixed version.
+- Validation: 123 related PASS / 2 Windows POSIX-mode exclusions
+  (100.50 s, 7 modules), including 24 new credential tests. Legacy selftest
+  ALL PASS, including RFC key vectors; 100 runtime + new test compile; Ruff 0 new /
+  3 baseline. Tests cover missing fields/no network, noAuth/auth/privacy reuse,
+  normal polling, manual edits with disabled references, blank/whitespace values,
+  saved-mode injection, separate secret preservation and response redaction.
+- Source-only; identity remains 2.0.0-67.4 / IMPLEMENTED_TESTING_DEFERRED. No Git,
+  RPM build, version bump, deployment or live FortiGate/AlmaLinux/PG verification.
+  Delivered 67.4 SHA remains 00e30d4f77f27afa7880fae64b68142e4c66d06b8e51b3b66936e0f726b62e4b
+  and excludes this fix. Next delivery needs a higher Release for dnf upgrade.
+- Source docs/metadata synchronized. Corrected two broken 67.4 delivery paths
+  caused by a prior escaped newline in generated Markdown. Later user reports
+  include Web NetFlow/Test connection output; do not keep asserting the earlier
+  missing-8778 snapshot is current. Exact 104 GB startup SQL/cause is unconfirmed.
+- Proof: C:\Users\mattlai\AppData\Local\Temp\netconfig-snmpv3-credentials-7a61b39cda664d6b84b6d83fcb2c6064.
+
+## 67.4 RPM delivery — 2026-11-03
+
+User requested the RPM after Endpoint CSV source work. Actual package Release is
+67.4 for upgrade from installed 67.3. Includes filtered Export CSV with IP/MAC,
+likely switch/port and explicit uncertainty; preserves 67.3 runtime repairs.
+Runtime export hashes match the immediately preceding 96 PASS / 1 Windows-mode
+exclusion checkpoint, selftest ALL PASS. Packaging-only identity/manifest/CSV/
+cleanup checks and final reproducibility results are in the external build report.
+Final packaging checks: 37 PASS / 3 deliberate exclusions in 9.10 s (the two
+qualification-runner environment cases and the POSIX CI mode assertion). Both
+offline RPM builds were byte-identical; independent verifier passed; 101 packaged
+Python/launcher files compiled; Ruff 0 findings in the packaging Python changes.
+
+- Source root unchanged. No Git or live deployment; status remains
+  IMPLEMENTED_TESTING_DEFERRED, no R68 promotion or inherited LIVE_RC PASS.
+- Existing Python offline builder, epoch 1793664000. Two final builds compared;
+  independent RPM/payload/source verification and in-memory Python compilation
+  precede delivery. Unsigned; canonical AlmaLinux rpmbuild/install/upgrade/
+  systemd/SELinux/PG/device/latency qualification is NOT_RUN. No SRPM is generated.
+- Delivery: `C:\Users\mattlai\Downloads\netconfig-20261103-67.4\netconfig-2.0.0-67.4.el10.noarch.rpm`,
+  adjacent SHA256SUMS and RPM_BUILD_REPORT.json. Earlier 67.3 output is preserved.
+- IMPORTANT: this adds CSV, not a new startup repair. The user's 104 GB SQLite
+  startup still had no 8778 and advancing I/O at the last report. Exact SQL/stage
+  is unconfirmed. Do not interrupt ongoing initialization to install this export;
+  wait for completion or separately diagnose the startup blocker. Do not close it.
+- Canonical banners, spec, metadata, installer example and identity tests synced
+  to 67.4. Source history notes below describe earlier checkpoints/artifacts.
+
+## Endpoint CSV source update and live startup investigation — 2026-11-03
+
+User requested /endpoints export of IP, MAC and likely switch/port. Implemented
+in the canonical source root; existing delivered 67.3 RPM is unchanged and does
+NOT contain this source update. No Git, build, version bump or deployment here.
+
+- Existing authenticated /endpoints supports format=csv. Export CSV button keeps
+  only the current q/device filters and downloads netconfig-endpoints.csv, UTF-8
+  BOM for spreadsheet use, no-store. It uses the same endpoint_inventory result
+  as the page, without a second correlation pass or new device/network I/O.
+- One row per distinct IPv4/IPv6 address; MAC-only evidence gets a blank IP.
+  Columns: IP, MAC, Likely switch/port, VLAN, Result, Confidence, Direct connection
+  proven, IP mapping fresh, Candidate locations, Transit observations, Outdated
+  observations. Unresolved/ambiguous/transit/stale rows have no guessed primary
+  location; their observation lists remain. No direct-attachment proof is added.
+- web_evidence.endpoints_csv uses csv.writer for quotes/newlines/Unicode and
+  escapes spreadsheet formula-leading cells. Empty results keep CSV headers.
+  Existing sign-in/user-disabled handling applies; viewers can read/export.
+- Validation: 96 PASS / 1 Windows first-admin POSIX-mode assertion excluded,
+  45.72 s across export/evidence/network-intelligence/Web UX modules. Selftest
+  ALL PASS; 100 runtime Python files + new test compile; Ruff 0 new / 6 baseline.
+  HTTP tests cover filters, button URL, response headers, viewer/anonymous/disabled
+  access, no I/O/no writes; pure tests cover uncertainty, all IPs, MAC-only,
+  formula prefixes, Chinese/CSV quoting/newlines. A first disabled-user test used
+  a legacy fixture session; corrected to the real managed-session constructor.
+  No new browser visual or live-device/AlmaLinux/PG qualification is claimed.
+- Source docs/metadata updated. Prior 67.3 artifact hash remains
+  e7dafff523ba609a9a3124369d29cf0626988cc9c166805ffdb8925cd2e7f6a3.
+  A future deliverable needs a new package Release for upgrade; never overwrite
+  or call this feature present in the already-installed 67.3 artifact.
+- LIVE ISSUE STILL OPEN: user installed 67.3; service PID 370869 running one
+  thread, 8778 absent. inventory.db is 104 GB, MIB cache 1.2 MB; SQLite etilqs
+  temporary file open. Python RSS was 35400 KiB (~35 MB); systemd service Memory
+  13.1 GB is a different/cgroup measure and must not be called Python RSS.
+  Over the user's 10-second sample, read_bytes rose 314036224 (~299.5 MiB),
+  write_bytes rose 26882048 (~25.6 MiB): startup I/O progressing, not proof of
+  which SQL/index/migration is active or a completion-time guarantee. Do not
+  falsely close the startup issue or repeatedly restart ongoing index work.
+  py-spy was unavailable; no fresh Python startup stack has been captured.
+- Next: user reports whether 8778 appears / startup completes; if still blocked,
+  identify the exact startup stage before another corrective RPM. Source CSV
+  feature is ready for later packaging, not a reason to interrupt current startup.
+- Proof: C:\Users\mattlai\AppData\Local\Temp\netconfig-endpoint-export-d9d4804c147e452188e19792d082214a.
+
+## RPM delivery — 2026-11-03
+
+User confirmed the host already has netconfig-2.0.0-67.2.el10.noarch.
+The deliverable therefore advances the actual RPM Release to 67.3 so
+`dnf upgrade` installs the repair. This is a packaging revision, not a new
+feature phase or R68 release decision. Preliminary same-version 67.2 test
+builds remain only in external Temp proof and are not the delivered RPM.
+
+- Active source stays C:\Users\mattlai\Projects\netconfig. Includes Nov 2 Sensor
+  cleanup/login responsiveness, Nov 1 evidence/routing/MIB repairs and Oct 25
+  Account/credential/unconfigured-NetFlow corrections. Runtime repair hashes
+  match the Nov 2 validation; its 211 PASS / 2 Windows exclusions and selftest
+  ALL PASS remain prior source evidence, not a new full-suite run today.
+- Build uses the existing Python offline RPM builder, since this Windows host
+  has no available canonical AlmaLinux rpmbuild environment. Source timestamp
+  is fixed at 1793664000 (2026-11-03 00:00:00 UTC). Two final builds and independent
+  structure/header/digest/payload/source/mode/config/scriptlet verification are
+  recorded in the external delivery proof. All packaged Python compiles in memory.
+  It is unsigned and offline-verified only; no live install/upgrade, systemd,
+  SELinux, PostgreSQL, latency or LIVE_RC PASS is implied. Status remains
+  IMPLEMENTED_TESTING_DEFERRED; no R68 release promotion or Git operations. Spec, source metadata, installer
+  example, canonical documentation banners and identity regressions use 67.3.
+  Historical R67.2 qualification evidence is not reused as current PASS.
+- Delivery: C:\Users\mattlai\Downloads\netconfig-20261103\netconfig-2.0.0-67.3.el10.noarch.rpm
+  with adjacent SHA256SUMS and RPM_BUILD_REPORT.json. These contain final hashes
+  outside packaged docs, avoiding an artifact/source hash cycle. Old project-root
+  RPM remains unchanged and stale; do not accidentally send it. This helper does
+  not generate an SRPM. Existing configuration/state preservation is retained.
+- Source metadata regenerated after documentation sync. A large existing DB may
+  take extra time on first updated startup to create the new retention indexes.
+  No manual SQL is needed. Real-host installation remains the next user action.
+- Final 67.3 packaging/source regression: 18 PASS / 3 deliberately deselected
+  (4.19 s). Selected release identity/manifest/SBOM/installer/canonical truth and
+  all cleanup regressions; excluded two qualification-runner environment cases
+  and a POSIX executable-mode CI assertion. No Git-index test was executed.
+- Proof: C:\Users\mattlai\AppData\Local\Temp\netconfig-rpm-20261103-d4be8843b00646d7a44ceb53f77d8de9.
+
+## Sign-in blocked by Sensor cleanup — 2026-11-02
+
+User supplied a live Python stack: /login Users.count and the SNMP scheduler
+were waiting at the SQLite shared connection lock while the monitor thread was
+inside DELETE in SensorHistoryRecorder._prune_history. This identifies the
+blocking path; the snapshot alone does not distinguish disk cost from another
+process's write lock. Previous November 1 "login unresolved" notes are historical
+for this specific path; no claim that every possible login delay is solved.
+
+- db.py adds (observed_at,id) indexes for sensor_observations/transitions through
+  existing additive startup schema/index initialization (SQLite and PG schema).
+  Existing large databases may need extra time for this one-time index build.
+- File-backed SQLite retention uses an independent, short-lived connection to
+  the resolved already-open DB filename, mode=rw, with 50 ms busy timeout. It
+  never creates a replacement DB, uses no web/shared-connection lock, commits
+  each table's batch separately, and closes/rolls back its own handle on failure.
+  The normal connection's 5000 ms busy timeout and locking stay unchanged.
+- Each attempt deletes at most 500 expired rows per table via an indexed ID
+  subquery; no unbounded DELETE or drain loop. Backlog/contended in-memory handle
+  retries after at least 1 second; completed sweep waits an hour. Failure backs
+  off 60 seconds and logs only exception class. Deadlines are monotonic and a
+  recorder guard prevents concurrent duplicate sweeps. These are triggered by
+  subsequent Sensor records, not a new background timer or idle-cleanup promise.
+- New observations/transitions are committed before optional cleanup. Failed
+  cleanup cannot discard their evidence. In-memory SQLite uses a nonblocking
+  lock and skips an existing transaction, never committing someone else's work.
+  Other adapters retain their connection contract with portable bounded SQL;
+  PostgreSQL does not gain the separate SQLite maintenance connection.
+- Sensor retention stays 30 days observations / 180 days transitions. Physical
+  cleanup may lag during backlog, no new observations, DB outage or contention.
+  NetFlow's separate 24-hour PostgreSQL history is unchanged. No login caching,
+  password/session/RBAC changes or manual operator SQL is required.
+- Validation: 211 related PASS / 2 Windows POSIX-mode assertions
+  deselected (108.01 s, 13 modules). New tests cover indexed in-place
+  upgrade, bounded/retried expiry with exact-cutoff preservation, cleanup failure
+  retaining observations/transitions, transaction ownership, real external
+  SQLite writer contention/recovery, and real HTTP healthz/login responses while
+  cleanup SQL is deliberately paused. PG adapter SQL compatibility is offline.
+  Legacy selftest ALL PASS; 100 runtime Python files + new regression compile;
+  Ruff 0 findings in changed Python. First broad run found an additional Windows
+  secure-file POSIX-mode incompatibility; excluded without weakening security.
+  First new-test run corrected a fixture's mistaken salt column name.
+- No private-key/token signatures or temporary source files in checked changes.
+  November 1's three restored files match their completion hashes unchanged.
+  READMEs, patch.md and source metadata synchronized; package remains 2.0.0-67.2 /
+  IMPLEMENTED_TESTING_DEFERRED. No Git, RPM build/version bump/deployment; existing
+  RPM is stale and unchanged. Live AlmaLinux latency, real PG/devices and LIVE_RC
+  NOT_RUN. Rebuild/install and reproduce on the user's host before claiming a
+  verified production resolution. Other October 31 audit issues remain open.
+- Backups, patch ledger and final proof:
+  `C:\Users\mattlai\AppData\Local\Temp\netconfig-history-cleanup-2b0e5b8cf3074daaadf293c3a403a685`.
+
 ## Restored evidence repairs, merged with October 25 changes — 2026-11-01
 
 User requested restoring the three missing files and their required integration.
@@ -344,8 +663,8 @@ Additional completed local checks: legacy selftest **ALL PASS** (including Appli
 
 Active continuation: finish candidate identity/freeze and execute required LIVE_RC gates. The 2026-10-13 documentation-only pass below is historical; this corrective includes runtime and regression-test changes. Do not infer that the entire CLI/settings surface has been re-audited from closure of these five reported gaps.
 
-<!-- documentation-sync: 2026-10-13 -->
-> **Canonical project state — 2026-10-13:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.2 / R67.2 Fresh Database Bootstrap Hardening Corrective RC** (`2.0.0-67.2`, `IMPLEMENTED_TESTING_DEFERRED`) with unnumbered SNMP Vendor Profile and October Web UI / NetFlow corrective updates. **MC-11 Topology-Aware Change Planning** remains the final Monitoring / Correlation / Change-Planning feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** remains included; schema `mc11-topology-change-planning-1` is unchanged. The working tree is not the previously frozen R67.2 candidate. Release numbering awaits an explicit user decision. Next: choose release identity, freeze a new candidate, execute all twelve mandatory `LIVE_RC` gates against its exact bytes, then perform R68 production release review. No new feature phase is assigned. All network mutation remains approval-gated. Local/source evidence does not establish production readiness. **Do not create MC-12.**
+<!-- documentation-sync: 2026-11-04 -->
+> **Canonical project state — 2026-11-04:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.6 / RSA 512+ SSH Compatibility RPM** (`2.0.0-67.6`, `IMPLEMENTED_TESTING_DEFERRED`). Older-device SSH compatibility now uses an isolated Paramiko 3.5 SSHv2 backend for legacy KEX/cipher/MAC and RSA host keys from 512 bits, with managed host-key verification before authentication; normal devices remain on system OpenSSH. Prior SNMPv3, Endpoint CSV, history/evidence/workflow corrections are preserved. **MC-11 Topology-Aware Change Planning** remains the final feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** and schema `mc11-topology-change-planning-1` remain. **Do not create MC-12.** Loopback RSA 512/1024/2048 validation does not replace live Cisco/AlmaLinux qualification. All twelve LIVE_RC gates and an explicit R68 decision remain required. Git stays user-managed.
 
 > **Document applicability:** this document is maintained against [ROADMAP.md](ROADMAP.md) and [AI_HANDOFF.md](AI_HANDOFF.md). Older release-numbered sections, test counts, fingerprints and Current/Next pointers below are historical unless explicitly restated in this 2026-10-13 update.
 
