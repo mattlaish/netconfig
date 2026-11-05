@@ -166,7 +166,7 @@ def test_r66_metrics_publish_bounded_supportability_without_identifiers(tmp_path
 def test_r66_release_identity_and_no_mc12_contract():
     spec = (ROOT / "packaging/netconfig.spec").read_text()
     roadmap = (ROOT / "ROADMAP.md").read_text()
-    assert "Release:        67.6%{?dist}" in spec
+    assert "Release:        67.8%{?dist}" in spec
     assert "R66" in roadmap
     assert "mc11-topology-change-planning-1" in roadmap
     assert "do not create mc-12" in roadmap.lower()

@@ -111,7 +111,7 @@ def test_release_67_rc_canonical_truth_is_consistent():
     assert 'version = "2.0.0"' in pyproject
     assert '__version__ = "2.0.0"' in package
     assert "Version:        2.0.0" in spec
-    assert "Release:        67.6%{?dist}" in spec
+    assert "Release:        67.8%{?dist}" in spec
     for relative in (
         "README.md", "DEVELOPMENT.md", "AI_HANDOFF.md", "ROADMAP.md",
         "SECURITY.md", "API.md", "TESTING.md", "DEV_BASELINE.md",
@@ -121,8 +121,8 @@ def test_release_67_rc_canonical_truth_is_consistent():
     ):
         text = (ROOT / relative).read_text(encoding="utf-8")
         canonical = next(line for line in text.splitlines() if line.startswith("> **Canonical project state"))
-        assert "2.0.0-67.6" in canonical, relative
-        assert "Release 67.6" in canonical, relative
+        assert "2.0.0-67.8" in canonical, relative
+        assert "Release 67.8" in canonical, relative
         assert "MC-11 Topology-Aware Change Planning" in canonical, relative
         assert "NI-7 L3/VRF Path & Route Dependency Intelligence" in canonical, relative
         assert "Release 33 full source baseline as the active implementation source" not in text, relative

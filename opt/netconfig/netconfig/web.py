@@ -2848,7 +2848,9 @@ The client secret is stored in the vault.</p>
         detail = ""
         if routing:
             l3 = getattr(r, "l3", None) or {}
-            if l3.get("status") == "OK":
+            if not r.ok:
+                detail = " Route learning was not attempted because configuration collection failed before route commands ran."
+            elif l3.get("status") == "OK":
                 detail = f' Routes learned: {int(l3.get("routes") or 0)}; interface addresses: {int(l3.get("interfaces") or 0)}.'
             else:
                 detail = " Route learning did not complete. Check the collection status and configured CLI method below."

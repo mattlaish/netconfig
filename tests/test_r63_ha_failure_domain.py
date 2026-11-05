@@ -300,7 +300,7 @@ def test_r63_package_and_authority_truth():
     installer=(ROOT/'packaging/install-rpm.sh').read_text()
     road=(ROOT/'ROADMAP.md').read_text().lower()
     planning=(ROOT/'opt/netconfig/netconfig/change_planning.py').read_text().lower()
-    assert 'Release:        67.6%{?dist}' in spec
+    assert 'Release:        67.8%{?dist}' in spec
     assert '${RELEASE%%.*} != "67"' in installer
     assert 'do not create mc-12' in road
     assert 'network_write": false' in planning or '"network_write": false' in planning

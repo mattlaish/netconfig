@@ -5,8 +5,15 @@ import socket
 import threading
 
 import pytest
+from cryptography.exceptions import UnsupportedAlgorithm
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import padding
 
-from netconfig.transport import SSHTransport, TransportError
+from netconfig.transport import (
+    SSHTransport,
+    TransportError,
+    _compat_rsa_key_class,
+)
 
 # Skip (not error) where the optional older-device SSH backend is not installed.
 paramiko = pytest.importorskip("paramiko")
@@ -65,6 +72,51 @@ def _small_rsa(bits):
 def _rsa_key(bits):
     private = _small_rsa(bits) if bits < 1024 else rsa.generate_private_key(65537, bits)
     return paramiko.RSAKey(key=private)
+
+
+def _ssh_rsa_signature(private_key, data, algorithm="ssh-rsa"):
+    digest = hashes.SHA1() if algorithm == "ssh-rsa" else hashes.SHA256()
+    message = paramiko.Message()
+    message.add_string(algorithm)
+    message.add_string(private_key.sign(data, padding.PKCS1v15(), digest))
+    return message
+
+
+def test_legacy_rsa_sha1_verification_survives_restricted_crypto_backend(monkeypatch):
+    private_key = rsa.generate_private_key(65537, 1024)
+    data = b"netconfig legacy host-key exchange"
+    signature = _ssh_rsa_signature(private_key, data)
+
+    def reject_sha1(_self, _data, _message):
+        raise UnsupportedAlgorithm("sha1 is not supported by this backend for RSA signing")
+
+    monkeypatch.setattr(paramiko.RSAKey, "verify_ssh_sig", reject_sha1)
+    _compat_rsa_key_class.cache_clear()
+    compat_key = _compat_rsa_key_class(paramiko)(key=private_key.public_key())
+    try:
+        assert compat_key.verify_ssh_sig(data, paramiko.Message(signature.asbytes()))
+        assert not compat_key.verify_ssh_sig(
+            data + b"!", paramiko.Message(signature.asbytes())
+        )
+    finally:
+        _compat_rsa_key_class.cache_clear()
+
+
+def test_legacy_fallback_never_overrides_non_sha1_rsa_rejection(monkeypatch):
+    private_key = rsa.generate_private_key(65537, 1024)
+    signature = _ssh_rsa_signature(private_key, b"data", algorithm="rsa-sha2-256")
+
+    def reject_algorithm(_self, _data, _message):
+        raise UnsupportedAlgorithm("simulated backend rejection")
+
+    monkeypatch.setattr(paramiko.RSAKey, "verify_ssh_sig", reject_algorithm)
+    _compat_rsa_key_class.cache_clear()
+    compat_key = _compat_rsa_key_class(paramiko)(key=private_key.public_key())
+    try:
+        with pytest.raises(UnsupportedAlgorithm, match="simulated backend rejection"):
+            compat_key.verify_ssh_sig(b"data", paramiko.Message(signature.asbytes()))
+    finally:
+        _compat_rsa_key_class.cache_clear()
 
 
 class _Server(paramiko.ServerInterface):

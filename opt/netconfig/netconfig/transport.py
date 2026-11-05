@@ -26,6 +26,8 @@ Real-world gotchas handled / exposed:
     a --More-- prompt with space.
 """
 
+import hashlib
+import hmac
 import os
 import pty
 import re
@@ -73,6 +75,65 @@ _DEFAULT_LEGACY_HOSTKEY = "ssh-rsa,ssh-dss"
 _DEFAULT_LEGACY_CIPHERS = "aes256-cbc,aes192-cbc,aes128-cbc,3des-cbc"
 _MIN_COMPAT_RSA_BITS = 512
 _KNOWN_HOSTS_LOCK = threading.Lock()
+_RSA_SHA1_DIGEST_INFO_PREFIX = bytes.fromhex("3021300906052b0e03021a05000414")
+
+
+def _verify_compat_rsa_sha1(key, data, message):
+    """Strictly verify one legacy ssh-rsa/SHA-1 host-key signature.
+
+    None means the signature is not ssh-rsa and must remain rejected by the
+    normal crypto backend. This fallback exists only for an explicitly opted-in
+    compatibility Transport; it does not alter the host crypto policy.
+    """
+    if message.get_text() != "ssh-rsa":
+        return None
+    signature = message.get_binary()
+    numbers = key.public_numbers
+    modulus = int(numbers.n)
+    exponent = int(numbers.e)
+    modulus_bytes = (modulus.bit_length() + 7) // 8
+    if not signature or len(signature) > modulus_bytes:
+        return False
+    signature_int = int.from_bytes(signature, "big")
+    if signature_int >= modulus:
+        return False
+    encoded = pow(signature_int, exponent, modulus).to_bytes(modulus_bytes, "big")
+    digest_info = _RSA_SHA1_DIGEST_INFO_PREFIX + hashlib.sha1(data).digest()
+    padding_length = modulus_bytes - len(digest_info) - 3
+    if padding_length < 8:
+        return False
+    expected = b"\x00\x01" + (b"\xff" * padding_length) + b"\x00" + digest_info
+    return hmac.compare_digest(encoded, expected)
+
+
+@lru_cache(maxsize=4)
+def _compat_rsa_key_class(paramiko):
+    """Create the RSA verifier used only by an opted-in Paramiko Transport."""
+    from cryptography.exceptions import UnsupportedAlgorithm
+
+    class CompatRSAKey(paramiko.RSAKey):
+        def verify_ssh_sig(self, data, message):
+            raw_message = message.asbytes()
+            try:
+                return super().verify_ssh_sig(data, paramiko.Message(raw_message))
+            except UnsupportedAlgorithm:
+                verified = _verify_compat_rsa_sha1(
+                    self, data, paramiko.Message(raw_message)
+                )
+                if verified is None:
+                    raise
+                return verified
+
+    CompatRSAKey.__name__ = "NetConfigCompatRSAKey"
+    return CompatRSAKey
+
+
+def _install_compat_rsa_verifier(paramiko, transport):
+    """Install the verifier on one Transport instance, never process-wide."""
+    compat_rsa_key = _compat_rsa_key_class(paramiko)
+    transport._key_info = dict(transport._key_info)
+    for identifier in compat_rsa_key.identifiers():
+        transport._key_info[identifier] = compat_rsa_key
 
 
 @lru_cache(maxsize=32)
@@ -289,6 +350,7 @@ class SSHTransport:
                     "pubkeys": ["rsa-sha2-512", "rsa-sha2-256"],
                 },
             )
+            _install_compat_rsa_verifier(paramiko, transport)
             transport.banner_timeout = self.connect_timeout
             transport.auth_timeout = self.connect_timeout
             security = transport.get_security_options()

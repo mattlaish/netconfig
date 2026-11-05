@@ -1,5 +1,23 @@
 # NetConfig
 
+## Enable credential precedence corrective RPM — 2026-11-05
+
+Version 2.0.0-67.8.el10 fixes Cisco collection when a Web-managed vault record
+contains distinct SSH and Enable passwords. NetConfig now sends the explicit
+Enable password instead of replacing it with the SSH login password. Existing
+saved credentials do not need to be re-entered. Release 67.7 legacy SSH/SHA-1
+compatibility and normal-device OpenSSH isolation remain.
+
+## Legacy RSA SHA-1 verification corrective RPM — 2026-11-05
+
+Version 2.0.0-67.7.el10 corrects older-device SSH connections that reached the
+Paramiko compatibility backend but were rejected by AlmaLinux with `sha1 is not
+supported by this backend for RSA signing`. The fallback is limited to devices
+with **Older-device SSH compatibility** enabled and strictly verifies the legacy
+`ssh-rsa` host signature before the existing managed known_hosts check and
+authentication. It does not change the host crypto policy; normal devices remain
+on system OpenSSH. Existing state and prior fixes are preserved.
+
 ## RSA 512+ SSH compatibility RPM — 2026-11-04
 
 Version 2.0.0-67.6.el10 changes the per-device **Older-device SSH
@@ -190,8 +208,8 @@ Generated manifests, SBOM and artifact hashes remain pending regeneration for th
 
 Additional completed local checks: legacy selftest **ALL PASS** (including Application-only isolation and System-only regression), six changed runtime modules compile, and the existing canonical-state, compound-statement and PH-1 structure checks **3/3 PASS**. Selftest uses the same fail-closed Windows PTY import harness; this is not live SSH evidence.
 
-<!-- documentation-sync: 2026-11-04 -->
-> **Canonical project state — 2026-11-04:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.6 / RSA 512+ SSH Compatibility RPM** (`2.0.0-67.6`, `IMPLEMENTED_TESTING_DEFERRED`). Older-device SSH compatibility now uses an isolated Paramiko 3.5 SSHv2 backend for legacy KEX/cipher/MAC and RSA host keys from 512 bits, with managed host-key verification before authentication; normal devices remain on system OpenSSH. Prior SNMPv3, Endpoint CSV, history/evidence/workflow corrections are preserved. **MC-11 Topology-Aware Change Planning** remains the final feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** and schema `mc11-topology-change-planning-1` remain. **Do not create MC-12.** Loopback RSA 512/1024/2048 validation does not replace live Cisco/AlmaLinux qualification. All twelve LIVE_RC gates and an explicit R68 decision remain required. Git stays user-managed.
+<!-- documentation-sync: 2026-11-05 -->
+> **Canonical project state — 2026-11-05:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.8 / Enable Credential Precedence Corrective RPM** (`2.0.0-67.8`, `IMPLEMENTED_TESTING_DEFERRED`). When a Web-managed vault secret is both the SSH and enable reference, NetConfig now sends its explicit `enable_password` instead of incorrectly overwriting it with the SSH login password; separate Enable secrets remain supported. Release 67.7 legacy `ssh-rsa`/SHA-1 verification, managed known_hosts, the RSA 512-bit floor and normal-device OpenSSH isolation remain. Prior SNMPv3, Endpoint CSV, history/evidence/workflow corrections are preserved. **MC-11 Topology-Aware Change Planning** remains the final feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** and schema `mc11-topology-change-planning-1` remain. **Do not create MC-12.** Local regression does not replace live Cisco/AlmaLinux qualification. All twelve LIVE_RC gates and an explicit R68 decision remain required. Git stays user-managed.
 
 > **Document applicability:** this document is maintained against [ROADMAP.md](ROADMAP.md) and [AI_HANDOFF.md](AI_HANDOFF.md). Older release-numbered sections, test counts, fingerprints and Current/Next pointers below are historical unless explicitly restated in this 2026-10-13 update.
 

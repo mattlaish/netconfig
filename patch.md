@@ -1,3 +1,31 @@
+## PATCH-20261105-03 — Enable secret precedence and route-status corrective RPM
+
+- Fix Web-managed Cisco credentials where the same vault record is both SSH and
+  Enable reference: prefer its explicit `enable_password`; do not overwrite it
+  with the SSH login `password`. Preserve separate explicit/password-only Enable
+  secret compatibility and all credential redaction/storage boundaries.
+- When configuration collection fails before route commands, state that route
+  learning was not attempted instead of adding a misleading generic failure.
+- Regression: 67 PASS across three Enable storage forms, route feedback and the
+  retained 67.7 legacy SSH/SHA-1 suite; compile PASS. Advance to 2.0.0-67.8 for
+  dnf upgrade from 67.7. Live device result remains deferred; no Git/R68 action.
+
+## PATCH-20261105-02 — Legacy ssh-rsa SHA-1 verification corrective RPM
+
+- Live 67.6 testing reached Paramiko 3.5 but AlmaLinux rejected Cisco's valid
+  `ssh-rsa` host signature with `sha1 is not supported by this backend for RSA
+  signing`. Add a per-Transport verifier only for explicitly opted-in older
+  devices; do not lower global crypto policy or change normal OpenSSH traffic.
+- Strictly verify the PKCS#1 v1.5 SHA-1 DigestInfo block, then retain managed
+  known_hosts matching/pinning before authentication. Reject tampering, changed
+  host keys, RSA below 512 bits and every non-`ssh-rsa` backend rejection.
+- Focused SSH/compatibility regression 23 PASS; Python compile PASS. Prior merged
+  full-suite result remains 868 PASS / 15 skipped and is not relabelled as a new
+  full run. Live Cisco/AlmaLinux success remains NOT_RUN for the new bytes.
+- Advance RPM identity to 2.0.0-67.7 for dnf upgrade from 67.6. Preserve prior
+  SNMPv3, Endpoint CSV, login responsiveness, evidence/routing/vendor and
+  operator-workflow changes. No Git operation or R68 promotion.
+
 ## PATCH-20261105-01 — Merge November 1 review fixes into the 67.6 main line
 
 - Merged branch `claude/test-633sv0` (PATCH-20261101-03: light drift checks on list
@@ -580,8 +608,8 @@ Generated manifests, SBOM and artifact hashes remain pending regeneration for th
 
 Additional completed local checks: legacy selftest **ALL PASS** (including Application-only isolation and System-only regression), six changed runtime modules compile, and the existing canonical-state, compound-statement and PH-1 structure checks **3/3 PASS**. Selftest uses the same fail-closed Windows PTY import harness; this is not live SSH evidence.
 
-<!-- documentation-sync: 2026-11-04 -->
-> **Canonical project state — 2026-11-04:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.6 / RSA 512+ SSH Compatibility RPM** (`2.0.0-67.6`, `IMPLEMENTED_TESTING_DEFERRED`). Older-device SSH compatibility now uses an isolated Paramiko 3.5 SSHv2 backend for legacy KEX/cipher/MAC and RSA host keys from 512 bits, with managed host-key verification before authentication; normal devices remain on system OpenSSH. Prior SNMPv3, Endpoint CSV, history/evidence/workflow corrections are preserved. **MC-11 Topology-Aware Change Planning** remains the final feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** and schema `mc11-topology-change-planning-1` remain. **Do not create MC-12.** Loopback RSA 512/1024/2048 validation does not replace live Cisco/AlmaLinux qualification. All twelve LIVE_RC gates and an explicit R68 decision remain required. Git stays user-managed.
+<!-- documentation-sync: 2026-11-05 -->
+> **Canonical project state — 2026-11-05:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.8 / Enable Credential Precedence Corrective RPM** (`2.0.0-67.8`, `IMPLEMENTED_TESTING_DEFERRED`). When a Web-managed vault secret is both the SSH and enable reference, NetConfig now sends its explicit `enable_password` instead of incorrectly overwriting it with the SSH login password; separate Enable secrets remain supported. Release 67.7 legacy `ssh-rsa`/SHA-1 verification, managed known_hosts, the RSA 512-bit floor and normal-device OpenSSH isolation remain. Prior SNMPv3, Endpoint CSV, history/evidence/workflow corrections are preserved. **MC-11 Topology-Aware Change Planning** remains the final feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** and schema `mc11-topology-change-planning-1` remain. **Do not create MC-12.** Local regression does not replace live Cisco/AlmaLinux qualification. All twelve LIVE_RC gates and an explicit R68 decision remain required. Git stays user-managed.
 
 > **Document applicability:** this document is maintained against [ROADMAP.md](ROADMAP.md) and [AI_HANDOFF.md](AI_HANDOFF.md). Older release-numbered sections, test counts, fingerprints and Current/Next pointers below are historical unless explicitly restated in this 2026-10-13 update.
 

@@ -1,6 +1,6 @@
 Name:           netconfig
 Version:        2.0.0
-Release:        67.6%{?dist}
+Release:        67.8%{?dist}
 Summary:        Network configuration and security operations console
 License:        Proprietary
 BuildArch:      noarch
@@ -95,6 +95,14 @@ exit 0
 %dir %attr(0700,netconfig,netconfig) %{_localstatedir}/lib/netconfig
 
 %changelog
+* Thu Nov 05 2026 OpenAI <noreply@openai.com> - 2.0.0-67.8
+- Prefer the explicitly stored enable_password when one Web vault secret is both the SSH and enable reference.
+- Do not misreport route learning as attempted when configuration collection failed before route commands ran.
+
+* Thu Nov 05 2026 OpenAI <noreply@openai.com> - 2.0.0-67.7
+- Verify legacy ssh-rsa/SHA-1 host-key signatures inside the opted-in compatibility transport when the AlmaLinux crypto backend refuses SHA-1 RSA verification.
+- Keep strict PKCS#1 v1.5 decoding, managed known_hosts verification, the 512-bit floor and normal-device OpenSSH isolation.
+
 * Wed Nov 04 2026 OpenAI <noreply@openai.com> - 2.0.0-67.6
 - Add an opt-in isolated SSHv2 compatibility backend for legacy KEX/cipher/MAC and RSA host keys from 512 bits.
 - Verify or pin the device host key before authentication; normal devices continue to use system OpenSSH.

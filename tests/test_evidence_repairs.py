@@ -9,6 +9,7 @@ import pytest
 from test_web_ux import console as _console_fixture, _device
 from test_mc6_l3_topology_followup import _EvidenceTransport
 from netconfig import network_intelligence as ni
+from netconfig.manager import CollectionResult
 from netconfig.sensor import SensorEngine
 from netconfig.vendor_profiles import load_profile_file, validate_profile, normalize
 from netconfig.vendor_measurements import validate_numeric, reading
@@ -97,6 +98,26 @@ def test_route_collect_button_reuses_cli_session_and_returns_to_topology(console
     _, _, page = console.request('GET', headers['Location'], token=token)
     assert 'Routes learned: 1' in page and '10.0.0.0/30' in page
     assert console.m.l3_collection_status('router')['status'] == 'OK'
+
+
+def test_failed_config_collection_says_route_learning_was_not_attempted(console, monkeypatch):
+    _device(console.m, 'router', '192.0.2.1', platform='cisco_ios')
+    monkeypatch.setattr(
+        console.m, 'collect',
+        lambda name: CollectionResult(
+            name, False, message='DriverError: enable did not reach privileged mode'
+        ),
+    )
+    token = console.session()
+    code, headers, _ = console.request(
+        'POST', '/collect',
+        {'csrf': 'ux-csrf', 'name': 'router', 'back': 'routes'}, token=token,
+    )
+    assert code == 303 and headers['Location'] == '/topology?view=l3'
+    _, _, page = console.request('GET', headers['Location'], token=token)
+    assert 'enable did not reach privileged mode' in page
+    assert 'Route learning was not attempted because configuration collection failed' in page
+    assert 'Route learning did not complete' not in page
 
 
 def test_outdated_routes_are_explained_not_silently_lost(console):

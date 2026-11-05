@@ -235,7 +235,16 @@ class Manager:
         en_ref = device.get("enable_ref")
         if en_ref and self._vault_unlocked:
             try:
-                enable_pw = self.vault.get_secret(en_ref).get("password") or enable_pw
+                enable_secret = self.vault.get_secret(en_ref)
+                # A device-owned Web secret can be both secret_ref and
+                # enable_ref. In that case it contains the SSH login password
+                # and a distinct enable_password; never let the login password
+                # overwrite the explicitly saved enable credential.
+                enable_pw = (
+                    enable_secret.get("enable_password")
+                    or enable_secret.get("password")
+                    or enable_pw
+                )
             except KeyError:
                 pass
         return password, key_path, key_pass, enable_pw

@@ -1,9 +1,9 @@
 {
-  "authority_boundary": "Feature lineage remains frozen; R67.6 adds an isolated, per-device SSHv2 compatibility backend for legacy algorithms and RSA host keys from 512 bits while preserving prior SNMPv3, Endpoint CSV, history and workflow fixes. Network mutation authority is unchanged and remains exclusively approval-gated.",
-  "base_track": "Corrective packaging on R67.5; frozen MC-11 feature lineage",
-  "current_package": "2.0.0-67.6",
-  "current_release": "67.6",
-  "current_slice": "R67.6 RSA 512+ SSH Compatibility RPM",
+  "authority_boundary": "Feature lineage remains frozen; R67.8 corrects selection of an explicitly stored Cisco enable_password without changing credential material, device authorization or network mutation authority. The R67.7 per-device legacy ssh-rsa verifier and normal-device OpenSSH isolation remain.",
+  "base_track": "Corrective packaging on R67.7; frozen MC-11 feature lineage",
+  "current_package": "2.0.0-67.8",
+  "current_release": "67.8",
+  "current_slice": "R67.8 Enable Credential Precedence Corrective RPM",
   "deferred": [
     "all 12 required LIVE_RC gates",
     "external/upstream Git-index 100755 fresh-clone verification",
@@ -28,7 +28,7 @@
     "legacy_selftest": "ALL PASS",
     "production_release_claim": false,
     "release_candidate_qualified": false,
-    "source_tree": "2026-11-04 RSA 512/1024/2048 loopback and related SSH/SNMPv3/Web/protocol regression: 99 passed / 2 explicit Windows POSIX-mode exclusions; selftest ALL PASS",
+    "source_tree": "2026-11-05 enable credential, route-status and retained legacy SSH focused regression: 67 passed; broader prior merged baseline: 868 passed / 15 skipped; selftest ALL PASS",
     "vendor_profile_focused": "Historical September checkpoint: 8/8 PASS; November evidence repairs covered by focused source regression"
   },
   "release_candidate_policy": {
@@ -40,9 +40,9 @@
   "release_promotion": "NOT_PERFORMED",
   "sbom": {
     "artifact": "SBOM.spdx.json",
-    "files_analyzed": 484,
+    "files_analyzed": 485,
     "format": "SPDX-2.3",
-    "package_verification_code": "e12a80587b42446d98adf7c0d33cabb351d7dde9"
+    "package_verification_code": "42eef4ca33686a1fdde702fd1adf7ace406a26ef"
   },
   "schema_revision": "mc11-topology-change-planning-1",
   "status": "IMPLEMENTED_TESTING_DEFERRED",

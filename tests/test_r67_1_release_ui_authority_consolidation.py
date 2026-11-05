@@ -199,7 +199,7 @@ def test_current_docs_do_not_present_r60_or_session_expiry_as_current_truth():
     for document in (readme, roadmap):
         current = next(line for line in document.splitlines()
                        if line.startswith("> **Canonical project state"))
-        assert "Release 67.6" in current and "2.0.0-67.6" in current
+        assert "Release 67.8" in current and "2.0.0-67.8" in current
         assert "IMPLEMENTED_TESTING_DEFERRED" in current
     current_security = security.split("## Historical", 1)[0].lower()
     assert "session idle/absolute expiry remains" not in current_security
@@ -219,7 +219,7 @@ def _load_r671_runner():
 
 def test_r671_release_identity_and_fixed_live_rc_matrix():
     spec = (ROOT / "packaging/netconfig.spec").read_text()
-    assert "Release:        67.6%{?dist}" in spec
+    assert "Release:        67.8%{?dist}" in spec
     mod = _load_r671_runner()
     live = [gate for gate in mod.GATES if gate.evidence_class == "LIVE_RC"]
     assert len(live) == 12

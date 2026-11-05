@@ -8,8 +8,8 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-RELEASE = "67.6"
-VERSION = "2.0.0-67.6"
+RELEASE = "67.8"
+VERSION = "2.0.0-67.8"
 SCHEMA = "mc11-topology-change-planning-1"
 EXCLUDE_NAMES = {
     "SBOM.spdx.json", "RELEASE_MANIFEST.json", "RELEASE_MANIFEST_SHA256.txt",
@@ -106,14 +106,14 @@ def build_release_manifest(sbom):
         "version": "2.0.0",
         "current_release": RELEASE,
         "current_package": VERSION,
-        "current_slice": "R67.6 RSA 512+ SSH Compatibility RPM",
-        "base_track": "Corrective packaging on R67.5; frozen MC-11 feature lineage",
+        "current_slice": "R67.8 Enable Credential Precedence Corrective RPM",
+        "base_track": "Corrective packaging on R67.7; frozen MC-11 feature lineage",
         "status": "IMPLEMENTED_TESTING_DEFERRED",
         "schema_revision": SCHEMA,
         "feature_freeze": True,
         "mc12_defined": False,
         "monitoring_correlation_lineage": "CLOSED at R59/MC-11; do not create MC-12",
-        "authority_boundary": "Feature lineage remains frozen; R67.6 adds an isolated, per-device SSHv2 compatibility backend for legacy algorithms and RSA host keys from 512 bits while preserving prior SNMPv3, Endpoint CSV, history and workflow fixes. Network mutation authority is unchanged and remains exclusively approval-gated.",
+        "authority_boundary": "Feature lineage remains frozen; R67.8 corrects selection of an explicitly stored Cisco enable_password without changing credential material, device authorization or network mutation authority. The R67.7 per-device legacy ssh-rsa verifier and normal-device OpenSSH isolation remain.",
         "release_candidate_policy": {
             "candidate_evidence_bound_to_exact_fingerprint": True,
             "changes_invalidate_prior_rc_evidence": True,
@@ -127,7 +127,7 @@ def build_release_manifest(sbom):
             "package_verification_code": sbom["packages"][0]["packageVerificationCode"]["packageVerificationCodeValue"],
         },
         "qualification": {
-            "source_tree": "2026-11-04 RSA 512/1024/2048 loopback and related SSH/SNMPv3/Web/protocol regression: 99 passed / 2 explicit Windows POSIX-mode exclusions; selftest ALL PASS",
+            "source_tree": "2026-11-05 enable credential, route-status and retained legacy SSH focused regression: 67 passed; broader prior merged baseline: 868 passed / 15 skipped; selftest ALL PASS",
             "vendor_profile_focused": "Historical September checkpoint: 8/8 PASS; November evidence repairs covered by focused source regression",
             "legacy_selftest": "ALL PASS",
             "release_candidate_qualified": False,
@@ -175,9 +175,11 @@ def main():
         print(f"release metadata PASS: {len(sbom['files'])} SPDX source files")
         return 0
     for path, content in outputs.items():
-        path.write_text(content)
+        path.write_text(content, encoding="utf-8", newline="\n")
     manifest_hash = digest(ROOT / "RELEASE_MANIFEST.json", "sha256")
-    (ROOT / "RELEASE_MANIFEST_SHA256.txt").write_text(f"{manifest_hash}  RELEASE_MANIFEST.json\n")
+    (ROOT / "RELEASE_MANIFEST_SHA256.txt").write_text(
+        f"{manifest_hash}  RELEASE_MANIFEST.json\n", encoding="utf-8", newline="\n"
+    )
     print(f"wrote {VERSION} release metadata: {len(sbom['files'])} SPDX source files")
     return 0
 
