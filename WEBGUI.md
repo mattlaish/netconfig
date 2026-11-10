@@ -1,5 +1,20 @@
 # NetConfig Web Console — Operations and UI
 
+## Turn Incidents and security-tool intake on or off — 2026-11-10 source update
+
+Administrators choose optional areas in **Settings → Features**. Both are on by
+default, so upgraded installations behave as before.
+
+- **Incidents & case tracking** — incident records, linked evidence, timelines,
+  protocol traces, case exports and the Incident Workflow in Operations.
+- **Security-tool intake** — SIEM, NDR, EDR, WAF and other tools pushing events
+  through scoped API tokens (Settings → Integrations).
+
+When an area is off, its menu entries and dashboard links disappear, its pages show
+a short "turned off" notice, its API endpoints answer `404 feature_disabled` and the
+`netconfig incident` command stops with an explanation. Nothing new is recorded.
+Saved records are kept and reappear when the area is turned back on.
+
 ## RSA 512+ SSH compatibility RPM — 2026-11-04
 
 Version 2.0.0-67.6.el10 changes **Older-device SSH compatibility** into an

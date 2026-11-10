@@ -18,8 +18,8 @@ def _badge(value):
 
 
 class WebMC9Mixin:
-    @staticmethod
-    def _correlation_workspace_tabs(current):
+    def _correlation_workspace_tabs(self, current):
+        from . import features
         items = [
             ("dashboard", "/dashboard", "Dashboard"),
             ("alerts", "/alerts?view=active", "Active Alerts"),
@@ -28,6 +28,8 @@ class WebMC9Mixin:
             ("maintenance", "/alerts?view=maintenance", "Maintenance"),
             ("traffic", "/traffic", "Traffic Analytics"),
         ]
+        if not features.enabled(self.manager.settings, features.INCIDENTS):
+            items = [item for item in items if item[0] != "incidents"]
         return '<div class="tabs">' + ''.join(
             f'<a class="tab {"active" if current == key else ""}" href="{href}">{label}</a>'
             for key, href, label in items) + '</div>'
@@ -35,7 +37,9 @@ class WebMC9Mixin:
     def _network_glance(self, data):
         """Network-first summary: device reachability, config changes, compliance,
         approvals, alerts and traffic. Reads saved records only."""
+        from . import features
         m = self.manager
+        incidents_on = features.enabled(m.settings, features.INCIDENTS)
         now = time.time()
         devices = m.inv.all()
         facts = m.inv.all_facts()
@@ -94,8 +98,9 @@ class WebMC9Mixin:
                         '<a href="/requests">change requests</a>')
                  + card("bad" if critical else ("warn" if data.get("active_incident_count") else "ok"),
                         "Critical alerts", len(critical),
-                        f'<a href="/alerts?view=active">open alerts</a> · '
-                        f'<a href="/incidents">{int(data.get("active_incident_count") or 0)} active incident(s)</a>')
+                        '<a href="/alerts?view=active">open alerts</a>'
+                        + (f' · <a href="/incidents">{int(data.get("active_incident_count") or 0)} active incident(s)</a>'
+                           if incidents_on else ''))
                  + '</div>')
         items = []
         for d in down[:10]:
@@ -161,8 +166,11 @@ class WebMC9Mixin:
             f'<p class="muted">Analysis limits: {int(bounds.get("max_facts_per_run") or 0)} facts/run · {int(bounds.get("max_hypotheses_per_run") or 0)} hypotheses/run · dependency depth {int(bounds.get("max_relationship_depth") or 0)} · replay range {int(bounds.get("max_replay_range_seconds") or 0)}s.</p>'
             '</details>'
         )
+        from . import features
+        incidents_on = features.enabled(self.manager.settings, features.INCIDENTS)
+        intake_on = features.enabled(self.manager.settings, features.SECURITY_INTAKE)
         incident_rows = []
-        for row in data["active_incidents"]:
+        for row in (data["active_incidents"] if incidents_on else []):
             inc = row["incident"]; hyp = row.get("current_hypothesis") or {}
             incident_rows.append(
                 f'<tr><td><a href="/incident?ref={_q(inc["incident_key"])}"><b>{html.escape(inc["incident_key"])}</b></a> · <a href="/operations?tab=workflow&incident={_q(inc["incident_key"])}">journey</a></td>'
@@ -174,13 +182,13 @@ class WebMC9Mixin:
             for x in data["impacted_services"])
         change_rows = ''.join(
             f'<tr><td><a href="/incident?ref={_q(x["incident"])}">{html.escape(x["incident"])}</a></td><td>{html.escape(x["hypothesis_type"])}</td><td><code>{html.escape(x["source_ref"])}</code></td><td>{html.escape(x["summary"])}</td></tr>'
-            for x in data["correlated_changes"])
+            for x in (data["correlated_changes"] if incidents_on else []))
         dep_rows = ''.join(
             f'<tr><td>{html.escape(x.get("source_key") or "")}</td><td>{html.escape(x.get("relationship") or "")}</td><td>{html.escape(x.get("target_key") or "")}</td><td>{_badge(x.get("console_state"))}</td><td>{html.escape(x.get("evidence_state") or "")}</td></tr>'
             for x in data["unhealthy_dependencies"][:100])
         connector_rows = ''.join(
             f'<tr><td>{html.escape(x.get("display_name") or x.get("source_key") or "")}</td><td>{html.escape(x.get("source_type") or "")}</td><td>{_badge(x.get("status"))}</td><td>{_badge(x.get("auth_state"))}</td><td>{_fmt_ts(x.get("last_event_ts"))}</td></tr>'
-            for x in data["connectors"])
+            for x in (data["connectors"] if intake_on else []))
         alert_rows = ''.join(
             f'<tr><td>#{x.get("id")}</td><td>{html.escape(x.get("severity") or "")}</td><td>{html.escape(x.get("device") or "-")}</td><td>{html.escape(x.get("event_type") or "")}</td><td>{html.escape(x.get("message") or "")}</td></tr>'
             for x in data["critical_alerts"][:50])
@@ -203,7 +211,7 @@ class WebMC9Mixin:
         if not sections:
             sections = ('<div class="panel"><h2>Incidents &amp; correlation</h2><p class="muted">No active incidents, '
                         'impacted services, unhealthy dependencies or external sources to show. '
-                        '<a href="/incidents">Open incidents</a></p></div>')
+                        '<a href="/incidents">Open incidents</a></p></div>') if incidents_on else ""
         body = (self._correlation_workspace_tabs("dashboard") + self._network_glance(data) + sections
                 + correlation_health_panel)
         return self._send(self._page("Dashboard", body, sess))

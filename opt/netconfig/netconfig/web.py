@@ -34,6 +34,7 @@ from .web_mc9 import WebMC9Mixin
 from .web_supportability import WebSupportabilityMixin
 from .web_database import WebDatabaseMixin
 from .web_feature_controls import WebFeatureControlsMixin
+from . import features as _features
 from .web_ux import WebUxMixin, render_tabs, safe_next_path
 
 from .web_security_runtime import (
@@ -751,6 +752,9 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
         sess = self._require_auth()
         if sess is None:
             return
+        off = _features.disabled_for_console(self.manager.settings, u.path)
+        if off:
+            return self._feature_off(sess, off)
         return h(sess)
 
     def _route_post(self):
@@ -778,6 +782,9 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
         if not self._check_csrf(form):
             return self._send(self._page("Error",
                               '<div class="err">CSRF check failed.</div>', sess), 403)
+        off = _features.disabled_for_console(self.manager.settings, u.path)
+        if off:
+            return self._feature_off(sess, off)
         if u.path.startswith("/ops-"):
             if self._dispatch_ops_post(u.path, form, sess):
                 return
@@ -1316,7 +1323,8 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
         sections = (("general", "General & SSH"), ("snmp", "SNMP polling"),
                     ("netflow", "NetFlow"), ("monitoring", "Monitoring"),
                     ("integrations", "Integrations"), ("email", "Email & OAuth"),
-                    ("db", "Database"), ("evidence", "Evidence signing"))
+                    ("db", "Database"), ("evidence", "Evidence signing"),
+                    ("features", "Features"))
         if section not in dict(sections):
             section = "general"
         s = dict(self.manager.settings)
@@ -1412,6 +1420,11 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
         elif section == "integrations":
             issued_token = str((q.get("_issued_token") or [""])[0] or "")
             content = self._integration_settings_content(sess, issued_token=issued_token)
+            from . import features as _feat
+            if not _feat.enabled(s, _feat.SECURITY_INTAKE):
+                content = ('<div class="panel"><p class="err">' + html.escape(_feat.off_message(_feat.SECURITY_INTAKE))
+                           + ' Sources below are kept but receive nothing. <a href="/settings?section=features">Features</a></p></div>'
+                           + content)
         elif section == "email":
             from . import mailer as _mailer
             from . import oauth as _oauth
@@ -1447,6 +1460,9 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
             content = self._database_settings_content(s, form)
         elif section == "evidence":
             content = self._evidence_settings_content(sess)
+        elif section == "features":
+            from .web_ux import features_settings_content
+            content = features_settings_content(self, s)
 
         body = (f'<p class="muted" style="margin-bottom:14px">Stored in '
                 f'<code>settings.json</code> in the data directory.</p><div class="settings-shell">'
@@ -1600,7 +1616,7 @@ The client secret is stored in the vault.</p>
         section = g("section") or "general"
         if section == "evidence":
             return self._save_evidence_settings(form, sess)
-        valid_sections = {"general", "snmp", "netflow", "monitoring", "email", "db"}
+        valid_sections = {"general", "snmp", "netflow", "monitoring", "email", "db", "features"}
         if section not in valid_sections:
             section = "general"
 
@@ -1655,6 +1671,10 @@ The client secret is stored in the vault.</p>
             sev = g("operational_alert_min_severity").upper()
             if sev in {"DEBUG","INFO","NOTICE","WARNING","MINOR","MAJOR","ERROR","CRITICAL"}:
                 s["operational_alert_min_severity"] = sev
+        elif section == "features":
+            from . import features as _feat
+            for key in (_feat.INCIDENTS, _feat.SECURITY_INTAKE):
+                s[key] = bool(form.get(key))
         elif section == "email":
             s["smtp_enabled"] = bool(form.get("smtp_enabled"))
             s["smtp_starttls"] = bool(form.get("smtp_starttls"))
@@ -1675,7 +1695,7 @@ The client secret is stored in the vault.</p>
         self.manager.db.audit(sess["username"], "settings_save", section, "")
         labels = {"general": "General & SSH", "snmp": "SNMP polling",
                   "netflow": "NetFlow", "monitoring": "Monitoring",
-                  "email": "Email & OAuth"}
+                  "email": "Email & OAuth", "features": "Features"}
         return self._settings_page_v2(
             sess, q={"section": [section]}, flash=f"{labels[section]} settings saved.")
 

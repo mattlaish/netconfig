@@ -1,5 +1,18 @@
 # NetConfig AI Handover
 
+## Settings → Features switches — 2026-11-10
+
+Source-only on 67.8; status unchanged. See PATCH-20261110-01.
+
+- `features.enabled(settings, key)`; keys `incidents_enabled`,
+  `security_intake_enabled`, default on. Console/API gates live in
+  `features.disabled_for_console/_api` (called from `web.py` routing and
+  `web_api._api_feature_off`); page hiding in `web_ux.nav_groups`, `_search_page`,
+  `web_mc9`, `web_ops._ops_hidden_tabs`; CLI gate in `cli.cmd_incident`.
+- New incident or intake entry points must be added to the prefix lists in
+  `features.py`, or they will stay reachable when the area is off.
+- Next: unchanged — release identity, candidate freeze, twelve LIVE_RC gates.
+
 ## 67.8 Enable credential precedence corrective — 2026-11-05
 
 Live 67.7 testing passed SSH authentication and the legacy SHA-1 host-signature

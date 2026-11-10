@@ -1,3 +1,25 @@
+## PATCH-20261110-01 — Settings → Features: switch Incidents and security-tool intake on/off
+
+- Source update on 67.8 (`2e8db15`); no version increase, schema change or RPM.
+  Status stays `IMPLEMENTED_TESTING_DEFERRED`.
+- New `features.py` with `incidents_enabled` and `security_intake_enabled`, both
+  default on (only an explicit false turns an area off). Admin-only Settings →
+  Features section; saved through the existing validated settings path and audited
+  as `settings_save`/`features`.
+- Off means: hidden menu entry (Incidents), dashboard incident/correlation/connector
+  sections, search results, Operations Incident Workflow tab and overview card;
+  console paths `/incident*`, `/ops-workflow-*`, `/integration-source-*` show a
+  404 "turned off" page (admins get a link to Features); API `/api/v1/incidents*`,
+  `/api/v1/external-evidence*`, `/api/v1/external-sources*` return 404
+  `feature_disabled` after token authentication (unauthenticated callers still get
+  401); `netconfig incident …` exits 2 with an explanation. Settings →
+  Integrations shows an "intake is off" notice. No background job creates
+  incidents or external evidence, so gating entry points stops new records.
+  Saved records are untouched and reappear when switched back on.
+- Tests: new `tests/test_feature_switches.py` (9). Validation: full suite
+  **883 passed / 15 skipped / 0 failed**; legacy selftest ALL PASS. Release metadata regenerated (not a
+  candidate freeze). Live devices/PostgreSQL/AlmaLinux/LIVE_RC NOT_RUN.
+
 ## PATCH-20261105-03 — Enable secret precedence and route-status corrective RPM
 
 - Fix Web-managed Cisco credentials where the same vault record is both SSH and

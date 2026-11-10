@@ -790,6 +790,10 @@ def cmd_trace(m, args):
 
 
 def cmd_incident(m, args):
+    from . import features
+    if not features.enabled(m.settings, features.INCIDENTS):
+        print(features.off_message(features.INCIDENTS), file=sys.stderr)
+        sys.exit(2)
     incidents = m.incidents
     if args.action == "create":
         item = incidents.create(args.title, args.description or "", args.severity,

@@ -23,6 +23,13 @@ class WebApiMixin:
             return None
         return ApiTokens(self.manager.db.conn).verify(auth[7:].strip())
 
+    def _api_feature_off(self, path):
+        from . import features
+        off = features.disabled_for_api(self.manager.settings, path)
+        if off:
+            self._api_json({"error": "feature_disabled", "feature": off, "detail": features.off_message(off)}, 404)
+        return bool(off)
+
     def _api_json(self, payload, status=200):
         self._send(json.dumps(payload, indent=2, sort_keys=True), status,
                    "application/json; charset=utf-8", [("Cache-Control", "no-store")])
@@ -31,6 +38,8 @@ class WebApiMixin:
         token = self._api_token()
         if not token:
             self._api_json({"error": "invalid_or_missing_bearer_token"}, 401); return True
+        if self._api_feature_off(path):
+            return True
         actor = "api:" + token["name"]
         def _form_json(name, default=None):
             raw = (form.get(name) or [None])[0]
@@ -937,6 +946,8 @@ class WebApiMixin:
         token = self._api_token()
         if not token:
             self._api_json({"error": "invalid_or_missing_bearer_token"}, 401); return True
+        if self._api_feature_off(path):
+            return True
         scopes = token["scopes"]
         if path == "/api/v1/supportability":
             if "debug:read" not in scopes:

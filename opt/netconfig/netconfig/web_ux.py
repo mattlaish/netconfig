@@ -77,6 +77,8 @@ def render_tabs(tabs, tabset_id="tabs"):
 
 
 UX_CSS = """
+.feature-row{display:block;margin:0 0 14px;font-weight:400;color:var(--text)}
+.feature-row input{width:auto;margin-right:6px}
 .account-form{max-width:520px}
 td.break{word-break:break-all}
 [id^="workflow-"]{scroll-margin-top:90px}
@@ -272,7 +274,8 @@ UX_JS = r"""
 _NAV_DEFAULT_OPEN = {"Overview", "Monitor", "Inventory", "Changes"}
 
 
-def nav_groups(role):
+def nav_groups(role, settings=None):
+    from . import features
     admin = []
     if _can(role, "settings"):
         admin.append(("/settings", "Settings"))
@@ -283,7 +286,9 @@ def nav_groups(role):
     admin += [("/audit", "Audit"), ("/mib", "MIB Library"), ("/help", "Help")]
     return [
         ("Overview", [("/dashboard", "Dashboard"), ("/search", "Search")]),
-        ("Monitor", [("/alerts", "Alerts"), ("/incidents", "Incidents"), ("/traffic", "Traffic")]),
+        ("Monitor", [("/alerts", "Alerts")]
+                    + ([("/incidents", "Incidents")] if features.enabled(settings, features.INCIDENTS) else [])
+                    + [("/traffic", "Traffic")]),
         ("Inventory", [("/", "Devices"), ("/groups", "Groups"), ("/endpoints", "Endpoints"),
                        ("/topology", "Topology"), ("/topology?view=l3", "Routing topology"), ("/dependencies", "Dependencies")]),
         ("Changes", [("/requests", "Change requests"), ("/operations", "Change workspace"),
@@ -517,6 +522,22 @@ def has_config(store, name):
     return light(name) if light else store.current(name) is not None
 
 
+def features_settings_content(handler, settings):
+    """Settings → Features: turn optional product areas on or off."""
+    from . import features
+    rows = []
+    for key in (features.INCIDENTS, features.SECURITY_INTAKE):
+        on = features.enabled(settings, key)
+        rows.append(f'<label class="feature-row"><input type=checkbox name={key} value=1{" checked" if on else ""}> '
+                    f'<b>{_e(features.LABELS[key])}</b><span class=hint>{_e(features.DESCRIPTIONS[key])}</span></label>')
+    return ('<div class="panel"><h2>Features</h2>'
+            '<p class="muted">Turn optional areas on or off. When an area is off its menu entries, pages, API endpoints '
+            'and command-line commands are unavailable and nothing new is recorded. Saved records are kept and '
+            'reappear when it is turned back on. Changes take effect immediately.</p>'
+            f'<form method=post action="/settings-save">{handler._csrf_field()}<input type=hidden name=section value=features>'
+            + "".join(rows) + '<button>Save features</button></form></div>')
+
+
 # ---- Saved port / endpoint checks (device page; no device I/O on render) ----------
 
 def _latest_checks(manager, device, kind):
@@ -601,7 +622,17 @@ class WebUxMixin:
 
     # ---- shell -------------------------------------------------------------
     def _nav(self, sess, current_path=""):
-        return render_nav(nav_groups(sess["role"]), current_path)
+        return render_nav(nav_groups(sess["role"], self.manager.settings), current_path)
+
+    def _feature_off(self, sess, key):
+        """Page for an area an administrator turned off in Settings → Features."""
+        from . import features
+        link = ('<p><a class="btn" href="/settings?section=features">Open Settings → Features</a></p>'
+                if _can(sess["role"], "settings") else "")
+        body = (f'<div class="panel"><h2>{_e(features.LABELS[key])} is off</h2>'
+                f'<p>{_e(features.off_message(key))} Saved records are kept and reappear when it is turned on.</p>'
+                f'{link}</div>')
+        return self._send(self._page("Turned off", body, sess), 404)
 
     def _topright(self, sess):
         vault = ('<span class="vault-open">● vault unlocked</span>' if self.manager.vault_ready()
@@ -978,7 +1009,10 @@ class WebUxMixin:
                     f'<tr><td>{_e(a.get("severity"))}</td><td>{_e(a.get("state"))}</td><td>{_e(a.get("device"))}</td>'
                     f'<td><a href="/alerts?view=active">{_e(a.get("message"))}</a></td><td>{_fmt_ts(a.get("last_ts"))}</td></tr>'
                     for a in al) + "</table>"))
+            from . import features
             try:
+                if not features.enabled(m.settings, features.INCIDENTS):
+                    raise LookupError("incidents are turned off")
                 inc = [i for i in m.incidents.list(limit=500)
                        if needle in " ".join(str(i.get(k) or "") for k in ("incident_key", "title", "summary")).lower()][:30]
             except Exception:
