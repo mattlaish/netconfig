@@ -318,6 +318,43 @@ class SensorEngine:
             "transitions": transitions,
         }
 
+    def history_for_many(self, sensor_keys, limit=60, since=None, before=None):
+        """Return bounded observation history for multiple Sensors in one query.
+
+        Monitoring pages use this instead of issuing one history query per chart
+        line.  The window function keeps the newest ``limit`` rows independently
+        for each key, so a frequently updated Sensor cannot crowd out the others.
+        """
+        keys = list(dict.fromkeys(str(key) for key in sensor_keys if str(key)))[:100]
+        if not keys:
+            return {}
+        limit = max(1, min(int(limit), 400))
+        placeholders = ",".join("?" for _ in keys)
+        clauses = [f"sensor_key IN ({placeholders})"]
+        args = list(keys)
+        if since is not None:
+            clauses.append("observed_at>=?")
+            args.append(float(since))
+        if before is not None:
+            clauses.append("observed_at<?")
+            args.append(float(before))
+        sql = (
+            "SELECT * FROM ("
+            "SELECT sensor_observations.*, "
+            "ROW_NUMBER() OVER (PARTITION BY sensor_key "
+            "ORDER BY observed_at DESC,id DESC) AS history_rank "
+            "FROM sensor_observations WHERE " + " AND ".join(clauses) +
+            ") ranked WHERE history_rank<=? "
+            "ORDER BY sensor_key,observed_at DESC,id DESC"
+        )
+        args.append(limit)
+        grouped = {key: [] for key in keys}
+        for row in self.conn.execute(sql, tuple(args)).fetchall():
+            item = dict(row)
+            item.pop("history_rank", None)
+            grouped.setdefault(str(item.get("sensor_key") or ""), []).append(item)
+        return grouped
+
     def latest_transition_id(self):
         row = self.conn.execute("SELECT COALESCE(MAX(id),0) AS id FROM sensor_transitions").fetchone()
         return int(row["id"] if row else 0)

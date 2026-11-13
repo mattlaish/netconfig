@@ -298,22 +298,31 @@ def infer_fdb_edges(fdb_rows, inventory, identities=None, interfaces=None):
                                if x["device"] == dst and x.get("port")})
         local_port = str(row.get("ifdescr") or row.get("ifindex") or row.get("bridge_port") or "")
         remote_port = remote_ports[0] if len(remote_ports) == 1 else ""
-        key = (src, dst, local_port, remote_port)
+        # Keep FDB evidence as reachability, not one diagram edge per learned
+        # port/MAC.  A switch can learn the same managed chassis through many
+        # trunks; rendering each observation creates a false near-full-mesh.
+        key = (src, dst)
         edge = grouped.setdefault(key, {
             "from": src,
             "to": dst,
-            "local_port": local_port,
-            "remote_port": remote_port,
+            "local_port": "",
+            "remote_port": "",
             "protocol": "fdb",
             "evidence_kind": "INFERRED",
             "direct_adjacency": False,
-            "confidence": "MEDIUM",
+            "confidence": "LOW",
             "resolution_state": "INFERRED",
             "matched_macs": set(),
             "vlans": set(),
             "sources": set(),
+            "local_ports": set(),
+            "remote_ports": set(),
         })
         edge["matched_macs"].add(mac)
+        if local_port:
+            edge["local_ports"].add(local_port)
+        if remote_port:
+            edge["remote_ports"].add(remote_port)
         if row.get("vlan_id") not in (None, ""):
             edge["vlans"].add(str(row.get("vlan_id")))
         if row.get("source"):
@@ -325,6 +334,12 @@ def infer_fdb_edges(fdb_rows, inventory, identities=None, interfaces=None):
         macs = sorted(edge.pop("matched_macs"))
         vlans = sorted(edge.pop("vlans"))
         sources = sorted(edge.pop("sources"))
+        local_ports = sorted(edge.pop("local_ports"))
+        remote_ports = sorted(edge.pop("remote_ports"))
+        edge["local_port"] = ", ".join(local_ports[:4])
+        edge["remote_port"] = ", ".join(remote_ports[:4])
+        edge["local_ports"] = local_ports
+        edge["remote_ports"] = remote_ports
         edge["evidence_count"] = len(macs)
         edge["evidence"] = "FDB MAC " + ",".join(macs[:4])
         if len(macs) > 4:
@@ -359,7 +374,7 @@ def build_graph(neighbors, inventory, identities=None, interfaces=None, fdb_rows
             "state": "UNKNOWN",
         })
 
-    observed = []
+    observed_by_pair = {}
     observed_pairs = set()
     for row in neighbors or []:
         if not row.get("managed_neighbor") or not row.get("neighbor_device"):
@@ -368,19 +383,51 @@ def build_graph(neighbors, inventory, identities=None, interfaces=None, fdb_rows
         dst = str(row.get("neighbor_device", "") or "")
         if not src or not dst:
             continue
-        observed_pairs.add(tuple(sorted((src, dst))))
-        observed.append({
-            "from": src,
-            "to": dst,
-            "local_port": str(row.get("local_port", "") or ""),
-            "remote_port": str(row.get("port_id", "") or ""),
-            "protocol": str(row.get("protocol", "") or "lldp"),
+        left, right = sorted((src, dst))
+        pair = (left, right)
+        observed_pairs.add(pair)
+        local_port = str(row.get("local_port", "") or "")
+        remote_port = str(row.get("port_id", "") or "")
+        if src != left:
+            local_port, remote_port = remote_port, local_port
+        edge = observed_by_pair.setdefault(pair, {
+            "from": left,
+            "to": right,
+            "local_port": "",
+            "remote_port": "",
+            "protocol": "",
             "evidence_kind": "OBSERVED",
             "direct_adjacency": True,
             "confidence": "HIGH",
-            "resolution_state": str(row.get("resolution_state") or "RESOLVED"),
-            "evidence": str(row.get("resolution_evidence", "") or "LLDP/CDP neighbour"),
+            "resolution_state": "RESOLVED",
+            "links": set(),
+            "protocols": set(),
+            "evidence_items": set(),
         })
+        edge["links"].add((local_port, remote_port))
+        edge["protocols"].add(str(row.get("protocol", "") or "lldp").lower())
+        evidence = str(row.get("resolution_evidence", "") or "LLDP/CDP neighbour")
+        if evidence:
+            edge["evidence_items"].add(evidence)
+
+    observed = []
+    for pair in sorted(observed_by_pair):
+        edge = observed_by_pair[pair]
+        links = sorted(edge.pop("links"))
+        protocols = sorted(edge.pop("protocols"))
+        evidence_items = sorted(edge.pop("evidence_items"))
+        left_ports = sorted({item[0] for item in links if item[0]})
+        right_ports = sorted({item[1] for item in links if item[1]})
+        edge["local_port"] = ", ".join(left_ports[:4])
+        edge["remote_port"] = ", ".join(right_ports[:4])
+        edge["protocol"] = "/".join(protocols) or "lldp"
+        edge["link_count"] = max(1, len(links))
+        edge["links"] = [
+            {"from_port": left_port, "to_port": right_port}
+            for left_port, right_port in links
+        ]
+        edge["evidence"] = "; ".join(evidence_items[:4]) or "LLDP/CDP neighbour"
+        observed.append(edge)
 
     inferred = [e for e in infer_fdb_edges(fdb_rows or [], inventory, identities, interfaces)
                 if tuple(sorted((e["from"], e["to"]))) not in observed_pairs]
@@ -396,7 +443,12 @@ def build_graph(neighbors, inventory, identities=None, interfaces=None, fdb_rows
             "INFERRED" if "INFERRED" in kinds else "UNKNOWN")
     return {
         "nodes": nodes,
+        # ``edges`` remains the compatibility union for API consumers.  New
+        # renderers use the explicit sets so reachability can never be mistaken
+        # for physical adjacency.
         "edges": edges,
+        "physical_edges": observed,
+        "reachability_edges": inferred,
         "summary": {
             "managed_nodes": len(nodes),
             "observed_edges": len(observed),

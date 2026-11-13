@@ -25,6 +25,7 @@ import urllib.parse
 
 from .drivers import get_driver as _get_driver
 from .drivers import platforms as _platforms
+from .monitor import check_availability, saved_availability, saved_check_targets
 from .users import MIN_PASSWORD_LENGTH, validate_password
 from .users import can as _can
 from .web_ui import (
@@ -269,10 +270,11 @@ UX_JS = r"""
 })();
 """
 
-_NAV_DEFAULT_OPEN = {"Overview", "Monitor", "Inventory", "Changes"}
+_NAV_DEFAULT_OPEN = {"Overview", "Monitor", "Inventory", "Compliance", "Changes"}
 
 
-def nav_groups(role):
+def nav_groups(role, settings=None):
+    settings = settings or {}
     admin = []
     if _can(role, "settings"):
         admin.append(("/settings", "Settings"))
@@ -281,17 +283,27 @@ def nav_groups(role):
     if _can(role, "manage_devices"):
         admin.append(("/vault", "Vault"))
     admin += [("/audit", "Audit"), ("/mib", "MIB Library"), ("/help", "Help")]
-    return [
+    monitor = [("/traffic", "Traffic")]
+    if settings.get("web_alerts_enabled", False):
+        monitor.insert(0, ("/alerts", "Alerts"))
+    if settings.get("web_incidents_enabled", False):
+        insert_at = 1 if monitor and monitor[0][0] == "/alerts" else 0
+        monitor.insert(insert_at, ("/incidents", "Incidents"))
+    groups = [
         ("Overview", [("/dashboard", "Dashboard"), ("/search", "Search")]),
-        ("Monitor", [("/alerts", "Alerts"), ("/incidents", "Incidents"), ("/traffic", "Traffic")]),
+        ("Monitor", monitor),
         ("Inventory", [("/", "Devices"), ("/groups", "Groups"), ("/endpoints", "Endpoints"),
                        ("/topology", "Topology"), ("/topology?view=l3", "Routing topology"), ("/dependencies", "Dependencies")]),
-        ("Changes", [("/requests", "Change requests"), ("/operations", "Change workspace"),
-                     ("/automation", "Scripts & quick runs"), ("/compliance", "Compliance & drift")]),
-        ("Collection", [("/protocols", "Device Collection"), ("/snmp", "SNMP"), ("/runs", "Run Log"),
+        ("Compliance", [("/compliance", "Compliance & drift")]),
+        ("Collection", [("/snmp", "SNMP"), ("/runs", "Run Log"),
                         ("/diagnostics", "Diagnostics"), ("/traces", "Protocol Traces")]),
         ("Administration", admin),
     ]
+    if settings.get("web_changes_enabled", False):
+        groups.insert(4, ("Changes", [("/requests", "Change requests"),
+                                      ("/operations", "Change workspace"),
+                                      ("/automation", "Scripts & quick runs")]))
+    return groups
 
 
 def _nav_active(url, current_path):
@@ -519,13 +531,6 @@ def has_config(store, name):
 
 # ---- Saved port / endpoint checks (device page; no device I/O on render) ----------
 
-def _latest_checks(manager, device, kind):
-    newest = {}
-    for row in manager.db.result_history(device, kind=kind, limit=500):
-        newest.setdefault(row["target"], row)          # rows are newest first
-    return newest
-
-
 def _check_controls(handler, dev, sess, what):
     sess = sess or {}
     interval = int(handler.manager.settings.get("monitor_poll_interval") or 0)
@@ -547,9 +552,10 @@ def saved_port_checks(handler, dev, sess=None):
                 '<p class="muted">No ports configured. Edit the device and list ports to '
                 'monitor, e.g. <code>tcp/22, tcp/443, udp/53</code>.</p></div>')
     from .web_ui import _fmt_ts
-    latest = _latest_checks(handler.manager, dev["name"], "port")
+    targets = [key for key in saved_check_targets(dev) if key[0] == "port"]
+    latest = handler.manager.db.latest_monitor_results(dev["name"], targets)
     rows = ""
-    for target, r in sorted(latest.items()):
+    for (_, target), r in sorted(latest.items()):
         st = r["status"]
         cls = ("b-ok" if st == "open" else "b-bad" if st == "closed"
                else "b-chg" if st in ("filtered", "error") else "b-dim")
@@ -564,20 +570,25 @@ def saved_port_checks(handler, dev, sess=None):
 
 
 def saved_endpoint_checks(handler, dev, sess=None):
-    spec = (dev.get("monitor_urls") or "").strip()
-    if not spec:
+    targets = {key: expected for key, expected in saved_check_targets(dev).items()
+               if key[0] == "http"}
+    if not targets:
         return ('<div class="panel"><h2>REST API / HTTPS</h2>'
                 '<p class="muted">No endpoints configured. Edit the device and list HTTP(S) '
                 'URLs to monitor, e.g. <code>https://host/api/health 200</code>.</p></div>')
     from .web_ui import _fmt_ts
-    http = _latest_checks(handler.manager, dev["name"], "http")
-    tls = _latest_checks(handler.manager, dev["name"], "tls")
+    results = handler.manager.db.latest_monitor_results(
+        dev["name"], [*targets, *(("tls", url) for _, url in targets)])
     rows = ""
-    for target, r in sorted(http.items()):
+    for key, expected in sorted(targets.items()):
+        _, target = key
+        r = results.get(key)
+        if not r:
+            continue
         code = r["status"]
-        ok = code not in ("down", "") and str(code)[:1] in "23"
+        ok = check_availability("http", code, expected) == "up"
         ms = f'{int(float(r["value"]))} ms' if r.get("value") not in (None, "") else "—"
-        t = tls.get(target)
+        t = results.get(("tls", target))
         if not t:
             tls_cell = '<span class="muted">—</span>'
         elif t["status"] == "valid":
@@ -601,7 +612,7 @@ class WebUxMixin:
 
     # ---- shell -------------------------------------------------------------
     def _nav(self, sess, current_path=""):
-        return render_nav(nav_groups(sess["role"]), current_path)
+        return render_nav(nav_groups(sess["role"], getattr(self.manager, "settings", {})), current_path)
 
     def _topright(self, sess):
         vault = ('<span class="vault-open">● vault unlocked</span>' if self.manager.vault_ready()
@@ -611,8 +622,8 @@ class WebUxMixin:
             vault += '<a href="/vault?next=' + _q(nxt or "/") + '">Unlock vault</a>'
         return ('<div class="top-right">'
                 '<form method=get action="/search" class="top-search" role="search">'
-                '<input type=search name=q placeholder="Search devices, IPs, MACs, alerts" '
-                'aria-label="Search devices, IP addresses, MAC addresses, alerts and incidents"></form>'
+                '<input type=search name=q placeholder="Search devices, IPs and MACs" '
+                'aria-label="Search devices, IP addresses and MAC addresses"></form>'
                 f'{vault}'
                 f'<a class="who" href="/account" title="Your account"><b>{_e(sess["username"])}</b><span class="role">{_e(sess["role"])}</span></a>'
                 '<button type=button id="theme-toggle" class="ghost theme-toggle" aria-label="Toggle color theme" '
@@ -636,7 +647,7 @@ class WebUxMixin:
 <meta name=viewport content="width=device-width,initial-scale=1">
 <title>{_e(title)} · NetConfig</title><style>{_CSS}{UX_CSS}</style><script>document.documentElement.classList.add('js');</script>{_THEME_JS}</head><body>
 <header><div class="brand"><span class="logo">NC</span><span class="appname">Net<span>Config</span> · Network Configuration</span></div>{right}</header>
-<div class="app-shell">{shell}<div class="content-shell"><main><h1>{_e(title)}</h1>{f}{inner}</main><footer class="footer"><span>NetConfig v{APP_VERSION}</span><span>Times shown in {_e(time_zone_label())} · Internal — Restricted</span></footer></div></div><script>{UX_JS}</script></body></html>""")
+<div class="app-shell">{shell}<div class="content-shell"><main><h1>{_e(title)}</h1>{f}{inner}</main><footer class="footer"><span>NetConfig v{_e(APP_VERSION)}</span><span>Times shown in {_e(time_zone_label())} · Internal — Restricted</span></footer></div></div><script>{UX_JS}</script></body></html>""")
 
     # ---- sign-in -----------------------------------------------------------
     def _login_page(self, error=None, status=200):
@@ -647,7 +658,7 @@ class WebUxMixin:
                 f'<title>Sign in · NetConfig</title><style>{_CSS}{UX_CSS}</style>{_THEME_JS}</head><body>'
                 '<div class="login-wrap"><div class="panel login">'
                 '<div class="brand">Net<span>Config</span></div>'
-                f'<div class="sub">Security Operations · v{APP_VERSION}</div>')
+                f'<div class="sub">Security Operations · v{_e(APP_VERSION)}</div>')
         err = f'<div class="err">{_e(error)}</div>' if error else ""
         if self.manager.users.count() == 0:
             ensure_setup_code(self.manager)
@@ -720,16 +731,21 @@ class WebUxMixin:
         metas = {d["device"]: d for d in m.store.devices()}
         facts = m.inv.all_facts()
         alerts = {}
-        try:
-            for a in m.alert_lifecycle.list(limit=2000):
-                if a.get("state") in ("OPEN", "ACKNOWLEDGED") and a.get("device"):
-                    c = alerts.setdefault(a["device"], [0, 0])
-                    c[0] += 1
-                    c[1] += 1 if str(a.get("severity") or "").upper() == "CRITICAL" else 0
-        except Exception:
-            alerts = {}
+        show_alerts = bool(getattr(m, "settings", {}).get("web_alerts_enabled", False))
+        if show_alerts:
+            try:
+                for a in m.alert_lifecycle.list(limit=2000):
+                    if a.get("state") in ("OPEN", "ACKNOWLEDGED") and a.get("device"):
+                        c = alerts.setdefault(a["device"], [0, 0])
+                        c[0] += 1
+                        c[1] += 1 if str(a.get("severity") or "").upper() == "CRITICAL" else 0
+            except Exception:
+                alerts = {}
 
-        def make_row(d):
+        now = time.time()
+        cards = {}
+
+        def make_card(d):
             managed = _is_managed_device(d)
             meta = metas.get(d["name"], {})
             last = _fmt_ts(meta.get("last_collected")) if managed else "—"
@@ -741,7 +757,6 @@ class WebUxMixin:
             if drift["baselined"]:
                 st += (' <span class="badge b-bad">drift</span>' if drift["drifted"]
                        else ' <span class="badge b-ok">baseline</span>')
-            en = '' if d["enabled"] else ' <span class="badge b-dim">disabled</span>'
             fx = facts.get(d["name"], {}) if managed else {}
             snmp = ""
             if fx:
@@ -754,6 +769,9 @@ class WebUxMixin:
                 collect_btn = (f'<form method=post action="/collect" style="display:inline">'
                                f'{self._csrf_field()}<input type=hidden name=name value="{_e(d["name"])}">'
                                f'<button style="padding:4px 12px">Collect</button></form>')
+            if _can(sess["role"], "reveal_secrets") and any(d.get(k) for k in ("secret_ref", "enable_ref", "snmp_ref")):
+                collect_btn += (f' <a class="btn ghost" style="padding:4px 12px" '
+                                f'href="/device?name={_q(d["name"])}#saved-credentials">Credentials</a>')
             typ = " ".join(f'<span class="badge b-dim">{t.capitalize()}</span>' for t in sorted(_dtypes(d)))
             tags = d.get("tags") or []
             blob = " ".join([d["name"], d["host"]] + [str(t) for t in tags]).lower()
@@ -762,27 +780,52 @@ class WebUxMixin:
             n_alerts, n_crit = alerts.get(d["name"], (0, 0))
             alert_cell = ('<span class="muted">—</span>' if not n_alerts else
                           f'<a href="/alerts?view=active"><span class="badge {"b-bad" if n_crit else "b-chg"}">'
-                          f'{n_alerts} open</span></a>')
-            return (f'<tr class="devrow" data-search="{_e(blob)}">'
-                    f'<td><a href="/device?name={_q(d["name"])}">{_e(d["name"])}</a>{en}</td>'
-                    f'<td class="muted">{address}</td><td>{typ}</td><td>{platform}</td>'
-                    f'<td>{st}</td><td>{snmp or "<span class=muted>—</span>"}</td><td>{alert_cell}</td>'
-                    f'<td class="muted">{last}</td><td class="right">{collect_btn}</td></tr>')
+                          f'{n_alerts} open</span></a>') if show_alerts else ""
+            state, label, summary = "dim", "Not checked", ""
+            db = getattr(m, "db", None)
+            counts = saved_availability(m, d, now) if d["enabled"] and db is not None else {}
+            if not d["enabled"]:
+                label = "Disabled"
+            elif sum(counts.values()):
+                up, down, unknown = (counts[key] for key in ("up", "down", "unknown"))
+                if up and down:
+                    state, label = "warn", "Needs attention"
+                elif up:
+                    state, label = "ok", "Up"
+                elif down:
+                    state, label = "bad", "Down"
+                summary = " · ".join(f"{count} {word}" for count, word in
+                                     ((up, "up"), (down, "down"), (unknown, "unknown")) if count)
+            elif fx:
+                state, label = ("ok", "Up") if fx.get("reachable") else ("bad", "Down")
+            management = (f'<div class="sensor-detail">{platform} · Config {st}</div>'
+                          f'<div class="sensor-detail">Last collected {last}</div>'
+                          if managed else "")
+            snmp_detail = f'<div class="sensor-detail">SNMP {snmp}</div>' if snmp else ""
+            alert_detail = f'<div class="sensor-detail">Alerts {alert_cell}</div>' if show_alerts and n_alerts else ""
+            return (f'<article class="sensor-card device-card {state}" data-search="{_e(blob)}">'
+                    '<div class="sensor-head"><span class="sensor-dot"></span>'
+                    f'<a class="device-card-link" href="/device?name={_q(d["name"])}">{_e(d["name"])}</a></div>'
+                    f'<div class="sensor-value">{label}</div>'
+                    + (f'<div class="sensor-detail">{_e(summary)}</div>' if summary else "")
+                    + f'<div class="sensor-detail">{address}</div><div>{typ}</div>'
+                    + management + snmp_detail + alert_detail
+                    + (f'<div class="device-card-actions">{collect_btn}</div>' if collect_btn else "")
+                    + '</article>')
 
-        thead = ("<table><tr><th>Device</th><th>Address</th><th>Type</th><th>Platform</th>"
-                 "<th>Config</th><th>SNMP</th><th>Alerts</th><th>Last collected</th><th></th></tr>")
         by_type = {"network": [], "system": [], "application": []}
         for d in devices:
-            for t in _dtypes(d):
-                if t in by_type:
-                    by_type[t].append(d)
+            cards[d["name"]] = make_card(d)
+            types = _dtypes(d)
+            primary = next(t for t in by_type if t in types)
+            by_type[primary].append(d)
         groups_html = ""
         for t, label in (("network", "Network"), ("system", "System"), ("application", "Application")):
             ds = by_type[t]
             if ds:
                 groups_html += (f'<details class="devgroup" open>'
                                 f'<summary>{label} · <span class="devcount">{len(ds)}</span></summary>'
-                                f'{thead}{"".join(make_row(d) for d in ds)}</table></details>')
+                                f'<div class="sensor-grid device-grid">{"".join(cards[d["name"]] for d in ds)}</div></details>')
         can_manage = _can(sess["role"], "manage_devices")
         if devices:
             search_box = ('<div class="panel" style="padding:10px 14px">'
@@ -968,21 +1011,25 @@ class WebUxMixin:
                                  "<table><tr><th>IP address</th><th>MAC address</th><th>Where</th><th>Source</th></tr>"
                                  + "".join(addr_rows) + "</table>"
                                  + f'<p><a href="/traffic?view=sources&q={_q(query)}">See traffic for “{_e(query)}”</a></p>'))
-            try:
-                al = [a for a in m.alert_lifecycle.list(limit=1000)
-                      if needle in " ".join(str(a.get(k) or "") for k in ("device", "event_type", "message")).lower()][:30]
-            except Exception:
-                al = []
+            al = []
+            if getattr(m, "settings", {}).get("web_alerts_enabled", False):
+                try:
+                    al = [a for a in m.alert_lifecycle.list(limit=1000)
+                          if needle in " ".join(str(a.get(k) or "") for k in ("device", "event_type", "message")).lower()][:30]
+                except Exception:
+                    al = []
             if al:
                 sections.append(("Alerts", "<table><tr><th>Severity</th><th>State</th><th>Device</th><th>Message</th><th>Last seen</th></tr>" + "".join(
                     f'<tr><td>{_e(a.get("severity"))}</td><td>{_e(a.get("state"))}</td><td>{_e(a.get("device"))}</td>'
                     f'<td><a href="/alerts?view=active">{_e(a.get("message"))}</a></td><td>{_fmt_ts(a.get("last_ts"))}</td></tr>'
                     for a in al) + "</table>"))
-            try:
-                inc = [i for i in m.incidents.list(limit=500)
-                       if needle in " ".join(str(i.get(k) or "") for k in ("incident_key", "title", "summary")).lower()][:30]
-            except Exception:
-                inc = []
+            inc = []
+            if getattr(m, "settings", {}).get("web_incidents_enabled", False):
+                try:
+                    inc = [i for i in m.incidents.list(limit=500)
+                           if needle in " ".join(str(i.get(k) or "") for k in ("incident_key", "title", "summary")).lower()][:30]
+                except Exception:
+                    inc = []
             if inc:
                 sections.append(("Incidents", "<table><tr><th>Incident</th><th>Title</th><th>Severity</th><th>Status</th></tr>" + "".join(
                     f'<tr><td><a href="/incident?ref={_q(i["incident_key"])}">{_e(i["incident_key"])}</a></td>'

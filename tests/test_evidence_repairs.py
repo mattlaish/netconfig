@@ -226,6 +226,67 @@ def test_vendor_ui_shows_health_rules_and_same_device_history(console, monkeypat
     assert code==200 and 'not in the displayed device profile' in bad
 
 
+def test_vendor_numeric_measurements_are_grouped_as_trends_and_overview_prioritizes_them(console, monkeypatch):
+    m = console.m
+    seed_profile(m)
+
+    def save(sensor_type, resource, value, unit):
+        m.sensors.upsert(
+            sensor_type, device='fg', resource=resource, value=str(value), unit=unit,
+            status='OK', threshold='Warning >= 80; Critical >= 95',
+            source='vendor-profile:fortinet.fortigate/test',
+        )
+
+    for value in (10, 20, 30):
+        save('vendor.fortigate.cpu', '', value, '%')
+        save('vendor.fortigate.processor_cpu', 'processor-1', value + 1, '%')
+        save('vendor.fortigate.processor_cpu', 'processor-2', value + 2, '%')
+        save('vendor.fortigate.memory', '', 60 + value / 10, '%')
+        save('vendor.fortigate.sessions', '', 1000 + value, 'sessions')
+        save('vendor.fortigate.hardware', 'CPU ON-DIE Temperature', 40 + value / 10, '')
+        save('vendor.fortigate.vpn_tunnel', 'office/main', 'up' if value != 20 else 'down', '')
+        save('vendor.fortigate.vpn_tunnel', 'datacentre/main', 'up', '')
+    m.sensors.upsert(
+        'vendor.fortigate.firmware', device='fg', value='v7.4.13', status='OK',
+        source='vendor-profile:fortinet.fortigate/test',
+    )
+    keys = [SensorEngine.sensor_key('vendor.fortigate.cpu', 'fg', ''),
+            SensorEngine.sensor_key('vendor.fortigate.memory', 'fg', '')]
+    histories = m.sensors.history_for_many(keys, limit=2)
+    assert all(len(histories[key]) == 2 for key in keys)
+    monkeypatch.setattr(m, 'snmp_poll', lambda *a, **kw: (_ for _ in ()).throw(AssertionError('GET polled device')))
+
+    code, _, snmp_page = console.request('GET', '/snmp?device=fg', token=console.session())
+    assert code == 200
+    assert 'Monitoring trends' in snmp_page and '<svg class="telemetry-svg"' in snmp_page
+    assert 'data-telemetry-group="cpu"' in snmp_page and 'data-series-count="3"' in snmp_page
+    assert 'processor-1' in snmp_page and 'processor-2' in snmp_page
+    assert 'Advanced measurement details' in snmp_page
+    assert 'Measurement history' not in snmp_page
+    assert snmp_page.index('Vendor monitoring') < snmp_page.index('Interface throughput')
+
+    code, _, device_page = console.request('GET', '/device?name=fg', token=console.session())
+    assert code == 200 and 'id="monitoring-trends"' in device_page
+    assert device_page.index('Monitoring trends') < device_page.index('<h2>fg')
+    assert 'data-refresh-url="/device-monitoring-trends?name=fg"' in device_page
+    assert "No device poll was started" in device_page
+    code, _, fragment = console.request('GET', '/device-monitoring-trends?name=fg', token=console.session())
+    assert code == 200 and 'Monitoring trends' in fragment and '<svg class="telemetry-svg"' in fragment
+    assert 'Open all SNMP monitoring' in device_page
+    assert 'data-telemetry-group="vpn-tunnel"' in device_page
+    assert 'data-telemetry-group="cpu"' in device_page
+    assert 'data-telemetry-group="memory"' in device_page
+    assert 'data-telemetry-group="sessions"' not in device_page
+
+    save('vendor.fortigate.disk_usage', '/', 55, '%')
+    _device(m, 'fg', '192.0.2.2', platform='fortigate', device_type='system', snmp_version='v2c')
+    code, _, system_page = console.request('GET', '/device?name=fg', token=console.session())
+    assert code == 200
+    for group in ('cpu', 'memory', 'disk', 'temperature'):
+        assert f'data-telemetry-group="{group}"' in system_page
+    assert 'data-telemetry-group="vpn-tunnel"' not in system_page
+
+
 def test_unmatched_mib_profile_explains_missing_semantics(console):
     _device(console.m, 'linux', '192.0.2.3', snmp_version='v2c')
     console.m.inv.set_facts('linux', reachable=True, sysname='Linux', sysdescr='AlmaLinux', uptime='1d',

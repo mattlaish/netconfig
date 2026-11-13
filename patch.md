@@ -1,3 +1,247 @@
+## PATCH-20261112-01 — Release 67.14 Devices cards, Traffic refresh and version display
+
+- Devices shows one clickable card per device and derives availability from the
+  latest saved configured port and endpoint checks. Monitoring details use the
+  same target matching. Optional alerts and management actions stay available.
+- Move the collection-profile entry out of the sidebar. Network device
+  Collection settings and existing direct links still work.
+- Refresh all Traffic views in place with the active filters. Add manual
+  reverse DNS for visible destinations, a compact Throughput chart and a
+  short 24-hour retention label for saved history.
+- Generate the displayed package version from RPM metadata in both build paths.
+  Login and the console footer show `2.0.0-67.14.el10` in the upgrade RPM.
+- Focused localhost HTTP, refresh-script, selftest and disposable package
+  version checks passed. Live qualification and browser visual review remain
+  pending.
+- Verified two identical builds of `dist/netconfig-2.0.0-67.14.el10.noarch.rpm`
+  and checked sign-in, Devices and Traffic against the packaged runtime.
+  RPM SHA-256 `7ad975cd901542d8b5d1f6f90d582e087608be1cd0fed5518e5afe88f92d9880`.
+
+## PATCH-20261111-04 — Release 67.13 configured-static route proof
+
+- Pass the already validated running configuration into L3 collection and
+  normalize configured IPv4 static routes without saving raw configuration in
+  the topology tables.
+- Add additive route-origin, route-proof and hashed config-evidence columns for
+  SQLite and PostgreSQL upgrades.
+- Mark only an active route matching configured VRF/destination/next hop as
+  `CONFIGURED_STATIC / CONFIRMED`; keep dynamic protocols as
+  `DYNAMIC_LEARNED / OBSERVED_CURRENT` and unproved active static entries as
+  `OBSERVED_STATIC / OBSERVED_CURRENT`.
+- Carry route proof through graph, REST API and Web evidence. Keep peer identity
+  separate so confirmed route intent is not downgraded merely because the peer
+  resolved through a unique on-link inventory Host/IP.
+- Focused parser/collection/schema/graph/API/Web and negative-case checks PASS;
+  legacy selftest ALL PASS. Full pytest is NOT_RUN because pytest is absent.
+- Advance package identity to `2.0.0-67.13.el10` so `dnf upgrade` replaces
+  67.12. Offline verification remains distinct from live qualification; no Git
+  operation is performed.
+- Build twice with source epoch `1794384000`; both verified RPMs are
+  byte-identical. Final SHA-256:
+  `2badc97c4d44743fd3894effb30d6f1f1f75ec230c4ca352dff9d922dbe92f7c`;
+  payload SHA-256:
+  `5aea107168437fe9258a6353058d5c87adcd987f517f93e72f0c1b5fab78f907`;
+  118 payload entries, 573836-byte RPM.
+- Record the rejected first build truthfully: an incorrect `el10` argument
+  produced release `67.13el10`; independent verification rejected it. The
+  corrected `.el10` build overwrote that file and is the only delivered RPM.
+
+## PATCH-20261111-03 — Same-subnet next-hop resolver repair
+
+- Repair the data layer behind the 67.12 display option: when fresh peer
+  interface evidence is absent, resolve a gateway from a unique Network-device
+  Host/IP only when fresh same-VRF connected evidence proves it is on-link.
+- Emit `INVENTORY_HOST_ON_LINK`, medium confidence and the connected-prefix
+  proof through the graph and REST API. Keep exact interface-IP resolution at
+  high confidence.
+- Keep duplicate Host/IP, off-link, cross-VRF and stale cases fail-closed as
+  ambiguous or unresolved; do not infer arbitrary devices from subnet
+  membership.
+- Add confidence and resolution evidence to the L3 Web table, allowing the
+  shared-subnet option to display a real purple next-hop edge.
+- Reproduce the original Cisco CLI collection/parser/persistence path and verify
+  the graph, API and Web canvas. Seven focused assertions PASS; AST 3/3 and
+  legacy selftest ALL PASS. Full pytest is NOT_RUN because pytest is absent.
+- Source-only after 67.12; no version/RPM/generated metadata/SBOM/Git or live
+  qualification change.
+
+## PATCH-20261111-02 — Mandatory implementation-depth rule
+
+- Record the user's exact rule: **修改不能只修表面, 底層邏輯要跟著修改一併同步改。**
+- Require future fixes to trace and synchronize collection, normalization,
+  persistence, resolution, API and UI behavior as applicable.
+- Require regression evidence for the original failure and end-to-end result;
+  adding only a control, label or presentation branch is not completion.
+- Markdown only; no source, test, RPM, generated metadata/SBOM or Git change.
+
+## PATCH-20261111-01 — Optional shared-subnet next-hop lines
+
+- Add **Show next-hop lines on shared subnets** to Layer 3 and Combined topology.
+- Preserve connected-subnet edges while optionally restoring the purple
+  directional next-hop line, gateway IP, outgoing interface and aggregated
+  route evidence.
+- Keep the option off by default for display compatibility and preserve it
+  across topology tabs, stale evidence, inferred FDB and unconnected-inventory
+  controls.
+- Add focused function and loopback HTTP regression coverage. Four direct
+  assertions PASS; AST parse PASS. Full pytest is NOT_RUN because pytest is not
+  installed in the current Windows Python.
+- Package identity advances to `2.0.0-67.12.el10`; live AlmaLinux/device
+  qualification remains deferred and no Git operation is performed.
+- Two offline-helper builds using source epoch `1794355200` are byte-identical
+  and pass independent RPM structure, identity, mode, dependency, scriptlet and
+  source-byte verification. RPM SHA-256:
+  `28ac2b937bc72bcc77cdd22a54ec5675b802396a2b56856a542ef3ccb6e3fa4f`;
+  payload SHA-256:
+  `0dbf362a43fbfebf34467fa75285414987fa94af0a4c89d598ac067ae60aa314`;
+  118 payload entries, 569765-byte RPM.
+
+## PATCH-20261110-01 — Operator-focused traffic, credentials, workspace, compliance and live trends
+
+- Change Traffic summary windows to Now, 5 minutes, 1 hour and 24 hours. Rename
+  Conversations to Connections while accepting the old query value. Remove raw
+  flow rows from all unfiltered summary pages; expose a separate Raw records tab
+  only after an IP/service filter and return only matching rows.
+- Add admin-only, per-device Vault re-authentication and one-response display of
+  that device's referenced SSH/Enable/SNMP saved values. Resolve references from
+  inventory server-side; add CSRF, separate retry limiting, no-store responses,
+  escaped values and value-free audit events.
+- Add Settings → Optional workspaces for Alerts, Incidents and the complete
+  Changes group. Default them hidden, remove their navigation/dashboard/search
+  shortcuts when off, retain data and bookmarked direct pages, and move
+  Compliance into its own always-visible navigation group.
+- Replace the long Compliance fleet report with per-device summary widgets and a
+  selected-device detail page containing the full control, evidence, result and
+  remediation table. Audit execution and rule evaluation are unchanged.
+- Auto-refresh Device Overview Monitoring trends from saved Sensor observations
+  at a bounded interval. Pause while the browser/Overview tab is hidden; never
+  start SNMP/device I/O from the refresh endpoint.
+- Add focused regression coverage for the new Traffic, Vault, workspace,
+  Compliance and trend-refresh contracts. Final AST parse PASS for nine runtime
+  and three test files; legacy selftest ALL PASS; direct no-network functional checks PASS. Full pytest
+  NOT_RUN because pytest is absent; loopback HTTP is blocked in this Windows
+  permission profile. Packaged with the layered topology rework as
+  `2.0.0-67.11.el10`; live AlmaLinux qualification remains deferred and no Git
+  operation is performed.
+- Build the unsigned offline-helper RPM twice with source epoch `1794268800`;
+  both files are byte-identical. Independent RPM structure, identity, mode,
+  dependency, scriptlet and source-byte verification passes. Final RPM SHA-256:
+  `d4c51c7c95a3efe69522974f31d67fa49d03ae342f9b163a006b515a8851c7e1`;
+  payload SHA-256:
+  `e450e0e37aae29bbf58dbe9c772feedb3e096b96cf7101bb3e416becdf4205fd`;
+  118 payload entries, 569383-byte RPM. Live AlmaLinux installation remains
+  `NOT_RUN`.
+
+## PATCH-20261109-02 — Topology model separation and usable layered diagrams
+
+- Keep the public compatibility graph union, but expose explicit
+  `physical_edges` (managed LLDP/CDP only) and `reachability_edges` (FDB/MAC
+  forwarding evidence only).
+- Collapse reciprocal LLDP rows into one physical device-pair edge and retain
+  the exact port pairs/link count. Aggregate FDB evidence by managed path; keep
+  reciprocal route/FDB evidence in the evidence tables while drawing at most one
+  canvas line per relationship. Omit a next-hop chord when a shared connected
+  subnet already expresses that hop.
+- Replace circular placement with deterministic component/layer placement.
+  Physical, L3 and Combined use separate v2 browser layout keys so stale saved
+  v1 coordinates cannot mask the change.
+- Label the canvas itself: LLDP/CDP shows both interfaces; connected subnets show
+  interface/prefix evidence when available; next-hop lines show direction,
+  next-hop and outgoing interface. Give physical, connected-subnet, routing and
+  optional FDB reachability four distinct styles.
+- Build directly-connected subnet edges from fresh prefix-bearing interface
+  observations as well as route observations. Verify the two-router
+  `10.1.1.5/30` + `10.1.1.6/30` case through one `10.1.1.4/30` subnet.
+- Final source validation: compile PASS for five changed Python/test files;
+  legacy selftest ALL PASS; seven direct topology assertions PASS; three focused
+  HTTP test functions PASS across Physical/L3/Combined. Full pytest NOT_RUN
+  because pytest is absent. Included in `2.0.0-67.11.el10`; live-device
+  qualification remains deferred and no Git operation is performed.
+
+## PATCH-20261109-01 — Mandatory user approval before AI file changes
+
+- Add a highest-priority approval gate to `AGENTS.md`: no AI may create, edit,
+  delete, rename, move, format or regenerate files without explicit approval for
+  that specific scope in the current conversation.
+- Clarify that read-only study/review/diagnosis is allowed, while "pick up" and
+  similar continuation wording is not edit permission.
+- Treat tests with generated output, metadata/SBOM refreshes, archives, RPMs and
+  other build artifacts as writes requiring approval.
+- Make approval task-scoped and non-transferable to later work; writable access,
+  full-access mode and earlier edits do not create standing authority.
+- Preserve the separate rule that Git operations require explicit current-chat
+  authorization.
+- Documentation only, explicitly requested by the user. No source, test, JSON
+  metadata/SBOM, package, artifact or Git change is included.
+
+## PATCH-20261106-02 — Release 67.10 topology diagram truth and canvas filtering
+
+- Make **Physical** default to confirmed managed LLDP/CDP adjacency.  Retain
+  FDB/MAC reachability evidence and API output, but do not draw it as a physical
+  link unless the operator explicitly enables **Show inferred FDB paths**.
+- Hide devices with no visible topology evidence from the default canvas and
+  provide **Show unconnected inventory** for deliberate inventory review.
+- Apply the same evidence-first canvas rule to Layer 3.  Combined defaults to
+  physical/L3 evidence and keeps FDB paths opt-in, avoiding the previous
+  near-full-mesh yellow-line presentation.
+- Preserve stored evidence, topology API compatibility, downstream-impact rules,
+  stale-route handling and DB-only page rendering.  No collection or device-I/O
+  behavior changed.
+- Replace the historical Web `v1.0` label with the full package identity in the
+  shared footer: `NetConfig v2.0.0-67.10`.
+- Validation: syntax compile PASS; legacy selftest ALL PASS; four focused direct
+  topology HTTP/API assertions, one footer HTTP assertion and seven direct
+  release identity/metadata assertions PASS. Full pytest/Ruff NOT_RUN because
+  the current Windows Python lacks those modules.
+- Advance the upgrade identity from 67.9 to 67.10. Two offline-helper builds are
+  byte-identical and independently verified (118 payload entries, 561016 bytes).
+  RPM SHA-256 `298ce372fcac1d7814d1301a4d9aa45774d65360fa615567a3e5f1cdbd3054fd`;
+  payload SHA-256 `0661b69e2e555b282a0ddf5e049d00298ef2d39782e94342bec0f7c6da0b8cb4`.
+  Unsigned/offline verified only; live AlmaLinux/DNF/systemd/SELinux/topology
+  qualification remains NOT_RUN. No Git action or R68 claim.
+
+## PATCH-20261106-01 — Grouped SNMP monitoring trends and Overview heartbeat charts
+
+- Replace the default per-measurement row/history wall with server-rendered,
+  multi-series SVG trend charts backed only by saved Sensor observations.  CPU
+  overall/core/VDOM channels share one chart; other useful numeric readings are
+  grouped by operational purpose.  VPN tunnel text states become per-tunnel
+  Up/Down history.  Missing periods are left as gaps.
+- Put Vendor monitoring near the top of the device SNMP page.  Keep current text
+  status compact; place individual measurement rows and explicitly requested raw
+  history under advanced disclosure.
+- Add Device Overview monitoring before metadata.  Network selects VPN tunnel
+  (or VPN-up count), CPU and memory.  System selects CPU, memory, disk and
+  temperature.  Empty categories are omitted and Application-only devices do not
+  enter the SNMP data path.
+- Add one bounded multi-key history query to avoid N+1 database reads: at most
+  100 Sensor keys and 400 observations per key.
+- Validation: Python compile PASS; legacy selftest ALL PASS; focused HTTP smoke
+  PASS for SNMP full page, Network Overview, System Overview and multi-key
+  history. Full pytest and Ruff NOT_RUN because the current Windows Python lacks
+  those modules. Package identity advances from 67.8 to 67.9. Two offline-helper
+  builds are byte-identical; independent RPM verification PASS; SHA-256
+  `132773fe3d63a2f331061ee8dd730a884f7389fd4472f5dc029af778f2680199`.
+  Live AlmaLinux/DNF/systemd/SELinux/device qualification remains NOT_RUN; no
+  Git or R68 action.
+
+## PATCH-20261105-04 — Practical PRTG-replacement roadmap
+
+- Add a canonical unassigned ten-part v2.x backlog to `ROADMAP.md`: generic
+  Sensor/Channel architecture, dependency suppression, inherited object policy,
+  controlled discovery/templates, availability/SLA, Remote Site Collector,
+  pause/maintenance schedules, NOC views, notification policy/channels and a
+  prioritized Sensor catalogue led by Ping and read-only SQL.
+- Record the next interface-alert requirement: retain all port observations but
+  do not alert for ordinary access-port endpoint shutdown; use explicit monitored
+  infrastructure interfaces, shared Poll/Trap policy, Down/recovery confirmation,
+  flap aggregation, upstream suppression and error-counter deltas/rates.
+- Correct documentation interpretation: long-running real-environment use is not
+  negated by the absence of a formal `TESTED` label.  Operational use, formal
+  evidence and verification of new bytes are separate facts.
+- Documentation only.  No runtime, schema, test result, RPM identity, release
+  status, MC-12 assignment or Git operation.
+
 ## PATCH-20261105-03 — Enable secret precedence and route-status corrective RPM
 
 - Fix Web-managed Cisco credentials where the same vault record is both SSH and
@@ -609,7 +853,7 @@ Generated manifests, SBOM and artifact hashes remain pending regeneration for th
 Additional completed local checks: legacy selftest **ALL PASS** (including Application-only isolation and System-only regression), six changed runtime modules compile, and the existing canonical-state, compound-statement and PH-1 structure checks **3/3 PASS**. Selftest uses the same fail-closed Windows PTY import harness; this is not live SSH evidence.
 
 <!-- documentation-sync: 2026-11-05 -->
-> **Canonical project state — 2026-11-05:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.8 / Enable Credential Precedence Corrective RPM** (`2.0.0-67.8`, `IMPLEMENTED_TESTING_DEFERRED`). When a Web-managed vault secret is both the SSH and enable reference, NetConfig now sends its explicit `enable_password` instead of incorrectly overwriting it with the SSH login password; separate Enable secrets remain supported. Release 67.7 legacy `ssh-rsa`/SHA-1 verification, managed known_hosts, the RSA 512-bit floor and normal-device OpenSSH isolation remain. Prior SNMPv3, Endpoint CSV, history/evidence/workflow corrections are preserved. **MC-11 Topology-Aware Change Planning** remains the final feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** and schema `mc11-topology-change-planning-1` remain. **Do not create MC-12.** Local regression does not replace live Cisco/AlmaLinux qualification. All twelve LIVE_RC gates and an explicit R68 decision remain required. Git stays user-managed.
+> **Canonical project state — 2026-11-12:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.14 / Devices and Traffic Console Corrective RPM** (`2.0.0-67.14`, `IMPLEMENTED_TESTING_DEFERRED`). Release 67.14 adds Devices monitoring cards, Traffic auto-refresh and destination lookup, and consistent sign-in and footer package versions. Release 67.13 distinguishes configured static route intent from dynamic and route-table-only observations while preserving Release 67.12 shared-subnet next-hop display, Release 67.11 layered topology and operator UI corrections, Release 67.10 evidence-first topology, Release 67.9 grouped SNMP trends, Release 67.8 Enable credential precedence and Release 67.7 isolated legacy `ssh-rsa`/SHA-1 verification. Existing state is preserved across upgrade. **MC-11 Topology-Aware Change Planning** remains the final feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** and schema `mc11-topology-change-planning-1` remain. **Do not create MC-12.** Offline verification does not replace live Cisco/AlmaLinux qualification. All twelve LIVE_RC gates and an explicit R68 decision remain required. Git stays user-managed.
 
 > **Document applicability:** this document is maintained against [ROADMAP.md](ROADMAP.md) and [AI_HANDOFF.md](AI_HANDOFF.md). Older release-numbered sections, test counts, fingerprints and Current/Next pointers below are historical unless explicitly restated in this 2026-10-13 update.
 

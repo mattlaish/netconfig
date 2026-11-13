@@ -248,7 +248,7 @@ def parse_spec_identity(spec_path: Path) -> tuple[str, str, str]:
     return name, version, release
 
 
-def collect_netconfig_payload(repo_root: Path) -> list[PackageFile]:
+def collect_netconfig_payload(repo_root: Path, package_version: str) -> list[PackageFile]:
     items: list[PackageFile] = []
     def add_file(dest: str, src: Path, mode: int, owner: str = "root", group: str = "root", flags: int = 0, normalize_lf: bool = False) -> None:
         body = _read_text_lf(src) if normalize_lf else src.read_bytes()
@@ -263,8 +263,10 @@ def collect_netconfig_payload(repo_root: Path) -> list[PackageFile]:
         add_file(f"/opt/netconfig/{name}", repo_root / "opt/netconfig" / name, 0o644)
 
     pkg_root = repo_root / "opt/netconfig/netconfig"
+    items.append(PackageFile("/opt/netconfig/netconfig/PACKAGE_VERSION",
+                             (package_version + "\n").encode("ascii"), 0o644, "root", "root", 0, False))
     for path in sorted(pkg_root.rglob("*")):
-        if "__pycache__" in path.parts:
+        if "__pycache__" in path.parts or path == pkg_root / "PACKAGE_VERSION":
             continue
         rel = path.relative_to(repo_root / "opt/netconfig").as_posix()
         dest = "/opt/netconfig/" + rel
@@ -332,7 +334,7 @@ def build_rpm(repo_root: Path, output: Path, dist: str, source_date_epoch: int) 
     spec = repo_root / "packaging/netconfig.spec"
     name, version, release_base = parse_spec_identity(spec)
     release = f"{release_base}{dist}"
-    files = collect_netconfig_payload(repo_root)
+    files = collect_netconfig_payload(repo_root, f"{version}-{release}")
     payload_size = sum(len(f.body) for f in files)
     cpio = _cpio_newc(files, source_date_epoch)
     payload = gzip.compress(cpio, compresslevel=9, mtime=source_date_epoch)

@@ -44,6 +44,50 @@ def _types(dev):
     return ts or {"network"}
 
 
+def saved_check_targets(dev):
+    """Use the same targets as the background and on-demand checks."""
+    types = _types(dev)
+    targets = {}
+    if "system" in types:
+        targets.update({("port", f"{proto}/{port}"): None
+                        for proto, port in portmon.parse_ports(dev.get("monitor_ports"))})
+    if "application" in types:
+        targets.update({("http", url): expected for url, expected in
+                        appmon.parse_targets(dev.get("monitor_urls"), dev["host"])})
+    return targets
+
+
+def check_availability(kind, status, expected=None):
+    if kind == "port":
+        if status == "open":
+            return "up"
+        if status == "open|filtered":
+            return "unknown"
+        return "down" if status in {"closed", "filtered", "error"} else "unknown"
+    if status == "down":
+        return "down"
+    if str(status).isdigit():
+        code = int(status)
+        ok = code == expected if expected is not None else 200 <= code < 400
+        return "up" if ok else "down"
+    return "unknown"
+
+
+def saved_availability(manager, dev, now):
+    targets = saved_check_targets(dev)
+    rows = manager.db.latest_monitor_results(dev["name"], targets)
+    interval = int(manager.settings.get("monitor_poll_interval") or 0)
+    counts = dict(up=0, down=0, unknown=0)
+    for key, expected in targets.items():
+        row = rows.get(key)
+        if row and (not interval or now - row["ts"] <= max(300, 3 * interval)):
+            state = check_availability(key[0], row["status"], expected)
+        else:
+            state = "unknown"
+        counts[state] += 1
+    return counts
+
+
 def run_device_checks(manager, dev):
     """Run the checks appropriate to the device's type(s) and record history.
     Returns a list of result dicts: {kind, target, status, value}."""

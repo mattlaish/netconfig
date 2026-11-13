@@ -1,5 +1,109 @@
 # Roadmap
 
+## Current source correction — layered topology diagrams — 2026-11-09
+
+The post-67.10 source completes the presentation work that the 67.10 evidence
+filter alone did not make visible. Physical adjacency, routed relationships and
+FDB reachability now remain separate layers; reciprocal observations are
+de-duplicated for drawing; interface/next-hop labels appear on the canvas; and a
+deterministic component/layer layout replaces the circular graph. This is a
+corrective source change, not a new MC slice or release. Packaging and live
+AlmaLinux/topology qualification remain pending explicit authorization.
+
+## Current source correction — usable evidence-first topology — 2026-11-06
+
+Release 67.10 corrects topology presentation without changing collection
+or deleting evidence.  Physical now defaults to confirmed LLDP/CDP adjacency;
+FDB/MAC reachability and evidence-free inventory are optional overlays.  Layer 3
+hides inventory islands without route/interface evidence, and Combined defaults
+to the trusted physical/routing layers instead of mixing FDB paths into the
+primary diagram. The stored graph and read-only API remain complete, and the Web
+footer exposes the full package identity. This is a corrective RPM, not a new MC
+slice or R68 promotion.
+
+## Current source correction — SNMP operational charts — 2026-11-06
+
+The post-67.8 source now groups saved vendor-profile numeric measurements into
+multi-series operational charts and adds evidence-driven Device Overview charts.
+Network selects VPN tunnel, CPU and memory; System selects CPU, memory, disk and
+temperature; unavailable evidence is omitted.  This improves the current
+monitoring surface but does not complete the generic Sensor/Channel, SLA,
+dependency, notification or long-term-retention backlog below. It is packaged in
+the unsigned offline-helper 2.0.0-67.9 RPM; live AlmaLinux qualification and R68
+promotion remain unclaimed.
+
+## Practical PRTG-replacement capability backlog — 2026-11-05
+
+This is the canonical product-direction record for the user's practical PRTG
+replacement gaps.  It is an unassigned, evidence-driven v2.x backlog, not a new
+MC slice, release commitment or permission to create MC-12.  The user has run
+NetConfig in a real environment for a long time; absence of a formal `TESTED`
+label must not be rewritten as absence of operational use.  Qualification state,
+recorded test evidence and actual product capability remain separate facts.
+
+1. **Generic Sensor / Channel model (P0).** Evolve the current single-value
+   Sensor record into a stable Sensor with one or more typed channels, primary
+   channel, units/lookups, per-channel limits and aggregate state.  Ping must be
+   able to carry status, average/minimum/maximum delay, packet loss and downtime;
+   SQL sensors must be able to map bounded query result columns without bespoke
+   alert/history/UI code for every new collector.
+2. **Sensor dependency and root-cause suppression (P0).** A failed master Ping,
+   device or upstream path must suppress dependent checks and alarm floods while
+   preserving evidence.  Interface state remains collected for every port, but
+   ordinary access-port endpoint shutdown must not create an operational alert.
+   Only explicitly selected infrastructure interfaces should alert, with
+   LLDP/CDP, routed/WAN, port-channel and description evidence offered as reviewable
+   recommendations rather than silent policy.  Poll and SNMP Trap paths must use
+   the same policy; persistent-down confirmation, recovery confirmation and flap
+   aggregation are required.  Interface error alerts must use counter deltas/rates,
+   not a historical cumulative counter merely being non-zero.
+3. **Group / Device / Sensor inheritance (P0/P1).** Add an operator-visible
+   Site/Group → Device → Sensor hierarchy for inherited scan intervals,
+   credentials, notification policy, maintenance, templates, tags and channel
+   limits, with explicit child overrides and safe bulk edit.
+4. **Controlled discovery and device templates (P1).** Provide authorized subnet
+   discovery, Ping/ARP/SNMP identification, sysObjectID/vendor-profile matching,
+   duplicate protection, review-before-enrolment and reusable Router, Switch,
+   Firewall, Linux, Windows and Application sensor templates.  Discovery must
+   never expand to an unapproved network range or silently create monitoring load.
+5. **Unified availability, history and SLA (P1).** Derive uptime, downtime,
+   coverage, unknown time, maintenance/dependency exclusions, MTTR/MTBF and SLA
+   summaries from one explicit model across Sensor observations/transitions.
+   Email needs at most a compact recent (for example two-hour) graph; omitting
+   2-day/30-day email graphs does not remove the need for retained/rolled-up data
+   used by SLA and investigation.
+6. **Remote Site Collector (P1 when multi-site).** Implement a least-authority
+   collector that connects outward to the central service, receives bounded
+   monitoring assignments, buffers during WAN interruption, resumes idempotently
+   and reports its own health.  It must support isolated subnets and distribute
+   polling load without duplicating alerts or network-write authority.
+7. **Schedules, pause and maintenance policy (P1).** Support Sensor, Device and
+   Group pause/resume; quick 5/60-minute and 24-hour pauses; recurring windows;
+   timezone-aware calendars; operator reason/audit; post-maintenance recovery
+   delay; and explicit rules for data/notification handling while paused.
+8. **Configurable dashboards, maps and NOC views (P2).** Add saved role-aware
+   views for Site/Group health, top traffic/latency/loss, unacknowledged alerts,
+   SLA and full-screen auto-refresh.  Reuse persisted evidence and the existing
+   topology canvas; page rendering must not initiate device I/O.
+9. **Notification policy and delivery channels (P1/P2).** Add per-object and
+   inherited triggers, delayed Down, repeat/escalation-until-acknowledged,
+   recovery, schedules/on-call routing, summarization/deduplication, templates,
+   preview/test and delivery history.  HTML email should contain the failure,
+   current channels, recent transitions and secure expiring Check/Acknowledge/
+   Pause actions.  Email is first; bounded webhook/Teams/Slack-style delivery can
+   follow without weakening RBAC or audit.
+10. **High-value Sensor breadth (P1/P2).** Prioritize ICMP Ping/Ping jitter, DNS,
+    NTP offset, read-only SQL query, Windows/Linux service and resource health,
+    VMware/Hyper-V, DHCP, mail protocols, HTTP content, certificate-chain/OCSP,
+    UPS/storage and a constrained custom-script Sensor.  Do not chase PRTG's
+    entire catalogue; select types from the user's environment and make every new
+    collector reuse the generic Channel, history, dependency and notification
+    contracts above.
+
+Suggested delivery order is 1 → Ping → 5 → 2 → 9 → 3 → SQL/DNS/NTP → 4 → 6/8.
+This documentation entry changes no runtime, database schema, RPM identity or
+release status.
+
 ## User-requested NetFlow persistence — 2026-10-22
 
 Current source implements rolling 24-hour raw NetFlow PostgreSQL persistence,
@@ -54,7 +158,7 @@ Generated manifests, SBOM and artifact hashes remain pending regeneration for th
 Additional completed local checks: legacy selftest **ALL PASS** (including Application-only isolation and System-only regression), six changed runtime modules compile, and the existing canonical-state, compound-statement and PH-1 structure checks **3/3 PASS**. Selftest uses the same fail-closed Windows PTY import harness; this is not live SSH evidence.
 
 <!-- documentation-sync: 2026-11-05 -->
-> **Canonical project state — 2026-11-05:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.8 / Enable Credential Precedence Corrective RPM** (`2.0.0-67.8`, `IMPLEMENTED_TESTING_DEFERRED`). When a Web-managed vault secret is both the SSH and enable reference, NetConfig now sends its explicit `enable_password` instead of incorrectly overwriting it with the SSH login password; separate Enable secrets remain supported. Release 67.7 legacy `ssh-rsa`/SHA-1 verification, managed known_hosts, the RSA 512-bit floor and normal-device OpenSSH isolation remain. Prior SNMPv3, Endpoint CSV, history/evidence/workflow corrections are preserved. **MC-11 Topology-Aware Change Planning** remains the final feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** and schema `mc11-topology-change-planning-1` remain. **Do not create MC-12.** Local regression does not replace live Cisco/AlmaLinux qualification. All twelve LIVE_RC gates and an explicit R68 decision remain required. Git stays user-managed.
+> **Canonical project state — 2026-11-12:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.14 / Devices and Traffic Console Corrective RPM** (`2.0.0-67.14`, `IMPLEMENTED_TESTING_DEFERRED`). Release 67.14 adds Devices monitoring cards, Traffic auto-refresh and destination lookup, and consistent sign-in and footer package versions. Release 67.13 distinguishes configured static route intent from dynamic and route-table-only observations while preserving Release 67.12 shared-subnet next-hop display, Release 67.11 layered topology and operator UI corrections, Release 67.10 evidence-first topology, Release 67.9 grouped SNMP trends, Release 67.8 Enable credential precedence and Release 67.7 isolated legacy `ssh-rsa`/SHA-1 verification. Existing state is preserved across upgrade. **MC-11 Topology-Aware Change Planning** remains the final feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** and schema `mc11-topology-change-planning-1` remain. **Do not create MC-12.** Offline verification does not replace live Cisco/AlmaLinux qualification. All twelve LIVE_RC gates and an explicit R68 decision remain required. Git stays user-managed.
 
 > **Document applicability:** this document is maintained against [ROADMAP.md](ROADMAP.md) and [AI_HANDOFF.md](AI_HANDOFF.md). Older release-numbered sections, test counts, fingerprints and Current/Next pointers below are historical unless explicitly restated in this 2026-10-13 update.
 

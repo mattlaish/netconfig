@@ -287,11 +287,12 @@ class AnalyticsService:
             raise ValueError("terminal route cannot specify next_device")
         cur = self.conn.execute(
             "INSERT INTO l3_route_observations "
-            "(tenant_id,device,vrf,destination_prefix,protocol,next_hop,outgoing_interface,next_device,metric,terminal,evidence_ref,actor,observed_ts) "
-            "VALUES ('default',?,?,?,?,?,?,?,?,?,?,?,?)",
+            "(tenant_id,device,vrf,destination_prefix,protocol,next_hop,outgoing_interface,next_device,metric,terminal,evidence_ref,actor,observed_ts,route_origin,route_confidence) "
+            "VALUES ('default',?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (device, vrf, destination_prefix, _clean(protocol, 64), _clean(next_hop, 255),
              _clean(outgoing_interface, 255), next_device, int(metric or 0), int(bool(terminal)),
-             _clean(evidence_ref, 512), _clean(actor, 128), time.time()),
+             _clean(evidence_ref, 512), _clean(actor, 128), time.time(),
+             "MANUAL", "OBSERVED_INPUT"),
         )
         self.conn.commit()
         self.db.audit(actor, "analytics_l3_route_observe", device,

@@ -55,6 +55,9 @@ DEFAULT_SETTINGS = {
     "web_tls_key": "",                # optional PEM private key for built-in TLS
     "cookie_secure": False,            # add Secure to the session cookie; enable when
                                        # the console is fronted by the WAF for TLS
+    "web_alerts_enabled": False,       # show the optional Alerts workspace in the console
+    "web_incidents_enabled": False,    # show the optional Incidents workspace in the console
+    "web_changes_enabled": False,      # show change requests/workspace/automation in the console
     "bulk_workers": 5,                 # concurrent SSH sessions for bulk jobs
     "snmp_workers": 8,                 # bounded concurrent SNMP polls
     "snmp_timeout": 2.0,

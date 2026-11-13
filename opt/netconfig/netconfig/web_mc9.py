@@ -18,16 +18,17 @@ def _badge(value):
 
 
 class WebMC9Mixin:
-    @staticmethod
-    def _correlation_workspace_tabs(current):
+    def _correlation_workspace_tabs(self, current):
         items = [
             ("dashboard", "/dashboard", "Dashboard"),
-            ("alerts", "/alerts?view=active", "Active Alerts"),
             ("events", "/events", "Events"),
-            ("incidents", "/incidents", "Incidents"),
-            ("maintenance", "/alerts?view=maintenance", "Maintenance"),
             ("traffic", "/traffic", "Traffic Analytics"),
         ]
+        if self.manager.settings.get("web_alerts_enabled", False):
+            items[1:1] = [("alerts", "/alerts?view=active", "Active Alerts"),
+                          ("maintenance", "/alerts?view=maintenance", "Maintenance")]
+        if self.manager.settings.get("web_incidents_enabled", False):
+            items.insert(-1, ("incidents", "/incidents", "Incidents"))
         return '<div class="tabs">' + ''.join(
             f'<a class="tab {"active" if current == key else ""}" href="{href}">{label}</a>'
             for key, href, label in items) + '</div>'
@@ -36,6 +37,9 @@ class WebMC9Mixin:
         """Network-first summary: device reachability, config changes, compliance,
         approvals, alerts and traffic. Reads saved records only."""
         m = self.manager
+        show_changes = bool(m.settings.get("web_changes_enabled", False))
+        show_alerts = bool(m.settings.get("web_alerts_enabled", False))
+        show_incidents = bool(m.settings.get("web_incidents_enabled", False))
         now = time.time()
         devices = m.inv.all()
         facts = m.inv.all_facts()
@@ -57,10 +61,12 @@ class WebMC9Mixin:
         day = [r for r in runs if float(r.get("ts") or 0) >= now - 86400]
         changes = [r for r in day if r.get("changed")]
         failed = [r for r in day if not r.get("ok")]
-        try:
-            pending = self.wf.pending()
-        except Exception:
-            pending = []
+        pending = []
+        if show_changes:
+            try:
+                pending = self.wf.pending()
+            except Exception:
+                pending = []
         comp = m.db.conn.execute("SELECT * FROM compliance_runs ORDER BY ts DESC LIMIT 1").fetchone()
         comp = dict(comp) if comp else None
         from .web_ux import drift_flags
@@ -71,7 +77,7 @@ class WebMC9Mixin:
                     drifted.append(d["name"])
             except Exception:
                 pass
-        critical = data.get("critical_alerts") or []
+        critical = (data.get("critical_alerts") or []) if show_alerts else []
 
         def _span(seconds):
             return f"{seconds // 3600} h" if seconds >= 3600 else f"{seconds // 60} min"
@@ -89,22 +95,27 @@ class WebMC9Mixin:
                  + card("bad" if comp and comp.get("failed") else ("ok" if comp else "dim"), "Compliance",
                         (f'{int(comp["failed"])} failed' if comp else "—"),
                         (f'<a href="/compliance">{int(comp.get("passed") or 0)} passed · {_fmt_ts(comp.get("ts"))}</a>' if comp
-                         else '<a href="/compliance">not run yet</a>'))
-                 + card("warn" if pending else "ok", "Waiting for approval", len(pending),
-                        '<a href="/requests">change requests</a>')
-                 + card("bad" if critical else ("warn" if data.get("active_incident_count") else "ok"),
-                        "Critical alerts", len(critical),
-                        f'<a href="/alerts?view=active">open alerts</a> · '
-                        f'<a href="/incidents">{int(data.get("active_incident_count") or 0)} active incident(s)</a>')
-                 + '</div>')
+                         else '<a href="/compliance">not run yet</a>')))
+        if show_changes:
+            cards += card("warn" if pending else "ok", "Waiting for approval", len(pending),
+                          '<a href="/requests">change requests</a>')
+        if show_alerts or show_incidents:
+            alert_detail = ((f'<a href="/alerts?view=active">open alerts</a>' if show_alerts else "")
+                            + (" · " if show_alerts and show_incidents else "")
+                            + (f'<a href="/incidents">{int(data.get("active_incident_count") or 0)} active incident(s)</a>'
+                               if show_incidents else ""))
+            cards += card("bad" if critical else ("warn" if show_incidents and data.get("active_incident_count") else "ok"),
+                          "Critical alerts" if show_alerts else "Incidents", len(critical) if show_alerts else int(data.get("active_incident_count") or 0),
+                          alert_detail)
+        cards += '</div>'
         items = []
         for d in down[:10]:
             items.append(f'<li><span class="badge b-bad">unreachable</span> <a href="/snmp?device={_q(d["name"])}">{html.escape(d["name"])}</a> '
                          f'<span class="muted">{html.escape((facts.get(d["name"]) or {}).get("error") or "did not answer the last SNMP poll")}</span></li>')
-        for r in pending[:10]:
+        for r in (pending[:10] if show_changes else []):
             items.append(f'<li><span class="badge b-chg">approval</span> <a href="/request?id={_q(r.get("id"))}">{html.escape(r.get("title") or "Change request")}</a> '
                          f'<span class="muted">requested by {html.escape(r.get("requested_by") or "")} · {_fmt_ts(r.get("requested_ts"))}</span></li>')
-        for a in critical[:10]:
+        for a in (critical[:10] if show_alerts else []):
             items.append(f'<li><span class="badge b-bad">critical</span> <a href="/alerts?view=active">{html.escape(a.get("message") or a.get("event_type") or "alert")}</a> '
                          f'<span class="muted">{html.escape(a.get("device") or "")}</span></li>')
         for name in drifted[:10]:
@@ -146,6 +157,13 @@ class WebMC9Mixin:
 
     def _mc9_dashboard_page(self, sess):
         data = self.manager.operations_console.dashboard()
+        if not self.manager.settings.get("web_incidents_enabled", False):
+            data["active_incidents"] = []
+            data["active_incident_count"] = 0
+            data["impacted_services"] = []
+            data["correlated_changes"] = []
+        if not self.manager.settings.get("web_alerts_enabled", False):
+            data["critical_alerts"] = []
         health = data.get("correlation_health") or {}
         corr = health.get("correlation") or {}
         bounds = health.get("bounds") or {}
@@ -200,7 +218,7 @@ class WebMC9Mixin:
             + section("Unhealthy dependency evidence", ("Source", "Relationship", "Target", "Console state", "Evidence"), dep_rows,
                       '<p class="muted">UNKNOWN and STALE are evidence states, not proof of service failure.</p>')
             + section("External source health", ("Source", "Type", "Status", "Auth", "Last evidence"), connector_rows))
-        if not sections:
+        if not sections and self.manager.settings.get("web_incidents_enabled", False):
             sections = ('<div class="panel"><h2>Incidents &amp; correlation</h2><p class="muted">No active incidents, '
                         'impacted services, unhealthy dependencies or external sources to show. '
                         '<a href="/incidents">Open incidents</a></p></div>')
@@ -209,6 +227,11 @@ class WebMC9Mixin:
         return self._send(self._page("Dashboard", body, sess))
 
     def _mc9_traffic_page(self, q, sess):
-        from .web_traffic import render_traffic_body
-        body = self._correlation_workspace_tabs("traffic") + render_traffic_body(self, q)
+        from .web_traffic import render_traffic_body, TRAFFIC_CSS, TRAFFIC_JS
+        mode = self.headers.get("X-NetConfig-Traffic")
+        content = render_traffic_body(self, q, lookup_destinations=mode == "lookup")
+        if mode in {"refresh", "lookup"}:
+            return self._send(content, headers=[("Cache-Control", "no-store")])
+        body = (self._correlation_workspace_tabs("traffic") + f'<style>{TRAFFIC_CSS}</style>'
+                + content + f'<script>{TRAFFIC_JS}</script>')
         return self._send(self._page("Traffic Analytics", body, sess))

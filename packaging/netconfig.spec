@@ -1,6 +1,6 @@
 Name:           netconfig
 Version:        2.0.0
-Release:        67.8%{?dist}
+Release:        67.14%{?dist}
 Summary:        Network configuration and security operations console
 License:        Proprietary
 BuildArch:      noarch
@@ -39,6 +39,8 @@ find "%{buildroot}/opt/netconfig" -type d -exec chmod 0755 {} +
 find "%{buildroot}/opt/netconfig" -type f -exec chmod 0644 {} +
 find "%{buildroot}/opt/netconfig" -type d -name __pycache__ -prune -exec rm -rf {} +
 find "%{buildroot}/opt/netconfig" -type f -name '*.py[co]' -delete
+printf '%s\n' '%{version}-%{release}' > "%{buildroot}/opt/netconfig/netconfig/PACKAGE_VERSION"
+chmod 0644 "%{buildroot}/opt/netconfig/netconfig/PACKAGE_VERSION"
 
 # Defense in depth for sources copied from Windows: Linux shebangs require LF.
 install -D -m 0755 /dev/null "%{buildroot}%{_bindir}/netconfig"
@@ -95,6 +97,34 @@ exit 0
 %dir %attr(0700,netconfig,netconfig) %{_localstatedir}/lib/netconfig
 
 %changelog
+* Thu Nov 12 2026 OpenAI <noreply@openai.com> - 2.0.0-67.14
+- Show saved monitoring availability on Devices cards and move collection settings into Network devices.
+- Refresh Traffic views in place, add destination reverse DNS, and compact the throughput display.
+- Display the installed RPM version on the login page and authenticated footer.
+
+* Wed Nov 11 2026 OpenAI <noreply@openai.com> - 2.0.0-67.13
+- Confirm configured IPv4 static routes by matching running configuration with the active route table.
+- Preserve separate route-proof and next-hop identity evidence through the database, REST API, and Layer 3 Web topology.
+
+* Wed Nov 11 2026 OpenAI <noreply@openai.com> - 2.0.0-67.12
+- Add an operator-controlled Layer 3/Combined option to retain next-hop route lines between devices that share a connected subnet.
+- Preserve next-hop direction, gateway address and outgoing-interface evidence without changing the default topology layout.
+
+* Tue Nov 10 2026 OpenAI <noreply@openai.com> - 2.0.0-67.11
+- Replace the topology circle/full-mesh presentation with evidence-separated layered diagrams and de-duplicated links.
+- Streamline Traffic summaries and filtered raw records, add one-response per-device Vault credential reveal, and make Alerts/Incidents/Changes optional in the console.
+- Add per-device Compliance summary widgets and auto-refresh Device Overview monitoring trends from saved data without device polling.
+
+* Fri Nov 06 2026 OpenAI <noreply@openai.com> - 2.0.0-67.10
+- Default Physical topology to confirmed LLDP/CDP adjacency and keep FDB/MAC reachability as an explicit optional overlay.
+- Hide evidence-free inventory from the default Physical, Layer 3 and Combined canvases while retaining operator opt-in and complete API evidence.
+- Show the full package version in the Web console footer and preserve existing state across upgrade.
+
+* Fri Nov 06 2026 OpenAI <noreply@openai.com> - 2.0.0-67.9
+- Group persisted SNMP vendor measurements into multi-series trend charts instead of per-value history walls.
+- Add evidence-driven Network and System monitoring charts to Device Overview while preserving Application-only isolation.
+- Bound multi-Sensor history reads to avoid one database query per chart line.
+
 * Thu Nov 05 2026 OpenAI <noreply@openai.com> - 2.0.0-67.8
 - Prefer the explicitly stored enable_password when one Web vault secret is both the SSH and enable reference.
 - Do not misreport route learning as attempted when configuration collection failed before route commands ran.

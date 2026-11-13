@@ -80,11 +80,14 @@ def test_sidebar_groups_are_collapsible_and_admin_links_reachable(console):
     status, _h, text = console.request("GET", "/devices-missing", token=console.session())
     status, _h, text = console.request("GET", "/", token=console.session())
     assert status == 200
-    assert '<details class="side-group" data-group="Changes" open>' in text
+    assert '<details class="side-group" data-group="Compliance" open>' in text
+    assert 'data-group="Changes"' not in text
     assert '<details class="side-group" data-group="Administration">' in text   # collapsed by default
-    for href in ("/settings", "/users", "/audit", "/help", "/search", "/requests"):
+    for href in ("/settings", "/users", "/audit", "/help", "/search"):
         assert f'href="{href}"' in text
+    assert 'href="/requests"' not in text
     first_nav = text.split('<nav class="nav-sidebar">', 1)[1].split("</nav>", 1)[0]
+    assert 'href="/protocols"' not in first_nav
     assert ">Collection<" not in first_nav
     assert 'id="menu-toggle"' in text and "Times shown in" in text
     assert 'action="/search"' in text                                             # header search
@@ -151,17 +154,56 @@ def _open_alert(m, device, severity="CRITICAL", message="uplink down"):
 
 def test_devices_home_is_open_and_shows_alert_counts(console):
     m = console.m
+    m.settings["web_alerts_enabled"] = True
     _device(m, "sw1", "192.0.2.10")
     _device(m, "sw2", "192.0.2.11")
     _open_alert(m, "sw1")
     _s, _h, text = console.request("GET", "/", token=console.session())
     assert '<details class="devgroup" open>' in text
-    assert "<th>Alerts</th>" in text
+    assert 'class="sensor-grid device-grid"' in text
     assert 'href="/device-import"' in text and "Import CSV" in text
-    row1 = text.split('href="/device?name=sw1"', 1)[1].split("</tr>", 1)[0]
-    row2 = text.split('href="/device?name=sw2"', 1)[1].split("</tr>", 1)[0]
+    row1 = text.split('href="/device?name=sw1"', 1)[1].split("</article>", 1)[0]
+    row2 = text.split('href="/device?name=sw2"', 1)[1].split("</article>", 1)[0]
     assert '<span class="badge b-bad">1 open</span>' in row1
     assert "open</span>" not in row2
+
+
+def test_device_card_shows_latest_configured_monitor_status(console):
+    m = console.m
+    _device(m, "mail server", "192.0.2.15", device_type="system", monitor_ports="tcp/25")
+    _device(m, "core", "192.0.2.16", device_type="network")
+    _device(m, "portal", "192.0.2.17", device_type="application",
+            monitor_urls="https://example.test/status 401")
+    m.db.record_result("mail server", "port", "tcp/25", "closed")
+    m.db.record_result("mail server", "port", "tcp/25", "open", 1)
+    m.db.record_result("mail server", "port", "tcp/26", "closed")
+    m.db.record_result("portal", "http", "https://example.test/status", "401")
+    token = console.session()
+    status, _, text = console.request("GET", "/", token=token)
+    assert status == 200
+    assert 'href="/protocols"' not in text
+    for name in ("mail%20server", "portal"):
+        card = text.split(f'href="/device?name={name}"', 1)[1].split("</article>", 1)[0]
+        assert '<div class="sensor-value">Up</div>' in card
+    status, _, details = console.request("GET", "/device?name=mail%20server", token=token)
+    assert status == 200 and ">open</span>" in details and "tcp/26" not in details
+    status, _, core = console.request("GET", "/device?name=core", token=token)
+    assert status == 200 and 'href="/protocols?device=core"' in core
+    status, _, _ = console.request("GET", "/protocols?device=core", token=token)
+    assert status == 200
+    m.db.record_result("mail server", "port", "tcp/25", "closed")
+    status, _, text = console.request("GET", "/", token=token)
+    assert status == 200
+    card = text.split('href="/device?name=mail%20server"', 1)[1].split("</article>", 1)[0]
+    assert '<div class="sensor-value">Down</div>' in card
+
+
+def test_sign_in_and_authenticated_footer_show_the_same_package_version(console, monkeypatch):
+    monkeypatch.setattr(web_ux, "APP_VERSION", "2.0.0-67.13.el10")
+    status, _, sign_in = console.request("GET", "/login")
+    assert status == 200 and "v2.0.0-67.13.el10" in sign_in
+    status, _, devices = console.request("GET", "/", token=console.session())
+    assert status == 200 and "NetConfig v2.0.0-67.13.el10" in devices
 
 
 def test_device_page_uses_tabs(console):
@@ -175,6 +217,7 @@ def test_device_page_uses_tabs(console):
 
 def test_dashboard_is_network_first(console):
     m = console.m
+    m.settings.update(web_alerts_enabled=True, web_incidents_enabled=True, web_changes_enabled=True)
     _device(m, "core-sw1", "192.0.2.250", snmp_version="v2c")
     m.inv.set_facts("core-sw1", reachable=False, sysname="CORE", sysdescr="d", uptime="", sysobjectid="",
                     contact="", location="", error="timeout after 2.0s")
@@ -469,6 +512,66 @@ def test_viewer_cannot_start_a_compliance_audit(console):
     assert console.m.db.conn.execute("SELECT COUNT(*) FROM compliance_runs").fetchone()[0] == 0
     code, _, _ = console.request("POST", "/compliance-run", {"csrf": "ux-csrf"}, token=console.session("operator", "op1"))
     assert code == 303
+
+
+def test_optional_workspace_visibility_is_saved_and_compliance_stays_separate(console):
+    token = console.session()
+    _, _, page = console.request("GET", "/", token=token)
+    assert 'data-group="Compliance"' in page
+    assert 'href="/alerts"' not in page and 'href="/incidents"' not in page
+    assert 'data-group="Changes"' not in page
+    code, headers, _ = console.request("POST", "/settings-save", {
+        "csrf": "ux-csrf", "section": "features",
+        "web_alerts_enabled": "1", "web_incidents_enabled": "1", "web_changes_enabled": "1",
+    }, token=token)
+    assert code == 200
+    assert console.m.settings["web_alerts_enabled"] is True
+    _, _, page = console.request("GET", "/", token=token)
+    assert 'href="/alerts"' in page and 'href="/incidents"' in page
+    assert 'data-group="Changes"' in page and 'href="/compliance"' in page
+
+
+def test_device_saved_credentials_require_admin_and_master_password(console):
+    m = console.m
+    m.vault.create("vault-master-123")
+    m.unlock_vault("vault-master-123")
+    m.vault.set_secret("ssh-main", username="admin", password="p<&secret")
+    m.vault.set_secret("snmp-main", community="private")
+    _device(m, "sw-secret", "192.0.2.80", secret_ref="ssh-main", snmp_version="v2c", snmp_ref="snmp-main")
+    admin = console.session()
+    code, _, page = console.request("GET", "/device?name=sw-secret", token=admin)
+    assert code == 200 and "Reveal saved values once" in page and "p&lt;&amp;secret" not in page
+    code, _, page = console.request("GET", "/device?name=sw-secret", token=console.session("approver", "ap1"))
+    assert code == 200 and "Reveal saved values once" not in page
+    code, _, _ = console.request("POST", "/device-secret-reveal", {
+        "csrf": "ux-csrf", "name": "sw-secret", "master": "vault-master-123",
+    }, token=console.session("approver", "ap1"))
+    assert code == 403
+    code, headers, page = console.request("POST", "/device-secret-reveal", {
+        "csrf": "ux-csrf", "name": "sw-secret", "master": "wrong",
+    }, token=admin)
+    assert code == 403 and "Wrong Vault master password" in page and "p&lt;&amp;secret" not in page
+    code, headers, page = console.request("POST", "/device-secret-reveal", {
+        "csrf": "ux-csrf", "name": "sw-secret", "master": "vault-master-123",
+    }, token=admin)
+    assert code == 200 and "p&lt;&amp;secret" in page and "private" in page
+    assert headers["Cache-Control"].startswith("no-store")
+    _, _, page = console.request("GET", "/device?name=sw-secret", token=admin)
+    assert "p&lt;&amp;secret" not in page
+
+
+def test_compliance_summary_uses_device_widgets_and_detail_is_drilled_down(console):
+    m = console.m
+    _device(m, "sw-audit", "192.0.2.90")
+    m.store.save("sw-audit", "hostname sw-audit\nno ip http server\n")
+    token = console.session()
+    code, _, _ = console.request("POST", "/compliance-run", {"csrf": "ux-csrf"}, token=token)
+    assert code == 303
+    code, _, page = console.request("GET", "/compliance", token=token)
+    assert code == 200 and "Select a device" in page and "Evidence / remediation" not in page
+    assert "/compliance?device=sw-audit" in page
+    code, _, page = console.request("GET", "/compliance?device=sw-audit", token=token)
+    assert code == 200 and "Evidence / remediation" in page and "Back to all devices" in page
 
 
 def test_dashboard_reachability_ignores_old_polls(console):

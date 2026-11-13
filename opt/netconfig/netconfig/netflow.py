@@ -402,16 +402,27 @@ def ip_scope(ip):
     return "public"
 
 
+def flow_matches_query(flow, query):
+    """Match the same address/service fields used by traffic summary filters."""
+    needle = str(query or "").strip().lower()
+    if not needle:
+        return True
+    src, dst = str(flow.get("src") or ""), str(flow.get("dst") or "")
+    name, _port, _side = service_for(
+        flow.get("proto"), flow.get("sport"), flow.get("dport"))
+    return needle in src.lower() or needle in dst.lower() or needle in name.lower()
+
+
 def analyze_traffic(flows, *, window_seconds=3600, now=None, bucket_seconds=300,
                     local_ips=(), query="", limit=50):
-    """Direction-aware Sources / Destinations / Services / Conversations.
+    """Direction-aware Sources / Destinations / Services / Connections.
 
     A host is "local" when its address is private/CGNAT/link-local or it is a
     known managed/ARP host (``local_ips``). Per local host, bytes it sent and
     received are tracked separately. When both ends are local (or both remote)
     the client side, i.e. the side NOT using the service port, is the source.
     Sessions are unique client/server 5-tuples, so both directions and repeated
-    active-timeout records of one conversation count once.
+    active-timeout records of one connection count once.
     """
     now = time.time() if now is None else float(now)
     window_seconds = max(60, int(window_seconds or 3600))
@@ -460,8 +471,7 @@ def analyze_traffic(flows, *, window_seconds=3600, now=None, bucket_seconds=300,
         else:  # both local or both remote: client is the source
             local, remote = (src, dst) if side == "dst" else (dst, src)
         outbound = (src == local)
-        if needle and needle not in local.lower() and needle not in remote.lower() \
-                and needle not in name.lower():
+        if needle and not flow_matches_query(f, needle):
             continue
         lport = sport if outbound else dport
         sess = (local, lport, remote, port, proto)
@@ -588,8 +598,15 @@ class ReverseDnsCache:
             except queue.Full:
                 return ""
             self._pending.add(ip)
-        self._ensure_started()
+            self._ensure_started()
         return ""
+
+    def cached_name(self, ip, now=None):
+        """Read an existing result without scheduling another DNS request."""
+        now = time.time() if now is None else now
+        with self._lock:
+            hit = self._cache.get(ip)
+            return hit[0] if hit and hit[1] > now else ""
 
     def _work(self):
         while True:

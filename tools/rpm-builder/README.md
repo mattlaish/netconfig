@@ -1,5 +1,21 @@
 # NetConfig Offline RPM Builder
 
+## Confirmed static route topology corrective RPM — 2026-11-11
+
+Version `2.0.0-67.13.el10` packages configured-static route proof from normal
+configuration collection through persistence, L3 graph, REST API and Web
+evidence. It upgrades 67.12 and preserves existing state. The helper remains an
+unsigned structural/source-identity builder; live AlmaLinux DNF, systemd,
+SELinux and representative Cisco qualification are still required.
+
+## Evidence-first topology corrective RPM — 2026-11-06
+
+Version 2.0.0-67.10.el10 packages the Physical/L3/Combined topology canvas and
+Web footer version correction. The helper verifier must confirm exact source
+bytes, modes, dependencies and scriptlets. This remains an unsigned offline
+helper artifact; live AlmaLinux DNF/systemd/SELinux and representative topology
+qualification are still required.
+
 ## Legacy RSA SHA-1 verification corrective RPM — 2026-11-05
 
 Version 2.0.0-67.7.el10 packages the per-device legacy host-signature verifier
@@ -31,7 +47,7 @@ AlmaLinux installation/runtime qualification.
 Windows delivery folder: `C:\Users\mattlai\Downloads\netconfig-20261103-67.4`.
 
 <!-- documentation-sync: 2026-11-05 -->
-> **Canonical project state — 2026-11-05:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.8 / Enable Credential Precedence Corrective RPM** (`2.0.0-67.8`, `IMPLEMENTED_TESTING_DEFERRED`). When a Web-managed vault secret is both the SSH and enable reference, NetConfig now sends its explicit `enable_password` instead of incorrectly overwriting it with the SSH login password; separate Enable secrets remain supported. Release 67.7 legacy `ssh-rsa`/SHA-1 verification, managed known_hosts, the RSA 512-bit floor and normal-device OpenSSH isolation remain. Prior SNMPv3, Endpoint CSV, history/evidence/workflow corrections are preserved. **MC-11 Topology-Aware Change Planning** remains the final feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** and schema `mc11-topology-change-planning-1` remain. **Do not create MC-12.** Local regression does not replace live Cisco/AlmaLinux qualification. All twelve LIVE_RC gates and an explicit R68 decision remain required. Git stays user-managed.
+> **Canonical project state — 2026-11-12:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.14 / Devices and Traffic Console Corrective RPM** (`2.0.0-67.14`, `IMPLEMENTED_TESTING_DEFERRED`). Release 67.14 adds Devices monitoring cards, Traffic auto-refresh and destination lookup, and consistent sign-in and footer package versions. Release 67.13 distinguishes configured static route intent from dynamic and route-table-only observations while preserving Release 67.12 shared-subnet next-hop display, Release 67.11 layered topology and operator UI corrections, Release 67.10 evidence-first topology, Release 67.9 grouped SNMP trends, Release 67.8 Enable credential precedence and Release 67.7 isolated legacy `ssh-rsa`/SHA-1 verification. Existing state is preserved across upgrade. **MC-11 Topology-Aware Change Planning** remains the final feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** and schema `mc11-topology-change-planning-1` remain. **Do not create MC-12.** Offline verification does not replace live Cisco/AlmaLinux qualification. All twelve LIVE_RC gates and an explicit R68 decision remain required. Git stays user-managed.
 
 > **Document applicability:** this document is maintained against [ROADMAP.md](../../ROADMAP.md) and [AI_HANDOFF.md](../../AI_HANDOFF.md). Older release-numbered sections, test counts, fingerprints and Current/Next pointers below are historical unless explicitly restated in this 2026-10-13 update.
 

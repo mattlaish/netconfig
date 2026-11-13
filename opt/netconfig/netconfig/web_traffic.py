@@ -12,13 +12,13 @@ import json
 import time
 import urllib.parse
 
-from .netflow import analyze_traffic
+from .netflow import REVERSE_DNS, analyze_traffic
 from .web_ui import _fmt_bps
 
 VIEWS = (("sources", "Sources"), ("destinations", "Destinations"), ("services", "Services"),
-         ("conversations", "Conversations"), ("exporters", "Exporters"))
-WINDOWS = ((300, "5 min"), (900, "15 min"), (3600, "1 hour"), (21600, "6 hours"), (86400, "24 hours"))
-_BUCKET = {300: 60, 900: 60, 3600: 120, 21600: 600, 86400: 1800}
+         ("connections", "Connections"), ("exporters", "Exporters"))
+WINDOWS = ((60, "Now"), (300, "5 min"), (3600, "1 hour"), (86400, "24 hours"))
+_BUCKET = {60: 10, 300: 60, 3600: 120, 86400: 1800}
 _BAR_W, _BAR_H = 140, 10
 
 TRAFFIC_CSS = """
@@ -50,7 +50,8 @@ html[data-theme="dark"] .nf-meter{fill:#7f9488}
 .nf-chart .nf-dot{fill:#247a4d;stroke:var(--surface);stroke-width:2}
 html[data-theme="dark"] .nf-chart .nf-line{stroke:#3fa56f}
 html[data-theme="dark"] .nf-chart .nf-area,html[data-theme="dark"] .nf-chart .nf-dot{fill:#3fa56f}
-.nf-chart-wrap{position:relative}
+.nf-chart-wrap{position:relative;max-width:960px}
+.nf-lookup{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin:0 0 12px}
 .nf-tip{position:absolute;pointer-events:none;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 10px;box-shadow:var(--shadow);font-size:13px;white-space:nowrap}
 .nf-tip b{display:block;font-variant-numeric:tabular-nums}
 .nf-tip[hidden]{display:none}
@@ -58,7 +59,8 @@ html[data-theme="dark"] .nf-chart .nf-area,html[data-theme="dark"] .nf-chart .nf
 
 TRAFFIC_JS = """
 (function(){
-  document.querySelectorAll('[data-nf-chart]').forEach(function(wrap){
+  function initCharts(root){
+    root.querySelectorAll('[data-nf-chart]').forEach(function(wrap){
     var svg=wrap.querySelector('svg'), tip=wrap.querySelector('.nf-tip');
     var cross=svg.querySelector('.nf-cross'), dot=svg.querySelector('.nf-dot');
     var pts=JSON.parse(wrap.getAttribute('data-nf-chart')||'[]');
@@ -90,7 +92,68 @@ TRAFFIC_JS = """
       if(e.key==='ArrowLeft'){ show(Math.max(0,idx-1)); e.preventDefault(); }
       if(e.key==='ArrowRight'){ show(Math.min(pts.length-1,idx+1)); e.preventDefault(); }
     });
+    });
+  }
+  initCharts(document);
+  var region=document.getElementById('traffic-content');
+  if(!region) return;
+  var pending=false, dirty=false, timer, lookupMessage='';
+  function schedule(delay){
+    clearTimeout(timer);
+    timer=setTimeout(function(){ refresh(false); }, delay || Number(region.dataset.refresh)*1000);
+  }
+  async function refresh(lookup){
+    if(pending) return;
+    if(!lookup && (document.hidden || dirty || region.contains(document.activeElement))){
+      schedule(); return;
+    }
+    pending=true;
+    var button=region.querySelector('[data-nf-lookup]');
+    if(button) button.disabled=true;
+    try {
+      var res=await fetch(window.location.href,{
+        credentials:'same-origin',cache:'no-store',redirect:'manual',
+        headers:{'X-NetConfig-Traffic':lookup?'lookup':'refresh'}
+      });
+      if(res.type==='opaqueredirect'){
+        clearTimeout(timer);
+        window.location.reload();
+        return;
+      }
+      if(!res.ok) throw Error('Traffic refresh failed');
+      var doc=new DOMParser().parseFromString(await res.text(),'text/html');
+      var updated=doc.getElementById('traffic-content');
+      if(!updated) throw Error('Traffic content unavailable');
+      if(lookup) lookupMessage='Showing available names. Results update as lookups finish.';
+      if(dirty || (region.contains(document.activeElement) && document.activeElement!==button)) return;
+      if(region.querySelector('details[open]')){
+        var details=updated.querySelector('details');
+        if(details) details.open=true;
+      }
+      var message=updated.querySelector('[data-nf-lookup-status]');
+      if(message) message.textContent=lookupMessage;
+      region.dataset.refresh=updated.dataset.refresh;
+      region.replaceChildren(...updated.childNodes);
+      initCharts(region);
+    } catch(err) {
+      var message=region.querySelector('[data-nf-lookup-status]');
+      if(lookup && message) message.textContent='Could not look up names. Try again.';
+    } finally {
+      pending=false;
+      if(button) button.disabled=false;
+      schedule(lookup ? 3000 : undefined);
+    }
+  }
+  region.addEventListener('input',function(e){
+    if(e.target.closest('.nf-toolbar')) dirty=true;
   });
+  region.addEventListener('change',function(e){
+    if(e.target.closest('.nf-toolbar')) dirty=true;
+  });
+  region.addEventListener('click',function(e){
+    if(e.target.closest('[data-nf-lookup]')) refresh(true);
+  });
+  schedule();
 })();
 """
 
@@ -239,6 +302,8 @@ def destinations_table(analysis, base, params, limit=None, drill=True):
         name = ident.get("device") or ident.get("name")
         label = (f'<b>{_e(name)}</b> <span class="muted">({_e(r["ip"])})</span>' if name else _e(r["ip"]))
         label = _link(base, params, label, view="sources", q=r["ip"]) if drill else label
+        if ident.get("device") and ident.get("name") and ident["name"] != name:
+            label += f'<span class="nf-sub">{_e(ident["name"])}</span>'
         svc = r["services"]
         svc_text = svc[0] if r["service_count"] == 1 else f'{r["service_count"]} services: {", ".join(svc)}'
         body.append(
@@ -271,7 +336,7 @@ def services_table(analysis, base, params, limit=None, drill=True):
             + '</table></div>')
 
 
-def conversations_table(analysis, base, params):
+def connections_table(analysis, base, params):
     rows = analysis["conversations"]
     ids = analysis.get("identities") or {}
     mb, ms = _max(rows, "bytes"), _max(rows, "sessions")
@@ -289,7 +354,7 @@ def conversations_table(analysis, base, params):
             + _bytes_cell(r["sent"], r["received"], mb) + _sessions_cell(r["sessions"], ms) + '</tr>')
     return ('<div class="table-wrap"><table class="nf-table"><tr><th>Local host</th><th>Remote host</th>'
             '<th>Service</th><th>Bytes (sent / received)</th><th>Sessions</th></tr>'
-            + ("".join(body) or '<tr><td colspan=5 class=muted>No conversations in this period.</td></tr>')
+            + ("".join(body) or '<tr><td colspan=5 class=muted>No connections in this period.</td></tr>')
             + '</table></div>')
 
 
@@ -300,8 +365,8 @@ def exporters_table(data, base, params):
     body = []
     for r in rows:
         exp = r["exporter"]
-        state = ('<span class="badge b-chg">memory full</span>' if exp in full
-                 else '<span class="badge b-ok">ok</span>')
+        state = ('<span class="badge b-chg">Incomplete</span>' if exp in full
+                 else '<span class="badge b-ok">Available</span>')
         body.append(
             f'<tr><td>{_link(base, params, _e(exp), exporter=exp, view="sources")}</td>'
             f'<td>{_e(r.get("device") or "") or "<span class=muted>not in inventory</span>"}</td>'
@@ -309,7 +374,7 @@ def exporters_table(data, base, params):
             f'<td class="num">{_fmt_count(r["flows"])}</td><td class="num">{_fmt_count(r["packet_datagrams"])}</td>'
             f'<td>{state}</td></tr>')
     return ('<div class="table-wrap"><table class="nf-table"><tr><th>Exporter</th><th>Device</th><th>Bytes</th>'
-            '<th class="num">Flow records</th><th class="num">Datagrams</th><th>Flow memory</th></tr>'
+            '<th class="num">Traffic records</th><th class="num">Reports received</th><th>Coverage</th></tr>'
             + ("".join(body) or '<tr><td colspan=6 class=muted>No exporter sent flows in this period.</td></tr>')
             + '</table></div>')
 
@@ -346,7 +411,7 @@ def throughput_chart(analysis, now):
         return ('<div class="panel"><h2>Throughput</h2>'
                 f'<p class="muted">All recorded traffic so far falls in the current {_e(_fmt_span(bucket))} '
                 'interval; the chart appears once a second interval has data.</p></div>')
-    W, H, L, R, T, B = 960, 200, 64, 12, 12, 26
+    W, H, L, R, T, B = 960, 148, 76, 44, 14, 26
     peak = max(v for _, v in series) or 1.0
     # clean round top tick: 1/2/5 x 10^n
     mag = 10 ** (len(str(int(peak))) - 1)
@@ -385,14 +450,17 @@ def throughput_chart(analysis, now):
 
 
 def _toolbar(params, exporters, view):
-    window = int(params.get("window") or 3600)
+    window = int(params.get("window") or 60)
     wopts = "".join(f'<option value="{w}"{" selected" if w == window else ""}>{_e(t)}</option>' for w, t in WINDOWS)
     eopts = '<option value="">All exporters</option>' + "".join(
         f'<option value="{_e(x["exporter"])}"{" selected" if x["exporter"] == params.get("exporter") else ""}>'
         f'{_e(x["exporter"])}{(" · " + _e(x["device"])) if x.get("device") else ""}</option>' for x in exporters)
+    views = list(VIEWS)
+    if params.get("q"):
+        views.append(("raw", "Raw records"))
     tabs = "".join(
         f'<a href="/traffic?{_e(urllib.parse.urlencode({**{k: v for k, v in params.items() if v}, "view": key}))}"'
-        f'{" class=on" if key == view else ""}>{_e(label)}</a>' for key, label in VIEWS)
+        f'{" class=on" if key == view else ""}>{_e(label)}</a>' for key, label in views)
     return (f'<div class="nf-views">{tabs}</div>'
             '<form method=get action="/traffic" class="nf-toolbar">'
             f'<input type=hidden name=view value="{_e(view)}">'
@@ -403,18 +471,22 @@ def _toolbar(params, exporters, view):
             '<div><button>Apply</button></div></form>')
 
 
-def render_traffic_body(handler, q):
+def render_traffic_body(handler, q, *, lookup_destinations=False):
     """Body for /traffic (the caller adds the workspace tabs and page shell)."""
     def arg(name, default=""):
         return str((q.get(name) or [default])[0]).strip()
     view = arg("view", "sources")
-    view = view if view in dict(VIEWS) else "sources"
+    if view == "conversations":
+        view = "connections"
     try:
-        window = int(arg("window", "3600"))
+        window = int(arg("window", "60"))
     except ValueError:
-        window = 3600
-    window = window if window in dict(WINDOWS) else 3600
-    params = {"view": view, "window": str(window), "q": arg("q")[:120], "exporter": arg("exporter")[:64]}
+        window = 60
+    window = window if window in dict(WINDOWS) else 60
+    query = arg("q")[:120]
+    allowed_views = dict(VIEWS) | ({"raw": "Raw records"} if query else {})
+    view = view if view in allowed_views else "sources"
+    params = {"view": view, "window": str(window), "q": query, "exporter": arg("exporter")[:64]}
     collector = getattr(handler, "netflow", None)
     now = time.time()
     data = handler.manager.operations_console.traffic(
@@ -430,25 +502,19 @@ def render_traffic_body(handler, q):
     st = data.get("collector_status") or {}
     notes = []
     storage = data.get("storage") or {"source": "memory"}
-    notes.append(history_notice(storage))
-    if (storage.get("status") or {}).get("exporter_error"):
-        notes.append('<p class="err">' + _e(storage["status"]["exporter_error"]) + '</p>')
+    if storage.get("source") == "postgres":
+        notes.append('<p class="muted nf-status">Retention: 24 hours</p>')
+    if storage.get("truncated") or a.get("ring_full_exporters"):
+        notes.append('<p class="err">Results are incomplete. Choose a shorter time range or one exporter.</p>')
+    storage_status = storage.get("status") or {}
+    if storage_status.get("enabled") and (storage.get("source") != "postgres" or any(
+            storage_status.get(key) for key in ("read_error", "write_error", "dropped", "expired"))):
+        notes.append('<p class="err">Some traffic history may be missing.</p>')
     if not settings.get("netflow_enabled"):
         notes.append('<p class="err">The NetFlow collector is off. Turn it on in '
                      '<a href="/settings?section=netflow">Settings → NetFlow</a> and restart NetConfig.</p>')
     elif not st.get("running"):
         notes.append('<p class="err">The NetFlow collector is not running. Check the port in Settings → NetFlow.</p>')
-    else:
-        notes.append(f'<p class="muted nf-status">Listening on UDP {_e(st.get("port", ""))} · '
-                     f'{_fmt_count(st.get("exporters", 0))} exporter(s) sending this run · '
-                     f'selected period: {_e(_fmt_span(window))}.</p>')
-        if a.get("ring_full_exporters"):
-            notes.append(f'<p class="err">Flow memory is full for {_e(", ".join(a["ring_full_exporters"]))}; '
-                         'the selected period may be incomplete. Enable database history or increase “Recent flows kept per device” in '
-                         '<a href="/settings?section=netflow">Settings → NetFlow</a> (needs a restart).</p>')
-        if not a.get("resolve_names"):
-            notes.append('<p class="muted">Host names: turn on “Look up host names (reverse DNS)” in '
-                         '<a href="/settings?section=netflow">Settings → NetFlow</a> to show names next to IP addresses.</p>')
     chip = ""
     if params["q"] or params["exporter"]:
         what = " · ".join(x for x in (params["q"] and f'matching “{params["q"]}”',
@@ -460,14 +526,29 @@ def render_traffic_body(handler, q):
         table = legend() + sources_table(a, base, params)
         title = "Top sources (local hosts)"
     elif view == "destinations":
-        table = legend() + destinations_table(a, base, params)
+        identities = a.setdefault("identities", {})
+        lookup = REVERSE_DNS.name if lookup_destinations else REVERSE_DNS.cached_name
+        for row in a["destinations"]:
+            ip = row["ip"]
+            ident = identities.setdefault(ip, {})
+            name = lookup(ip, now=now)
+            if name:
+                ident["name"] = name
+        lookup_controls = ('<div class="nf-lookup"><button type="button" class="ghost" data-nf-lookup>'
+                           'Look up destination names (FQDN)</button>'
+                           '<span class="muted" role="status" data-nf-lookup-status></span></div>'
+                           if a["destinations"] else "")
+        table = lookup_controls + legend() + destinations_table(a, base, params)
         title = "Top destinations"
     elif view == "services":
         table = services_table(a, base, params)
         title = "Services"
-    elif view == "conversations":
-        table = legend() + conversations_table(a, base, params)
-        title = "Top conversations"
+    elif view == "connections":
+        table = legend() + connections_table(a, base, params)
+        title = "Top connections"
+    elif view == "raw":
+        table = ""
+        title = "Raw records"
     else:
         table = exporters_table(data, base, params)
         title = "Exporters"
@@ -479,21 +560,22 @@ def render_traffic_body(handler, q):
         f'<td>{_e(x.get("exporter"))}</td><td>{_e(x.get("src"))}:{int(x.get("sport") or 0)}</td>'
         f'<td>{_e(x.get("dst"))}:{int(x.get("dport") or 0)}</td><td>{_e(x.get("proto"))}</td>'
         f'<td class="num">{_e(fmt_bytes(x.get("bytes")))}</td></tr>' for x in data["raw_flows"][:100])
-    return (f'<style>{TRAFFIC_CSS}</style>'
+    if view == "raw":
+        main = ('<div class="panel"><h2>Raw records · latest 200 matches</h2>'
+                '<p class="muted">Raw records appear only after an IP address or service filter is applied.</p>'
+                '<div class="table-wrap"><table class="nf-table"><tr><th>Time</th><th>Exporter</th><th>Source</th>'
+                '<th>Destination</th><th>Protocol</th><th class="num">Bytes</th></tr>'
+                + (raw or '<tr><td colspan=6 class=muted>No matching flow records in this period.</td></tr>')
+                + '</table></div></div>')
+    else:
+        main = (kpi_tiles(a) + throughput_chart(a, now)
+                + f'<div class="panel"><h2>{_e(title)}</h2>'
+                + (f'<p class="muted">{_e(hint)}</p>' if hint else "") + table
+                + '</div>')
+    interval = {60: 20, 300: 30, 3600: 60, 86400: 120}[window]
+    return (f'<div id="traffic-content" data-refresh="{interval}">'
             f'<div class="panel">{_toolbar(params, all_exporters, view)}{"".join(notes)}{chip}</div>'
-            + kpi_tiles(a) + throughput_chart(a, now)
-            + f'<div class="panel"><h2>{_e(title)}</h2>'
-            + (f'<p class="muted">{_e(hint)}</p>' if hint else "") + table
-            + '<p class="muted">Opening this page does '
-              'not contact any device. Service names are identified by port, not by inspecting traffic content. '
-              'Sessions are estimated from unique address and port pairs. Average rate is total bytes divided by the '
-              'period shown.</p></div>'
-            + '<details class="panel"><summary><b>Advanced · raw flow records (latest 100)</b></summary>'
-              '<div class="table-wrap"><table class="nf-table"><tr><th>Time</th><th>Exporter</th><th>Source</th>'
-              '<th>Destination</th><th>Protocol</th><th class="num">Bytes</th></tr>'
-            + (raw or '<tr><td colspan=6 class=muted>No flow records in this period.</td></tr>')
-            + '</table></div></details>'
-            + f'<script>{TRAFFIC_JS}</script>')
+            + main + '</div>')
 
 
 def history_notice(storage):

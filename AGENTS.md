@@ -1,5 +1,44 @@
 # NetConfig Agent Instructions
 
+## Mandatory file-change approval gate — 2026-11-09 (highest priority)
+
+No AI agent may create, modify, delete, rename, move, format or regenerate any
+file unless the user has explicitly approved that specific change scope in the
+current conversation. This includes source code, tests, Markdown, configuration,
+metadata/SBOM/manifests, build output, transfer archives and RPM artifacts.
+
+- Read-only inspection, searching, diagnosis, explanation and proposed patches
+  are allowed without file-change approval.
+- A request to study, review, diagnose, compare, check, explain or "pick up" is
+  not permission to edit files.
+- A direct request such as implement, fix, modify, add, update, remove, build or
+  package is approval only for the files and outcome reasonably required by that
+  request; it is not standing permission for unrelated or later changes.
+- If approval is missing or ambiguous, stop before the first write, name the
+  intended files/change categories, and ask the user to approve them.
+- Approval is task-scoped and expires when that requested change is completed.
+  Do not infer continuing write authority from earlier turns, full-access mode,
+  previous successful edits or access to a writable workspace.
+- Testing that creates caches, temporary files, reports, generated metadata or
+  artifacts also counts as a write. Use a disposable external temporary location
+  only when the approved task requires it; otherwise remain read-only.
+- Git restrictions below remain separate and still require explicit current-chat
+  authorization even when ordinary file edits were approved.
+
+This section overrides historical instructions that encouraged autonomous
+implementation, packaging or documentation synchronization.
+
+## Mandatory implementation-depth rule — 2026-11-11 (highest priority)
+
+**修改不能只修表面, 底層邏輯要跟著修改一併同步改。**
+
+Before claiming a fix complete, trace the affected workflow from its underlying
+data collection, normalization, persistence and resolution logic through the
+API and Web presentation. A UI control is not a completed fix when the backend
+cannot produce the state that the control needs. Tests must cover the original
+failure condition and the end-to-end observable result, not merely the new
+button, label or rendering branch.
+
 ## Workspace lock — 2026-10-16 (takes precedence over historical pointers)
 
 The sole active Windows source root is `C:\Users\mattlai\Projects\netconfig`.
@@ -17,7 +56,7 @@ Python source imports and pytest configuration to its owning source tree.
 See `WORKSPACE_AUDIT_2026-10-16.md` for evidence and App-binding limitations.
 
 <!-- documentation-sync: 2026-11-05 -->
-> **Canonical project state — 2026-11-05:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.8 / Enable Credential Precedence Corrective RPM** (`2.0.0-67.8`, `IMPLEMENTED_TESTING_DEFERRED`). When a Web-managed vault secret is both the SSH and enable reference, NetConfig now sends its explicit `enable_password` instead of incorrectly overwriting it with the SSH login password; separate Enable secrets remain supported. Release 67.7 legacy `ssh-rsa`/SHA-1 verification, managed known_hosts, the RSA 512-bit floor and normal-device OpenSSH isolation remain. Prior SNMPv3, Endpoint CSV, history/evidence/workflow corrections are preserved. **MC-11 Topology-Aware Change Planning** remains the final feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** and schema `mc11-topology-change-planning-1` remain. **Do not create MC-12.** Local regression does not replace live Cisco/AlmaLinux qualification. All twelve LIVE_RC gates and an explicit R68 decision remain required. Git stays user-managed.
+> **Canonical project state — 2026-11-12:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.14 / Devices and Traffic Console Corrective RPM** (`2.0.0-67.14`, `IMPLEMENTED_TESTING_DEFERRED`). Release 67.14 adds Devices monitoring cards, Traffic auto-refresh and destination lookup, and consistent sign-in and footer package versions. Release 67.13 distinguishes configured static route intent from dynamic and route-table-only observations while preserving Release 67.12 shared-subnet next-hop display, Release 67.11 layered topology and operator UI corrections, Release 67.10 evidence-first topology, Release 67.9 grouped SNMP trends, Release 67.8 Enable credential precedence and Release 67.7 isolated legacy `ssh-rsa`/SHA-1 verification. Existing state is preserved across upgrade. **MC-11 Topology-Aware Change Planning** remains the final feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** and schema `mc11-topology-change-planning-1` remain. **Do not create MC-12.** Offline verification does not replace live Cisco/AlmaLinux qualification. All twelve LIVE_RC gates and an explicit R68 decision remain required. Git stays user-managed.
 
 > **Document applicability:** this document is maintained against [ROADMAP.md](ROADMAP.md) and [AI_HANDOFF.md](AI_HANDOFF.md). Older release-numbered sections, test counts, fingerprints and Current/Next pointers below are historical unless explicitly restated in this 2026-10-13 update.
 

@@ -103,7 +103,10 @@ def test_sqlite_upgrade_adds_columns_before_dependent_indexes(tmp_path):
     upgraded = Database(str(path))
     try:
         cols = {r["name"] for r in upgraded.conn.execute("PRAGMA table_info(l3_route_observations)")}
-        assert {"received_ts", "max_age_seconds", "source_kind", "collection_id"} <= cols
+        assert {
+            "received_ts", "max_age_seconds", "source_kind", "collection_id",
+            "route_origin", "route_confidence", "config_evidence_ref",
+        } <= cols
         indexes = {r["name"] for r in upgraded.conn.execute("PRAGMA index_list(l3_route_observations)")}
         assert "idx_l3_route_collection" in indexes
     finally:
