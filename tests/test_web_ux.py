@@ -81,11 +81,11 @@ def test_sidebar_groups_are_collapsible_and_admin_links_reachable(console):
     status, _h, text = console.request("GET", "/", token=console.session())
     assert status == 200
     assert '<details class="side-group" data-group="Compliance" open>' in text
-    assert 'data-group="Changes"' not in text
+    assert 'data-group="Changes"' in text
     assert '<details class="side-group" data-group="Administration">' in text   # collapsed by default
     for href in ("/settings", "/users", "/audit", "/help", "/search"):
         assert f'href="{href}"' in text
-    assert 'href="/requests"' not in text
+    assert 'href="/requests"' in text
     first_nav = text.split('<nav class="nav-sidebar">', 1)[1].split("</nav>", 1)[0]
     assert 'href="/protocols"' not in first_nav
     assert ">Collection<" not in first_nav
@@ -395,7 +395,8 @@ def test_first_admin_setup_with_one_time_code(empty_console):
     status, _h, text = c.request("GET", "/login")
     assert status == 200 and "First-time setup" in text and 'action="/setup-admin"' in text
     path = os.path.join(c.m.paths.home, web_ux.SETUP_CODE_FILE)
-    assert stat.S_IMODE(os.stat(path).st_mode) == 0o600
+    if os.name == "posix":
+        assert stat.S_IMODE(os.stat(path).st_mode) == 0o600
     code = open(path, encoding="utf-8").read().strip()
     form = {"setup_code": "wrong-code", "username": "root-admin", "password": "a-long-enough-password",
             "password2": "a-long-enough-password"}
@@ -515,20 +516,53 @@ def test_viewer_cannot_start_a_compliance_audit(console):
 
 
 def test_optional_workspace_visibility_is_saved_and_compliance_stays_separate(console):
+    from netconfig.workflow import Workflow
+
     token = console.session()
     _, _, page = console.request("GET", "/", token=token)
     assert 'data-group="Compliance"' in page
-    assert 'href="/alerts"' not in page and 'href="/incidents"' not in page
-    assert 'data-group="Changes"' not in page
-    code, headers, _ = console.request("POST", "/settings-save", {
+    assert 'href="/alerts"' in page and 'href="/incidents"' in page
+    assert 'data-group="Changes"' in page
+    code, _, _ = console.request("POST", "/settings-save", {
         "csrf": "ux-csrf", "section": "features",
-        "web_alerts_enabled": "1", "web_incidents_enabled": "1", "web_changes_enabled": "1",
+        "workspace_alerts": "hidden", "workspace_incidents": "hidden",
+        "workspace_changes": "hidden", "workspace_security_intake": "on",
     }, token=token)
     assert code == 200
-    assert console.m.settings["web_alerts_enabled"] is True
+    _, _, page = console.request("GET", "/", token=token)
+    assert 'href="/alerts"' not in page and 'href="/incidents"' not in page
+    assert 'data-group="Changes"' not in page
+    assert console.request("GET", "/incidents", token=token)[0] == 200
+    m = console.m
+    assert m.settings["workspace_alerts"] == "hidden"
+    m.incidents.create("Open incident", created_by="tester")
+    _open_alert(m, "sw1")
+    Workflow(m.db, m).submit(title="Review change", body="show version", target_kind="device",
+                             target_value="sw1", mode="command", requested_by="tester")
     _, _, page = console.request("GET", "/", token=token)
     assert 'href="/alerts"' in page and 'href="/incidents"' in page
     assert 'data-group="Changes"' in page and 'href="/compliance"' in page
+    code, _, _ = console.request("POST", "/settings-save", {
+        "csrf": "ux-csrf", "section": "features", "workspace_changes": "off",
+        "workspace_incidents": "off", "workspace_alerts": "off", "workspace_security_intake": "off",
+    }, token=token)
+    assert code == 200
+    from netconfig.config import load_settings
+    assert load_settings(m.paths)["workspace_security_intake"] == "off"
+    _, _, page = console.request("GET", "/dashboard", token=token)
+    assert "Waiting for approval" in page and "Requests are retained" in page
+    for path in ("/requests", "/alerts", "/incidents", "/settings?section=integrations"):
+        assert console.request("GET", path, token=token)[0] == 403
+    assert m.alert_lifecycle.tick() == {"reports": [], "deliveries": []}
+    _, bearer = ApiTokens(m.db.conn).create("workspace-test", {"incident:read"}, "tester")
+    status, _, page = console.request("GET", "/api/v1/incidents", headers={"Authorization": f"Bearer {bearer}"})
+    assert status == 403 and '"workspace_off"' in page
+    from netconfig.cli import main
+    from netconfig.external_evidence import ExternalEvidenceError
+    with pytest.raises(SystemExit, match="Incidents workspace is off"):
+        main(["--home", m.paths.home, "incident", "list"])
+    with pytest.raises(ExternalEvidenceError, match="intake is off"):
+        m.external_evidence.ingest("test", {}, None)
 
 
 def test_device_saved_credentials_require_admin_and_master_password(console):
@@ -537,6 +571,9 @@ def test_device_saved_credentials_require_admin_and_master_password(console):
     m.unlock_vault("vault-master-123")
     m.vault.set_secret("ssh-main", username="admin", password="p<&secret")
     m.vault.set_secret("snmp-main", community="private")
+    from netconfig.vault import Vault
+    m.vault = Vault(m.vault.path)
+    m._vault_unlocked = False
     _device(m, "sw-secret", "192.0.2.80", secret_ref="ssh-main", snmp_version="v2c", snmp_ref="snmp-main")
     admin = console.session()
     code, _, page = console.request("GET", "/device?name=sw-secret", token=admin)
@@ -555,9 +592,65 @@ def test_device_saved_credentials_require_admin_and_master_password(console):
         "csrf": "ux-csrf", "name": "sw-secret", "master": "vault-master-123",
     }, token=admin)
     assert code == 200 and "p&lt;&amp;secret" in page and "private" in page
+    assert not m.vault_ready()
     assert headers["Cache-Control"].startswith("no-store")
     _, _, page = console.request("GET", "/device?name=sw-secret", token=admin)
     assert "p&lt;&amp;secret" not in page
+
+
+def test_vault_master_attempt_budget_is_shared_between_web_actions(console, monkeypatch):
+    from netconfig.security import LoginThrottle
+
+    m = console.m
+    m.vault.create("vault-master-123", iters=1000)
+    monkeypatch.setattr(web, "_VAULT_THROTTLE", LoginThrottle(max_failures=3))
+    _device(m, "sw", "192.0.2.81", secret_ref="ssh-main")
+    approver = console.session("approver", "ap1")
+    admin = console.session()
+    unlock = {"csrf": "ux-csrf", "master": "wrong"}
+    reveal = {**unlock, "name": "sw"}
+    for _ in range(2):
+        assert console.request("POST", "/unlock-vault", unlock, token=approver)[0] == 303
+    assert console.request("POST", "/device-secret-reveal", reveal, token=admin)[0] == 403
+    assert console.request("POST", "/unlock-vault", unlock, token=approver)[0] == 429
+    assert console.request("POST", "/device-secret-reveal", reveal, token=admin)[0] == 429
+    rows = m.db.conn.execute("SELECT action FROM audit").fetchall()
+    assert {"unlock_vault_failed", "vault_secret_reveal_failed", "unlock_vault_throttled"} <= {
+        row["action"] for row in rows
+    }
+
+
+def test_workspace_auto_refresh_does_not_extend_managed_session(console):
+    _device(console.m, "sw", "192.0.2.82")
+    token, record = web._create_managed_session(console.m.users.get("tester"))
+    record["last_seen"] -= 60
+    before = record["last_seen"]
+    for path, headers in (
+        ("/traffic", {"X-NetConfig-Traffic": "refresh"}),
+        ("/device-monitoring-trends?name=sw", {}),
+    ):
+        assert console.request("GET", path, token=token, headers=headers)[0] == 200
+        assert record["last_seen"] == before
+    assert console.request("GET", "/traffic", token=token)[0] == 200
+    assert record["last_seen"] > before
+    record["last_seen"] -= 1801
+    assert console.request("GET", "/traffic", token=token, headers={"X-NetConfig-Traffic": "refresh"})[0] == 303
+
+
+def test_devices_reject_old_manual_checks_and_snmp_evidence(console):
+    m = console.m
+    m.settings.update(monitor_poll_interval=0, snmp_poll_interval=0)
+    _device(m, "mail", "192.0.2.83", device_type="system", monitor_ports="tcp/25")
+    _device(m, "core", "192.0.2.84", snmp_version="v2c")
+    m.db.record_result("mail", "port", "tcp/25", "open")
+    stale = time.time() - 2 * 86400
+    m.db.conn.execute("UPDATE monitor_results SET ts=? WHERE device='mail'", (stale,))
+    m.db.conn.commit()
+    m.inv.set_facts("core", reachable=True, last_polled=stale)
+    _, _, page = console.request("GET", "/", token=console.session())
+    assert '<div class="sensor-value">Not checked</div>' in page
+    assert '<div class="sensor-value">Out of date</div>' in page
+    assert '<div class="sensor-value">Up</div>' not in page
 
 
 def test_compliance_summary_uses_device_widgets_and_detail_is_drilled_down(console):

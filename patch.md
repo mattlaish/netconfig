@@ -1,3 +1,21 @@
+## PATCH-20261115-01 — Security and operator audit repairs
+
+- Keep Vault Reveal request-local and share the Web master-password throttle.
+- Keep background polling from extending the idle sign-out deadline.
+- Distinguish memory-only Traffic data from real history failures and expire
+  stale Device and SNMP status. Define connected topology colours.
+- Apply On, Hidden and Off to each workspace. Preserve a Dashboard count for
+  pending approvals and restore Hidden navigation for actionable records.
+- Take release regression expectations from the RPM spec, remove the timing
+  dependency from the Traffic refresh test and check source metadata in CI.
+- Update the SNMP panel regression to check the current Vendor monitoring
+  section and its CPU data. Use portable archive paths in support-case manifests.
+- Restore LF in release baseline documents before regenerating the source SBOM.
+- Windows validation passed 221 focused tests. The broader run passed 851,
+  with 33 Windows/POSIX compatibility failures, 14 skips and 1 deselection.
+  The Git index check and the POSIX resource benchmark were excluded locally.
+- Source update after 67.14. The existing RPM is unchanged.
+
 ## PATCH-20261112-01 — Release 67.14 Devices cards, Traffic refresh and version display
 
 - Devices shows one clickable card per device and derives availability from the

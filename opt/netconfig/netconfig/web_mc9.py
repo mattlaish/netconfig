@@ -1,6 +1,7 @@
 """MC-9 Operations Correlation Console presentation mixin."""
 
 import html
+from . import workspaces
 import time
 import urllib.parse
 
@@ -24,10 +25,10 @@ class WebMC9Mixin:
             ("events", "/events", "Events"),
             ("traffic", "/traffic", "Traffic Analytics"),
         ]
-        if self.manager.settings.get("web_alerts_enabled", False):
+        if workspaces.visible(self.manager, "alerts"):
             items[1:1] = [("alerts", "/alerts?view=active", "Active Alerts"),
                           ("maintenance", "/alerts?view=maintenance", "Maintenance")]
-        if self.manager.settings.get("web_incidents_enabled", False):
+        if workspaces.visible(self.manager, "incidents"):
             items.insert(-1, ("incidents", "/incidents", "Incidents"))
         return '<div class="tabs">' + ''.join(
             f'<a class="tab {"active" if current == key else ""}" href="{href}">{label}</a>'
@@ -37,31 +38,27 @@ class WebMC9Mixin:
         """Network-first summary: device reachability, config changes, compliance,
         approvals, alerts and traffic. Reads saved records only."""
         m = self.manager
-        show_changes = bool(m.settings.get("web_changes_enabled", False))
-        show_alerts = bool(m.settings.get("web_alerts_enabled", False))
-        show_incidents = bool(m.settings.get("web_incidents_enabled", False))
+        show_changes = workspaces.enabled(m.settings, "changes")
+        show_alerts = workspaces.visible(m, "alerts")
+        show_incidents = workspaces.visible(m, "incidents")
         now = time.time()
         devices = m.inv.all()
         facts = m.inv.all_facts()
         polled = [d for d in devices if d.get("snmp_version")]
         # Only recent polls count; an old "reachable" result is not current status.
-        interval = int(m.settings.get("snmp_poll_interval") or 0)
-        max_age = max(3 * interval, 3600) if interval > 0 else 86400
-
-        def recent(name):
-            fx = facts.get(name) or {}
-            try:
-                return fx if now - float(fx.get("last_polled") or 0) <= max_age else None
-            except (TypeError, ValueError):
-                return None
-        down = [d for d in polled if recent(d["name"]) and not recent(d["name"]).get("reachable")]
-        up = sum(1 for d in polled if (recent(d["name"]) or {}).get("reachable"))
+        from .monitor import snmp_availability, status_max_age
+        max_age = status_max_age(m.settings.get("snmp_poll_interval"))
+        states = {d["name"]: snmp_availability(facts.get(d["name"]), m.settings, now)
+                  for d in polled}
+        down = [d for d in polled if states[d["name"]] == "unreachable"]
+        up = sum(state == "up" for state in states.values())
         not_polled = len(polled) - up - len(down)
         runs = m.inv.recent_runs(500)
         day = [r for r in runs if float(r.get("ts") or 0) >= now - 86400]
         changes = [r for r in day if r.get("changed")]
         failed = [r for r in day if not r.get("ok")]
         pending = []
+        pending_total = workspaces.pending_approvals(m)
         if show_changes:
             try:
                 pending = self.wf.pending()
@@ -96,9 +93,10 @@ class WebMC9Mixin:
                         (f'{int(comp["failed"])} failed' if comp else "—"),
                         (f'<a href="/compliance">{int(comp.get("passed") or 0)} passed · {_fmt_ts(comp.get("ts"))}</a>' if comp
                          else '<a href="/compliance">not run yet</a>')))
-        if show_changes:
-            cards += card("warn" if pending else "ok", "Waiting for approval", len(pending),
-                          '<a href="/requests">change requests</a>')
+        if show_changes or pending_total:
+            detail = ('<a href="/requests">change requests</a>' if show_changes else
+                      'Changes is off. Requests are retained.')
+            cards += card("warn" if pending_total else "ok", "Waiting for approval", pending_total, detail)
         if show_alerts or show_incidents:
             alert_detail = ((f'<a href="/alerts?view=active">open alerts</a>' if show_alerts else "")
                             + (" · " if show_alerts and show_incidents else "")
@@ -157,12 +155,12 @@ class WebMC9Mixin:
 
     def _mc9_dashboard_page(self, sess):
         data = self.manager.operations_console.dashboard()
-        if not self.manager.settings.get("web_incidents_enabled", False):
+        if not workspaces.visible(self.manager, "incidents"):
             data["active_incidents"] = []
             data["active_incident_count"] = 0
             data["impacted_services"] = []
             data["correlated_changes"] = []
-        if not self.manager.settings.get("web_alerts_enabled", False):
+        if not workspaces.visible(self.manager, "alerts"):
             data["critical_alerts"] = []
         health = data.get("correlation_health") or {}
         corr = health.get("correlation") or {}
@@ -218,7 +216,7 @@ class WebMC9Mixin:
             + section("Unhealthy dependency evidence", ("Source", "Relationship", "Target", "Console state", "Evidence"), dep_rows,
                       '<p class="muted">UNKNOWN and STALE are evidence states, not proof of service failure.</p>')
             + section("External source health", ("Source", "Type", "Status", "Auth", "Last evidence"), connector_rows))
-        if not sections and self.manager.settings.get("web_incidents_enabled", False):
+        if not sections and workspaces.visible(self.manager, "incidents"):
             sections = ('<div class="panel"><h2>Incidents &amp; correlation</h2><p class="muted">No active incidents, '
                         'impacted services, unhealthy dependencies or external sources to show. '
                         '<a href="/incidents">Open incidents</a></p></div>')

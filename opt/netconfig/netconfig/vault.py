@@ -54,10 +54,10 @@ class Vault:
         self._data = {"secrets": {}}
         self._flush()
 
-    def unlock(self, master_password):
+    def _decrypt_file(self, master_password):
         with open(self.path, "rb") as f:
             blob = f.read()
-        if blob[:4] != _MAGIC:
+        if len(blob) < 53 or blob[:4] != _MAGIC:
             raise ValueError("not a netconfig vault")
         ver = blob[4]
         if ver != _VERSION:
@@ -71,7 +71,16 @@ class Vault:
             pt = aead.decrypt(key, nonce, ct, aad=_MAGIC)
         except ValueError as exc:
             raise ValueError("wrong master password or corrupt vault") from exc
-        self._data = json.loads(pt.decode("utf-8"))
+        return json.loads(pt.decode("utf-8")), key, salt, iters
+
+    def read_secrets_once(self, master_password, references):
+        """Authenticate a single read without changing the process vault state."""
+        data, _, _, _ = self._decrypt_file(master_password)
+        secrets = data["secrets"]
+        return {ref: dict(secrets.get(ref) or {}) for ref in references}
+
+    def unlock(self, master_password):
+        self._data, key, salt, iters = self._decrypt_file(master_password)
         self._key = key
         self._salt = salt
         self._iters = iters

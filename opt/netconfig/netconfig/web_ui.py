@@ -33,6 +33,7 @@ _CSS = """
   --cg-warning-light:#fff6e5;
   --cg-info:#356b50;
   --cg-info-light:#edf5f0;
+  --accent:#2762a3;
   --radius:10px;
   --shadow:0 10px 28px rgba(20, 48, 32, .07);
   --solid:var(--cg-green); --solid-hover:var(--cg-green-dark); --surface:var(--cg-surface);
@@ -44,6 +45,7 @@ _CSS = """
 }
 html[data-theme="dark"]{
   color-scheme:dark;
+  --accent:#79acf0;
   --cg-text:#e8f2ec; --cg-text-muted:#aebdb3; --cg-background:#0f1712; --cg-surface:#18231d;
   --cg-border:#294035; --cg-green:#4bb57a; --cg-green-dark:#7dd39f; --cg-green-light:#1e3127;
   --cg-danger:#ff8c7d; --cg-danger-light:#432722; --cg-warning:#f0c36a; --cg-warning-light:#44361a;
@@ -786,9 +788,14 @@ def render_snmp_health_summary(handler, device, dev, fx):
         return f'Updated: {_fmt_ts(updated)}' if updated else fallback
 
     cards = []
+    from .monitor import snmp_availability
+    stale = snmp_availability(fx, handler.manager.settings) == "out of date"
 
     reachability = first("device.reachability")
-    if reachability:
+    if stale:
+        cards.append(_sensor_card("Reachability", "dim", "Out of date",
+                                  f'Last SNMP poll: {_fmt_ts(fx.get("last_polled"))}'))
+    elif reachability:
         value = str(reachability.get("value") or "").strip().lower()
         if value == "reachable":
             display = "Reachable"
@@ -804,7 +811,10 @@ def render_snmp_health_summary(handler, device, dev, fx):
             "Reachability", "dim", "No data", "Reachability data has not been collected yet"))
 
     polling = first("device.polling")
-    if polling:
+    if stale:
+        cards.append(_sensor_card("SNMP polling", "dim", "Out of date",
+                                  f'Last SNMP poll: {_fmt_ts(fx.get("last_polled"))}'))
+    elif polling:
         value = str(polling.get("value") or "").strip().lower()
         display = "Healthy" if value == "healthy" else ("Error" if value == "error" else "Unknown")
         cards.append(_sensor_card(

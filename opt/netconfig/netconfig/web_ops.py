@@ -8,6 +8,7 @@ after the normal approval/snapshot revalidation path.
 from __future__ import annotations
 
 import html
+from .workspaces import enabled as workspace_enabled
 import json
 import time
 import urllib.parse
@@ -158,6 +159,8 @@ class WebOpsMixin:
         for key, label in _TABS:
             if key not in primary:
                 continue
+            if key == "workflow" and not workspace_enabled(self.manager.settings, "incidents"):
+                continue
             cls = "btn" if key == active else "btn ghost"
             out.append(f'<a class="{cls}" href="/operations?tab={key}">{_e(label)}</a>')
         out.append('</div><details class="ops-advanced"><summary><b>Advanced operations</b> · streaming monitoring, device models, HA/DR</summary><div class="row">')
@@ -173,6 +176,8 @@ class WebOpsMixin:
         active = str((q.get("tab") or ["overview"])[0] or "overview")
         if active not in {item[0] for item in _TABS}:
             active = "overview"
+        if active == "workflow" and not workspace_enabled(self.manager.settings, "incidents"):
+            return self._workspace_off("incidents", sess)
         notice = str((q.get("notice") or [""])[0] or "")
         renderer = {
             "overview": self._ops_overview,
@@ -196,9 +201,10 @@ class WebOpsMixin:
             '<p>Start with the outcome you need. Read-only analysis and drift checking do not require you to trust NetConfig with configuration writes. '
             'Change execution remains optional and keeps the existing approval/audit safeguards.</p>'
             '<div class="ops-actions">'
-            '<div class="ops-card"><h3>Follow an incident to verified change</h3><p>Investigate an incident, review possible causes, plan a change, request approval and check the results.</p>'
-            '<a class="btn" href="/operations?tab=workflow">Incident Workflow</a></div>'
-            '<div class="ops-card"><h3>Check templates & drift</h3><p>Compare devices or groups with a reusable configuration baseline before deciding whether to change anything.</p>'
+            + ('<div class="ops-card"><h3>Follow an incident to verified change</h3><p>Investigate an incident, review possible causes, plan a change, request approval and check the results.</p>'
+               '<a class="btn" href="/operations?tab=workflow">Incident Workflow</a></div>'
+               if workspace_enabled(self.manager.settings, "incidents") else "")
+            + '<div class="ops-card"><h3>Check templates & drift</h3><p>Compare devices or groups with a reusable configuration baseline before deciding whether to change anything.</p>'
             '<a class="btn ghost" href="/operations?tab=desired">Configuration Baselines / Templates & Drift</a></div>'
             '<div class="ops-card"><h3>Analyze the network</h3><p>Use stored topology, route, health and telemetry evidence for read-only impact and dependency analysis.</p>'
             '<a class="btn ghost" href="/operations?tab=intelligence">Network Intelligence</a></div>'

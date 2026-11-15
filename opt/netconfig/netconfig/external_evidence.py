@@ -13,6 +13,7 @@ import re
 import threading
 import time
 from collections import deque
+from .workspaces import enabled as workspace_enabled
 
 SOURCE_TYPES = (
     "NDR", "WAF", "SIEM", "EDR", "APM", "DATABASE", "STORAGE",
@@ -361,6 +362,8 @@ class ExternalEvidenceService:
 
     def ingest(self, source_key, envelope, token, *, request_bytes=0, tenant_id="default", received_ts=None):
         """Serialize the same idempotency identity locally and across PostgreSQL nodes."""
+        if not workspace_enabled(self.manager.settings, "security_intake"):
+            raise ExternalEvidenceError("WORKSPACE_OFF", "external evidence intake is off", 403)
         raw_key = envelope.get("idempotency_key") if isinstance(envelope, dict) else ""
         identity = hashlib.sha256(
             f"{_text(source_key,128)}:{_text(raw_key,256)}".encode("utf-8")

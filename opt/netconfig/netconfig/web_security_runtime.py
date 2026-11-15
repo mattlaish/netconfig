@@ -86,7 +86,7 @@ def create_managed_session(user, now=None):
     return token, record
 
 
-def session_for(handler):
+def session_for(handler, *, touch=True):
     cookie = handler.headers.get("Cookie", "")
     for part in cookie.split(";"):
         if "=" not in part:
@@ -113,7 +113,8 @@ def session_for(handler):
                     _SESSIONS.pop(token, None)
                     return None, None
                 sess["role"] = current["role"]
-                sess["last_seen"] = now
+                if touch:
+                    sess["last_seen"] = now
             return token, sess
     return None, None
 

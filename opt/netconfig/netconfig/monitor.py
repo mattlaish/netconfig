@@ -12,6 +12,7 @@ import re
 import time
 
 from . import portmon, appmon, mailer
+from .workspaces import enabled as workspace_enabled
 
 _METRIC_KIND = {
     "port_state": "port",
@@ -73,6 +74,27 @@ def check_availability(kind, status, expected=None):
     return "unknown"
 
 
+def status_max_age(interval):
+    seconds = int(interval or 0)
+    return max(3600, 3 * seconds) if seconds > 0 else 86400
+
+
+def status_is_current(timestamp, interval, now=None):
+    now = time.time() if now is None else now
+    try:
+        return 0 <= now - float(timestamp) <= status_max_age(interval)
+    except (ValueError, TypeError):
+        return False
+
+
+def snmp_availability(facts, settings, now=None):
+    if not facts:
+        return "not polled"
+    if not status_is_current(facts.get("last_polled"), settings.get("snmp_poll_interval"), now):
+        return "out of date"
+    return "up" if facts.get("reachable") else "unreachable"
+
+
 def saved_availability(manager, dev, now):
     targets = saved_check_targets(dev)
     rows = manager.db.latest_monitor_results(dev["name"], targets)
@@ -80,7 +102,7 @@ def saved_availability(manager, dev, now):
     counts = dict(up=0, down=0, unknown=0)
     for key, expected in targets.items():
         row = rows.get(key)
-        if row and (not interval or now - row["ts"] <= max(300, 3 * interval)):
+        if row and status_is_current(row["ts"], interval, now):
             state = check_availability(key[0], row["status"], expected)
         else:
             state = "unknown"
@@ -283,6 +305,8 @@ def normalize_results(manager, dev, results):
 def evaluate_alerts(manager, dev, results):
     """Apply enabled rules to this device's fresh results; open/resolve alerts.
     Returns a list of newly-opened alert dicts (for notification)."""
+    if not workspace_enabled(getattr(manager, "settings", {}), "alerts"):
+        return []
     db = manager.db
     rules = [r for r in db.rules(enabled_only=True)
              if not r["device"] or r["device"] == dev["name"]]
@@ -313,7 +337,7 @@ def evaluate_alerts(manager, dev, results):
 
 def notify(manager, newly):
     """Email newly-opened alerts if SMTP is enabled."""
-    if not newly or not manager.settings.get("smtp_enabled"):
+    if not newly or not workspace_enabled(manager.settings, "alerts") or not manager.settings.get("smtp_enabled"):
         return
     password = None
     try:

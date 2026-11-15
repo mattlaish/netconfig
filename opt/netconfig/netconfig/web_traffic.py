@@ -504,12 +504,23 @@ def render_traffic_body(handler, q, *, lookup_destinations=False):
     storage = data.get("storage") or {"source": "memory"}
     if storage.get("source") == "postgres":
         notes.append('<p class="muted nf-status">Retention: 24 hours</p>')
+    else:
+        notes.append('<p class="muted nf-status">Records are held in memory until NetConfig restarts.</p>')
     if storage.get("truncated") or a.get("ring_full_exporters"):
         notes.append('<p class="err">Results are incomplete. Choose a shorter time range or one exporter.</p>')
     storage_status = storage.get("status") or {}
-    if storage_status.get("enabled") and (storage.get("source") != "postgres" or any(
-            storage_status.get(key) for key in ("read_error", "write_error", "dropped", "expired"))):
-        notes.append('<p class="err">Some traffic history may be missing.</p>')
+    if storage_status.get("enabled") and storage_status.get("configured") is not False:
+        problems = (
+            ("read_error", "Saved traffic could not be read. Showing recent traffic only."),
+            ("write_error", "New traffic could not be saved. Check the history connection."),
+            ("maintenance_error", "Expired traffic could not be removed."),
+            ("exporter_error", "Some saved exporters could not be listed."),
+        )
+        for key, message in problems:
+            if storage_status.get(key) and storage_status[key] != "Waiting for database connection.":
+                notes.append(f'<p class="err">{message}</p>')
+        if storage_status.get("dropped") or storage_status.get("expired"):
+            notes.append('<p class="err">Some traffic records were lost before they could be saved.</p>')
     if not settings.get("netflow_enabled"):
         notes.append('<p class="err">The NetFlow collector is off. Turn it on in '
                      '<a href="/settings?section=netflow">Settings → NetFlow</a> and restart NetConfig.</p>')

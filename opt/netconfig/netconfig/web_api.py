@@ -1,6 +1,7 @@
 """Bearer API routing extracted from the monolithic web console (PH-1)."""
 
 import json
+from .workspaces import disabled_api_area
 import urllib.parse
 from pathlib import Path
 
@@ -31,6 +32,9 @@ class WebApiMixin:
         token = self._api_token()
         if not token:
             self._api_json({"error": "invalid_or_missing_bearer_token"}, 401); return True
+        if area := disabled_api_area(self.manager.settings, path):
+            self._api_json({"error": "workspace_off", "workspace": area}, 403)
+            return True
         actor = "api:" + token["name"]
         def _form_json(name, default=None):
             raw = (form.get(name) or [None])[0]
@@ -937,6 +941,9 @@ class WebApiMixin:
         token = self._api_token()
         if not token:
             self._api_json({"error": "invalid_or_missing_bearer_token"}, 401); return True
+        if area := disabled_api_area(self.manager.settings, path):
+            self._api_json({"error": "workspace_off", "workspace": area}, 403)
+            return True
         scopes = token["scopes"]
         if path == "/api/v1/supportability":
             if "debug:read" not in scopes:

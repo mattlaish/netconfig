@@ -1,5 +1,35 @@
 # NetConfig AI Handover
 
+## Security and operator audit repairs — 2026-11-15 source update
+
+The saved-credentials action decrypts only for its current request and keeps the
+shared Vault lock state. Both Web master-password entry points share a throttle
+and audit failed or throttled attempts. Background Traffic, monitoring trend
+and SNMP series requests validate the existing session without renewing it.
+
+Traffic shows a neutral memory-only status when no history database is set and
+distinguishes real read, write, cleanup and record-loss conditions. Device cards
+and SNMP reachability use the same freshness rule as Dashboard: three poll
+intervals with a one-hour minimum, or 24 hours for manual checks. Topology uses
+an explicit connected-subnet colour in both themes.
+
+Settings provides On, Hidden and Off for Alerts, Incidents, Changes and
+external evidence integrations. Missing settings default to On. Legacy
+visibility flags map to On or Hidden. Hidden workspaces reopen in navigation
+when alerts, incidents or approvals are pending. Off blocks their console and
+API actions, applicable CLI commands, alert delivery and external intake.
+Dashboard shows pending approval counts even when Changes is Off.
+
+This is a source update after 67.14. The separate Features commit mentioned in
+the audit was not available in the local source tree. Existing GitHub Actions
+pytest coverage is complemented by a source metadata check.
+
+Windows validation passed 221 focused regressions. The broader run had 851
+passed, 33 failed, 14 skipped and 1 deselected. The failures came from POSIX
+file permissions, direct shell execution, or symlink operations on Windows.
+The Git index check and the POSIX resource benchmark were excluded locally.
+Live AlmaLinux and PostgreSQL qualification is pending.
+
 ## Release 67.14 Devices, Traffic and displayed package version — 2026-11-12
 
 Devices uses clickable cards in the same style as Compliance. Each device

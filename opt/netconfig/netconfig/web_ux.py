@@ -24,8 +24,11 @@ import time
 import urllib.parse
 
 from .drivers import get_driver as _get_driver
+from . import workspaces
 from .drivers import platforms as _platforms
-from .monitor import check_availability, saved_availability, saved_check_targets
+from .monitor import (
+    check_availability, saved_availability, saved_check_targets, snmp_availability, status_is_current,
+)
 from .users import MIN_PASSWORD_LENGTH, validate_password
 from .users import can as _can
 from .web_ui import (
@@ -273,8 +276,7 @@ UX_JS = r"""
 _NAV_DEFAULT_OPEN = {"Overview", "Monitor", "Inventory", "Compliance", "Changes"}
 
 
-def nav_groups(role, settings=None):
-    settings = settings or {}
+def nav_groups(role, manager):
     admin = []
     if _can(role, "settings"):
         admin.append(("/settings", "Settings"))
@@ -284,9 +286,9 @@ def nav_groups(role, settings=None):
         admin.append(("/vault", "Vault"))
     admin += [("/audit", "Audit"), ("/mib", "MIB Library"), ("/help", "Help")]
     monitor = [("/traffic", "Traffic")]
-    if settings.get("web_alerts_enabled", False):
+    if workspaces.visible(manager, "alerts"):
         monitor.insert(0, ("/alerts", "Alerts"))
-    if settings.get("web_incidents_enabled", False):
+    if workspaces.visible(manager, "incidents"):
         insert_at = 1 if monitor and monitor[0][0] == "/alerts" else 0
         monitor.insert(insert_at, ("/incidents", "Incidents"))
     groups = [
@@ -299,7 +301,7 @@ def nav_groups(role, settings=None):
                         ("/diagnostics", "Diagnostics"), ("/traces", "Protocol Traces")]),
         ("Administration", admin),
     ]
-    if settings.get("web_changes_enabled", False):
+    if workspaces.visible(manager, "changes"):
         groups.insert(4, ("Changes", [("/requests", "Change requests"),
                                       ("/operations", "Change workspace"),
                                       ("/automation", "Scripts & quick runs")]))
@@ -554,11 +556,14 @@ def saved_port_checks(handler, dev, sess=None):
     from .web_ui import _fmt_ts
     targets = [key for key in saved_check_targets(dev) if key[0] == "port"]
     latest = handler.manager.db.latest_monitor_results(dev["name"], targets)
+    interval = handler.manager.settings.get("monitor_poll_interval")
     rows = ""
     for (_, target), r in sorted(latest.items()):
         st = r["status"]
         cls = ("b-ok" if st == "open" else "b-bad" if st == "closed"
                else "b-chg" if st in ("filtered", "error") else "b-dim")
+        if not status_is_current(r["ts"], interval):
+            cls, st = "b-dim", f"{st} (out of date)"
         ms = f'{int(float(r["value"]))} ms' if r.get("value") not in (None, "") else "—"
         rows += (f'<tr><td>{_e(target)}</td><td><span class="badge {cls}">{_e(st)}</span></td>'
                  f'<td class="muted">{_e(ms)}</td><td class="muted">{_fmt_ts(r["ts"])}</td></tr>')
@@ -579,6 +584,7 @@ def saved_endpoint_checks(handler, dev, sess=None):
     from .web_ui import _fmt_ts
     results = handler.manager.db.latest_monitor_results(
         dev["name"], [*targets, *(("tls", url) for _, url in targets)])
+    interval = handler.manager.settings.get("monitor_poll_interval")
     rows = ""
     for key, expected in sorted(targets.items()):
         _, target = key
@@ -587,10 +593,15 @@ def saved_endpoint_checks(handler, dev, sess=None):
             continue
         code = r["status"]
         ok = check_availability("http", code, expected) == "up"
+        tone = "b-ok" if ok else "b-bad"
+        if not status_is_current(r["ts"], interval):
+            tone, code = "b-dim", f"{code} (out of date)"
         ms = f'{int(float(r["value"]))} ms' if r.get("value") not in (None, "") else "—"
         t = results.get(("tls", target))
         if not t:
             tls_cell = '<span class="muted">—</span>'
+        elif not status_is_current(t["ts"], interval):
+            tls_cell = '<span class="badge b-dim">out of date</span>'
         elif t["status"] == "valid":
             days = t.get("value")
             left = f" · {int(float(days))}d left" if days not in (None, "") else ""
@@ -599,7 +610,7 @@ def saved_endpoint_checks(handler, dev, sess=None):
         else:
             tls_cell = '<span class="badge b-bad">invalid</span>'
         rows += (f'<tr><td class="break">{_e(target)}</td>'
-                 f'<td><span class="badge {"b-ok" if ok else "b-bad"}">{_e(code)}</span></td>'
+                 f'<td><span class="badge {tone}">{_e(code)}</span></td>'
                  f'<td class="muted">{_e(ms)}</td><td>{tls_cell}</td><td class="muted">{_fmt_ts(r["ts"])}</td></tr>')
     table = (f'<table><tr><th>Endpoint</th><th>HTTP</th><th>Time</th><th>TLS cert</th><th>Checked</th></tr>{rows}</table>'
              if rows else '<p class="muted">Not checked yet.</p>')
@@ -612,7 +623,7 @@ class WebUxMixin:
 
     # ---- shell -------------------------------------------------------------
     def _nav(self, sess, current_path=""):
-        return render_nav(nav_groups(sess["role"], getattr(self.manager, "settings", {})), current_path)
+        return render_nav(nav_groups(sess["role"], self.manager), current_path)
 
     def _topright(self, sess):
         vault = ('<span class="vault-open">● vault unlocked</span>' if self.manager.vault_ready()
@@ -731,7 +742,7 @@ class WebUxMixin:
         metas = {d["device"]: d for d in m.store.devices()}
         facts = m.inv.all_facts()
         alerts = {}
-        show_alerts = bool(getattr(m, "settings", {}).get("web_alerts_enabled", False))
+        show_alerts = workspaces.visible(m, "alerts")
         if show_alerts:
             try:
                 for a in m.alert_lifecycle.list(limit=2000):
@@ -760,8 +771,9 @@ class WebUxMixin:
             fx = facts.get(d["name"], {}) if managed else {}
             snmp = ""
             if fx:
-                snmp = ('<span class="badge b-ok">up</span>' if fx.get("reachable")
-                        else '<span class="badge b-bad">unreach</span>')
+                snmp_state = snmp_availability(fx, getattr(m, "settings", {}), now)
+                tone = {"up": "b-ok", "unreachable": "b-bad"}.get(snmp_state, "b-dim")
+                snmp = f'<span class="badge {tone}">{snmp_state}</span>'
                 if fx.get("sysname"):
                     snmp += f' <span class="muted">{_e(fx["sysname"])}</span>'
             collect_btn = ""
@@ -796,8 +808,10 @@ class WebUxMixin:
                     state, label = "bad", "Down"
                 summary = " · ".join(f"{count} {word}" for count, word in
                                      ((up, "up"), (down, "down"), (unknown, "unknown")) if count)
+            elif fx and snmp_state in {"up", "unreachable"}:
+                state, label = ("ok", "Up") if snmp_state == "up" else ("bad", "Down")
             elif fx:
-                state, label = ("ok", "Up") if fx.get("reachable") else ("bad", "Down")
+                label = "Out of date"
             management = (f'<div class="sensor-detail">{platform} · Config {st}</div>'
                           f'<div class="sensor-detail">Last collected {last}</div>'
                           if managed else "")
@@ -1012,7 +1026,7 @@ class WebUxMixin:
                                  + "".join(addr_rows) + "</table>"
                                  + f'<p><a href="/traffic?view=sources&q={_q(query)}">See traffic for “{_e(query)}”</a></p>'))
             al = []
-            if getattr(m, "settings", {}).get("web_alerts_enabled", False):
+            if workspaces.visible(m, "alerts"):
                 try:
                     al = [a for a in m.alert_lifecycle.list(limit=1000)
                           if needle in " ".join(str(a.get(k) or "") for k in ("device", "event_type", "message")).lower()][:30]
@@ -1024,7 +1038,7 @@ class WebUxMixin:
                     f'<td><a href="/alerts?view=active">{_e(a.get("message"))}</a></td><td>{_fmt_ts(a.get("last_ts"))}</td></tr>'
                     for a in al) + "</table>"))
             inc = []
-            if getattr(m, "settings", {}).get("web_incidents_enabled", False):
+            if workspaces.visible(m, "incidents"):
                 try:
                     inc = [i for i in m.incidents.list(limit=500)
                            if needle in " ".join(str(i.get(k) or "") for k in ("incident_key", "title", "summary")).lower()][:30]

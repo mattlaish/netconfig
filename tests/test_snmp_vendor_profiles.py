@@ -121,7 +121,9 @@ def test_web_panel_no_io(tmp_path, monkeypatch):
         c.request('GET', '/snmp?device=fg1', headers={'Cookie': 'ncsid=s'})
         r = c.getresponse()
         body = r.read().decode()
-        assert r.status == 200 and 'Vendor profile telemetry' in body and ('vendor.fortigate.cpu' in body)
+        assert r.status == 200
+        panel = body.split('id="vendor-measurements"', 1)[1]
+        assert "<h2>Vendor monitoring</h2>" in panel and "vendor.fortigate.cpu" in panel
     finally:
         srv.shutdown()
         srv.server_close()

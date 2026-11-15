@@ -486,7 +486,8 @@ def test_ui1_uses_sidebar_navigation_and_neutral_branding(tmp_path):
         assert 'network devices such as switches, routers, and firewalls' in text
         assert 'Advanced: change a network-device collection profile' in text
         assert '<span class="logo">NC</span>' in text
-        assert '<span>NetConfig v2.0.0-67.12</span>' in text
+        from netconfig import __package_version__
+        assert f'<span>NetConfig v{__package_version__}</span>' in text
     finally:
         _stop(server, thread, manager)
 

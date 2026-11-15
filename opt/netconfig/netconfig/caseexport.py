@@ -57,7 +57,7 @@ def _manifest_for(root):
     for path in sorted(root.rglob("*")):
         if path.is_file() and path.name not in {"manifest.json", "manifest.sha256"}:
             rows.append({
-                "path": str(path.relative_to(root)),
+                "path": path.relative_to(root).as_posix(),
                 "sha256": sha256_file(path),
                 "size": path.stat().st_size,
             })

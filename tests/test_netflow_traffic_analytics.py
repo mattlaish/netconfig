@@ -173,7 +173,7 @@ def test_traffic_views_render_for_viewer(traffic_console):
     for view in ("sources", "destinations", "services", "connections", "exporters"):
         status, body = get(f"/traffic?view={view}")
         assert status == 200, view
-        assert "Records are held in memory" not in body
+        assert "Records are held in memory" in body
         assert 'class="nf-views"' in body and "Throughput" in body
     status, body = get("/traffic?view=sources")
     assert "192.168.1.10" in body and "Bytes (sent / received)" in body
@@ -249,6 +249,31 @@ def test_traffic_page_uses_saved_history_and_reports_partial_results(traffic_con
     assert status == 200 and "10.4.5.6" not in body
 
 
+def test_traffic_history_alerts_distinguish_unconfigured_and_failed_storage(traffic_console):
+    _m, get = traffic_console
+
+    class History:
+        current = {"enabled": True, "configured": False}
+
+        def read_window(self, since, until, exporter=None):
+            return None
+
+        def status(self):
+            return self.current
+
+    h = History()
+    Console.netflow.history = h
+    status, body = get("/traffic")
+    assert status == 200 and "Records are held in memory" in body
+    assert "Saved traffic could not be read" not in body and "New traffic could not be saved" not in body
+    h.current = {"enabled": True, "configured": True, "read_error": "backend read error",
+                 "write_error": "backend write error", "dropped": 1}
+    status, body = get("/traffic")
+    assert status == 200
+    assert "Saved traffic could not be read" in body and "New traffic could not be saved" in body
+    assert "traffic records were lost" in body and "backend write error" not in body
+
+
 def test_device_page_netflow_section_uses_the_analytics_views(traffic_console):
     _m, get = traffic_console
     status, body = get("/device?name=fgt")
@@ -275,7 +300,7 @@ def test_traffic_refresh_and_lookup_stay_on_selected_destinations(traffic_consol
     path = "/traffic?view=destinations&window=300&q=192.168.1.11&exporter=192.0.2.1"
     status, page = get(path)
     assert status == 200 and "Look up destination names (FQDN)" in page
-    assert 'viewBox="0 0 960 148"' in page and 'data-refresh="30"' in page
+    assert 'data-refresh="30"' in page and "Throughput" in page
     assert not requests
     status, fragment = get(path, {"X-NetConfig-Traffic": "lookup"})
     assert status == 200 and requests == ["1.1.1.1"]
@@ -298,7 +323,7 @@ def test_throughput_panel_always_renders_with_a_reason_when_no_chart_is_possible
     two = nf.analyze_traffic(_pair(now - 300, "192.168.1.10", "8.8.8.8", 50001, 443, "TCP", 10, 20)
                              + _pair(now - 5, "192.168.1.10", "8.8.8.8", 50002, 443, "TCP", 10, 20),
                              now=now, bucket_seconds=120)
-    assert 'class="nf-chart"' in throughput_chart(two, now)
+    assert 'viewBox="0 0 960 148"' in throughput_chart(two, now)
 
 
 def test_possible_switch_location_is_labelled_as_unproven():

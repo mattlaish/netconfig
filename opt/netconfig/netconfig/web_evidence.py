@@ -476,7 +476,11 @@ def vendor_measurements_overview(handler, device):
     if(busy){ schedule(); return; }
     busy=true;
     fetch(root.getAttribute('data-refresh-url'),{credentials:'same-origin',cache:'no-store',headers:{'X-Requested-With':'NetConfig'}})
-      .then(function(r){ if(!r.ok) throw new Error('refresh failed'); return r.text(); })
+      .then(function(r){
+        if(r.redirected){ window.location.reload(); return ''; }
+        if(!r.ok) throw new Error('refresh failed');
+        return r.text();
+      })
       .then(function(markup){ if(markup.trim()){ root.innerHTML=markup; stamp(); } })
       .catch(function(){ var el=root.querySelector('[data-monitoring-refresh-status]'); if(el) el.textContent='Auto-update will retry; the last saved graph remains visible.'; })
       .finally(function(){ busy=false; schedule(); });

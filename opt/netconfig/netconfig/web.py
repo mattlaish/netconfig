@@ -14,6 +14,8 @@ from pathlib import Path
 
 from . import compliance as _compliance
 from .users import can as _can
+from .monitor import snmp_availability
+from . import workspaces
 from .workflow import Workflow, Scripts
 from .drivers import get_driver as _get_driver
 from . import config as _config
@@ -56,7 +58,8 @@ from .web_ui import (
 )
 
 _LOGIN_THROTTLE = LoginThrottle()
-_VAULT_REVEAL_THROTTLE = LoginThrottle(max_failures=3, max_delay=60)
+_VAULT_THROTTLE = LoginThrottle(max_failures=3, max_delay=60)
+_VAULT_ATTEMPT_LOCK = threading.Lock()
 
 
 class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupportabilityMixin, WebMC9Mixin, WebOpsMixin, WebApiMixin, WebDependenciesMixin, WebIntegrationsMixin, http.server.BaseHTTPRequestHandler):
@@ -79,7 +82,11 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
         return self.manager._scripts
 
     def _session(self):
-        return _session_for(self)
+        path = urllib.parse.urlsplit(getattr(self, "path", "")).path
+        passive = getattr(self, "command", "") == "GET" and (
+            path in {"/device-monitoring-trends", "/snmp-series"} or
+            (path == "/traffic" and self.headers.get("X-NetConfig-Traffic") == "refresh"))
+        return _session_for(self, touch=not passive)
 
     def _require_auth(self):
         _, sess = self._session()
@@ -753,7 +760,13 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
         sess = self._require_auth()
         if sess is None:
             return
+        if area := workspaces.disabled_web_area(self.manager.settings, u.path):
+            return self._workspace_off(area, sess)
         return h(sess)
+
+    def _workspace_off(self, area, sess):
+        return self._send(self._page(workspaces.LABELS[area],
+                                     '<p class="muted">This workspace is off.</p>', sess), 403)
 
     def _route_post(self):
         u = urllib.parse.urlparse(self.path)
@@ -780,6 +793,8 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
         if not self._check_csrf(form):
             return self._send(self._page("Error",
                               '<div class="err">CSRF check failed.</div>', sess), 403)
+        if area := workspaces.disabled_web_area(self.manager.settings, u.path):
+            return self._workspace_off(area, sess)
         if u.path.startswith("/ops-"):
             if self._dispatch_ops_post(u.path, form, sess):
                 return
@@ -900,18 +915,46 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
             _obs_event("auth_logout", username=sess["username"], source_ip=self._client_ip())
         self._redirect("/login", headers=[("Set-Cookie", "ncsid=; Max-Age=0; HttpOnly; SameSite=Strict; Path=/")])
 
+    def _try_vault_password(self, sess, action, target, operation):
+        """Use one process-local attempt budget for the single master password."""
+        user = sess["username"]
+        source = self._client_ip()
+        key = ("vault", "master")
+        if not _VAULT_ATTEMPT_LOCK.acquire(blocking=False):
+            return 1, False, None
+        try:
+            retry = _VAULT_THROTTLE.retry_after(*key)
+            if retry:
+                self.manager.db.audit(user, action + "_throttled", target, f"source={source}")
+                return retry, False, None
+            try:
+                result = operation()
+            except (ValueError, OSError):
+                _VAULT_THROTTLE.failure(*key)
+                self.manager.db.audit(user, action + "_failed", target, f"source={source}")
+                return 0, False, None
+            _VAULT_THROTTLE.success(*key)
+            return 0, True, result
+        finally:
+            _VAULT_ATTEMPT_LOCK.release()
+
     def _do_unlock(self, form, sess):
         from .web_forms import feedback
         target = safe_next_path((form.get("next") or [""])[0]) or "/vault"
         if not _can(sess["role"], "unlock_vault"):
             return feedback(self, sess, target, "Not permitted to unlock the vault.")
         pw = (form.get("master") or [""])[0]
-        try:
-            self.manager.unlock_vault(pw)
+        if not self.manager.vault.exists():
+            return feedback(self, sess, target, "No Vault has been created.")
+        retry, ok, _ = self._try_vault_password(
+            sess, "unlock_vault", "", lambda: self.manager.unlock_vault(pw))
+        if retry:
+            return self._send(self._page("Vault", '<div class="err">Too many attempts. Try again shortly.</div>',
+                                         sess), 429, headers=[("Retry-After", str(retry))])
+        if ok:
             self.manager.db.audit(sess["username"], "unlock_vault", "", "")
             return feedback(self, sess, target, "Vault unlocked. Continue your previous task.")
-        except ValueError:
-            return feedback(self, sess, target, "Wrong master password. The vault is still locked.")
+        return feedback(self, sess, target, "Wrong master password or the Vault could not be read.")
 
     def _device_secret_panel(self, dev, sess, revealed=None, error=""):
         if not _can(sess["role"], "reveal_secrets"):
@@ -980,31 +1023,22 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
             return self._send(self._page("Device", '<div class="err">Unknown device.</div>', sess), 404)
         headers = [("Cache-Control", "no-store, max-age=0"), ("Pragma", "no-cache")]
         ip = self._client_ip()
-        retry = _VAULT_REVEAL_THROTTLE.retry_after(ip, sess["username"])
-        if retry:
-            self.manager.db.audit(sess["username"], "vault_secret_reveal_throttled", name, f"source={ip}")
-            return self._device_page({"name": [name]}, sess, reveal_error="Too many incorrect attempts. Try again shortly.",
-                                     reveal_status=429, reveal_headers=headers + [("Retry-After", str(retry))])
         master = (form.get("master") or [""])[0]
         if not self.manager.vault.exists():
             return self._device_page({"name": [name]}, sess, reveal_error="No Vault has been created.",
                                      reveal_status=409, reveal_headers=headers)
-        try:
-            self.manager.unlock_vault(master)
-        except (ValueError, OSError):
-            _VAULT_REVEAL_THROTTLE.failure(ip, sess["username"])
-            self.manager.db.audit(sess["username"], "vault_secret_reveal_failed", name, f"source={ip}")
+        refs = dict.fromkeys(
+            ref for key in ("secret_ref", "enable_ref", "snmp_ref")
+            if (ref := str(dev.get(key) or "").strip()))
+        retry, ok, revealed = self._try_vault_password(
+            sess, "vault_secret_reveal", name,
+            lambda: self.manager.vault.read_secrets_once(master, refs))
+        if retry:
+            return self._device_page({"name": [name]}, sess, reveal_error="Too many incorrect attempts. Try again shortly.",
+                                     reveal_status=429, reveal_headers=headers + [("Retry-After", str(retry))])
+        if not ok:
             return self._device_page({"name": [name]}, sess, reveal_error="Wrong Vault master password.",
                                      reveal_status=403, reveal_headers=headers)
-        _VAULT_REVEAL_THROTTLE.success(ip, sess["username"])
-        revealed = {}
-        for key in ("secret_ref", "enable_ref", "snmp_ref"):
-            ref = str(dev.get(key) or "").strip()
-            if ref and ref not in revealed:
-                try:
-                    revealed[ref] = self.manager.vault.get_secret(ref)
-                except KeyError:
-                    revealed[ref] = {}
         self.manager.db.audit(sess["username"], "vault_secret_reveal", name,
                               f"source={ip}; references={len(revealed)}")
         return self._device_page({"name": [name]}, sess, revealed=revealed,
@@ -1099,7 +1133,7 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
             else:
                 _oid_row = ""
             snmp_html = (f'<table>'
-                         f'<tr><th>Reachable</th><td>{"yes" if fx["reachable"] else "no"}</td></tr>'
+                         f'<tr><th>Reachability</th><td>{snmp_availability(fx, getattr(m, "settings", {}))}</td></tr>'
                          f'<tr><th>Last error</th><td>{html.escape(str(fx.get("error") or "—"))}</td></tr>'
                          f'<tr><th>sysName</th><td>{html.escape(fx["sysname"])}</td></tr>'
                          f'<tr><th>sysDescr</th><td>{html.escape(fx["sysdescr"])}</td></tr>'
@@ -1425,14 +1459,18 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
                     ("netflow", "NetFlow"), ("monitoring", "Monitoring"),
                     ("integrations", "Integrations"), ("email", "Email & OAuth"),
                     ("db", "Database"), ("evidence", "Evidence signing"))
-        if section not in dict(sections):
+        if section == "integrations" and not workspaces.enabled(self.manager.settings, "security_intake"):
+            return self._workspace_off("security_intake", sess)
+        if section != "integrations" and section not in dict(sections):
             section = "general"
+        if not workspaces.visible(self.manager, "security_intake"):
+            sections = tuple(pair for pair in sections if pair[0] != "integrations")
         s = dict(self.manager.settings)
         if draft:
             from .web_forms import SECRET_FIELDS
             s.update({k: values[0] for k, values in draft.items()
                       if k in s and k not in SECRET_FIELDS and values})
-            for k in ("record_sessions", "scrub_sessions", "web_alerts_enabled", "web_incidents_enabled", "web_changes_enabled", "netflow_enabled", "netflow_resolve_names", "netflow_history_enabled", "syslog_enabled", "snmp_trap_enabled", "snmp_trap_targeted_repoll", "operational_notifications_enabled", "smtp_enabled", "smtp_starttls", "o365_enabled"):
+            for k in ("record_sessions", "scrub_sessions", "netflow_enabled", "netflow_resolve_names", "netflow_history_enabled", "syslog_enabled", "snmp_trap_enabled", "snmp_trap_targeted_repoll", "operational_notifications_enabled", "smtp_enabled", "smtp_starttls", "o365_enabled"):
                 if section in {"general", "features", "netflow", "monitoring", "email"}:
                     s[k] = bool(draft.get(k))
 
@@ -1466,14 +1504,18 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
 <label style="color:var(--text);font-weight:400"><input type=checkbox name=scrub_sessions value=1 style="width:auto" {"checked" if s.get("scrub_sessions") else ""}> mask passwords and secrets in session recordings</label></div></div>
 <button>Save general settings</button></form></div>"""
         elif section == "features":
+            fields = []
+            for area, label in workspaces.LABELS.items():
+                current = workspaces.mode(s, area)
+                options = "".join(f'<option value="{choice}"{" selected" if current == choice else ""}>'
+                                  f'{choice.title()}</option>' for choice in workspaces.MODES)
+                fields.append(f'<label for="workspace_{area}">{label}</label>'
+                              f'<select id="workspace_{area}" name="workspace_{area}">{options}</select>')
             content = f"""<div class="panel"><h2>Optional workspaces</h2>
-<p class="muted">Hide workspaces you do not currently use. Turning one off removes its console navigation and dashboard shortcuts; existing records and direct bookmarked pages are retained.</p>
+<p class="muted">On shows the workspace. Hidden keeps it running and shows it in navigation when action is needed. Off stops workspace operations while keeping saved records.</p>
 {form}
-<label style="color:var(--text);font-weight:400"><input type=checkbox name=web_alerts_enabled value=1 style="width:auto" {"checked" if s.get("web_alerts_enabled") else ""}> Show Alerts workspace</label>
-<label style="color:var(--text);font-weight:400"><input type=checkbox name=web_incidents_enabled value=1 style="width:auto" {"checked" if s.get("web_incidents_enabled") else ""}> Show Incidents workspace</label>
-<label style="color:var(--text);font-weight:400"><input type=checkbox name=web_changes_enabled value=1 style="width:auto" {"checked" if s.get("web_changes_enabled") else ""}> Show Changes workspace (requests, change workspace, scripts &amp; quick runs)</label>
-<p class="muted">Compliance remains a separate always-visible workspace.</p>
-<button>Save workspace visibility</button></form></div>"""
+{"".join(fields)}
+<button>Save workspace settings</button></form></div>"""
         elif section == "snmp":
             content = f"""<div class="panel"><h2>SNMP polling</h2>
 <p class="muted">Defaults for device polling and live interface history.</p>
@@ -1761,9 +1803,12 @@ The client secret is stored in the vault.</p>
             s["record_sessions"] = bool(form.get("record_sessions"))
             s["scrub_sessions"] = bool(form.get("scrub_sessions"))
         elif section == "features":
-            s["web_alerts_enabled"] = bool(form.get("web_alerts_enabled"))
-            s["web_incidents_enabled"] = bool(form.get("web_incidents_enabled"))
-            s["web_changes_enabled"] = bool(form.get("web_changes_enabled"))
+            selected = {area: g(f"workspace_{area}") for area in workspaces.LABELS}
+            if any(value not in workspaces.MODES for value in selected.values()):
+                return invalid("Choose On, Hidden or Off for every workspace.")
+            for area, value in selected.items():
+                s[f"workspace_{area}"] = value
+                s.pop(f"web_{area}_enabled", None)
         elif section == "netflow":
             s["netflow_enabled"] = bool(form.get("netflow_enabled"))
             s["netflow_resolve_names"] = bool(form.get("netflow_resolve_names"))
@@ -1926,7 +1971,7 @@ The client secret is stored in the vault.</p>
                              + (f' <span class="muted">MIB: {html.escape(oid_map["source"])}</span>'
                                 if oid_map["source"] else ' <span class="muted">Unmapped</span>'))
                 facts_tbl = (f'<table>'
-                             f'<tr><th>Reachable</th><td>{"yes" if fx.get("reachable") else "no"}</td>'
+                             f'<tr><th>Reachability</th><td>{snmp_availability(fx, m.settings)}</td>'
                              f'<th>sysName</th><td>{html.escape(fx.get("sysname",""))}</td></tr>'
                              f'<tr><th>Uptime</th><td>{html.escape(fx.get("uptime",""))}</td>'
                              f'<th>Polled</th><td>{_fmt_ts(fx.get("last_polled"))}</td></tr>'
@@ -1961,9 +2006,9 @@ The client secret is stored in the vault.</p>
         rows = ""
         for d in snmp_devs:
             fx = facts.get(d["name"], {})
-            reach = ('<span class="badge b-ok">up</span>' if fx.get("reachable")
-                     else ('<span class="badge b-bad">unreachable</span>' if fx
-                           else '<span class="badge b-dim">not polled</span>'))
+            state = snmp_availability(fx, m.settings)
+            tone = {"up": "b-ok", "unreachable": "b-bad"}.get(state, "b-dim")
+            reach = f'<span class="badge {tone}">{state}</span>'
             up, tot = counts.get(d["name"], (0, 0))
             ifcell = (f'{up}/{tot} up' if tot else '<span class=muted>\u2014</span>')
             model = (fx.get("sysdescr", "") or "")[:46]
@@ -2721,7 +2766,7 @@ The client secret is stored in the vault.</p>
         if view not in {"overview", "active", "maintenance", "reports", "legacy"}:
             view = "overview"
         incident_tab = ('<a class="tab" href="/incidents">Incidents</a>'
-                        if m.settings.get("web_incidents_enabled", False) else "")
+                        if workspaces.visible(m, "incidents") else "")
         tabs = (
             '<div class="tabs">'
             f'<a class="tab {"active" if view=="overview" else ""}" href="/alerts">Overview</a>'
