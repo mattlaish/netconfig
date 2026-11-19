@@ -11,6 +11,8 @@ import re
 import time
 import urllib.parse
 
+from . import __package_version__
+
 from .users import can as _can
 
 _CSS = """
@@ -31,6 +33,7 @@ _CSS = """
   --cg-warning-light:#fff6e5;
   --cg-info:#356b50;
   --cg-info-light:#edf5f0;
+  --accent:#2762a3;
   --radius:10px;
   --shadow:0 10px 28px rgba(20, 48, 32, .07);
   --solid:var(--cg-green); --solid-hover:var(--cg-green-dark); --surface:var(--cg-surface);
@@ -42,6 +45,7 @@ _CSS = """
 }
 html[data-theme="dark"]{
   color-scheme:dark;
+  --accent:#79acf0;
   --cg-text:#e8f2ec; --cg-text-muted:#aebdb3; --cg-background:#0f1712; --cg-surface:#18231d;
   --cg-border:#294035; --cg-green:#4bb57a; --cg-green-dark:#7dd39f; --cg-green-light:#1e3127;
   --cg-danger:#ff8c7d; --cg-danger-light:#432722; --cg-warning:#f0c36a; --cg-warning-light:#44361a;
@@ -88,6 +92,7 @@ h3{color:var(--navy);font-size:14px;font-weight:700;margin:10px 0 6px}
 .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:18px;box-shadow:var(--shadow)}
 .sensor-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-top:12px}
 .sensor-card{background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--grey);border-radius:10px;padding:14px;min-height:116px}
+a.sensor-card{display:block;color:inherit;text-decoration:none}a.sensor-card:hover{border-color:var(--solid)}
 .sensor-card.ok{border-left-color:var(--ok)}.sensor-card.warn{border-left-color:var(--warn)}.sensor-card.bad{border-left-color:var(--red)}.sensor-card.dim{border-left-color:var(--grey)}
 .sensor-head{display:flex;align-items:center;gap:8px;color:var(--navy);font-weight:700;font-size:13px;margin-bottom:8px}
 .sensor-dot{width:10px;height:10px;border-radius:50%;background:var(--grey);box-shadow:0 0 0 3px rgba(97,112,103,.12);flex:0 0 auto}
@@ -166,6 +171,26 @@ details[open]>summary{margin-bottom:8px}
 .graph-in-line{stroke:var(--ok)}.graph-out-line{stroke:var(--warn)}
 .graph-remove{margin-left:auto;padding:2px 10px}
 .graph-svg{width:380px;height:200px;background:var(--surface);border:1px solid var(--border);border-radius:10px}
+.telemetry-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:10px}
+.telemetry-panel-head h2{margin-bottom:3px}.telemetry-panel-head .btn{white-space:nowrap}
+.telemetry-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:10px 0 16px}
+.telemetry-chart-card{min-width:0;border:1px solid var(--border);border-left:4px solid var(--grey);border-radius:10px;padding:12px;background:var(--surface)}
+.telemetry-chart-card.ok{border-left-color:var(--ok)}.telemetry-chart-card.warn{border-left-color:var(--warn)}.telemetry-chart-card.bad{border-left-color:var(--red)}
+.telemetry-chart-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:6px}
+.telemetry-chart-head h3{margin:0;color:var(--navy);font-size:14px}.telemetry-chart-head p{color:var(--grey);font-size:11.5px;margin-top:2px}
+.telemetry-svg{display:block;width:100%;height:auto;min-height:170px;background:var(--row-alt);border:1px solid var(--border);border-radius:8px}
+.telemetry-grid-line{stroke:var(--border);stroke-width:1;vector-effect:non-scaling-stroke}.telemetry-axis{fill:var(--grey);font-family:var(--font);font-size:10px}
+.telemetry-line{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round;vector-effect:non-scaling-stroke}
+.telemetry-legend{display:flex;gap:6px 14px;flex-wrap:wrap;margin-top:8px;color:var(--grey);font-size:11.5px}.telemetry-legend span{display:inline-flex;align-items:center;gap:5px}.telemetry-legend b{color:var(--text);font-weight:700}.telemetry-legend .badge{font-size:9px;padding:1px 5px}
+.telemetry-swatch{display:inline-block;width:10px;height:10px;border-radius:50%;flex:0 0 auto}.telemetry-status-grid{grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin-bottom:14px}.telemetry-status-grid .sensor-card{min-height:96px}.telemetry-status-grid .sensor-value{font-size:16px;overflow-wrap:anywhere}
+.telemetry-details{margin-top:14px}.telemetry-details>summary{border-top:1px solid var(--border);padding-top:12px}.telemetry-details .table-wrap{margin-top:10px;overflow-x:auto}
+.telemetry-stroke-0{stroke:#2f9e62}.telemetry-fill-0{fill:#2f9e62}.telemetry-stroke-1{stroke:#4c8bf5}.telemetry-fill-1{fill:#4c8bf5}
+.telemetry-stroke-2{stroke:#e8a23a}.telemetry-fill-2{fill:#e8a23a}.telemetry-stroke-3{stroke:#d75c91}.telemetry-fill-3{fill:#d75c91}
+.telemetry-stroke-4{stroke:#7b61d1}.telemetry-fill-4{fill:#7b61d1}.telemetry-stroke-5{stroke:#24a4a8}.telemetry-fill-5{fill:#24a4a8}
+.telemetry-stroke-6{stroke:#cf6f39}.telemetry-fill-6{fill:#cf6f39}.telemetry-stroke-7{stroke:#6f9d3c}.telemetry-fill-7{fill:#6f9d3c}
+.telemetry-stroke-8{stroke:#ad6bd2}.telemetry-fill-8{fill:#ad6bd2}.telemetry-stroke-9{stroke:#3f78a8}.telemetry-fill-9{fill:#3f78a8}
+.telemetry-stroke-10{stroke:#d14c45}.telemetry-fill-10{fill:#d14c45}.telemetry-stroke-11{stroke:#8b7b34}.telemetry-fill-11{fill:#8b7b34}
+.telemetry-stroke-12{stroke:#3a9b82}.telemetry-fill-12{fill:#3a9b82}.telemetry-stroke-13{stroke:#b45d6b}.telemetry-fill-13{fill:#b45d6b}
 
 /* interactive topology */
 .topology-shell{position:relative;min-height:560px;border:1px solid var(--border);border-radius:12px;background:var(--surface);overflow:hidden;touch-action:none}
@@ -174,10 +199,12 @@ details[open]>summary{margin-bottom:8px}
 #topology-canvas{display:block;width:100%;height:560px;min-height:420px;cursor:grab;user-select:none;touch-action:none;background:radial-gradient(circle at 1px 1px,var(--line) 1px,transparent 1px);background-size:22px 22px}
 #topology-canvas.is-panning{cursor:grabbing}.topology-node{cursor:grab}.topology-node.dragging{cursor:grabbing}
 .topology-node circle{fill:var(--surface);stroke:var(--grey);stroke-width:2.5;vector-effect:non-scaling-stroke}
+.topology-node.kind-subnet circle{fill:var(--surface);stroke:var(--accent);stroke-dasharray:5 4}
 .topology-node.state-observed circle{stroke:var(--ok)}.topology-node.state-inferred circle{stroke:var(--warn)}.topology-node.state-unknown circle{stroke:var(--grey);stroke-dasharray:5 4}
 .topology-node text{fill:var(--text);font-family:var(--font);pointer-events:none}.topology-node .topology-node-name{font-size:13px;font-weight:800}.topology-node .topology-node-sub{font-size:10px;fill:var(--grey)}
-.topology-edge{vector-effect:non-scaling-stroke;stroke-width:2}.topology-edge.observed{stroke:var(--ok);opacity:.72}.topology-edge.inferred{stroke:var(--warn);opacity:.65;stroke-dasharray:7 5}
-.topology-legend{display:flex;align-items:center;gap:14px;flex-wrap:wrap;color:var(--grey);font-size:12px}.topology-legend span{display:inline-flex;align-items:center;gap:6px}.topology-swatch{display:inline-block;width:24px;border-top:2px solid var(--ok)}.topology-swatch.inferred{border-top-color:var(--warn);border-top-style:dashed}.topology-swatch.unknown{width:12px;height:12px;border:2px dashed var(--grey);border-radius:50%}
+.topology-edge{vector-effect:non-scaling-stroke;stroke-width:2}.topology-edge.observed,.topology-edge.physical{stroke:var(--ok);opacity:.82}.topology-edge.l3-connected{stroke:var(--accent);opacity:.82}.topology-edge.routing{stroke:#9b7cff;opacity:.82;stroke-dasharray:8 5}.topology-edge.inferred,.topology-edge.reachability{stroke:var(--warn);opacity:.55;stroke-dasharray:3 6}
+.topology-edge-label{fill:var(--text);font-family:var(--font);font-size:10px;font-weight:700;paint-order:stroke;stroke:var(--surface);stroke-width:4px;stroke-linejoin:round;pointer-events:none}
+.topology-legend{display:flex;align-items:center;gap:14px;flex-wrap:wrap;color:var(--grey);font-size:12px}.topology-legend span{display:inline-flex;align-items:center;gap:6px}.topology-swatch{display:inline-block;width:24px;border-top:2px solid var(--ok)}.topology-swatch.connected{border-top-color:var(--accent)}.topology-swatch.routing{border-top-color:#9b7cff;border-top-style:dashed}.topology-swatch.inferred{border-top-color:var(--warn);border-top-style:dotted}.topology-swatch.unknown{width:12px;height:12px;border:2px dashed var(--grey);border-radius:50%}
 .topology-note{margin-top:8px;color:var(--grey);font-size:12px}.topology-evidence-table .badge{min-width:72px;text-align:center}
 
 @media(max-width:980px){
@@ -196,6 +223,7 @@ details[open]>summary{margin-bottom:8px}
   table{display:block;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
   .help code{white-space:normal!important;overflow-wrap:anywhere;word-break:break-word}
   #charts{grid-template-columns:1fr}.graph-svg{width:100%}
+  .telemetry-grid{grid-template-columns:1fr}.telemetry-svg{min-height:150px}
 }
 @media (prefers-reduced-motion: reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation-duration:0.01ms!important;animation-iteration-count:1!important}}
 """
@@ -239,7 +267,8 @@ _TOPOLOGY_JS = r"""<script>
   var viewport=document.getElementById('topology-viewport');
   var nodeEls=[].slice.call(svg.querySelectorAll('.topology-node'));
   var edgeEls=[].slice.call(svg.querySelectorAll('.topology-edge'));
-  var key='netconfig-topology-layout-v1';
+  var edgeLabelEls=[].slice.call(svg.querySelectorAll('.topology-edge-label'));
+  var key=svg.dataset.layoutKey||'netconfig-topology-layout-v2';
   var panX=0, panY=0, zoom=1, drag=null, pan=null;
   function saved(){try{return JSON.parse(localStorage.getItem(key)||'{}')||{};}catch(e){return {};}}
   var layout=saved();
@@ -252,6 +281,7 @@ _TOPOLOGY_JS = r"""<script>
   function updateEdges(){
     var by={}; nodeEls.forEach(function(n){by[n.dataset.node]=pos(n);});
     edgeEls.forEach(function(e){var a=by[e.dataset.from],b=by[e.dataset.to];if(!a||!b)return;e.setAttribute('x1',a.x);e.setAttribute('y1',a.y);e.setAttribute('x2',b.x);e.setAttribute('y2',b.y);});
+    edgeLabelEls.forEach(function(e){var a=by[e.dataset.from],b=by[e.dataset.to];if(!a||!b)return;e.setAttribute('x',(a.x+b.x)/2);e.setAttribute('y',(a.y+b.y)/2-7);});
   }
   function setViewport(){viewport.setAttribute('transform','translate('+panX+' '+panY+') scale('+zoom+')');}
   function worldPoint(ev){var pt=svg.createSVGPoint();pt.x=ev.clientX;pt.y=ev.clientY;var ctm=viewport.getScreenCTM();return ctm?pt.matrixTransform(ctm.inverse()):pt;}
@@ -294,7 +324,14 @@ _DASH_JS = """<style>
 .devgroup>summary::before{content:'\\25B8';display:inline-block;width:1em;
   color:var(--grey);transition:transform .15s}
 .devgroup[open]>summary::before{transform:rotate(90deg)}
-.devgroup>table{margin:0}
+.device-grid{padding:0 12px 12px;margin-top:0}
+.device-card{position:relative}
+.device-card[hidden]{display:none}
+.device-card:hover,.device-card:focus-within{border-color:var(--solid)}
+.device-card-link::after{content:'';position:absolute;inset:0;border-radius:inherit}
+.device-card a:not(.device-card-link),.device-card button{position:relative;z-index:1}
+.device-card .sensor-head,.device-card .sensor-detail{overflow-wrap:anywhere}
+.device-card-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px}
 </style><script>
 (function(){
   var box=document.getElementById('devsearch');
@@ -306,7 +343,7 @@ _DASH_JS = """<style>
     var terms=q.split(/\\s+/).filter(Boolean);
     var anyVisible=false;
     groups.forEach(function(g){
-      var rows=[].slice.call(g.querySelectorAll('tr.devrow')), shown=0;
+      var rows=[].slice.call(g.querySelectorAll('.device-card')), shown=0;
       rows.forEach(function(r){
         var hay=r.getAttribute('data-search')||'';
         var match=terms.every(function(t){return hay.indexOf(t)>=0;});
@@ -615,7 +652,7 @@ def _load_doc(name):
     return None
 
 
-APP_VERSION = "1.0"   # user-facing program version (kept at 1.0 until further notice)
+APP_VERSION = __package_version__
 
 _DEVICE_TYPES = [("system", "System"), ("network", "Network"), ("application", "Application")]
 
@@ -751,9 +788,14 @@ def render_snmp_health_summary(handler, device, dev, fx):
         return f'Updated: {_fmt_ts(updated)}' if updated else fallback
 
     cards = []
+    from .monitor import snmp_availability
+    stale = snmp_availability(fx, handler.manager.settings) == "out of date"
 
     reachability = first("device.reachability")
-    if reachability:
+    if stale:
+        cards.append(_sensor_card("Reachability", "dim", "Out of date",
+                                  f'Last SNMP poll: {_fmt_ts(fx.get("last_polled"))}'))
+    elif reachability:
         value = str(reachability.get("value") or "").strip().lower()
         if value == "reachable":
             display = "Reachable"
@@ -769,7 +811,10 @@ def render_snmp_health_summary(handler, device, dev, fx):
             "Reachability", "dim", "No data", "Reachability data has not been collected yet"))
 
     polling = first("device.polling")
-    if polling:
+    if stale:
+        cards.append(_sensor_card("SNMP polling", "dim", "Out of date",
+                                  f'Last SNMP poll: {_fmt_ts(fx.get("last_polled"))}'))
+    elif polling:
         value = str(polling.get("value") or "").strip().lower()
         display = "Healthy" if value == "healthy" else ("Error" if value == "error" else "Unknown")
         cards.append(_sensor_card(
@@ -920,54 +965,304 @@ def render_snmp_health_summary(handler, device, dev, fx):
 
     return health_panel + history_panel
 
-def _topology_view_tabs(active):
+def _topology_role_score(node):
+    if str(node.get("kind") or "").upper() == "SUBNET":
+        return -100
+    text = " ".join(str(node.get(key) or "") for key in (
+        "label", "device", "platform", "device_type", "sys_name"
+    )).lower()
+    if "core" in text:
+        return 60
+    if any(word in text for word in ("router", "gateway", "firewall", "fortigate")):
+        return 50
+    if any(word in text for word in ("switch", "aruba", "cisco_ios")):
+        return 30
+    if "network" in text:
+        return 20
+    return 0
+
+
+def _topology_layered_positions(nodes, edges, id_field):
+    """Return deterministic, component-aware positions for a diagram canvas."""
+    node_by_id = {
+        str(node.get(id_field) or ""): node for node in nodes
+        if str(node.get(id_field) or "")
+    }
+    adjacency = {node_id: set() for node_id in node_by_id}
+    for edge in edges:
+        src, dst = str(edge.get("from") or ""), str(edge.get("to") or "")
+        if src in adjacency and dst in adjacency and src != dst:
+            adjacency[src].add(dst)
+            adjacency[dst].add(src)
+
+    unseen = set(node_by_id)
+    components = []
+    while unseen:
+        seed = min(unseen)
+        stack, component = [seed], []
+        unseen.remove(seed)
+        while stack:
+            current = stack.pop()
+            component.append(current)
+            for neighbor in sorted(adjacency[current], reverse=True):
+                if neighbor in unseen:
+                    unseen.remove(neighbor)
+                    stack.append(neighbor)
+        components.append(component)
+    components.sort(key=lambda item: (-len(item), min(item)))
+
+    width, y_cursor = 1200, 90
+    positions = {}
+    isolated = []
+    for component in components:
+        if len(component) == 1 and not adjacency[component[0]]:
+            isolated.extend(component)
+            continue
+        root = max(
+            component,
+            key=lambda node_id: (
+                _topology_role_score(node_by_id[node_id]),
+                len(adjacency[node_id]),
+                node_id,
+            ),
+        )
+        layers, seen, frontier = [], {root}, [root]
+        while frontier:
+            layer = sorted(
+                frontier,
+                key=lambda node_id: (-len(adjacency[node_id]), str(
+                    node_by_id[node_id].get("label") or
+                    node_by_id[node_id].get("device") or node_id
+                ).lower()),
+            )
+            layers.append(layer)
+            next_frontier = []
+            for node_id in layer:
+                for neighbor in sorted(adjacency[node_id]):
+                    if neighbor in component and neighbor not in seen:
+                        seen.add(neighbor)
+                        next_frontier.append(neighbor)
+            frontier = next_frontier
+        for depth, layer in enumerate(layers):
+            y = y_cursor + depth * 180
+            for index, node_id in enumerate(layer):
+                x = width * (index + 1) / (len(layer) + 1)
+                positions[node_id] = (x, y)
+        y_cursor += max(1, len(layers)) * 180 + 90
+
+    if isolated:
+        columns = min(6, len(isolated))
+        for index, node_id in enumerate(sorted(isolated)):
+            row, column = divmod(index, columns)
+            positions[node_id] = (
+                width * (column + 1) / (columns + 1),
+                y_cursor + row * 150,
+            )
+        y_cursor += ((len(isolated) + columns - 1) // columns) * 150 + 40
+    return positions, width, max(620, y_cursor)
+
+
+def _topology_edge_label(edge):
+    if edge.get("path_labels"):
+        return " / ".join(str(value) for value in edge["path_labels"][:2])
+    kind = str(edge.get("kind") or edge.get("evidence_kind") or "").upper()
+    if kind in {"OBSERVED", "PHYSICAL_ADJACENCY"}:
+        left = str(edge.get("local_port") or edge.get("outgoing_interface") or "")
+        right = str(edge.get("remote_port") or edge.get("remote_interface") or edge.get("target_interface") or "")
+        label = f"{left} ↔ {right}".strip(" ↔")
+        count = int(edge.get("link_count") or 0)
+        if count > 1:
+            label = f"{label} · {count} links" if label else f"{count} links"
+        return label
+    if kind == "DIRECTLY_CONNECTED":
+        interface = str(edge.get("outgoing_interface") or "")
+        addresses = ", ".join(str(value) for value in edge.get("interface_addresses") or [])
+        return " · ".join(value for value in (interface, addresses) if value)
+    if kind == "NEXT_HOP":
+        interface = str(edge.get("outgoing_interface") or "")
+        next_hop = str(edge.get("next_hop") or "")
+        target = str(edge.get("target_interface") or "")
+        path = f"{interface} → {next_hop}".strip(" →")
+        return f"{path} · {target}" if path and target else path or target
+    if kind in {"INFERRED", "FDB_PATH"}:
+        return "FDB reachability"
+    return kind.replace("_", " ").title()
+
+
+def _topology_canvas_edges(edges, *, show_shared_nexthops=False):
+    """Collapse reciprocal path evidence into one visual line, not overlays."""
+    result, reciprocal, reachability = [], {}, {}
+    subnet_members = {}
+    for edge in edges:
+        if str(edge.get("kind") or "") == "DIRECTLY_CONNECTED":
+            subnet_members.setdefault(str(edge.get("to") or ""), set()).add(
+                str(edge.get("from") or "")
+            )
+    shared_subnet_pairs = set()
+    for members in subnet_members.values():
+        ordered = sorted(member for member in members if member)
+        for left_index, left in enumerate(ordered):
+            for right in ordered[left_index + 1:]:
+                shared_subnet_pairs.add((left, right))
+    for source_edge in edges:
+        edge = dict(source_edge)
+        edge_kind = str(edge.get("kind") or "")
+        evidence_kind = str(edge.get("evidence_kind") or "")
+        src, dst = str(edge.get("from") or ""), str(edge.get("to") or "")
+        if edge_kind == "FDB_PATH" or evidence_kind == "INFERRED":
+            key = tuple(sorted((src, dst)))
+            current = reachability.get(key)
+            if current is None:
+                reachability[key] = edge
+                result.append(edge)
+            else:
+                current["evidence_count"] = int(current.get("evidence_count") or 1) + int(
+                    edge.get("evidence_count") or 1
+                )
+            continue
+        if edge_kind != "NEXT_HOP":
+            result.append(edge)
+            continue
+        if (not show_shared_nexthops
+                and tuple(sorted((src, dst))) in shared_subnet_pairs):
+            # The subnet node already shows this hop without a duplicate chord.
+            # Directional route truth remains in the L3 evidence table/API.
+            continue
+        key = (tuple(sorted((src, dst))), str(edge.get("vrf") or "default"))
+        label = (
+            f'{src.replace("device:", "")}→{dst.replace("device:", "")} '
+            f'via {edge.get("next_hop") or "?"}'
+        )
+        if edge.get("outgoing_interface"):
+            label += f' ({edge["outgoing_interface"]})'
+        current = reciprocal.get(key)
+        if current is None:
+            edge["path_labels"] = [label]
+            edge["from"], edge["to"] = key[0]
+            reciprocal[key] = edge
+            result.append(edge)
+        else:
+            if label not in current["path_labels"]:
+                current["path_labels"].append(label)
+            current["route_count"] = int(current.get("route_count") or 0) + int(
+                edge.get("route_count") or 0
+            )
+    return result
+
+
+def _topology_flag(q, name):
+    return str((q.get(name) or [""])[0]).lower() in {"1", "true", "yes", "on"}
+
+
+def _topology_url(view, *, show_inferred=False, show_unconnected=False,
+                  include_stale=False, show_shared_nexthops=False):
+    params = {"view": view}
+    if show_inferred:
+        params["show_inferred"] = "1"
+    if show_unconnected:
+        params["show_unconnected"] = "1"
+    if include_stale:
+        params["include_stale"] = "1"
+    if show_shared_nexthops:
+        params["show_shared_nexthops"] = "1"
+    return "/topology?" + urllib.parse.urlencode(params)
+
+
+def _topology_view_tabs(active, *, show_inferred=False,
+                        show_unconnected=False, include_stale=False,
+                        show_shared_nexthops=False):
     items = []
     for key, label in (("physical", "Physical"), ("l3", "Layer 3"), ("combined", "Combined")):
         cls = "badge b-ok" if active == key else "badge b-dim"
-        items.append(f'<a class="{cls}" href="/topology?view={key}">{label}</a>')
+        href = _topology_url(
+            key, show_inferred=show_inferred,
+            show_unconnected=show_unconnected,
+            include_stale=(include_stale and key in {"l3", "combined"}),
+            show_shared_nexthops=show_shared_nexthops,
+        )
+        items.append(f'<a class="{cls}" href="{html.escape(href, quote=True)}">{label}</a>')
     return ('<div class="panel"><h2>Topology view</h2><nav aria-label="Topology views">' + ' '.join(items)
-            + '</nav><p>Physical shows neighbor links. Layer 3 shows routes learned from device CLI collection. Combined overlays both. '
+            + '</nav><p>Physical defaults to observed LLDP/CDP links. Layer 3 uses saved interface and route evidence. '
+            'Combined overlays those two trusted layers. Inferred FDB/MAC reachability is optional and never means physical adjacency. '
             '<a href="/topology?view=l3#route-learning">Check route learning status</a></p></div>')
 
 
 def _render_l3_topology_page(handler, q, sess, view):
     from .web_evidence import route_learning_panel
-    include_stale = str((q.get("include_stale") or [""])[0]).lower() in {"1", "true", "yes", "on"}
+    include_stale = _topology_flag(q, "include_stale")
+    show_inferred = _topology_flag(q, "show_inferred")
+    show_unconnected = _topology_flag(q, "show_unconnected")
+    show_shared_nexthops = _topology_flag(q, "show_shared_nexthops")
     graph = (handler.manager.combined_topology_graph(include_stale=include_stale)
              if view == "combined" else handler.manager.l3_topology_graph(include_stale=include_stale))
-    nodes = graph.get("nodes", [])
-    edges = graph.get("edges", [])
+    all_nodes = list(graph.get("nodes", []))
+    all_edges = list(graph.get("edges", []))
+    hidden_inferred = sum(1 for edge in all_edges if edge.get("kind") == "FDB_PATH")
+    edges = [edge for edge in all_edges
+             if show_inferred or edge.get("kind") != "FDB_PATH"]
+    canvas_edges = _topology_canvas_edges(
+        edges, show_shared_nexthops=show_shared_nexthops)
+    evidence_node_ids = {
+        str(value) for edge in edges for value in (edge.get("from"), edge.get("to"))
+        if value
+    }
+    for row in graph.get("unresolved_next_hops", []) + graph.get("ambiguous_next_hops", []):
+        if row.get("device"):
+            evidence_node_ids.add("device:" + str(row["device"]))
+    for row in graph.get("collection_status", []):
+        if (int(row.get("route_count") or 0) or int(row.get("interface_count") or 0)) and row.get("device"):
+            evidence_node_ids.add("device:" + str(row["device"]))
+    nodes = all_nodes if show_unconnected else [
+        node for node in all_nodes if str(node.get("id") or "") in evidence_node_ids]
+    hidden_nodes = len(all_nodes) - len(nodes)
     summary = graph.get("summary", {})
-    import math
-    positions = {}
-    count = max(1, len(nodes))
-    for i, node in enumerate(nodes):
-        angle = (2 * math.pi * i / count) - math.pi / 2
-        positions[node["id"]] = (500 + 340 * math.cos(angle), 310 + 225 * math.sin(angle))
-    svg = ['<div class="topology-shell"><svg id="topology-canvas" viewBox="0 0 1000 620" role="img" aria-label="Layer 3 routing topology"><g id="topology-viewport">']
-    for edge in edges:
+    positions, canvas_width, canvas_height = _topology_layered_positions(
+        nodes, canvas_edges, "id"
+    )
+    layout_key = f"netconfig-topology-layout-v2-{view}"
+    svg = [
+        f'<div class="topology-shell"><svg id="topology-canvas" '
+        f'data-layout-key="{layout_key}" viewBox="0 0 {canvas_width} {canvas_height}" '
+        'role="img" aria-label="Layer 3 routing topology"><g id="topology-viewport">'
+    ]
+    for edge in canvas_edges:
         src, dst = edge.get("from", ""), edge.get("to", "")
         if src not in positions or dst not in positions:
             continue
         x1, y1 = positions[src]; x2, y2 = positions[dst]
         kind = str(edge.get("kind") or "UNKNOWN")
-        css = "observed" if kind in {"DIRECTLY_CONNECTED", "PHYSICAL_ADJACENCY"} else "inferred"
+        css = {
+            "PHYSICAL_ADJACENCY": "physical",
+            "DIRECTLY_CONNECTED": "l3-connected",
+            "NEXT_HOP": "routing",
+            "FDB_PATH": "reachability",
+        }.get(kind, "routing")
         title = (f'{kind} · VRF {edge.get("vrf") or "-"} · next-hop {edge.get("next_hop") or "-"} · '
+                 f'{edge.get("route_origin") or "-"} · {edge.get("route_confidence") or "-"} · '
                  f'{edge.get("resolution_state") or "-"} · {edge.get("evidence_ref") or ""}')
+        edge_label = _topology_edge_label(edge)
         svg.append(
             f'<line class="topology-edge {css}" data-from="{html.escape(src, quote=True)}" '
             f'data-to="{html.escape(dst, quote=True)}" x1="{x1:.1f}" y1="{y1:.1f}" '
             f'x2="{x2:.1f}" y2="{y2:.1f}"><title>{html.escape(title)}</title></line>')
+        if edge_label:
+            svg.append(
+                f'<text class="topology-edge-label" data-from="{html.escape(src, quote=True)}" '
+                f'data-to="{html.escape(dst, quote=True)}" x="{(x1 + x2) / 2:.1f}" '
+                f'y="{(y1 + y2) / 2 - 7:.1f}" text-anchor="middle">'
+                f'{html.escape(edge_label)}</text>')
     for node in nodes:
         node_id = node.get("id", ""); x, y = positions[node_id]
         label = str(node.get("label") or node.get("device") or node_id)
         sub = str(node.get("vrf") or node.get("host") or node.get("kind") or "")
-        state = "ok" if node.get("kind") == "DEVICE" else "unknown"
+        node_kind = str(node.get("kind") or "UNKNOWN").lower()
+        state = "observed" if node_kind == "device" else "unknown"
+        radius = 40 if node_kind == "subnet" else 48
         svg.append(
-            f'<g class="topology-node state-{state}" tabindex="0" data-node="{html.escape(node_id, quote=True)}" '
+            f'<g class="topology-node kind-{html.escape(node_kind)} state-{state}" tabindex="0" data-node="{html.escape(node_id, quote=True)}" '
             f'data-default-x="{x:.1f}" data-default-y="{y:.1f}" data-x="{x:.1f}" data-y="{y:.1f}" '
             f'transform="translate({x:.1f} {y:.1f})"><title>{html.escape(label)} · {html.escape(sub)}</title>'
-            f'<circle r="48"></circle><text class="topology-node-name" text-anchor="middle" y="-3">{html.escape(label[:28])}</text>'
+            f'<circle r="{radius}"></circle><text class="topology-node-name" text-anchor="middle" y="-3">{html.escape(label[:28])}</text>'
             f'<text class="topology-node-sub" text-anchor="middle" y="16">{html.escape(sub[:28])}</text></g>')
     svg.append('</g></svg></div>')
 
@@ -981,37 +1276,79 @@ def _render_l3_topology_page(handler, q, sess, view):
             f'<td>{html.escape(str(edge.get("next_hop") or "-"))}</td>'
             f'<td>{html.escape(str(edge.get("outgoing_interface") or "-"))}</td>'
             f'<td>{html.escape(str(edge.get("evidence_state") or ""))}</td>'
+            f'<td>{html.escape(str(edge.get("route_origin") or ""))}</td>'
+            f'<td>{html.escape(str(edge.get("route_confidence") or ""))}</td>'
             f'<td>{html.escape(str(edge.get("resolution_state") or ""))}</td>'
+            f'<td>{html.escape(str(edge.get("confidence") or ""))}</td>'
+            f'<td>{html.escape(str(edge.get("resolution_detail") or ""))}</td>'
             f'<td>{int(edge.get("route_count") or 0)}</td></tr>')
 
     issue_rows = ''
     for row in graph.get("ambiguous_next_hops", []):
         issue_rows += (f'<tr><td><span class="badge b-bad">AMBIGUOUS</span></td><td>{html.escape(row.get("device", ""))}</td>'
                        f'<td>{html.escape(row.get("vrf", ""))}</td><td>{html.escape(row.get("destination_prefix", ""))}</td>'
-                       f'<td>{html.escape(row.get("next_hop", ""))}</td><td>{html.escape(", ".join(row.get("candidates") or []))}</td></tr>')
+                       f'<td>{html.escape(row.get("next_hop", ""))}</td>'
+                       f'<td>{html.escape(row.get("route_origin", ""))}</td><td>{html.escape(row.get("route_confidence", ""))}</td>'
+                       f'<td>{html.escape(row.get("resolution_detail") or ", ".join(row.get("candidates") or []))}</td></tr>')
     for row in graph.get("unresolved_next_hops", []):
         issue_rows += (f'<tr><td><span class="badge b-dim">UNKNOWN</span></td><td>{html.escape(row.get("device", ""))}</td>'
                        f'<td>{html.escape(row.get("vrf", ""))}</td><td>{html.escape(row.get("destination_prefix", ""))}</td>'
-                       f'<td>{html.escape(row.get("next_hop", ""))}</td><td>no unique managed-interface match</td></tr>')
+                       f'<td>{html.escape(row.get("next_hop", ""))}</td>'
+                       f'<td>{html.escape(row.get("route_origin", ""))}</td><td>{html.escape(row.get("route_confidence", ""))}</td>'
+                       f'<td>{html.escape(row.get("resolution_detail") or "no unique managed next-hop match")}</td></tr>')
 
-    stale_link = f'/topology?view={view}&include_stale=' + ('0' if include_stale else '1')
+    stale_link = _topology_url(
+        view, show_inferred=show_inferred,
+        show_unconnected=show_unconnected, include_stale=not include_stale,
+        show_shared_nexthops=show_shared_nexthops)
+    inferred_link = _topology_url(
+        view, show_inferred=not show_inferred,
+        show_unconnected=show_unconnected, include_stale=include_stale,
+        show_shared_nexthops=show_shared_nexthops)
+    unconnected_link = _topology_url(
+        view, show_inferred=show_inferred,
+        show_unconnected=not show_unconnected, include_stale=include_stale,
+        show_shared_nexthops=show_shared_nexthops)
+    shared_nexthop_link = _topology_url(
+        view, show_inferred=show_inferred,
+        show_unconnected=show_unconnected, include_stale=include_stale,
+        show_shared_nexthops=not show_shared_nexthops)
+    visible_devices = sum(1 for node in nodes if node.get("kind") == "DEVICE")
     toolbar = (
-        f'<div class="topology-toolbar"><div><b>{int(summary.get("managed_devices", 0))}</b> managed devices · '
-        f'<b>{int(summary.get("subnets", 0))}</b> connected subnets · <b>{int(summary.get("next_hop_edges", 0))}</b> resolved next-hop edges · '
+        f'<div class="topology-toolbar"><div><b>{visible_devices}</b> visible devices'
+        f' / {int(summary.get("managed_devices", 0))} inventory · '
+        f'<b>{int(summary.get("subnets", 0))}</b> connected subnets ({int(summary.get("transit_subnets", 0))} shared) · <b>{int(summary.get("next_hop_edges", 0))}</b> resolved next-hop edges · '
         f'<b>{int(summary.get("unresolved_next_hops", 0))}</b> unknown · <b>{int(summary.get("ambiguous_next_hops", 0))}</b> ambiguous</div>'
-        f'<div class="topology-actions"><a class="badge b-dim" href="{stale_link}">{"Hide" if include_stale else "Show"} stale evidence</a> '
+        f'<div class="topology-actions"><a class="badge b-dim" href="{html.escape(stale_link, quote=True)}">{"Hide" if include_stale else "Show"} stale evidence</a> '
+        + (f'<a class="badge {"b-chg" if show_inferred else "b-dim"}" href="{html.escape(inferred_link, quote=True)}">'
+           f'{"Hide" if show_inferred else "Show"} inferred FDB paths ({hidden_inferred})</a> ' if view == "combined" else '')
+        + f'<a class="badge {"b-chg" if show_shared_nexthops else "b-dim"}" href="{html.escape(shared_nexthop_link, quote=True)}">'
+        f'{"Hide" if show_shared_nexthops else "Show"} next-hop lines on shared subnets</a> '
+        + f'<a class="badge {"b-chg" if show_unconnected else "b-dim"}" href="{html.escape(unconnected_link, quote=True)}">'
+        f'{"Hide" if show_unconnected else "Show"} unconnected inventory ({hidden_nodes})</a> '
         f'<button type="button" class="ghost" id="topology-fit">Reset view</button><button type="button" class="ghost" id="topology-reset">Reset layout</button></div></div>')
-    note = ('<div class="topology-legend"><span><i class="topology-swatch"></i>DIRECT / PHYSICAL</span>'
-            '<span><i class="topology-swatch inferred"></i>ROUTING / INFERRED PATH</span>'
-            '<span><i class="topology-swatch unknown"></i>Subnet / unknown evidence</span></div>'
+    note = ('<div class="topology-legend"><span><i class="topology-swatch"></i>PHYSICAL LLDP/CDP</span>'
+            '<span><i class="topology-swatch connected"></i>DIRECTLY CONNECTED SUBNET</span>'
+            '<span><i class="topology-swatch routing"></i>RESOLVED NEXT-HOP ROUTE</span>'
+            + ('<span><i class="topology-swatch inferred"></i>FDB REACHABILITY</span>' if show_inferred else '')
+            + '<span><i class="topology-swatch unknown"></i>Subnet / unknown evidence</span></div>'
             '<p class="topology-note">This view uses previously collected network data. Opening it does not poll devices. '
-            'A next-hop IP becomes a managed-device edge only when it uniquely matches fresh interface evidence in the same VRF.</p>')
+            'A next-hop IP becomes a managed-device edge only when it uniquely matches fresh interface evidence in the same VRF. '
+            'A static route is CONFIRMED only when the saved running configuration and the active route table agree on its VRF, destination and next hop. '
+            'Dynamically learned routes remain current observations rather than configured intent. '
+            'Interface addresses also create directly-connected subnet edges, so two routers on the same transit network remain visibly connected even when their route tables contain only static routes. '
+             'Use Show next-hop lines on shared subnets when directional routing evidence must remain visible alongside the subnet. '
+            'FDB/MAC learning is an optional reachability overlay, never a physical or routing link.</p>')
     learning = route_learning_panel(handler, sess, summary=summary, include_stale=include_stale)
-    return (_topology_view_tabs(view) + learning + f'<div class="panel">{toolbar}{note}{"".join(svg)}</div>{_TOPOLOGY_JS}'
-            f'<div class="panel"><h3>L3 evidence</h3><table><tr><th>Kind</th><th>From</th><th>To</th><th>VRF</th><th>Next hop</th><th>Interface</th><th>Evidence</th><th>Resolution</th><th>Routes</th></tr>'
-            f'{edge_rows or "<tr><td colspan=9 class=muted>No fresh L3 graph evidence yet. Run normal configuration collection on supported Layer-3 devices.</td></tr>"}</table></div>'
-            f'<div class="panel"><h3>Unresolved / ambiguous next hops</h3><table><tr><th>State</th><th>Device</th><th>VRF</th><th>Destination</th><th>Next hop</th><th>Evidence</th></tr>'
-            f'{issue_rows or "<tr><td colspan=6 class=muted>No unresolved or ambiguous next-hop evidence.</td></tr>"}</table></div>')
+    return (_topology_view_tabs(
+                view, show_inferred=show_inferred,
+                show_unconnected=show_unconnected, include_stale=include_stale,
+                show_shared_nexthops=show_shared_nexthops)
+            + learning + f'<div class="panel">{toolbar}{note}{"".join(svg)}</div>{_TOPOLOGY_JS}'
+            f'<div class="panel"><h3>L3 evidence</h3><table><tr><th>Kind</th><th>From</th><th>To</th><th>VRF</th><th>Next hop</th><th>Interface</th><th>Evidence</th><th>Route source</th><th>Route proof</th><th>Resolution</th><th>Confidence</th><th>Resolution evidence</th><th>Routes</th></tr>'
+            f'{edge_rows or "<tr><td colspan=13 class=muted>No fresh L3 graph evidence yet. Run normal configuration collection on supported Layer-3 devices.</td></tr>"}</table></div>'
+            f'<div class="panel"><h3>Unresolved / ambiguous next hops</h3><table><tr><th>State</th><th>Device</th><th>VRF</th><th>Destination</th><th>Next hop</th><th>Route source</th><th>Route proof</th><th>Evidence</th></tr>'
+            f'{issue_rows or "<tr><td colspan=8 class=muted>No unresolved or ambiguous next-hop evidence.</td></tr>"}</table></div>')
 
 
 def render_topology_page(handler, q, sess):
@@ -1023,23 +1360,42 @@ def render_topology_page(handler, q, sess):
     rows = handler.manager.db.get_neighbors()
     identities = handler.manager.topology_identities()
     graph = handler.manager.topology_graph()
-    graph_nodes = graph.get("nodes", [])
-    graph_edges = graph.get("edges", [])
+    show_inferred = _topology_flag(q, "show_inferred")
+    show_unconnected = _topology_flag(q, "show_unconnected")
+    show_shared_nexthops = _topology_flag(q, "show_shared_nexthops")
+    all_nodes = list(graph.get("nodes", []))
+    all_edges = list(graph.get("edges", []))
+    observed_edges = list(graph.get("physical_edges") or [
+        edge for edge in all_edges if edge.get("evidence_kind") == "OBSERVED"
+    ])
+    inferred_edges = list(graph.get("reachability_edges") or [
+        edge for edge in all_edges if edge.get("evidence_kind") == "INFERRED"
+    ])
+    graph_edges = observed_edges + (inferred_edges if show_inferred else [])
+    canvas_edges = _topology_canvas_edges(graph_edges)
+    connected_devices = {
+        str(value) for edge in graph_edges for value in (edge.get("from"), edge.get("to"))
+        if value
+    }
+    graph_nodes = all_nodes if show_unconnected else [
+        node for node in all_nodes if str(node.get("device") or "") in connected_devices]
+    hidden_nodes = len(all_nodes) - len(graph_nodes)
     summary = graph.get("summary", {})
     unmanaged = [r for r in rows if r.get("resolution_state") == "UNMANAGED" or (not r.get("managed_neighbor") and not r.get("resolution_state"))]
     ambiguous = [r for r in rows if r.get("resolution_state") == "AMBIGUOUS"]
 
-    # Deterministic initial positions; browser-local drag positions override
-    # these without changing topology truth or any persisted network state.
-    import math
-    positions = {}
-    count = max(1, len(graph_nodes))
-    for i, node in enumerate(graph_nodes):
-        angle = (2 * math.pi * i / count) - math.pi / 2
-        positions[node["device"]] = (500 + 340 * math.cos(angle), 310 + 225 * math.sin(angle))
-
-    svg = ['<div class="topology-shell"><svg id="topology-canvas" viewBox="0 0 1000 620" role="img" aria-label="Interactive managed network topology"><g id="topology-viewport">']
-    for edge in graph_edges:
+    # Deterministic component/layer positions; browser-local drag positions
+    # override these without changing topology truth or persisted network state.
+    positions, canvas_width, canvas_height = _topology_layered_positions(
+        graph_nodes, canvas_edges, "device"
+    )
+    svg = [
+        f'<div class="topology-shell"><svg id="topology-canvas" '
+        f'data-layout-key="netconfig-topology-layout-v2-physical" '
+        f'viewBox="0 0 {canvas_width} {canvas_height}" role="img" '
+        'aria-label="Interactive managed network topology"><g id="topology-viewport">'
+    ]
+    for edge in canvas_edges:
         src = edge.get("from", ""); dst = edge.get("to", "")
         if src not in positions or dst not in positions:
             continue
@@ -1048,10 +1404,17 @@ def render_topology_page(handler, q, sess):
         title = (f'{edge.get("evidence_kind", "")} {src} {edge.get("local_port", "")} → '
                  f'{dst} {edge.get("remote_port", "")} · {edge.get("protocol", "")} · '
                  f'{edge.get("evidence", "")}')
+        edge_label = _topology_edge_label(edge)
         svg.append(
             f'<line class="topology-edge {kind}" data-from="{html.escape(src, quote=True)}" '
             f'data-to="{html.escape(dst, quote=True)}" x1="{x1:.1f}" y1="{y1:.1f}" '
             f'x2="{x2:.1f}" y2="{y2:.1f}"><title>{html.escape(title)}</title></line>')
+        if edge_label:
+            svg.append(
+                f'<text class="topology-edge-label" data-from="{html.escape(src, quote=True)}" '
+                f'data-to="{html.escape(dst, quote=True)}" x="{(x1 + x2) / 2:.1f}" '
+                f'y="{(y1 + y2) / 2 - 7:.1f}" text-anchor="middle">'
+                f'{html.escape(edge_label)}</text>')
     for node in graph_nodes:
         name = node.get("device", ""); x, y = positions[name]
         state = str(node.get("state", "UNKNOWN")).lower()
@@ -1067,15 +1430,16 @@ def render_topology_page(handler, q, sess):
             f'<text class="topology-node-sub" text-anchor="middle" y="16">{html.escape(sub[:28])}</text></g>')
     svg.append('</g></svg></div>')
 
-    evidence_rows = ''
-    for edge in graph_edges:
+    def topology_evidence_row(edge):
         observed = edge.get("evidence_kind") == "OBSERVED"
         badge = '<span class="badge b-ok">OBSERVED</span>' if observed else '<span class="badge b-chg">INFERRED</span>'
-        evidence_rows += (
+        return (
             f'<tr><td>{badge}</td><td>{html.escape(edge.get("from", ""))}</td>'
             f'<td>{html.escape(edge.get("local_port", ""))}</td><td>{html.escape(edge.get("to", ""))}</td>'
             f'<td>{html.escape(edge.get("remote_port", ""))}</td><td>{html.escape(edge.get("protocol", ""))}</td>'
             f'<td>{html.escape(edge.get("confidence", ""))}</td><td class="muted">{html.escape(edge.get("evidence", ""))}</td></tr>')
+    evidence_rows = ''.join(topology_evidence_row(edge) for edge in graph_edges)
+    inferred_rows = ''.join(topology_evidence_row(edge) for edge in inferred_edges)
 
     raw_rows = ''
     for r in rows:
@@ -1115,28 +1479,48 @@ def render_topology_page(handler, q, sess):
     action = ''
     if _can(sess["role"], "collect"):
         action = f'<form method=post action="/topology-discover">{handler._csrf_field()}<button>Discover now</button></form>'
-    toolbar = (f'<div class="topology-toolbar"><div><b>{int(summary.get("managed_nodes", 0))}</b> managed nodes · '
+    inferred_link = _topology_url(
+        "physical", show_inferred=not show_inferred,
+        show_unconnected=show_unconnected,
+        show_shared_nexthops=show_shared_nexthops)
+    unconnected_link = _topology_url(
+        "physical", show_inferred=show_inferred,
+        show_unconnected=not show_unconnected,
+        show_shared_nexthops=show_shared_nexthops)
+    toolbar = (f'<div class="topology-toolbar"><div><b>{len(graph_nodes)}</b> visible devices'
+               f' / {int(summary.get("managed_nodes", 0))} inventory · '
                f'<b>{int(summary.get("observed_edges", 0))}</b> observed edges · '
-               f'<b>{int(summary.get("inferred_edges", 0))}</b> inferred FDB paths · '
-               f'<b>{int(summary.get("unknown_nodes", 0))}</b> without adjacency evidence</div>'
-               f'<div class="topology-actions"><button type="button" class="ghost" id="topology-fit">Reset view</button>'
+               f'<b>{int(summary.get("inferred_edges", 0))}</b> inferred FDB paths '
+               f'{"shown" if show_inferred else "hidden by default"}</div>'
+               f'<div class="topology-actions"><a class="badge {"b-chg" if show_inferred else "b-dim"}" '
+               f'href="{html.escape(inferred_link, quote=True)}">{"Hide" if show_inferred else "Show"} inferred FDB paths</a>'
+               f'<a class="badge {"b-chg" if show_unconnected else "b-dim"}" '
+               f'href="{html.escape(unconnected_link, quote=True)}">{"Hide" if show_unconnected else "Show"} unconnected inventory ({hidden_nodes})</a>'
+               f'<button type="button" class="ghost" id="topology-fit">Reset view</button>'
                f'<button type="button" class="ghost" id="topology-reset">Reset layout</button>{action}</div></div>')
     legend = ('<div class="topology-legend"><span><i class="topology-swatch"></i>OBSERVED LLDP/CDP</span>'
-              '<span><i class="topology-swatch inferred"></i>INFERRED FDB path</span>'
-              '<span><i class="topology-swatch unknown"></i>No adjacency evidence</span></div>'
-              '<p class="topology-note">Drag nodes to arrange the canvas. Wheel to zoom; drag empty space to pan. Layout is stored only in this browser and never changes network truth.</p>')
+              + ('<span><i class="topology-swatch inferred"></i>INFERRED FDB/MAC reachability (not adjacency)</span>' if show_inferred else '')
+              + '<span><i class="topology-swatch unknown"></i>No adjacency evidence</span></div>'
+              '<p class="topology-note">Physical defaults to confirmed LLDP/CDP adjacency. FDB/MAC learning paths and devices without evidence are hidden unless explicitly enabled. '
+              'Drag nodes to arrange the canvas. Wheel to zoom; drag empty space to pan. Layout is stored only in this browser and never changes network truth.</p>')
     inner = (f'<div class="panel">{toolbar}{legend}{"".join(svg)}</div>{_TOPOLOGY_JS}'
-             f'<div class="panel topology-evidence-table"><h3>Topology evidence</h3><table><tr><th>Evidence</th><th>From</th><th>Local port</th><th>To</th><th>Remote port</th><th>Protocol</th><th>Confidence</th><th>Evidence detail</th></tr>'
-             f'{evidence_rows or "<tr><td colspan=8 class=muted>No managed adjacency/path evidence yet. Managed devices still remain visible above.</td></tr>"}</table>'
-             f'<p class="muted">FDB matches indicate reachability through a port, not guaranteed direct physical adjacency. Only LLDP/CDP OBSERVED edges are traversed by downstream-impact analysis.</p></div>'
-             f'<div class="panel"><h3>Managed identity</h3><table><tr><th>Device</th><th>sysName</th><th>Chassis identity</th><th>Model</th><th>Capabilities</th><th>Interfaces</th></tr>'
+             f'<div class="panel topology-evidence-table"><h3>Visible topology evidence</h3><table><tr><th>Evidence</th><th>From</th><th>Local port</th><th>To</th><th>Remote port</th><th>Protocol</th><th>Confidence</th><th>Evidence detail</th></tr>'
+             f'{evidence_rows or "<tr><td colspan=8 class=muted>No confirmed managed adjacency yet. Use Discover now, or explicitly show inferred/unconnected evidence.</td></tr>"}</table>'
+             f'<p class="muted">Only LLDP/CDP OBSERVED edges are physical adjacency and are traversed by downstream-impact analysis.</p></div>'
+             + (f'<details class="panel"><summary>Inferred FDB/MAC reachability evidence · {len(inferred_edges)} path(s) · not physical adjacency</summary>'
+                f'<table><tr><th>Evidence</th><th>From</th><th>Local port</th><th>To</th><th>Remote port</th><th>Protocol</th><th>Confidence</th><th>Evidence detail</th></tr>'
+                f'{inferred_rows or "<tr><td colspan=8 class=muted>No inferred FDB/MAC paths.</td></tr>"}</table></details>' if not show_inferred else '')
+             + f'<div class="panel"><h3>Managed identity</h3><table><tr><th>Device</th><th>sysName</th><th>Chassis identity</th><th>Model</th><th>Capabilities</th><th>Interfaces</th></tr>'
              f'{identity_rows or "<tr><td colspan=6 class=muted>Device identity has not been collected yet.</td></tr>"}</table></div>'
              f'<div class="panel"><h3>Downstream impact</h3><form method=get action="/topology"><select name=impact_device>{"".join(impact_opts)}</select> '
              f'<input name=impact_port value="{html.escape(root_port)}" placeholder="optional root port"> <button class="ghost">Analyze</button></form>{impact_html}</div>'
              f'<details class="panel"><summary>Raw LLDP/CDP observations · {len(rows)} rows · {len(unmanaged)} unmanaged · {len(ambiguous)} ambiguous</summary>'
              f'<table><tr><th>Device</th><th>Local port</th><th>Neighbour</th><th>Remote port</th><th>Protocol</th><th>State</th><th>Resolution evidence</th></tr>'
              f'{raw_rows or "<tr><td colspan=7 class=muted>No LLDP/CDP neighbours collected yet.</td></tr>"}</table></details>')
-    return _topology_view_tabs("physical") + inner
+    return _topology_view_tabs(
+        "physical", show_inferred=show_inferred,
+        show_unconnected=show_unconnected,
+        show_shared_nexthops=show_shared_nexthops) + inner
 
 
 

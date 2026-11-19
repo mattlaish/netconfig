@@ -118,6 +118,8 @@ jobs:
           python -m py_compile qualification/q2_runner.py qualification/r60_runner.py qualification/r61_runner.py qualification/r61_benchmark.py qualification/r62_runner.py qualification/r63_runner.py qualification/r64_runner.py qualification/r65_runner.py qualification/r66_runner.py qualification/r67_runner.py qualification/r67_1_runner.py qualification/r67_2_runner.py qualification/run_bounded_regression.py tools/release_metadata.py
       - name: Q2 qualification harness gates
         run: ./packaging/q2-source-gates.sh
+      - name: Verify release manifest and source SBOM
+        run: python tools/release_metadata.py --check
       - name: Offline RPM builder reproducibility
         run: |
           rm -rf dist

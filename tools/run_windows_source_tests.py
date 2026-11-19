@@ -36,6 +36,7 @@ def main(args: list[str] | None = None) -> int:
         sys.path.insert(0, str(dependency_path))
     # Keep the actual source ahead of optional external test dependencies.
     sys.path.insert(0, str(source))
+    sys.path.append(str(root))
     if args == ["--print-root"]:
         print(json.dumps({"root": str(root), "cwd": str(Path.cwd()), "python_source": str(source)}))
         return 0

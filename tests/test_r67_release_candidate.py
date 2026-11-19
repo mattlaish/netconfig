@@ -3,8 +3,11 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+from release_identity import rpm_fields
 
 ROOT = Path(__file__).resolve().parents[1]
+VERSION, RELEASE = rpm_fields()
+PACKAGE = f"{VERSION}-{RELEASE}"
 
 
 def _load_runner():
@@ -19,7 +22,7 @@ def _load_runner():
 def test_r67_release_identity_feature_freeze_and_no_mc12_contract():
     spec = (ROOT / "packaging/netconfig.spec").read_text()
     roadmap = (ROOT / "ROADMAP.md").read_text()
-    assert "Release:        67.8%{?dist}" in spec
+    assert rpm_fields(spec)[1].split(".", 1)[0] == "67"
     assert "R67" in roadmap and "feature freeze" in roadmap.lower()
     assert "mc11-topology-change-planning-1" in roadmap
     assert "do not create mc-12" in roadmap.lower()
@@ -73,9 +76,9 @@ def test_r67_live_gate_without_independent_environment_is_blocked(tmp_path):
 
 def test_r67_release_manifest_metadata_is_current_and_feature_frozen():
     manifest = json.loads((ROOT / "RELEASE_MANIFEST.json").read_text())
-    assert manifest["current_package"] == "2.0.0-67.8"
-    assert manifest["current_release"] == "67.8"
-    assert manifest["current_slice"] == "R67.8 Enable Credential Precedence Corrective RPM"
+    assert manifest["current_package"] == PACKAGE
+    assert manifest["current_release"] == RELEASE
+    assert manifest["current_slice"].startswith(f"R{RELEASE} ")
     assert manifest["schema_revision"] == "mc11-topology-change-planning-1"
     assert manifest["feature_freeze"] is True
     assert manifest["mc12_defined"] is False
@@ -87,9 +90,9 @@ def test_r67_release_manifest_metadata_is_current_and_feature_frozen():
 def test_r67_spdx_sbom_is_current_bounded_and_checksummed():
     sbom = json.loads((ROOT / "SBOM.spdx.json").read_text())
     assert sbom["spdxVersion"] == "SPDX-2.3"
-    assert sbom["name"] == "NetConfig 2.0.0-67.8 source SBOM"
+    assert sbom["name"] == f"NetConfig {PACKAGE} source SBOM"
     package = sbom["packages"][0]
-    assert package["versionInfo"] == "2.0.0-67.8"
+    assert package["versionInfo"] == PACKAGE
     assert package["filesAnalyzed"] is True
     assert len(sbom["files"]) >= 300
     assert all(len(item.get("checksums", [])) == 2 for item in sbom["files"])
@@ -121,7 +124,7 @@ def test_r67_installer_and_almalinux_qualifier_require_release67_rpm():
     alma = (ROOT / "packaging/q1-qualify-almalinux.sh").read_text()
     assert '${RELEASE%%.*} != "67"' in installer
     assert "expected NetConfig RPM release 67" in installer
-    assert "netconfig-2.0.0-67.8.el10.noarch.rpm" in installer
+    assert f"netconfig-{PACKAGE}.el10.noarch.rpm" in installer
     assert "2.0.0-67.*.noarch" in alma
 
 
@@ -135,8 +138,9 @@ def test_r67_candidate_fingerprint_is_nonempty_and_named():
 def test_r67_r66_manifest_drift_defect_is_closed():
     release = json.loads((ROOT / "RELEASE_MANIFEST.json").read_text())
     artifact = json.loads((ROOT / "ARTIFACT_MANIFEST.json").read_text())
-    assert release["current_package"] == "2.0.0-67.8"
+    assert release["current_package"] == PACKAGE
     # ARTIFACT_MANIFEST is finalized during packaging; it must never be mistaken
     # for the authoritative current release metadata before the final freeze.
-    assert artifact.get("version") in {"2.0.0-67", "2.0.0-67.1", "2.0.0-67.2", "2.0.0-67.3", "2.0.0-67.4", "2.0.0-67.5", "2.0.0-67.6", "2.0.0-67.7", "2.0.0-67.8"}
+    from re import escape, fullmatch
+    assert fullmatch(rf"{escape(VERSION)}-67(?:[.]\d+)*", artifact["version"])
     assert release["current_package"] != "2.0.0-65"

@@ -1,5 +1,33 @@
 # R67.2 corrective RC — current testing truth
 
+## Release 67.13 configured-static route proof — 2026-11-11
+
+Focused direct checks PASS for Cisco static-config normalization, normal manager
+collection, additive SQLite migration and PostgreSQL schema projection,
+confirmed static route persistence and graph resolution, REST/Web output,
+dynamic-route and unproved-static negative cases, exact-interface resolution,
+shared transit subnet handling, cross-VRF/duplicate ambiguity and off-link
+rejection. Legacy selftest is ALL PASS.
+
+The maintained Windows pytest runner was invoked but reports pytest unavailable,
+so the full pytest suite is `NOT_RUN`; direct assertion execution is not
+reported as a pytest result. Live Cisco/AlmaLinux and RPM qualification remain
+`NOT_RUN`. Package identity advances to `2.0.0-67.13.el10`; offline RPM
+verification remains distinct from live qualification. No Git operation was
+performed.
+
+The final unsigned helper artifact is
+`dist/netconfig-2.0.0-67.13.el10.noarch.rpm`. Two builds with source epoch
+`1794384000` are byte-identical; both independently pass RPM structure,
+NEVRA, source-byte, file-mode, dependency and scriptlet verification. RPM
+SHA-256:
+`2badc97c4d44743fd3894effb30d6f1f1f75ec230c4ca352dff9d922dbe92f7c`;
+payload SHA-256:
+`5aea107168437fe9258a6353058d5c87adcd987f517f93e72f0c1b5fab78f907`;
+118 payload entries, 573836 bytes. A first build with malformed release
+`67.13el10` was rejected by the independent verifier and overwritten; it is
+not the delivered artifact.
+
 ## NetFlow PostgreSQL history — 2026-10-22
 
 Completed: **136 passed / 1 skipped / 0 failed** across NetFlow/history,
@@ -116,7 +144,7 @@ Generated manifests, SBOM and artifact hashes remain pending regeneration for th
 Additional completed local checks: legacy selftest **ALL PASS** (including Application-only isolation and System-only regression), six changed runtime modules compile, and the existing canonical-state, compound-statement and PH-1 structure checks **3/3 PASS**. Selftest uses the same fail-closed Windows PTY import harness; this is not live SSH evidence.
 
 <!-- documentation-sync: 2026-11-05 -->
-> **Canonical project state — 2026-11-05:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.8 / Enable Credential Precedence Corrective RPM** (`2.0.0-67.8`, `IMPLEMENTED_TESTING_DEFERRED`). When a Web-managed vault secret is both the SSH and enable reference, NetConfig now sends its explicit `enable_password` instead of incorrectly overwriting it with the SSH login password; separate Enable secrets remain supported. Release 67.7 legacy `ssh-rsa`/SHA-1 verification, managed known_hosts, the RSA 512-bit floor and normal-device OpenSSH isolation remain. Prior SNMPv3, Endpoint CSV, history/evidence/workflow corrections are preserved. **MC-11 Topology-Aware Change Planning** remains the final feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** and schema `mc11-topology-change-planning-1` remain. **Do not create MC-12.** Local regression does not replace live Cisco/AlmaLinux qualification. All twelve LIVE_RC gates and an explicit R68 decision remain required. Git stays user-managed.
+> **Canonical project state — 2026-11-12:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.14 / Devices and Traffic Console Corrective RPM** (`2.0.0-67.14`, `IMPLEMENTED_TESTING_DEFERRED`). Release 67.14 adds Devices monitoring cards, Traffic auto-refresh and destination lookup, and consistent sign-in and footer package versions. Release 67.13 distinguishes configured static route intent from dynamic and route-table-only observations while preserving Release 67.12 shared-subnet next-hop display, Release 67.11 layered topology and operator UI corrections, Release 67.10 evidence-first topology, Release 67.9 grouped SNMP trends, Release 67.8 Enable credential precedence and Release 67.7 isolated legacy `ssh-rsa`/SHA-1 verification. Existing state is preserved across upgrade. **MC-11 Topology-Aware Change Planning** remains the final feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** and schema `mc11-topology-change-planning-1` remain. **Do not create MC-12.** Offline verification does not replace live Cisco/AlmaLinux qualification. All twelve LIVE_RC gates and an explicit R68 decision remain required. Git stays user-managed.
 
 > **Document applicability:** this document is maintained against [ROADMAP.md](ROADMAP.md) and [AI_HANDOFF.md](AI_HANDOFF.md). Older release-numbered sections, test counts, fingerprints and Current/Next pointers below are historical unless explicitly restated in this 2026-10-13 update.
 

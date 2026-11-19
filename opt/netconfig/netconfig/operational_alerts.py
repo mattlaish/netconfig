@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import time
+from .workspaces import enabled as workspace_enabled
 
 from . import mailer
 from .db import operational_alert_correlation_key
@@ -72,6 +73,8 @@ class OperationalAlertLifecycle:
         are re-evaluated after maintenance ends. The method is DB-only and does
         not poll devices.
         """
+        if not workspace_enabled(self.manager.settings, "alerts"):
+            return []
         now = time.time() if now is None else float(now)
         sensors = self.manager.sensors.list(device=device, limit=2000)
         firing = [s for s in sensors if str(s.get("status") or "").upper() in {"WARNING", "CRITICAL"}]
@@ -135,7 +138,7 @@ class OperationalAlertLifecycle:
         Maintenance/dependency suppression still prevents alert creation while
         preserving the event evidence.
         """
-        if not event or not event.get("id"):
+        if not event or not event.get("id") or not workspace_enabled(self.manager.settings, "alerts"):
             return None
         now = float(event.get("last_ts") or time.time()) if now is None else float(now)
         existing = self.db.operational_alert_for_event(event["id"])
@@ -357,7 +360,7 @@ class OperationalAlertLifecycle:
 
     def process_notifications(self, now=None, limit=50):
         now = time.time() if now is None else float(now)
-        if not self.manager.settings.get("operational_notifications_enabled"):
+        if not workspace_enabled(self.manager.settings, "alerts") or not self.manager.settings.get("operational_notifications_enabled"):
             return []
         max_attempts = max(1, int(self.manager.settings.get("operational_notification_max_attempts", 5)))
         base = max(1, int(self.manager.settings.get("operational_notification_backoff_base_seconds", 60)))
@@ -387,6 +390,8 @@ class OperationalAlertLifecycle:
         return self.db.list_notifications(limit)
 
     def tick(self, now=None):
+        if not workspace_enabled(self.manager.settings, "alerts"):
+            return {"reports": [], "deliveries": []}
         now = time.time() if now is None else float(now)
         return {"reports": self.run_due_reports(now), "deliveries": self.process_notifications(now)}
 

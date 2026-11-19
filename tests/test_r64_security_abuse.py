@@ -375,7 +375,8 @@ def test_r64_package_authority_and_modes():
     spec = (ROOT / "packaging/netconfig.spec").read_text()
     installer = (ROOT / "packaging/install-rpm.sh").read_text()
     road = (ROOT / "ROADMAP.md").read_text().lower()
-    assert "Release:        67.8%{?dist}" in spec
+    from release_identity import rpm_fields
+    assert rpm_fields(spec)[1].split(".", 1)[0] == "67"
     assert '${RELEASE%%.*} != "67"' in installer
     assert "do not create mc-12" in road
     for relative in ("qualification/r64_runner.py", "packaging/r64-qualify.sh"):

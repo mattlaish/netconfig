@@ -192,7 +192,8 @@ def test_r60_upgrade_wrapper_only_supports_r59_to_r60():
 def test_r60_historical_wrapper_remains_r59_to_r60_while_current_package_advances():
     spec = (ROOT / "packaging/netconfig.spec").read_text(encoding="utf-8")
     installer = (ROOT / "packaging/install-rpm.sh").read_text(encoding="utf-8")
-    assert "Release:        67.8%{?dist}" in spec
+    from release_identity import rpm_fields
+    assert rpm_fields(spec)[1].split(".", 1)[0] == "67"
     assert "release 67" in installer.lower()
     wrapper = (ROOT / "packaging/r60-lifecycle-upgrade.sh").read_text(encoding="utf-8")
     assert "${t_rel%%.*} == 60" in wrapper

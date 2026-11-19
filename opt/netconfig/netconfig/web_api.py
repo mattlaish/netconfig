@@ -1,6 +1,7 @@
 """Bearer API routing extracted from the monolithic web console (PH-1)."""
 
 import json
+from .workspaces import disabled_api_area
 import urllib.parse
 from pathlib import Path
 
@@ -23,13 +24,6 @@ class WebApiMixin:
             return None
         return ApiTokens(self.manager.db.conn).verify(auth[7:].strip())
 
-    def _api_feature_off(self, path):
-        from . import features
-        off = features.disabled_for_api(self.manager.settings, path)
-        if off:
-            self._api_json({"error": "feature_disabled", "feature": off, "detail": features.off_message(off)}, 404)
-        return bool(off)
-
     def _api_json(self, payload, status=200):
         self._send(json.dumps(payload, indent=2, sort_keys=True), status,
                    "application/json; charset=utf-8", [("Cache-Control", "no-store")])
@@ -38,7 +32,8 @@ class WebApiMixin:
         token = self._api_token()
         if not token:
             self._api_json({"error": "invalid_or_missing_bearer_token"}, 401); return True
-        if self._api_feature_off(path):
+        if area := disabled_api_area(self.manager.settings, path):
+            self._api_json({"error": "workspace_off", "workspace": area}, 403)
             return True
         actor = "api:" + token["name"]
         def _form_json(name, default=None):
@@ -946,7 +941,8 @@ class WebApiMixin:
         token = self._api_token()
         if not token:
             self._api_json({"error": "invalid_or_missing_bearer_token"}, 401); return True
-        if self._api_feature_off(path):
+        if area := disabled_api_area(self.manager.settings, path):
+            self._api_json({"error": "workspace_off", "workspace": area}, 403)
             return True
         scopes = token["scopes"]
         if path == "/api/v1/supportability":

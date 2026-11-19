@@ -132,7 +132,7 @@ def verify(rpm_path: Path, repo_root: Path) -> list[str]:
             errors.append(f"{label}: expected {expected!r}, got {h.get(tag)!r}")
     payload = gzip.decompress(compressed_payload)
     cpio = parse_cpio(payload)
-    expected_files = collect_netconfig_payload(repo_root)
+    expected_files = collect_netconfig_payload(repo_root, f"{version}-{expected_release}")
     if set(cpio) != {x.path for x in expected_files}:
         errors.append("payload path set differs from source package layout")
     expected_map = {x.path: x for x in expected_files}

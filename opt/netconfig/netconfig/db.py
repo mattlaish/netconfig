@@ -885,7 +885,10 @@ CREATE TABLE IF NOT EXISTS l3_route_observations (
     metric INTEGER NOT NULL DEFAULT 0, terminal INTEGER NOT NULL DEFAULT 0,
     evidence_ref TEXT NOT NULL DEFAULT '', actor TEXT NOT NULL DEFAULT '', observed_ts REAL NOT NULL,
     received_ts REAL NOT NULL DEFAULT 0, max_age_seconds INTEGER NOT NULL DEFAULT 0,
-    source_kind TEXT NOT NULL DEFAULT 'MANUAL', collection_id TEXT NOT NULL DEFAULT ''
+    source_kind TEXT NOT NULL DEFAULT 'MANUAL', collection_id TEXT NOT NULL DEFAULT '',
+    route_origin TEXT NOT NULL DEFAULT 'OBSERVED_ROUTE_TABLE',
+    route_confidence TEXT NOT NULL DEFAULT 'OBSERVED_CURRENT',
+    config_evidence_ref TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_l3_route_lookup
     ON l3_route_observations(device, vrf, destination_prefix, observed_ts);
@@ -1159,6 +1162,9 @@ _MIGRATIONS = [
     ("l3_route_observations", "max_age_seconds", "INTEGER NOT NULL DEFAULT 0"),
     ("l3_route_observations", "source_kind", "TEXT NOT NULL DEFAULT 'MANUAL'"),
     ("l3_route_observations", "collection_id", "TEXT NOT NULL DEFAULT ''"),
+    ("l3_route_observations", "route_origin", "TEXT NOT NULL DEFAULT 'OBSERVED_ROUTE_TABLE'"),
+    ("l3_route_observations", "route_confidence", "TEXT NOT NULL DEFAULT 'OBSERVED_CURRENT'"),
+    ("l3_route_observations", "config_evidence_ref", "TEXT NOT NULL DEFAULT ''"),
     ("external_events", "tenant_id", "TEXT NOT NULL DEFAULT 'default'"),
     ("external_events", "source_key", "TEXT NOT NULL DEFAULT ''"),
     ("external_events", "idempotency_key", "TEXT NOT NULL DEFAULT ''"),
@@ -1442,6 +1448,20 @@ class Database:
     def prune_results(self, older_than_ts):
         self.conn.execute("DELETE FROM monitor_results WHERE ts < ?", (older_than_ts,))
         self.conn.commit()
+
+    def latest_monitor_results(self, device, targets):
+        """Get one indexed result per currently configured (kind, target)."""
+        if not targets:
+            return {}
+        values = ",".join("(?,?)" for _ in targets)
+        params = [value for target in targets for value in target]
+        rows = self.conn.execute(
+            f"WITH wanted(kind,target) AS (VALUES {values}) "
+            "SELECT result.* FROM wanted JOIN monitor_results AS result ON result.id=("
+            "SELECT id FROM monitor_results WHERE device=? AND kind=wanted.kind "
+            "AND target=wanted.target ORDER BY ts DESC,id DESC LIMIT 1)",
+            (*params, device)).fetchall()
+        return {(row["kind"], row["target"]): dict(row) for row in rows}
 
     # ---- alert rules ----------------------------------------------------
     def add_rule(self, name, device, metric, target, op, threshold, severity="medium"):

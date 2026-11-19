@@ -8,6 +8,7 @@ after the normal approval/snapshot revalidation path.
 from __future__ import annotations
 
 import html
+from .workspaces import enabled as workspace_enabled
 import json
 import time
 import urllib.parse
@@ -154,10 +155,11 @@ class WebOpsMixin:
 
     def _ops_tabs(self, active):
         primary = {"overview", "workflow", "structured", "desired", "campaigns", "intelligence", "intents"}
-        hidden = self._ops_hidden_tabs()
         out = ['<div class="panel"><div class="row">']
         for key, label in _TABS:
-            if key not in primary or key in hidden:
+            if key not in primary:
+                continue
+            if key == "workflow" and not workspace_enabled(self.manager.settings, "incidents"):
                 continue
             cls = "btn" if key == active else "btn ghost"
             out.append(f'<a class="{cls}" href="/operations?tab={key}">{_e(label)}</a>')
@@ -170,17 +172,12 @@ class WebOpsMixin:
         out.append("</div></details></div>")
         return "".join(out)
 
-    def _ops_hidden_tabs(self):
-        from . import features
-        return set() if features.enabled(self.manager.settings, features.INCIDENTS) else {"workflow"}
-
     def _operations_page(self, q, sess):
         active = str((q.get("tab") or ["overview"])[0] or "overview")
         if active not in {item[0] for item in _TABS}:
             active = "overview"
-        if active in self._ops_hidden_tabs():
-            from . import features
-            return self._feature_off(sess, features.INCIDENTS)
+        if active == "workflow" and not workspace_enabled(self.manager.settings, "incidents"):
+            return self._workspace_off("incidents", sess)
         notice = str((q.get("notice") or [""])[0] or "")
         renderer = {
             "overview": self._ops_overview,
@@ -199,16 +196,15 @@ class WebOpsMixin:
 
 
     def _ops_overview(self, q, sess):
-        workflow_card = ('' if "workflow" in self._ops_hidden_tabs() else
-            '<div class="ops-card"><h3>Follow an incident to verified change</h3><p>Investigate an incident, review possible causes, plan a change, request approval and check the results.</p>'
-            '<a class="btn" href="/operations?tab=workflow">Incident Workflow</a></div>')
         return (
             '<div class="panel"><h2>Operations workspace</h2>'
             '<p>Start with the outcome you need. Read-only analysis and drift checking do not require you to trust NetConfig with configuration writes. '
             'Change execution remains optional and keeps the existing approval/audit safeguards.</p>'
             '<div class="ops-actions">'
-            + workflow_card +
-            '<div class="ops-card"><h3>Check templates & drift</h3><p>Compare devices or groups with a reusable configuration baseline before deciding whether to change anything.</p>'
+            + ('<div class="ops-card"><h3>Follow an incident to verified change</h3><p>Investigate an incident, review possible causes, plan a change, request approval and check the results.</p>'
+               '<a class="btn" href="/operations?tab=workflow">Incident Workflow</a></div>'
+               if workspace_enabled(self.manager.settings, "incidents") else "")
+            + '<div class="ops-card"><h3>Check templates & drift</h3><p>Compare devices or groups with a reusable configuration baseline before deciding whether to change anything.</p>'
             '<a class="btn ghost" href="/operations?tab=desired">Configuration Baselines / Templates & Drift</a></div>'
             '<div class="ops-card"><h3>Analyze the network</h3><p>Use stored topology, route, health and telemetry evidence for read-only impact and dependency analysis.</p>'
             '<a class="btn ghost" href="/operations?tab=intelligence">Network Intelligence</a></div>'

@@ -133,7 +133,7 @@ class WebFeatureControlsMixin:
             return self._feature_error(sess, "Device Collection", "Collection profile not found.", 404)
         self.manager.protocol_profiles.delete(device)
         self.manager.db.audit(sess["username"], "protocol_profile_delete", device, "console; default collection restored")
-        return self._redirect("/protocols?notice=deleted")
+        return self._redirect(f"/protocols?device={urllib.parse.quote(device, safe='')}&notice=deleted")
 
     def _protocol_inspection_controls(self, device, sess):
         if not can(sess["role"], "collect"):

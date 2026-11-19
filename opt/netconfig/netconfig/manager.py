@@ -601,7 +601,8 @@ class Manager:
                 # independent best-effort read: a parse/command failure must not
                 # discard a valid configuration snapshot.
                 try:
-                    l3_result = self.l3_topology.collect_from_session(device, driver, tp)
+                    l3_result = self.l3_topology.collect_from_session(
+                        device, driver, tp, config_text=raw)
                 except Exception as exc:
                     l3_result = {"status": "ERROR", "routes": 0, "interfaces": 0, "error": str(exc)[:200]}
             from . import scrub as _scrub

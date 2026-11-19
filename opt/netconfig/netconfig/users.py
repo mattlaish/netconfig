@@ -55,6 +55,7 @@ _CAPS = {
     "manage_devices":  {"approver", "admin"},
     "manage_dependencies": {"operator", "approver", "admin"},
     "unlock_vault":    {"approver", "admin"},
+    "reveal_secrets":  {"admin"},
     "manage_users":    {"admin"},
     "settings":        {"admin"},
 }

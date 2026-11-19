@@ -14,6 +14,8 @@ from pathlib import Path
 
 from . import compliance as _compliance
 from .users import can as _can
+from .monitor import snmp_availability
+from . import workspaces
 from .workflow import Workflow, Scripts
 from .drivers import get_driver as _get_driver
 from . import config as _config
@@ -34,7 +36,6 @@ from .web_mc9 import WebMC9Mixin
 from .web_supportability import WebSupportabilityMixin
 from .web_database import WebDatabaseMixin
 from .web_feature_controls import WebFeatureControlsMixin
-from . import features as _features
 from .web_ux import WebUxMixin, render_tabs, safe_next_path
 
 from .web_security_runtime import (
@@ -57,6 +58,8 @@ from .web_ui import (
 )
 
 _LOGIN_THROTTLE = LoginThrottle()
+_VAULT_THROTTLE = LoginThrottle(max_failures=3, max_delay=60)
+_VAULT_ATTEMPT_LOCK = threading.Lock()
 
 
 class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupportabilityMixin, WebMC9Mixin, WebOpsMixin, WebApiMixin, WebDependenciesMixin, WebIntegrationsMixin, http.server.BaseHTTPRequestHandler):
@@ -79,7 +82,11 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
         return self.manager._scripts
 
     def _session(self):
-        return _session_for(self)
+        path = urllib.parse.urlsplit(getattr(self, "path", "")).path
+        passive = getattr(self, "command", "") == "GET" and (
+            path in {"/device-monitoring-trends", "/snmp-series"} or
+            (path == "/traffic" and self.headers.get("X-NetConfig-Traffic") == "refresh"))
+        return _session_for(self, touch=not passive)
 
     def _require_auth(self):
         _, sess = self._session()
@@ -709,6 +716,7 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
             "/dashboard": lambda s: self._mc9_dashboard_page(s),
             "/traffic": lambda s: self._mc9_traffic_page(q, s),
             "/device": lambda s: self._device_page(q, s),
+            "/device-monitoring-trends": lambda s: self._device_monitoring_trends(q, s),
             "/device-new": lambda s: self._device_form(q, s),
             "/raw": lambda s: self._raw(q),
             "/diff": lambda s: self._diff_page(q, s),
@@ -752,10 +760,18 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
         sess = self._require_auth()
         if sess is None:
             return
-        off = _features.disabled_for_console(self.manager.settings, u.path)
-        if off:
-            return self._feature_off(sess, off)
+        if area := workspaces.disabled_web_area(self.manager.settings, u.path):
+            return self._workspace_off(area, sess)
         return h(sess)
+
+    def _workspace_off(self, area, sess):
+        from .features import off_message
+        link = ('<p><a class="btn" href="/settings?section=features">Open Settings → Features</a></p>'
+                if _can(sess["role"], "settings") else
+                '<p class="muted">Ask an administrator if you need it.</p>')
+        return self._send(self._page(workspaces.LABELS[area],
+                                     '<div class="panel"><p class="muted">This workspace is off.</p>'
+                                     f'<p>{html.escape(off_message(area))}</p>{link}</div>', sess), 403)
 
     def _route_post(self):
         u = urllib.parse.urlparse(self.path)
@@ -782,9 +798,8 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
         if not self._check_csrf(form):
             return self._send(self._page("Error",
                               '<div class="err">CSRF check failed.</div>', sess), 403)
-        off = _features.disabled_for_console(self.manager.settings, u.path)
-        if off:
-            return self._feature_off(sess, off)
+        if area := workspaces.disabled_web_area(self.manager.settings, u.path):
+            return self._workspace_off(area, sess)
         if u.path.startswith("/ops-"):
             if self._dispatch_ops_post(u.path, form, sess):
                 return
@@ -826,6 +841,7 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
             "/device-delete": lambda: self._do_device_delete(form, sess),
             "/device-test": lambda: self._do_device_test(form, sess),
             "/device-monitor-check": lambda: self._do_device_monitor_check(form, sess),
+            "/device-secret-reveal": lambda: self._do_device_secret_reveal(form, sess),
             "/account-password": lambda: self._do_account_password(form, sess),
             "/device-import": lambda: self._do_device_import(form, sess),
             "/device-run": lambda: self._do_device_run(form, sess),
@@ -904,20 +920,136 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
             _obs_event("auth_logout", username=sess["username"], source_ip=self._client_ip())
         self._redirect("/login", headers=[("Set-Cookie", "ncsid=; Max-Age=0; HttpOnly; SameSite=Strict; Path=/")])
 
+    def _try_vault_password(self, sess, action, target, operation):
+        """Use one process-local attempt budget for the single master password."""
+        user = sess["username"]
+        source = self._client_ip()
+        key = ("vault", "master")
+        if not _VAULT_ATTEMPT_LOCK.acquire(blocking=False):
+            return 1, False, None
+        try:
+            retry = _VAULT_THROTTLE.retry_after(*key)
+            if retry:
+                self.manager.db.audit(user, action + "_throttled", target, f"source={source}")
+                return retry, False, None
+            try:
+                result = operation()
+            except (ValueError, OSError):
+                _VAULT_THROTTLE.failure(*key)
+                self.manager.db.audit(user, action + "_failed", target, f"source={source}")
+                return 0, False, None
+            _VAULT_THROTTLE.success(*key)
+            return 0, True, result
+        finally:
+            _VAULT_ATTEMPT_LOCK.release()
+
     def _do_unlock(self, form, sess):
         from .web_forms import feedback
         target = safe_next_path((form.get("next") or [""])[0]) or "/vault"
         if not _can(sess["role"], "unlock_vault"):
             return feedback(self, sess, target, "Not permitted to unlock the vault.")
         pw = (form.get("master") or [""])[0]
-        try:
-            self.manager.unlock_vault(pw)
+        if not self.manager.vault.exists():
+            return feedback(self, sess, target, "No Vault has been created.")
+        retry, ok, _ = self._try_vault_password(
+            sess, "unlock_vault", "", lambda: self.manager.unlock_vault(pw))
+        if retry:
+            return self._send(self._page("Vault", '<div class="err">Too many attempts. Try again shortly.</div>',
+                                         sess), 429, headers=[("Retry-After", str(retry))])
+        if ok:
             self.manager.db.audit(sess["username"], "unlock_vault", "", "")
             return feedback(self, sess, target, "Vault unlocked. Continue your previous task.")
-        except ValueError:
-            return feedback(self, sess, target, "Wrong master password. The vault is still locked.")
+        return feedback(self, sess, target, "Wrong master password or the Vault could not be read.")
 
-    def _device_page(self, q, sess):
+    def _device_secret_panel(self, dev, sess, revealed=None, error=""):
+        if not _can(sess["role"], "reveal_secrets"):
+            return ""
+        refs = []
+        for usage, key in (("SSH", "secret_ref"), ("Enable", "enable_ref"), ("SNMP", "snmp_ref")):
+            ref = str(dev.get(key) or "").strip()
+            if ref:
+                refs.append((usage, ref))
+        if not refs:
+            return ('<div class="panel" id="saved-credentials"><h2>Saved credentials</h2>'
+                    '<p class="muted">This device does not reference a saved Vault credential.</p></div>')
+        error_html = f'<div class="err">{html.escape(error)}</div>' if error else ""
+        result = ""
+        if revealed is not None:
+            labels = {
+                "username": "Username", "password": "Password",
+                "enable_password": "Enable password", "key_path": "SSH key path",
+                "key_passphrase": "SSH key passphrase", "community": "SNMP community",
+                "snmp_user": "SNMPv3 user", "snmp_auth_proto": "SNMP auth protocol",
+                "snmp_auth_pass": "SNMP auth password", "snmp_priv_proto": "SNMP privacy protocol",
+                "snmp_priv_pass": "SNMP privacy password", "snmp_port": "SNMP port",
+            }
+            blocks = []
+            for ref, item in revealed.items():
+                uses = ", ".join(usage for usage, candidate in refs if candidate == ref)
+                rows = "".join(
+                    f'<tr><th>{html.escape(labels.get(key, key.replace("_", " ").title()))}</th>'
+                    f'<td><code>{html.escape(str(value))}</code></td></tr>'
+                    for key, value in item.items() if value not in (None, ""))
+                blocks.append(f'<h3>{html.escape(ref)} <span class="badge b-dim">{html.escape(uses)}</span></h3>'
+                              + (f'<table>{rows}</table>' if rows else '<p class="muted">The saved entry has no values.</p>'))
+            result = ('<div class="err" style="border-color:var(--ok);background:var(--ok10);color:var(--text)">'
+                      'Sensitive values are shown only in this response. Close or reload this page when finished.</div>'
+                      + "".join(blocks))
+        refs_text = " · ".join(f'{usage}: {html.escape(ref)}' for usage, ref in refs)
+        return (f'<div class="panel" id="saved-credentials"><h2>Saved credentials</h2>{error_html}{result}'
+                f'<p class="muted">{refs_text}</p>'
+                '<p class="muted">Administrator only. Enter the Vault master password each time. '
+                'Use this only over HTTPS or a trusted administrator network.</p>'
+                f'<form method=post action="/device-secret-reveal" class="row">{self._csrf_field()}'
+                f'<input type=hidden name=name value="{html.escape(dev["name"])}">'
+                '<input type=password name=master autocomplete=current-password maxlength=1024 '
+                'placeholder="Vault master password" required>'
+                '<div style="flex:0"><button>Reveal saved values once</button></div></form></div>')
+
+    def _device_monitoring_trends(self, q, sess):
+        name = (q.get("name") or [""])[0].strip()
+        dev = self.manager.inv.get(name)
+        if not dev:
+            return self._send("unknown device", 404, "text/plain")
+        from .web_evidence import vendor_measurements_overview_content
+        content = vendor_measurements_overview_content(self, name)
+        if not content:
+            content = ('<div class="telemetry-panel-head"><div><h2>Monitoring trends</h2>'
+                       '<p class="muted">No mapped numeric monitoring data is currently saved.</p></div></div>'
+                       '<p class="muted" data-monitoring-refresh-status>Auto-update will check for newly saved monitoring values.</p>')
+        return self._send(content, headers=[("Cache-Control", "no-store, max-age=0")])
+
+    def _do_device_secret_reveal(self, form, sess):
+        name = (form.get("name") or [""])[0].strip()
+        dev = self.manager.inv.get(name)
+        if not _can(sess["role"], "reveal_secrets"):
+            return self._send(self._page("Saved credentials", '<div class="err">Admin only.</div>', sess), 403)
+        if not dev:
+            return self._send(self._page("Device", '<div class="err">Unknown device.</div>', sess), 404)
+        headers = [("Cache-Control", "no-store, max-age=0"), ("Pragma", "no-cache")]
+        ip = self._client_ip()
+        master = (form.get("master") or [""])[0]
+        if not self.manager.vault.exists():
+            return self._device_page({"name": [name]}, sess, reveal_error="No Vault has been created.",
+                                     reveal_status=409, reveal_headers=headers)
+        refs = dict.fromkeys(
+            ref for key in ("secret_ref", "enable_ref", "snmp_ref")
+            if (ref := str(dev.get(key) or "").strip()))
+        retry, ok, revealed = self._try_vault_password(
+            sess, "vault_secret_reveal", name,
+            lambda: self.manager.vault.read_secrets_once(master, refs))
+        if retry:
+            return self._device_page({"name": [name]}, sess, reveal_error="Too many incorrect attempts. Try again shortly.",
+                                     reveal_status=429, reveal_headers=headers + [("Retry-After", str(retry))])
+        if not ok:
+            return self._device_page({"name": [name]}, sess, reveal_error="Wrong Vault master password.",
+                                     reveal_status=403, reveal_headers=headers)
+        self.manager.db.audit(sess["username"], "vault_secret_reveal", name,
+                              f"source={ip}; references={len(revealed)}")
+        return self._device_page({"name": [name]}, sess, revealed=revealed,
+                                 reveal_status=200, reveal_headers=headers)
+
+    def _device_page(self, q, sess, revealed=None, reveal_error="", reveal_status=200, reveal_headers=None):
         name = (q.get("name") or [""])[0]
         m = self.manager
         dev = m.inv.get(name)
@@ -1006,7 +1138,7 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
             else:
                 _oid_row = ""
             snmp_html = (f'<table>'
-                         f'<tr><th>Reachable</th><td>{"yes" if fx["reachable"] else "no"}</td></tr>'
+                         f'<tr><th>Reachability</th><td>{snmp_availability(fx, getattr(m, "settings", {}))}</td></tr>'
                          f'<tr><th>Last error</th><td>{html.escape(str(fx.get("error") or "—"))}</td></tr>'
                          f'<tr><th>sysName</th><td>{html.escape(fx["sysname"])}</td></tr>'
                          f'<tr><th>sysDescr</th><td>{html.escape(fx["sysdescr"])}</td></tr>'
@@ -1031,9 +1163,10 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
         edit_link = ""
         if _can(sess["role"], "manage_devices"):
             edit_link = (f'<a class="btn ghost" href="/device-new?name={_q(name)}" '
-                         f'style="float:right;padding:4px 12px">Edit</a>'
-                         f'<a class="btn ghost" href="/protocols?device={_q(name)}" '
-                         f'style="float:right;padding:4px 12px;margin-right:6px">Collection settings</a>')
+                         'style="float:right;padding:4px 12px">Edit</a>')
+        if "network" in _dtypes(dev) and _can(sess["role"], "collect"):
+            edit_link += (f'<a class="btn ghost" href="/protocols?device={_q(name)}" '
+                          'style="float:right;padding:4px 12px;margin-right:6px">Collection settings</a>')
         address = html.escape(dev["host"])
         address_row = (f'<tr><th>Primary hostname</th><td>{address}</td></tr>'
                        if application_only else
@@ -1065,7 +1198,8 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
         meta = (f'<div class="panel"><h2>{html.escape(name)}{edit_link}</h2><table>'
                 f'{address_row}<tr><th>Type</th><td>'
                 f'{html.escape(", ".join(t.capitalize() for t in sorted(_dt)))}</td></tr>'
-                f'{managed_rows}</table>{collect_btn}{base_html}</div>')
+                f'{managed_rows}</table>{collect_btn}{base_html}</div>'
+                + self._device_secret_panel(dev, sess, revealed=revealed, error=reveal_error))
         run_panel = ""
         if managed and _can(sess["role"], "execute"):
             run_panel = (f'<div class="panel"><h2>Run command</h2>'
@@ -1106,6 +1240,10 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
         if "network" in _dt and hasattr(m, "l3_topology"):
             from .web_evidence import route_learning_panel
             meta += route_learning_panel(self, sess, device=name)
+        monitoring_trends = ""
+        if dev.get("snmp_version") and _dt.intersection({"network", "system"}):
+            from .web_evidence import vendor_measurements_overview
+            monitoring_trends = vendor_measurements_overview(self, name)
         self._viewing_sess = sess  # per-request handler; panels keep their one-argument form
         portmon_panel = self._portmon_section(dev) if "system" in _dt else ""
         appmon_panel = self._appmon_section(dev) if "application" in _dt else ""
@@ -1119,14 +1257,15 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
                             f'<table><tr><th>Snapshot</th><th>SHA-256</th><th></th></tr>{vrows}</table></div>')
         addresses = (self._arp_section(dev) + self._mac_port_section(dev)) if "network" in _dt else ""
         inner = render_tabs([
-            ("overview", "Overview", meta + (run_panel if managed else "")),
+            ("overview", "Overview", monitoring_trends + meta + (run_panel if managed else "")),
             ("config", "Configuration", config_tab),
             ("snmp", "SNMP", snmp_panel if managed else ""),
             ("traffic", "Traffic", netflow_panel),
             ("monitoring", "Monitoring", portmon_panel + appmon_panel),
             ("addresses", "ARP / MAC", addresses),
         ], "device-tabs")
-        self._send(self._page(f"Device \u00b7 {name}", inner, sess))
+        self._send(self._page(f"Device \u00b7 {name}", inner, sess), reveal_status,
+                   headers=reveal_headers)
 
     def _secret_datalist(self, list_id):
         """A <datalist> of vault secret names when the vault is unlocked."""
@@ -1320,20 +1459,24 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
             return self._send(self._page("Settings", '<div class="err">Admin only.</div>', sess), 403)
         q = q or {}
         section = (q.get("section") or ["general"])[0]
-        sections = (("general", "General & SSH"), ("snmp", "SNMP polling"),
+        sections = (("general", "General & SSH"), ("features", "Optional workspaces"),
+                    ("snmp", "SNMP polling"),
                     ("netflow", "NetFlow"), ("monitoring", "Monitoring"),
                     ("integrations", "Integrations"), ("email", "Email & OAuth"),
-                    ("db", "Database"), ("evidence", "Evidence signing"),
-                    ("features", "Features"))
-        if section not in dict(sections):
+                    ("db", "Database"), ("evidence", "Evidence signing"))
+        if section == "integrations" and not workspaces.enabled(self.manager.settings, "security_intake"):
+            return self._workspace_off("security_intake", sess)
+        if section != "integrations" and section not in dict(sections):
             section = "general"
+        if not workspaces.visible(self.manager, "security_intake"):
+            sections = tuple(pair for pair in sections if pair[0] != "integrations")
         s = dict(self.manager.settings)
         if draft:
             from .web_forms import SECRET_FIELDS
             s.update({k: values[0] for k, values in draft.items()
                       if k in s and k not in SECRET_FIELDS and values})
             for k in ("record_sessions", "scrub_sessions", "netflow_enabled", "netflow_resolve_names", "netflow_history_enabled", "syslog_enabled", "snmp_trap_enabled", "snmp_trap_targeted_repoll", "operational_notifications_enabled", "smtp_enabled", "smtp_starttls", "o365_enabled"):
-                if section in {"general", "netflow", "monitoring", "email"}:
+                if section in {"general", "features", "netflow", "monitoring", "email"}:
                     s[k] = bool(draft.get(k))
 
         def field(key, label, hint=""):
@@ -1365,6 +1508,19 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
 <label style="color:var(--text);font-weight:400"><input type=checkbox name=record_sessions value=1 style="width:auto" {"checked" if s.get("record_sessions") else ""}> record transcripts</label>
 <label style="color:var(--text);font-weight:400"><input type=checkbox name=scrub_sessions value=1 style="width:auto" {"checked" if s.get("scrub_sessions") else ""}> mask passwords and secrets in session recordings</label></div></div>
 <button>Save general settings</button></form></div>"""
+        elif section == "features":
+            fields = []
+            for area, label in workspaces.LABELS.items():
+                current = workspaces.mode(s, area)
+                options = "".join(f'<option value="{choice}"{" selected" if current == choice else ""}>'
+                                  f'{choice.title()}</option>' for choice in workspaces.MODES)
+                fields.append(f'<label for="workspace_{area}">{label}</label>'
+                              f'<select id="workspace_{area}" name="workspace_{area}">{options}</select>')
+            content = f"""<div class="panel"><h2>Optional workspaces</h2>
+<p class="muted">On shows the workspace. Hidden keeps it running and shows it in navigation when action is needed. Off stops workspace operations while keeping saved records.</p>
+{form}
+{"".join(fields)}
+<button>Save workspace settings</button></form></div>"""
         elif section == "snmp":
             content = f"""<div class="panel"><h2>SNMP polling</h2>
 <p class="muted">Defaults for device polling and live interface history.</p>
@@ -1420,11 +1576,6 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
         elif section == "integrations":
             issued_token = str((q.get("_issued_token") or [""])[0] or "")
             content = self._integration_settings_content(sess, issued_token=issued_token)
-            from . import features as _feat
-            if not _feat.enabled(s, _feat.SECURITY_INTAKE):
-                content = ('<div class="panel"><p class="err">' + html.escape(_feat.off_message(_feat.SECURITY_INTAKE))
-                           + ' Sources below are kept but receive nothing. <a href="/settings?section=features">Features</a></p></div>'
-                           + content)
         elif section == "email":
             from . import mailer as _mailer
             from . import oauth as _oauth
@@ -1460,9 +1611,6 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
             content = self._database_settings_content(s, form)
         elif section == "evidence":
             content = self._evidence_settings_content(sess)
-        elif section == "features":
-            from .web_ux import features_settings_content
-            content = features_settings_content(self, s)
 
         body = (f'<p class="muted" style="margin-bottom:14px">Stored in '
                 f'<code>settings.json</code> in the data directory.</p><div class="settings-shell">'
@@ -1616,7 +1764,7 @@ The client secret is stored in the vault.</p>
         section = g("section") or "general"
         if section == "evidence":
             return self._save_evidence_settings(form, sess)
-        valid_sections = {"general", "snmp", "netflow", "monitoring", "email", "db", "features"}
+        valid_sections = {"general", "features", "snmp", "netflow", "monitoring", "email", "db"}
         if section not in valid_sections:
             section = "general"
 
@@ -1659,6 +1807,13 @@ The client secret is stored in the vault.</p>
         elif section == "general":
             s["record_sessions"] = bool(form.get("record_sessions"))
             s["scrub_sessions"] = bool(form.get("scrub_sessions"))
+        elif section == "features":
+            selected = {area: g(f"workspace_{area}") for area in workspaces.LABELS}
+            if any(value not in workspaces.MODES for value in selected.values()):
+                return invalid("Choose On, Hidden or Off for every workspace.")
+            for area, value in selected.items():
+                s[f"workspace_{area}"] = value
+                s.pop(f"web_{area}_enabled", None)
         elif section == "netflow":
             s["netflow_enabled"] = bool(form.get("netflow_enabled"))
             s["netflow_resolve_names"] = bool(form.get("netflow_resolve_names"))
@@ -1671,10 +1826,6 @@ The client secret is stored in the vault.</p>
             sev = g("operational_alert_min_severity").upper()
             if sev in {"DEBUG","INFO","NOTICE","WARNING","MINOR","MAJOR","ERROR","CRITICAL"}:
                 s["operational_alert_min_severity"] = sev
-        elif section == "features":
-            from . import features as _feat
-            for key in (_feat.INCIDENTS, _feat.SECURITY_INTAKE):
-                s[key] = bool(form.get(key))
         elif section == "email":
             s["smtp_enabled"] = bool(form.get("smtp_enabled"))
             s["smtp_starttls"] = bool(form.get("smtp_starttls"))
@@ -1693,9 +1844,9 @@ The client secret is stored in the vault.</p>
         except ValueError as exc:
             return invalid(str(exc))
         self.manager.db.audit(sess["username"], "settings_save", section, "")
-        labels = {"general": "General & SSH", "snmp": "SNMP polling",
+        labels = {"general": "General & SSH", "features": "Optional workspaces", "snmp": "SNMP polling",
                   "netflow": "NetFlow", "monitoring": "Monitoring",
-                  "email": "Email & OAuth", "features": "Features"}
+                  "email": "Email & OAuth"}
         return self._settings_page_v2(
             sess, q={"section": [section]}, flash=f"{labels[section]} settings saved.")
 
@@ -1779,16 +1930,17 @@ The client secret is stored in the vault.</p>
     def _do_protocol_save(self, form, sess):
         if not _can(sess["role"], "manage_devices"):
             return self._send("forbidden", 403, "text/plain")
+        device = (form.get("device") or [""])[0]
         try:
             self.manager.protocol_profiles.set(
-                (form.get("device") or [""])[0], (form.get("protocol") or [""])[0],
+                device, (form.get("protocol") or [""])[0],
                 port=int((form.get("port") or [0])[0] or 0), path=(form.get("path") or [""])[0],
                 secret_ref=(form.get("secret_ref") or [""])[0], ca_file=(form.get("ca_file") or [""])[0],
                 tls_verify=(form.get("tls_verify") or [""])[0] == "1",
                 allow_cli_fallback=(form.get("allow_cli_fallback") or [""])[0] == "1")
         except (ValueError, TypeError) as exc:
             return self._send(self._page("Structured Protocols", f'<div class=err>{html.escape(str(exc))}</div>', sess), 400)
-        return self._redirect("/protocols?notice=saved")
+        return self._redirect(f"/protocols?device={_q(device)}&notice=saved")
 
     def _do_protocol_collect(self, form, sess):
         if not _can(sess["role"], "collect"):
@@ -1797,7 +1949,7 @@ The client secret is stored in the vault.</p>
         result = self.manager.protocol_collect(device)
         if not result.ok:
             return self._send(self._page("Structured Protocols", f'<div class=err>{html.escape(result.message)}</div>', sess), 502)
-        return self._redirect("/protocols?notice=collected")
+        return self._redirect(f"/protocols?device={_q(device)}&notice=collected")
 
     def _snmp_page(self, q, sess):
         m = self.manager
@@ -1824,7 +1976,7 @@ The client secret is stored in the vault.</p>
                              + (f' <span class="muted">MIB: {html.escape(oid_map["source"])}</span>'
                                 if oid_map["source"] else ' <span class="muted">Unmapped</span>'))
                 facts_tbl = (f'<table>'
-                             f'<tr><th>Reachable</th><td>{"yes" if fx.get("reachable") else "no"}</td>'
+                             f'<tr><th>Reachability</th><td>{snmp_availability(fx, m.settings)}</td>'
                              f'<th>sysName</th><td>{html.escape(fx.get("sysname",""))}</td></tr>'
                              f'<tr><th>Uptime</th><td>{html.escape(fx.get("uptime",""))}</td>'
                              f'<th>Polled</th><td>{_fmt_ts(fx.get("last_polled"))}</td></tr>'
@@ -1844,11 +1996,12 @@ The client secret is stored in the vault.</p>
                      f'<a class="btn ghost" href="/snmp" style="float:right;padding:4px 12px">All devices</a></h2>'
                      f'{poll_btn}{facts_tbl}</div>'
                      f'{health}'
+                     f'{profile_panel}'
                      f'{graph}'
                      f'<div class="panel"><h2>Interfaces</h2>{iftbl}</div>')
             if "network" in _dtypes(dev):
                 inner += self._arp_section(dev) + self._mac_port_section(dev)
-            inner += profile_panel + walk_panel + vendor_panel
+            inner += walk_panel + vendor_panel
             return self._send(self._page(f"SNMP \u00b7 {device}", inner, sess))
 
         # fleet view
@@ -1858,9 +2011,9 @@ The client secret is stored in the vault.</p>
         rows = ""
         for d in snmp_devs:
             fx = facts.get(d["name"], {})
-            reach = ('<span class="badge b-ok">up</span>' if fx.get("reachable")
-                     else ('<span class="badge b-bad">unreachable</span>' if fx
-                           else '<span class="badge b-dim">not polled</span>'))
+            state = snmp_availability(fx, m.settings)
+            tone = {"up": "b-ok", "unreachable": "b-bad"}.get(state, "b-dim")
+            reach = f'<span class="badge {tone}">{state}</span>'
             up, tot = counts.get(d["name"], (0, 0))
             ifcell = (f'{up}/{tot} up' if tot else '<span class=muted>\u2014</span>')
             model = (fx.get("sysdescr", "") or "")[:46]
@@ -2617,12 +2770,14 @@ The client secret is stored in the vault.</p>
         view = str((q.get("view") or ["overview"])[0] or "overview").lower()
         if view not in {"overview", "active", "maintenance", "reports", "legacy"}:
             view = "overview"
+        incident_tab = ('<a class="tab" href="/incidents">Incidents</a>'
+                        if workspaces.visible(m, "incidents") else "")
         tabs = (
             '<div class="tabs">'
             f'<a class="tab {"active" if view=="overview" else ""}" href="/alerts">Overview</a>'
             f'<a class="tab {"active" if view=="active" else ""}" href="/alerts?view=active">Active Alerts</a>'
             '<a class="tab" href="/events">Events</a>'
-            '<a class="tab" href="/incidents">Incidents</a>'
+            f'{incident_tab}'
             f'<a class="tab {"active" if view=="maintenance" else ""}" href="/alerts?view=maintenance">Maintenance</a>'
             f'<a class="tab {"active" if view=="reports" else ""}" href="/alerts?view=reports">Reports</a>'
             f'<a class="tab {"active" if view=="legacy" else ""}" href="/alerts?view=legacy">Legacy history</a>'
@@ -2770,6 +2925,7 @@ The client secret is stored in the vault.</p>
 
     def _compliance_page(self, q, sess, flash=None):
         standard = (q.get("standard") or [""])[0] or None
+        selected_device = (q.get("device") or [""])[0].strip()
         m = self.manager
         stds = _compliance.standards()
         sel = "".join(
@@ -2796,31 +2952,56 @@ The client secret is stored in the vault.</p>
                        f'checks passed <span class="badge b-ok">{t["pass"]}</span> '
                        f'failed <span class="badge b-bad">{t["fail"]}</span> '
                        f'unknown <span class="badge b-dim">{t.get("unknown", 0)}</span></p></div>')
-            dev_html = ""
-            for dr in rep["devices"]:
+            devices = list(rep.get("devices") or [])
+            detail = next((dr for dr in devices if str(dr.get("device") or "") == selected_device), None)
+            if selected_device and detail is None:
+                report_html = summary + '<div class="err">That device is not present in the latest audit.</div>'
+                self._send(self._page("Compliance", controls + report_html, sess, flash=flash), 404)
+                return
+            if not selected_device:
+                cards = []
+                for dr in devices:
+                    if dr.get("skipped"):
+                        state, value, counts = "dim", "No config", "Audit could not evaluate this device"
+                    else:
+                        state = "bad" if dr.get("failed") else ("dim" if dr.get("unknown") else "ok")
+                        value = "Needs attention" if dr.get("failed") else ("Not fully evaluated" if dr.get("unknown") else "Passed")
+                        counts = (f'<span class="badge b-ok">{int(dr.get("passed") or 0)} pass</span> '
+                                  f'<span class="badge b-bad">{int(dr.get("failed") or 0)} fail</span> '
+                                  f'<span class="badge b-dim">{int(dr.get("unknown") or 0)} unknown</span>')
+                    href = "/compliance?" + urllib.parse.urlencode(
+                        {k: v for k, v in {"device": dr.get("device") or "", "standard": standard or ""}.items() if v})
+                    cards.append(f'<a class="sensor-card {state}" href="{html.escape(href)}">'
+                                 f'<div class="sensor-head"><span class="sensor-dot"></span>{html.escape(dr.get("device") or "Unknown device")}</div>'
+                                 f'<div class="sensor-value">{value}</div><div class="sensor-detail">{counts}</div></a>')
+                report_html = (summary + '<div class="panel"><h2>Devices</h2>'
+                               '<p class="muted">Select a device to open its full control results and remediation guidance.</p>'
+                               f'<div class="sensor-grid">{"".join(cards)}</div></div>')
+            else:
+                dr = detail
+                back = "/compliance" + (f"?standard={_q(standard)}" if standard else "")
                 if dr.get("skipped"):
-                    dev_html += (f'<div class="panel"><h2>{html.escape(dr["device"])} '
-                                 f'<span class="badge b-dim">no config</span></h2></div>')
-                    continue
-                rrows = ""
-                for r in dr["results"]:
-                    b = ("b-ok" if r["status"] == "pass" else
-                         "b-bad" if r["status"] == "fail" else "b-dim")
-                    ev = html.escape(r["evidence"][:80]) if r["evidence"] else ""
-                    rem = "" if r["status"] == "pass" else f'<div class="muted" style="margin-top:4px">\u21b3 {html.escape(r["remediation"])}</div>'
-                    kind = ('<br><span class="muted">operational evidence \u00b7 not scored</span>'
-                            if not r.get("scored", True) else '')
-                    rrows += (f'<tr><td><span class="sev-{r["severity"]}">\u25cf</span> {html.escape(r["title"])}<br>'
-                              f'<span class=muted>{html.escape(r["id"])} \u00b7 {html.escape(r["refs"])}</span>{kind}{rem}</td>'
-                              f'<td class=muted>{ev}</td>'
-                              f'<td><span class="badge {b}">{r["status"]}</span></td></tr>')
-                dh = ("b-bad" if dr["failed"] else
-                      "b-dim" if dr.get("unknown", 0) else "b-ok")
-                dev_html += (f'<div class="panel"><h2>{html.escape(dr["device"])} '
-                             f'<span class="badge {dh}">{dr["passed"]} pass / {dr["failed"]} fail / '
-                             f'{dr.get("unknown", 0)} unknown</span></h2>'
-                             f'<table><tr><th>Control</th><th>Evidence</th><th></th></tr>{rrows}</table></div>')
-            report_html = summary + dev_html
+                    report_html = (summary + f'<div class="panel"><p><a href="{back}">← Back to all devices</a></p>'
+                                   f'<h2>{html.escape(dr["device"])} <span class="badge b-dim">no config</span></h2>'
+                                   '<p class="muted">Collect a configuration, then run the audit again.</p></div>')
+                else:
+                    rrows = ""
+                    for r in dr["results"]:
+                        b = ("b-ok" if r["status"] == "pass" else
+                             "b-bad" if r["status"] == "fail" else "b-dim")
+                        ev = html.escape(r["evidence"][:200]) if r["evidence"] else ""
+                        rem = "" if r["status"] == "pass" else f'<div class="muted">↳ {html.escape(r["remediation"])}</div>'
+                        kind = ('<br><span class="muted">operational evidence · not scored</span>'
+                                if not r.get("scored", True) else '')
+                        rrows += (f'<tr><td><span class="sev-{r["severity"]}">●</span> {html.escape(r["title"])}<br>'
+                                  f'<span class=muted>{html.escape(r["id"])} · {html.escape(r["refs"])}</span>{kind}</td>'
+                                  f'<td>{rem}{f"<div class=muted>{ev}</div>" if ev else ""}</td>'
+                                  f'<td><span class="badge {b}">{r["status"]}</span></td></tr>')
+                    dh = ("b-bad" if dr["failed"] else "b-dim" if dr.get("unknown", 0) else "b-ok")
+                    report_html = (summary + f'<div class="panel"><p><a href="{back}">← Back to all devices</a></p>'
+                                   f'<h2>{html.escape(dr["device"])} <span class="badge {dh}">{dr["passed"]} pass / '
+                                   f'{dr["failed"]} fail / {dr.get("unknown", 0)} unknown</span></h2>'
+                                   f'<div class="table-wrap"><table><tr><th>Control</th><th>Evidence / remediation</th><th>Result</th></tr>{rrows}</table></div></div>')
         self._send(self._page("Compliance", controls + report_html, sess, flash=flash))
 
     def _do_compliance_run(self, form, sess):

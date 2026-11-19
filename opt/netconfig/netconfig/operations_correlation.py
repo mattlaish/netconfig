@@ -8,7 +8,7 @@ initiates device I/O, external connector actions, or configuration changes.
 from collections import defaultdict
 import time
 
-from .netflow import REVERSE_DNS, analyze_traffic, summarize_flows
+from .netflow import REVERSE_DNS, analyze_traffic, flow_matches_query, summarize_flows
 
 
 _ACTIVE_INCIDENT_STATES = {"OPEN", "INVESTIGATING"}
@@ -140,7 +140,7 @@ class OperationsCorrelationConsole:
     def traffic(self, collector, *, window_seconds=3600, bucket_seconds=300, limit=12, now=None,
                 query="", exporter=None, view_limit=50, resolve_names=None):
         window_seconds = max(60, min(int(window_seconds), 86400))
-        bucket_seconds = max(60, min(int(bucket_seconds), 3600))
+        bucket_seconds = max(10, min(int(bucket_seconds), 3600))
         limit = max(1, min(int(limit), 20))
         now = time.time() if now is None else float(now)
         cutoff = now - window_seconds
@@ -227,7 +227,10 @@ class OperationsCorrelationConsole:
             "exporters": exporters[:limit],
             "exporter_choices": exporter_choices,
             "trend": trend_rows,
-            "raw_flows": list(reversed(flows))[:200],
+            # Raw records are an explicit filtered drill-down, never a default
+            # payload on the traffic summary page.
+            "raw_flows": ([f for f in reversed(flows) if flow_matches_query(f, query)][:200]
+                          if str(query or "").strip() else []),
             "collector_status": collector.status() if collector is not None else {"running": False, "exporters": 0},
         }
 

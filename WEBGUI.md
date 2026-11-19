@@ -1,19 +1,108 @@
 # NetConfig Web Console — Operations and UI
 
-## Turn Incidents and security-tool intake on or off — 2026-11-10 source update
+## Confirmed configured static routes — 2026-11-11 corrective RPM
 
-Administrators choose optional areas in **Settings → Features**. Both are on by
-default, so upgraded installations behave as before.
+Layer 3 evidence now separates **Route source**, **Route proof** and next-hop
+resolution. `CONFIGURED_STATIC / CONFIRMED` means the saved running
+configuration and current route table agree on VRF, destination and next hop.
+Dynamically learned routes and route-table-only static entries remain current
+observations rather than configured intent. A confirmed static route may use a
+unique on-link device Host/IP for peer identity; the route itself stays
+confirmed while peer-identity confidence remains visible separately. This is
+included in `2.0.0-67.13.el10`.
 
-- **Incidents & case tracking** — incident records, linked evidence, timelines,
-  protocol traces, case exports and the Incident Workflow in Operations.
-- **Security-tool intake** — SIEM, NDR, EDR, WAF and other tools pushing events
-  through scoped API tokens (Settings → Integrations).
+## Same-subnet gateway resolution — 2026-11-11 source update
 
-When an area is off, its menu entries and dashboard links disappear, its pages show
-a short "turned off" notice, its API endpoints answer `404 feature_disabled` and the
-`netconfig incident` command stops with an explanation. Nothing new is recorded.
-Saved records are kept and reappear when the area is turned back on.
+Layer 3 and Combined can now resolve a previously unknown gateway through a
+unique managed Network-device Host/IP when fresh same-VRF connected evidence
+proves that the gateway is on-link. The L3 evidence table identifies
+`INVENTORY_HOST_ON_LINK`, medium confidence and the connected prefix used as
+proof. Duplicate Host/IP, off-link and cross-VRF cases remain unresolved or
+ambiguous. With **Show next-hop lines on shared subnets** enabled, the resolved
+route becomes a purple directional line. This is not included in the existing
+67.12 RPM.
+
+## Shared-subnet next-hop display — 2026-11-11 corrective RPM
+
+Layer 3 and Combined topology now provide **Show next-hop lines on shared
+subnets**. Enable it when the deployment deliberately uses directional routes
+between routers that also share a connected production subnet. The canvas keeps
+the subnet connections and additionally draws the purple next-hop line with its
+direction, next-hop IP and outgoing interface. The choice is preserved while
+switching topology views and other evidence controls. It is off by default so
+existing layouts do not change unexpectedly. This update is included in
+`2.0.0-67.12.el10`.
+
+## Operator workspace update — 2026-11-10 corrective RPM
+
+Traffic has five summary tabs—Sources, Destinations, Services, Connections and
+Exporters—with Now, 5-minute, 1-hour and 24-hour ranges. Raw records are not
+shown until an IP address or service filter is applied; they then appear in a
+separate Raw records tab.
+
+Settings → Optional workspaces can hide Alerts, Incidents and the entire Changes
+group. Compliance remains visible in its own navigation group. Its landing page
+shows one compact widget per device; select a widget for the complete control,
+evidence, remediation and pass/fail table.
+
+Administrators can use Devices → Credentials for a device, re-enter the Vault
+master password and reveal only that device's referenced saved values once.
+Reloading hides them. The response is not cacheable and failed attempts are
+rate-limited and audited without credential content.
+
+Monitoring trends on Device Overview refresh automatically from saved monitoring
+data. It pauses when the browser or Overview tab is hidden and does not poll the
+device. This batch is included in `2.0.0-67.11.el10`.
+
+## Topology layered diagram — 2026-11-09 corrective RPM
+
+The post-67.10 source gives each view a distinct diagram purpose. **Physical**
+draws one green line per confirmed managed LLDP/CDP device pair and labels the
+two ports. **Layer 3** draws connected-subnet edges in blue and resolved
+next-hop paths as purple dashed lines; reciprocal next-hop rows remain in the
+evidence table but share one canvas line. If both routers already connect to the
+same subnet node, that path replaces the redundant next-hop chord. **Combined** overlays those trusted
+layers. Optional FDB/MAC reachability is yellow/dotted and never presented as a
+cable or route. Reciprocal FDB evidence also shares one canvas line.
+
+Initial placement is component-aware and layered rather than circular. Physical,
+Layer 3 and Combined store drag positions independently under v2 browser keys;
+the old v1 layout cannot override the new default. **Reset layout** returns to
+the new deterministic placement. This rework is included in
+`2.0.0-67.11.el10`.
+
+## Topology diagram display — 2026-11-06 corrective RPM
+
+Open **Topology → Physical** for confirmed managed LLDP/CDP links.  The default
+canvas no longer draws every learned FDB/MAC path as a physical connection and
+no longer fills the canvas with devices that have no visible adjacency evidence.
+Use **Show inferred FDB paths** only when investigating where a managed MAC was
+learned; those optional links mean reachability through a forwarding path, not a
+direct cable.  Use **Show unconnected inventory** when an inventory-wide review
+is needed.
+
+**Layer 3** similarly hides evidence-free inventory by default.  **Combined**
+shows confirmed physical and routing evidence first, with FDB paths available as
+an explicit overlay. Opening or switching these views uses saved evidence and
+does not poll a device. The full read-only topology API remains unchanged. The
+footer shows `NetConfig v2.0.0-67.10`; this RPM upgrades 67.9.
+
+## SNMP monitoring trends — 2026-11-06 source update
+
+Open a Network or System device and use **Overview** for its most useful saved
+SNMP trends.  Network devices show available VPN tunnel, CPU and memory charts.
+System devices show available CPU, memory, disk and temperature charts.  Empty
+categories are not displayed.  These charts use previously saved polls; opening
+the page does not contact the device.
+
+On the device **SNMP** tab, **Vendor monitoring** appears near the top and groups
+related values into heartbeat-style charts.  Multiple processor cores appear as
+separate lines in one CPU chart, rather than nine independent table rows.  VPN
+tunnels appear as individual Up/Down lines when the profile collected their
+names.  Missing polls stay visibly discontinuous.  Expand **Advanced measurement
+details** only when individual OIDs, health rules or raw saved values are needed.
+
+This UI update is packaged in 2.0.0-67.9.el10.
 
 ## RSA 512+ SSH compatibility RPM — 2026-11-04
 
@@ -81,10 +170,11 @@ This historical source update was packaged in 67.4 and remains in 67.6.
   collection permission and an unlocked vault. Structured methods are not forced
   into CLI fallback. One-hour-old routes are excluded from current graphs; use
   Show outdated route evidence to inspect them. Graph GETs never poll devices.
-- **SNMP → device → Vendor profile telemetry:** readable values, units, active
-  health rules and History links. History is the latest 50 saved evaluations,
-  not a promise of continuous sampling. The selected history must belong to this
-  device's displayed profile. No profile means raw MIB values are not health-scored.
+- **SNMP → device → Vendor profile telemetry:** readable values, units and active
+  health rules.  This 2026-11-01 implementation originally exposed one History
+  link and 50-row table per measurement; the 2026-11-06 source update above now
+  makes grouped trend charts primary and keeps explicit raw history in advanced
+  disclosure.  No profile means raw MIB values are not health-scored.
 - Optional JSON profile `numeric` fields: positive `scale`, `offset`, `minimum`,
   `maximum`, `warning_above`, `critical_above`, `warning_below`, `critical_below`.
   Threshold comparisons include equality and apply after conversion. Numbers and
@@ -156,7 +246,7 @@ The R67.2-based working tree now closes five console coverage gaps. Status remai
 All new console POST routes use session authentication, existing role checks and CSRF protection. Network configuration writes remain behind the existing approval chain; no schema or public bearer-REST contract changes are introduced. `web_feature_controls.py` holds the additional controls and preserves the PH-1 `web.py` structural limits.
 
 <!-- documentation-sync: 2026-11-05 -->
-> **Canonical project state — 2026-11-05:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.8 / Enable Credential Precedence Corrective RPM** (`2.0.0-67.8`, `IMPLEMENTED_TESTING_DEFERRED`). When a Web-managed vault secret is both the SSH and enable reference, NetConfig now sends its explicit `enable_password` instead of incorrectly overwriting it with the SSH login password; separate Enable secrets remain supported. Release 67.7 legacy `ssh-rsa`/SHA-1 verification, managed known_hosts, the RSA 512-bit floor and normal-device OpenSSH isolation remain. Prior SNMPv3, Endpoint CSV, history/evidence/workflow corrections are preserved. **MC-11 Topology-Aware Change Planning** remains the final feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** and schema `mc11-topology-change-planning-1` remain. **Do not create MC-12.** Local regression does not replace live Cisco/AlmaLinux qualification. All twelve LIVE_RC gates and an explicit R68 decision remain required. Git stays user-managed.
+> **Canonical project state — 2026-11-12:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.14 / Devices and Traffic Console Corrective RPM** (`2.0.0-67.14`, `IMPLEMENTED_TESTING_DEFERRED`). Release 67.14 adds Devices monitoring cards, Traffic auto-refresh and destination lookup, and consistent sign-in and footer package versions. Release 67.13 distinguishes configured static route intent from dynamic and route-table-only observations while preserving Release 67.12 shared-subnet next-hop display, Release 67.11 layered topology and operator UI corrections, Release 67.10 evidence-first topology, Release 67.9 grouped SNMP trends, Release 67.8 Enable credential precedence and Release 67.7 isolated legacy `ssh-rsa`/SHA-1 verification. Existing state is preserved across upgrade. **MC-11 Topology-Aware Change Planning** remains the final feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** and schema `mc11-topology-change-planning-1` remain. **Do not create MC-12.** Offline verification does not replace live Cisco/AlmaLinux qualification. All twelve LIVE_RC gates and an explicit R68 decision remain required. Git stays user-managed.
 
 > **Document applicability:** this document is maintained against [ROADMAP.md](ROADMAP.md) and [AI_HANDOFF.md](AI_HANDOFF.md). Older release-numbered sections, test counts, fingerprints and Current/Next pointers below are historical unless explicitly restated in this 2026-10-13 update.
 
@@ -331,7 +421,7 @@ The Events page now presents normalized domain, severity, event type, affected e
 
 `/topology` now uses an inline dependency-free SVG graph rather than requiring managed devices to appear only through LLDP/CDP rows. Every managed inventory device receives a node. Node state distinguishes `OBSERVED`, `INFERRED`, and `UNKNOWN`; observed LLDP/CDP edges and inferred FDB/MAC paths use separate line styles and evidence labels.
 
-Operators can drag nodes, pan the background, zoom with the mouse wheel, reset the viewport, and clear the saved layout. Layout coordinates are stored only in browser `localStorage` under `netconfig-topology-layout-v1`; moving a node never asserts or modifies a network relationship. The page also retains evidence and identity tables and keeps downstream impact limited to observed direct topology evidence.
+Operators can drag nodes, pan the background, zoom with the mouse wheel, reset the viewport, and clear the saved layout. Current source stores coordinates separately under `netconfig-topology-layout-v2-physical`, `netconfig-topology-layout-v2-l3`, and `netconfig-topology-layout-v2-combined`; moving a node never asserts or modifies a network relationship. The page also retains evidence and identity tables and keeps downstream impact limited to observed direct topology evidence.
 
 
 ## R54.1 Topology views

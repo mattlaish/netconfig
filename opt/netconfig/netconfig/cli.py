@@ -790,10 +790,6 @@ def cmd_trace(m, args):
 
 
 def cmd_incident(m, args):
-    from . import features
-    if not features.enabled(m.settings, features.INCIDENTS):
-        print(features.off_message(features.INCIDENTS), file=sys.stderr)
-        sys.exit(2)
     incidents = m.incidents
     if args.action == "create":
         item = incidents.create(args.title, args.description or "", args.severity,
@@ -2051,6 +2047,14 @@ def main(argv=None):
         return
     m = Manager(args.home)
     try:
+        from .workspaces import LABELS, enabled
+        areas = {"incident": ("incidents",), "alerts": ("alerts",),
+                 "request": ("changes",), "automation": ("changes",)}
+        if args.cmd == "trace" and getattr(args, "incident", None):
+            areas["trace"] = ("incidents",)
+        for area in areas.get(args.cmd, ()):
+            if not enabled(m.settings, area):
+                raise SystemExit(f"{LABELS[area]} workspace is off.")
         args.func(m, args)
     except BrokenPipeError:
         try:

@@ -1,5 +1,86 @@
 # NetConfig
 
+## Confirmed configured static routes RPM — 2026-11-11
+
+Normal configuration collection now compares configured IPv4 static routes
+with the active route table. A matching VRF, destination and next hop is stored
+as `CONFIGURED_STATIC / CONFIRMED`; OSPF/BGP and other learned routes remain
+`DYNAMIC_LEARNED / OBSERVED_CURRENT`, while a static route seen only in the
+route table is `OBSERVED_STATIC`. Layer 3 topology, its REST API and the Web
+evidence table expose route source separately from next-hop device resolution.
+This change is packaged as `2.0.0-67.13.el10` so an installed 67.12 system
+can use `dnf upgrade`. Existing state is preserved.
+
+The unsigned offline-helper RPM is
+`dist/netconfig-2.0.0-67.13.el10.noarch.rpm`; SHA-256
+`2badc97c4d44743fd3894effb30d6f1f1f75ec230c4ca352dff9d922dbe92f7c`.
+Live AlmaLinux DNF/systemd/SELinux and representative-device qualification
+remain deferred.
+
+## Post-67.12 same-subnet gateway resolution — 2026-11-11 source update
+
+Layer 3 next-hop resolution now falls back safely when fresh peer-interface
+evidence is missing. A gateway becomes a managed `NEXT_HOP` only when it uniquely
+matches another Network device's Host/IP and fresh connected-route/interface
+evidence proves that the gateway is on-link from the source device in the same
+VRF. The edge is marked `INVENTORY_HOST_ON_LINK` with medium confidence. Duplicate
+Host/IP, off-link and cross-VRF cases remain ambiguous or unresolved. The L3 API
+and Web evidence table expose the resolution source and confidence. This source
+change is newer than the 67.12 RPM and is not included in that artifact.
+
+## Shared-subnet next-hop display corrective RPM — 2026-11-11
+
+Version `2.0.0-67.12.el10` adds **Show next-hop lines on shared subnets** to
+Layer 3 and Combined topology. Operators can retain the connected-subnet diagram
+and additionally show the purple directional route line with gateway IP and
+outgoing interface. The option is off by default and existing state is preserved.
+
+## Operator UI and layered topology corrective RPM — 2026-11-10
+
+The current source streamlines four everyday workflows. Traffic now offers
+Now, 5-minute, 1-hour and 24-hour summaries for Sources, Destinations, Services
+and Connections; raw flow rows appear only as a separate tab after an IP/service
+filter is entered. Device administrators can re-enter the Vault master password
+to reveal only that device's referenced saved credential values for one response.
+Alerts, Incidents and the Changes workspace are independently optional in
+Settings and default hidden; Compliance is a separate always-visible group.
+Compliance now opens as one summary widget per device and reveals full controls
+only after selecting a device. Device Overview monitoring trends auto-update
+from newly saved values without polling the device. These changes and the
+layered topology rework are packaged as `2.0.0-67.11.el10`, which upgrades
+67.10 while preserving existing state.
+
+## Layered topology diagram rework — 2026-11-09
+
+The current Windows source after 67.10 separates confirmed LLDP/CDP physical
+links from FDB/MAC forwarding reachability and replaces the circular canvas with
+a deterministic layered network diagram. Reciprocal observations no longer draw
+duplicate lines. Physical links show both ports; Layer 3 distinguishes connected
+subnets from resolved next-hop paths; Combined preserves those layers and keeps
+FDB as an optional dotted overlay. Separate v2 layout keys discard stale v1
+browser coordinates. This change is included in the 67.11 corrective RPM.
+
+## Evidence-first topology corrective RPM — 2026-11-06
+
+Version 2.0.0-67.10.el10 upgrades 67.9 and makes the topology canvas suitable for an
+operator-maintained network diagram. **Physical** defaults to confirmed managed
+LLDP/CDP adjacency. Learned FDB/MAC paths remain stored and available through the
+API/evidence drill-down, but are drawn only after choosing **Show inferred FDB
+paths** and are explicitly described as reachability rather than a direct cable.
+Devices without visible evidence are hidden by default and can be restored with
+**Show unconnected inventory**. Layer 3 applies the same evidence-first inventory
+filter; Combined keeps FDB paths opt-in. No page view performs device I/O, and
+the Web footer shows the complete installed package version.
+
+## SNMP monitoring trends corrective RPM — 2026-11-06
+
+Version 2.0.0-67.9.el10 groups persisted vendor SNMP measurements into
+multi-series trend charts. Device Overview now shows available Network VPN/CPU/
+memory trends or System CPU/memory/disk/temperature trends without polling the
+device. Empty categories are omitted, Application-only isolation is preserved,
+and detailed rows/history remain available under advanced disclosure. Existing
+state and all 67.8 fixes are retained across upgrade.
+
 ## Enable credential precedence corrective RPM — 2026-11-05
 
 Version 2.0.0-67.8.el10 fixes Cisco collection when a Web-managed vault record
@@ -209,7 +290,7 @@ Generated manifests, SBOM and artifact hashes remain pending regeneration for th
 Additional completed local checks: legacy selftest **ALL PASS** (including Application-only isolation and System-only regression), six changed runtime modules compile, and the existing canonical-state, compound-statement and PH-1 structure checks **3/3 PASS**. Selftest uses the same fail-closed Windows PTY import harness; this is not live SSH evidence.
 
 <!-- documentation-sync: 2026-11-05 -->
-> **Canonical project state — 2026-11-05:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.8 / Enable Credential Precedence Corrective RPM** (`2.0.0-67.8`, `IMPLEMENTED_TESTING_DEFERRED`). When a Web-managed vault secret is both the SSH and enable reference, NetConfig now sends its explicit `enable_password` instead of incorrectly overwriting it with the SSH login password; separate Enable secrets remain supported. Release 67.7 legacy `ssh-rsa`/SHA-1 verification, managed known_hosts, the RSA 512-bit floor and normal-device OpenSSH isolation remain. Prior SNMPv3, Endpoint CSV, history/evidence/workflow corrections are preserved. **MC-11 Topology-Aware Change Planning** remains the final feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** and schema `mc11-topology-change-planning-1` remain. **Do not create MC-12.** Local regression does not replace live Cisco/AlmaLinux qualification. All twelve LIVE_RC gates and an explicit R68 decision remain required. Git stays user-managed.
+> **Canonical project state — 2026-11-12:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.14 / Devices and Traffic Console Corrective RPM** (`2.0.0-67.14`, `IMPLEMENTED_TESTING_DEFERRED`). Release 67.14 adds Devices monitoring cards, Traffic auto-refresh and destination lookup, and consistent sign-in and footer package versions. Release 67.13 distinguishes configured static route intent from dynamic and route-table-only observations while preserving Release 67.12 shared-subnet next-hop display, Release 67.11 layered topology and operator UI corrections, Release 67.10 evidence-first topology, Release 67.9 grouped SNMP trends, Release 67.8 Enable credential precedence and Release 67.7 isolated legacy `ssh-rsa`/SHA-1 verification. Existing state is preserved across upgrade. **MC-11 Topology-Aware Change Planning** remains the final feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** and schema `mc11-topology-change-planning-1` remain. **Do not create MC-12.** Offline verification does not replace live Cisco/AlmaLinux qualification. All twelve LIVE_RC gates and an explicit R68 decision remain required. Git stays user-managed.
 
 > **Document applicability:** this document is maintained against [ROADMAP.md](ROADMAP.md) and [AI_HANDOFF.md](AI_HANDOFF.md). Older release-numbered sections, test counts, fingerprints and Current/Next pointers below are historical unless explicitly restated in this 2026-10-13 update.
 
@@ -523,7 +604,15 @@ The Events API supports normalized filtering and event detail reads, and the Eve
 
 The current Release 51 source includes a pre-MC4 compatibility patch while retaining `2.0.0-51` and `IMPLEMENTED_TESTING_DEFERRED` status. SNMPv3 standard AES-192/AES-256 now use Net-SNMP-compatible Blumenthal key extension; Cisco/Reeder AES-192/AES-256 are explicit compatibility choices (`aes192c` / `aes256c`).
 
-Topology now keeps every managed inventory device visible even when LLDP/CDP is unavailable. Persisted FDB/MAC evidence may add a clearly-labelled `INFERRED` path when a managed MAC identity matches uniquely; inferred paths are not direct adjacency and are not used by downstream-impact traversal. `/topology` provides a dependency-free draggable/pannable/zoomable SVG canvas whose layout is browser-local only. `GET /api/v1/topology/graph` exposes the same read-only graph. These features reuse persisted evidence and do not increase polling/device I/O.
+The original hotfix kept every inventory device visible and could add a clearly
+labelled `INFERRED` FDB/MAC path when a managed MAC identity matched uniquely.
+The current post-67.9 Web source keeps that evidence and API contract but hides
+inferred paths and evidence-free inventory from the default canvas. Operators can
+enable either overlay explicitly. Inferred paths remain non-adjacent and are not
+used by downstream-impact traversal. `/topology` remains a dependency-free
+draggable/pannable/zoomable SVG canvas whose layout is browser-local only, and
+`GET /api/v1/topology/graph` still exposes the complete read-only graph. These
+features reuse persisted evidence and do not increase polling/device I/O.
 
 
 ## Release 61 — Scale & Performance Qualification

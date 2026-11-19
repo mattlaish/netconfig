@@ -55,6 +55,10 @@ DEFAULT_SETTINGS = {
     "web_tls_key": "",                # optional PEM private key for built-in TLS
     "cookie_secure": False,            # add Secure to the session cookie; enable when
                                        # the console is fronted by the WAF for TLS
+    "workspace_alerts": None,
+    "workspace_incidents": None,
+    "workspace_changes": None,
+    "workspace_security_intake": None,
     "bulk_workers": 5,                 # concurrent SSH sessions for bulk jobs
     "snmp_workers": 8,                 # bounded concurrent SNMP polls
     "snmp_timeout": 2.0,
@@ -94,8 +98,6 @@ DEFAULT_SETTINGS = {
     "netflow_max_flows": 10000,        # recent flows kept per exporter (in memory, ~1 KB each)
     "netflow_resolve_names": False,    # reverse-DNS host names on traffic views (background, cached)
     "netflow_history_enabled": True,   # 24h PostgreSQL flows using History DB credentials
-    "incidents_enabled": True,         # Settings → Features: incidents, case exports, Incident Workflow
-    "security_intake_enabled": True,   # Settings → Features: SIEM/NDR/EDR/WAF event intake
     "syslog_enabled": False,          # bounded UDP syslog receiver for change-triggered collect
     "syslog_bind": "0.0.0.0",
     "syslog_port": 5514,               # non-privileged default; forward udp/514 if desired

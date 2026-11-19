@@ -1,3 +1,28 @@
+Version 2.0.0-67.14.el10 upgrades 67.13 with Devices monitoring cards,
+Traffic auto-refresh and destination lookup, and consistent package version
+display on the sign-in screen and console footer.
+
+Version 2.0.0-67.13.el10 upgrades 67.12 with confirmed configured-static route
+evidence. Normal configuration collection matches configured IPv4 static
+routes to the active route table, persists route proof separately from next-hop
+identity, and exposes both through the L3 REST API and Web evidence table.
+Existing state and configuration are preserved. Offline helper verification
+does not replace live AlmaLinux DNF/systemd/SELinux qualification.
+
+Version 2.0.0-67.12.el10 upgrades 67.11 with the optional shared-subnet
+next-hop route display. Layer 3 and Combined can retain purple directional
+next-hop lines alongside connected-subnet edges while showing gateway and
+outgoing-interface evidence. The option is off by default. Existing state and
+configuration are preserved. Offline helper verification does not replace live
+AlmaLinux DNF/systemd/SELinux qualification.
+
+Version 2.0.0-67.11.el10 upgrades 67.10 with the layered topology rework and
+the current operator UI corrections: bounded Traffic time choices plus filtered
+raw records, per-device one-response Vault reveal, optional Alerts/Incidents/
+Changes navigation, independent Compliance widgets and saved-data monitoring
+trend refresh. Existing state and configuration are preserved. Offline helper
+verification does not replace live AlmaLinux DNF/systemd/SELinux qualification.
+
 Release 62.1 uses RPM identity `netconfig-2.0.0-62.1`. It is a security/packaging hotfix on R62: RESTCONF redirects are refused, the OpenSSH target is placed after `--`, and the upstream executable-mode repair patch covers every required operational entry point. R62 PostgreSQL concurrency/recovery and `packaging/r62-qualify.sh` remain unchanged in authority; live production claims still require `LIVE_POSTGRESQL` evidence. R61 scale/performance and R60 lifecycle tooling remain available as historical qualification tracks.
 
 Release 60 uses RPM identity `netconfig-2.0.0-60`. `packaging/r60-lifecycle-upgrade.sh` is the supported R59→R60 lifecycle wrapper for qualification/runbook use: it snapshots local state, masks services during the DNF transaction, verifies package/unit/preservation state, and performs an explicit release-59 downgrade plus state restore on failure. PostgreSQL requires a separately restored and validated rollback database before destructive upgrade execution. `packaging/r60-qualify.sh` runs the dedicated R60 evidence runner.
@@ -7,6 +32,23 @@ Release 60 uses RPM identity `netconfig-2.0.0-60`. `packaging/r60-lifecycle-upgr
 Q2 production qualification executes against the frozen R59 product with `packaging/q2-qualify.sh`. The Q2 harness is not packaged as product runtime and does not replace canonical AlmaLinux `rpmbuild`/DNF/systemd/SELinux evidence. Destructive gates require explicit authorization; missing qualification infrastructure is `BLOCKED_ENVIRONMENT`, never PASS.
 
 # NetConfig RPM build and installation (AlmaLinux 10)
+
+## Evidence-first topology corrective RPM — 2026-11-06
+
+Version 2.0.0-67.10.el10 upgrades 67.9 and makes Physical topology default to
+confirmed managed LLDP/CDP adjacency. FDB/MAC reachability and evidence-free
+inventory remain available as explicit overlays instead of filling the default
+diagram with inferred yellow lines and isolated nodes. Layer 3 and Combined use
+the same evidence-first canvas policy. The Web footer shows the full installed
+package version. Stored evidence, collection behavior, configuration and existing
+state are preserved.
+
+## SNMP monitoring trends corrective RPM — 2026-11-06
+
+Version 2.0.0-67.9.el10 upgrades 67.8 with grouped SNMP trend charts and
+evidence-driven Network/System Device Overview monitoring. It reads persisted
+Sensor history only; opening the page does not poll devices. Application-only
+isolation and existing state remain unchanged.
 
 ## Enable credential precedence corrective RPM — 2026-11-05
 
@@ -61,7 +103,7 @@ in-memory compilation are recorded in the external report. Earlier frozen
 fingerprints and release-specific examples below remain historical.
 
 <!-- documentation-sync: 2026-11-05 -->
-> **Canonical project state — 2026-11-05:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.8 / Enable Credential Precedence Corrective RPM** (`2.0.0-67.8`, `IMPLEMENTED_TESTING_DEFERRED`). When a Web-managed vault secret is both the SSH and enable reference, NetConfig now sends its explicit `enable_password` instead of incorrectly overwriting it with the SSH login password; separate Enable secrets remain supported. Release 67.7 legacy `ssh-rsa`/SHA-1 verification, managed known_hosts, the RSA 512-bit floor and normal-device OpenSSH isolation remain. Prior SNMPv3, Endpoint CSV, history/evidence/workflow corrections are preserved. **MC-11 Topology-Aware Change Planning** remains the final feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** and schema `mc11-topology-change-planning-1` remain. **Do not create MC-12.** Local regression does not replace live Cisco/AlmaLinux qualification. All twelve LIVE_RC gates and an explicit R68 decision remain required. Git stays user-managed.
+> **Canonical project state — 2026-11-12:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.14 / Devices and Traffic Console Corrective RPM** (`2.0.0-67.14`, `IMPLEMENTED_TESTING_DEFERRED`). Release 67.14 adds Devices monitoring cards, Traffic auto-refresh and destination lookup, and consistent sign-in and footer package versions. Release 67.13 distinguishes configured static route intent from dynamic and route-table-only observations while preserving Release 67.12 shared-subnet next-hop display, Release 67.11 layered topology and operator UI corrections, Release 67.10 evidence-first topology, Release 67.9 grouped SNMP trends, Release 67.8 Enable credential precedence and Release 67.7 isolated legacy `ssh-rsa`/SHA-1 verification. Existing state is preserved across upgrade. **MC-11 Topology-Aware Change Planning** remains the final feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** and schema `mc11-topology-change-planning-1` remain. **Do not create MC-12.** Offline verification does not replace live Cisco/AlmaLinux qualification. All twelve LIVE_RC gates and an explicit R68 decision remain required. Git stays user-managed.
 
 > **Document applicability:** this document is maintained against [ROADMAP.md](../ROADMAP.md) and [AI_HANDOFF.md](../AI_HANDOFF.md). Older release-numbered sections, test counts, fingerprints and Current/Next pointers below are historical unless explicitly restated in this 2026-10-13 update.
 

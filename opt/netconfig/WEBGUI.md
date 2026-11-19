@@ -1,5 +1,65 @@
 # NetConfig — Web Console Operator Guide
 
+## Devices and Traffic — 67.14
+
+Devices shows one card per device, with availability from its latest saved
+monitoring checks. Open a Network device and select **Collection settings**
+to manage its collection method. Traffic updates the current view in place.
+In Destinations, use **Look up destination names (FQDN)** to request names for
+the addresses shown. The sign-in screen and console footer show the installed
+RPM version.
+
+## Confirmed configured static routes — 2026-11-11 corrective RPM
+
+The L3 evidence table now shows **Route source** and **Route proof** separately
+from next-hop resolution. `CONFIGURED_STATIC / CONFIRMED` is shown only when
+the collected running configuration matches the active route table on VRF,
+destination and next hop. OSPF/BGP and route-table-only static routes remain
+observations. This behavior is included in `2.0.0-67.13.el10`, which upgrades
+67.12 and preserves existing state.
+
+## Same-subnet gateway resolution — post-67.12 source update
+
+Layer 3 evidence now shows whether a gateway resolved from a fresh managed
+interface or from a unique on-link Network-device Host/IP. The latter is marked
+`INVENTORY_HOST_ON_LINK` with medium confidence and includes the connected prefix
+used as proof. Enable **Show next-hop lines on shared subnets** to draw this
+directional route alongside the subnet edges. This source update is newer than
+67.12.
+
+## Shared-subnet next-hop lines — 2026-11-11
+
+In Layer 3 or Combined topology, choose **Show next-hop lines on shared
+subnets** to retain purple directional route lines alongside connected-subnet
+edges. The line identifies the route direction, next-hop address and outgoing
+interface. The option is off by default and is preserved while switching views.
+
+## Operator UI and layered topology — 2026-11-10
+
+Version 2.0.0-67.11.el10 adds the layered, evidence-separated topology layout;
+Traffic Now/5-minute/1-hour/24-hour summaries and filtered Raw records tab;
+admin-only one-response device credential reveal; optional Alerts, Incidents
+and Changes navigation; independent per-device Compliance widgets; and Device
+Overview trends that refresh from saved data without device polling.
+
+## Evidence-first topology — 2026-11-06
+
+Version 2.0.0-67.10.el10 makes **Topology → Physical** show confirmed managed
+LLDP/CDP links by default. Use **Show inferred FDB paths** to investigate optional
+MAC reachability evidence and **Show unconnected inventory** to include devices
+without visible evidence. Layer 3 and Combined follow the same evidence-first
+display rule. The footer shows `NetConfig v2.0.0-67.10`; opening these views uses
+saved data and does not poll devices.
+
+## SNMP monitoring trends — 2026-11-06
+
+Version 2.0.0-67.9.el10 presents useful persisted vendor SNMP measurements as
+grouped heartbeat-style charts. Network Overview selects available VPN tunnel,
+CPU and memory data; System Overview selects CPU, memory, disk and temperature.
+Multiple processor cores share one chart, VPN tunnel names become individual
+Up/Down lines, empty categories are omitted, and raw rows/history are available
+under advanced disclosure. Page loading does not poll the device.
+
 ## RSA 512+ SSH compatibility RPM — 2026-11-04
 
 Version 2.0.0-67.6.el10 changes **Older-device SSH compatibility** into an
@@ -99,7 +159,7 @@ The R67.2-based working tree now closes five console coverage gaps. Status remai
 All new console POST routes use session authentication, existing role checks and CSRF protection. Network configuration writes remain behind the existing approval chain; no schema or public bearer-REST contract changes are introduced. `web_feature_controls.py` holds the additional controls and preserves the PH-1 `web.py` structural limits.
 
 <!-- documentation-sync: 2026-11-05 -->
-> **Canonical project state — 2026-11-05:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.8 / Enable Credential Precedence Corrective RPM** (`2.0.0-67.8`, `IMPLEMENTED_TESTING_DEFERRED`). When a Web-managed vault secret is both the SSH and enable reference, NetConfig now sends its explicit `enable_password` instead of incorrectly overwriting it with the SSH login password; separate Enable secrets remain supported. Release 67.7 legacy `ssh-rsa`/SHA-1 verification, managed known_hosts, the RSA 512-bit floor and normal-device OpenSSH isolation remain. Prior SNMPv3, Endpoint CSV, history/evidence/workflow corrections are preserved. **MC-11 Topology-Aware Change Planning** remains the final feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** and schema `mc11-topology-change-planning-1` remain. **Do not create MC-12.** Local regression does not replace live Cisco/AlmaLinux qualification. All twelve LIVE_RC gates and an explicit R68 decision remain required. Git stays user-managed.
+> **Canonical project state — 2026-11-12:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.14 / Devices and Traffic Console Corrective RPM** (`2.0.0-67.14`, `IMPLEMENTED_TESTING_DEFERRED`). Release 67.14 adds Devices monitoring cards, Traffic auto-refresh and destination lookup, and consistent sign-in and footer package versions. Release 67.13 distinguishes configured static route intent from dynamic and route-table-only observations while preserving Release 67.12 shared-subnet next-hop display, Release 67.11 layered topology and operator UI corrections, Release 67.10 evidence-first topology, Release 67.9 grouped SNMP trends, Release 67.8 Enable credential precedence and Release 67.7 isolated legacy `ssh-rsa`/SHA-1 verification. Existing state is preserved across upgrade. **MC-11 Topology-Aware Change Planning** remains the final feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** and schema `mc11-topology-change-planning-1` remain. **Do not create MC-12.** Offline verification does not replace live Cisco/AlmaLinux qualification. All twelve LIVE_RC gates and an explicit R68 decision remain required. Git stays user-managed.
 
 > **Document applicability:** this document is maintained against [ROADMAP.md](../../ROADMAP.md) and [AI_HANDOFF.md](../../AI_HANDOFF.md). Older release-numbered sections, test counts, fingerprints and Current/Next pointers below are historical unless explicitly restated in this 2026-10-13 update.
 
