@@ -765,8 +765,13 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
         return h(sess)
 
     def _workspace_off(self, area, sess):
+        from .features import off_message
+        link = ('<p><a class="btn" href="/settings?section=features">Open Settings → Features</a></p>'
+                if _can(sess["role"], "settings") else
+                '<p class="muted">Ask an administrator if you need it.</p>')
         return self._send(self._page(workspaces.LABELS[area],
-                                     '<p class="muted">This workspace is off.</p>', sess), 403)
+                                     '<div class="panel"><p class="muted">This workspace is off.</p>'
+                                     f'<p>{html.escape(off_message(area))}</p>{link}</div>', sess), 403)
 
     def _route_post(self):
         u = urllib.parse.urlparse(self.path)

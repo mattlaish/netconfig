@@ -1,3 +1,19 @@
+## PATCH-20261119-01 — Merge branch Features work into the workspace switches
+
+- Merged `claude/test-633sv0` (Settings → Features switches for Incidents and
+  security-tool intake) with main `c9d207b`. Main's On / Hidden / Off workspaces
+  already cover every entry point the branch gated, so they remain the only policy:
+  one `workspace_<area>` setting per area. The branch's `incidents_enabled` and
+  `security_intake_enabled` keys and its duplicate command-line check are dropped.
+- Kept `features.py` as a helper API over `workspaces` (no separate settings) and
+  its regression file `tests/test_feature_switches.py`, rewritten for the
+  three-state policy (Off returns 403 `workspace_off`; records survive; viewers
+  cannot change modes; unauthenticated API callers still get 401).
+- The turned-off page now explains that saved records are kept and gives
+  administrators a link to Settings → Features (others: ask an administrator).
+- Validation: full suite **910 passed / 15 skipped / 0 failed**; legacy selftest ALL PASS. Source metadata
+  regenerated. Live devices/PostgreSQL/AlmaLinux/LIVE_RC NOT_RUN.
+
 ## PATCH-20261115-01 — Security and operator audit repairs
 
 - Keep Vault Reveal request-local and share the Web master-password throttle.

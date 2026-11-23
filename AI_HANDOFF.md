@@ -1,5 +1,12 @@
 # NetConfig AI Handover
 
+## Branch Features work merged into workspaces — 2026-11-19
+
+See PATCH-20261119-01. `workspaces.py` is the single policy for optional areas;
+`features.py` is only a helper over it (`enabled`, `mode`, `off_message`). Do not
+add separate on/off settings for an area. The turned-off page is
+`Console._workspace_off`.
+
 ## Security and operator audit repairs — 2026-11-15 source update
 
 The saved-credentials action decrypts only for its current request and keeps the
