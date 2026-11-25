@@ -11,6 +11,7 @@ import time
 import uuid
 
 from . import ifhistory
+from .history_diagnostics import failure_verdict, verdict_text
 
 RETENTION_SECONDS = 86400
 QUERY_LIMIT = 200000
@@ -44,14 +45,47 @@ class PgFlowHistory(ifhistory.PgHistory):
 
     def write(self, flows):
         self.ensure_schema()
-        rows = [tuple(f[k] for k in COLUMNS) for f in flows]
         with self._connect() as c:
-            with c.cursor() as cur:
-                cur.executemany(
-                    f"INSERT INTO {TABLE} ({','.join(COLUMNS)}) "
-                    "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) "
-                    "ON CONFLICT (record_id) DO NOTHING", rows)
+            self._insert(c, flows)
             c.commit()
+
+    @staticmethod
+    def _insert(c, flows):
+        rows = [tuple(f[k] for k in COLUMNS) for f in flows]
+        with c.cursor() as cur:
+            cur.executemany(
+                f"INSERT INTO {TABLE} ({','.join(COLUMNS)}) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) "
+                "ON CONFLICT (record_id) DO NOTHING", rows)
+
+    def check_flow_ready(self):
+        """Verify the actual flow table permissions without leaving test traffic."""
+        stage = "prepare flow table"
+        try:
+            self.ensure_schema()
+            with self._connect() as c:
+                # The normal insert path and real table are used. All probe DML
+                # is rolled back, including if read/delete checks fail.
+                probe = dict(zip(COLUMNS, (
+                    "probe-" + uuid.uuid4().hex, 0.0, "netconfig-check", "192.0.2.1",
+                    "192.0.2.2", 0, 0, "TEST", 0, 0), strict=True))
+                stage = "write flow record"
+                self._insert(c, [probe])
+                stage = "read flow record"
+                row = c.execute(f"SELECT {','.join(COLUMNS)} FROM {TABLE} WHERE record_id=%s",
+                                (probe["record_id"],)).fetchone()
+                if row is None or tuple(row) != tuple(probe[k] for k in COLUMNS):
+                    raise ValueError("flow probe roundtrip mismatch")
+                stage = "remove flow record"
+                c.execute(f"DELETE FROM {TABLE} WHERE record_id=%s", (probe["record_id"],))
+                c.rollback()
+            return {"ok": True, "stage": "complete",
+                    "message": "Saved History connection passed NetFlow table setup, write, read and cleanup checks."}
+        except Exception as exc:
+            verdict = failure_verdict(exc, stage,
+                                      credential_state=getattr(self, "credential_state", ""))
+            return {"ok": False, "stage": stage, "verdict": verdict,
+                    "message": verdict_text(verdict)}
 
     def prune(self, now=None):
         self.ensure_schema()
@@ -102,10 +136,13 @@ def backend_for(manager):
     base = ifhistory.build_backend(settings, password=manager._pg_password())
     if base is None:
         return None
-    key = (base.conninfo, tuple(sorted(base.params.items())))
+    credential_state = "ready" if base.params.get("password") else (
+        "locked" if not manager.vault_ready() else "missing")
+    key = (base.conninfo, tuple(sorted(base.params.items())), credential_state)
     cached = getattr(manager, "_flow_history_cache", None)
     if cached is None or cached[0] != key:
         cached = (key, PgFlowHistory(conninfo=base.conninfo, params=base.params))
+        cached[1].credential_state = credential_state
         manager._flow_history_cache = cached
     return cached[1]
 
@@ -172,9 +209,19 @@ class FlowHistory:
         with self._lock:
             return {**self._status, "pending": len(self._pending)}
 
-    def _error(self, key, message):
+    def _error(self, key, message, verdict=None):
         with self._lock:
             self._status[key] = message
+            self._status[key.replace("_error", "_verdict")] = verdict
+
+    def _failure(self, key, exc, stage, backend=None):
+        verdict = failure_verdict(exc, stage,
+                                  credential_state=getattr(backend, "credential_state", ""))
+        prefix = {"write_error": "Database write failed.",
+                  "read_error": "Database history unavailable; showing recent memory only.",
+                  "maintenance_error": "History cleanup failed.",
+                  "exporter_error": "Saved exporters could not be listed."}[key]
+        self._error(key, prefix + " " + verdict_text(verdict), verdict)
 
     def _set_configured(self, configured):
         with self._lock:
@@ -184,6 +231,7 @@ class FlowHistory:
                 self._pending.clear()
                 for key in ("write_error", "read_error", "maintenance_error", "exporter_error"):
                     self._status[key] = ""
+                    self._status[key.replace("_error", "_verdict")] = None
 
     def flush_once(self, now=None):
         """One bounded batch; only the background worker calls this in production."""
@@ -194,14 +242,17 @@ class FlowHistory:
                 self._status["expired"] += 1
             batch = list(self._pending)[:self.batch_size]
         backend = None
+        stage = "resolve saved connection"
         try:
             backend = self.provider()
             if backend is None:
                 self._set_configured(False)
                 return False
             self._set_configured(True)
+            stage = "prepare flow table"
             backend.ensure_schema()
             if batch:
+                stage = "write flow records"
                 backend.write(batch)
                 with self._lock:
                     for _ in batch:
@@ -212,7 +263,7 @@ class FlowHistory:
         except Exception as exc:
             if backend is not None:
                 backend._schema_ready = False
-            self._error("write_error", f"Database write failed ({type(exc).__name__}). Check History PostgreSQL and vault access.")
+            self._failure("write_error", exc, stage, backend)
             return False
         if now >= self._next_prune:
             try:
@@ -222,7 +273,7 @@ class FlowHistory:
                     self._status["last_maintenance_ts"] = now
                 self._next_prune = now + (1 if removed >= 10000 else 60)
             except Exception as exc:
-                self._error("maintenance_error", f"History cleanup failed ({type(exc).__name__}).")
+                self._failure("maintenance_error", exc, "remove expired records", backend)
                 self._next_prune = now + 60
         return True
 
@@ -256,14 +307,15 @@ class FlowHistory:
         since = max(float(since), float(until) - RETENTION_SECONDS)
         with self._lock:
             names = {f["exporter"] for f in self._pending if since <= f["ts"] <= until}
+        backend = None
         try:
             backend = self.provider()
             if backend is None:
                 self._set_configured(False)
                 return sorted(names)
             names.update(backend.exporters(since, until))
-        except Exception:
-            self._error("exporter_error", "Some saved exporters could not be listed. Check the database connection or enter a shorter period.")
+        except Exception as exc:
+            self._failure("exporter_error", exc, "list saved exporters", backend)
         else:
             self._error("exporter_error", "")
         return sorted(names)
@@ -274,6 +326,7 @@ class FlowHistory:
         with self._lock:
             pending = [dict(f) for f in self._pending if since <= f["ts"] <= until
                        and (not exporter or f["exporter"] == exporter)]
+        backend = None
         try:
             backend = self.provider()
             if backend is None:
@@ -281,7 +334,7 @@ class FlowHistory:
                 return None
             stored, truncated = backend.read(since, until, exporter=exporter, limit=limit)
         except Exception as exc:
-            self._error("read_error", f"Database history unavailable ({type(exc).__name__}); showing recent memory only.")
+            self._failure("read_error", exc, "read flow records", backend)
             return None
         self._error("read_error", "")
         merged = {f["record_id"]: f for f in stored}

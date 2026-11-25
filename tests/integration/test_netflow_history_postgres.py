@@ -25,6 +25,8 @@ def test_real_postgres_history_restart_retention_and_unsigned_counters():
             row = {"record_id": uuid.uuid4().hex, "ts": now - 10, "exporter": "192.0.2.1",
                    "src": "2001:db8::1", "dst": "2606:4700::1111", "sport": 50000,
                    "dport": 443, "proto": "TCP", "packets": 2, "bytes": (1 << 64) - 1}
+            assert backend.check_flow_ready()["ok"]
+            assert backend.read(now - 86400, now)[0] == []
             backend.write([row, dict(row, record_id=uuid.uuid4().hex, ts=now - 86401)])
             backend.write([row])  # retry must not duplicate
             restarted = PgFlowHistory(conninfo=backend.conninfo)

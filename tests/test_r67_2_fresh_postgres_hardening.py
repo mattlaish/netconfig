@@ -8,7 +8,6 @@ import time
 import urllib.parse
 from pathlib import Path
 
-import pytest
 
 from netconfig import ifhistory
 from netconfig.config import DEFAULT_SETTINGS
@@ -152,7 +151,7 @@ def test_database_console_separates_core_and_history(tmp_path):
         status, body, _ = _request(server, "GET", "/settings?section=db", sid=sid)
         assert status == 200
         assert "Core Database" in body
-        assert "Interface History Store" in body
+        assert "History database" in body and "NetFlow &amp; interface graphs" in body
         assert 'formaction="/core-db-test"' in body
         assert 'formaction="/history-db-test"' in body
         assert "Core PostgreSQL host" in body

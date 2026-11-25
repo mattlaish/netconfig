@@ -102,3 +102,23 @@ def test_incident_cli_refuses_when_off(tmp_path):
 def test_console_prefixes(path):
     assert features.disabled_for_console({"workspace_incidents": "off"}, path) == features.INCIDENTS
     assert features.disabled_for_console({}, path) is None
+
+
+def test_changes_off_keeps_independent_operations_and_navigation(console):
+    _set(console, changes="off", incidents="on")
+    admin = console.session()
+    for tab in ("overview", "intelligence", "telemetry", "models", "ha"):
+        code, _, body = console.request("GET", f"/operations?tab={tab}", token=admin)
+        assert code == 200, (tab, body)
+        assert 'href="/operations"' in body
+        assert 'href="/operations?tab=structured"' not in body
+        assert 'action="/ops-change-plan"' not in body
+    for tab in ("structured", "desired", "intents", "campaigns", "workflow"):
+        code, _, body = console.request("GET", f"/operations?tab={tab}", token=admin)
+        assert code == 403 and "Changes is turned off" in body
+    code, _, _ = console.request("POST", "/ops-structured-submit", {"csrf": "ux-csrf"}, token=admin)
+    assert code == 403
+    code, _, _ = console.request("POST", "/ops-analytics-expire", {"csrf": "ux-csrf"}, token=admin)
+    assert code == 303
+    _set(console, changes="on")
+    assert console.request("GET", "/operations?tab=structured", token=admin)[0] == 200

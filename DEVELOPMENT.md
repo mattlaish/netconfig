@@ -1,4 +1,86 @@
-# R67.2 corrective RC — current development truth
+# NetConfig development
+
+## Approved 7+6 operator workflow — 2026-11-24 source update
+
+Status IMPLEMENTED_SOURCE, SOURCE_VALIDATED. The user authorized the seven recorded workflow corrections and the
+six interaction improvements together. This is corrective work on the current
+source after 67.14.
+
+| Request | Source behavior |
+| --- | --- |
+| 1. HTTP/TLS failure causes | Saved monitor details and normalized Sensor messages retain bounded, redacted causes. Monitoring shows the cause and next action. |
+| 2. Live Devices | Saved cards refresh every 30 seconds with status filters, check timestamps and direct monitoring links. Passive requests retain idle expiry. |
+| 3. Collection progress | Explicit Collect, SNMP and monitoring actions create durable collection_tasks with per-device progress, outcomes and failed-only retry. Collection tasks remains available after leaving the page. |
+| 4. Application onboarding | HTTP/TLS tests use unsaved form values. Save and check now creates an explicit monitoring task. Tests on a copied Application use its new target. |
+| 5. NetFlow setup | Receiving, saving, last write, failure verdict and the saved History test are connected in Settings → NetFlow. Saving status refreshes independently of editable settings. |
+| 6. Traffic refresh feedback | Show live, paused, edited-filter and failure/retry states with the last successful refresh time and explicit pause/resume controls. |
+| 7. Settings state and drafts | Show pending restart settings separately from service-start overrides. Warn before leaving unsaved forms, including validation drafts. Successful browser settings saves/tests return to their Settings page. |
+| 8. Return context | Devices preserves search, status, groups and scroll. Traffic retains its filter URL and per-view scroll context. |
+| 9. Device switching | Search devices and use Previous/Next while retaining the current device tab. Tab navigation participates in browser Back/Forward. |
+| 10. Save destinations | Save and return, Save and continue editing and Save and check now have distinct entry points. |
+| 11. Common controls | Device actions and tabs share a sticky toolbar. Copy the primary address or table IP/MAC values. |
+| 12. Selected-device operations | Review selected names, run checks, add tags or enable/disable with existing permissions. Tag additions use compare-and-swap and flag updates modify only their selected column. |
+| 13. Copy device settings | Reuse platform/monitoring settings with a new identity and credential selection. Source-host HTTP targets are retargeted consistently for testing and saving. |
+
+The bounded task executor accepts up to eight active/queued tasks and honors the
+existing bulk_workers setting within its supported 1–256 range. Results persist
+in the Core database. On the same configured node, unfinished work is marked
+interrupted after the service starts again and can be retried explicitly. Each
+device action rechecks the account and its current permission. Task details are
+visible to their owner or an administrator. Existing synchronous callers retain
+their behavior. Explicit checks on disabled devices remain available while
+collect-all and automatic schedules skip them. Inconclusive UDP observations
+remain Unknown during the new manual-check normalization.
+
+Final Windows source validation: 274 related regressions passed, one isolated
+PostgreSQL test skipped because NETCONFIG_TEST_FLOW_PG_DSN was not configured,
+and seven qualification/runner/POSIX-mode tests were deselected. This is not a
+full-suite or live qualification claim. All 17 headless Edge workflow checks
+passed with no page-script errors; browser probes used isolated fixture data.
+Legacy selftest is ALL PASS. Node syntax checks passed for all three console
+scripts; the changed runtime/test files passed Ruff. The two line-ending hygiene
+checks passed. Release metadata is regenerated and checked after these notes.
+No Git commands, RPM build, version bump or live deployment was performed.
+
+Runtime dependencies use the existing Python standard library and browser APIs.
+Browser verification uses isolated fixture devices and a temporary data home.
+Live AlmaLinux, PostgreSQL and vendor-device qualification remain pending for
+this source update.
+
+
+## UI workflow review backlog — 2026-11-24
+
+Historical review record. These seven items are implemented by the approved
+7+6 update above. These corrections
+belong to the existing product workflow and do not define a new MC slice.
+
+1. Preserve HTTP/TLS failure reasons through collection, saved monitoring
+   results and the Monitoring page. Show a useful cause and next action alongside
+   down/invalid, using the existing result detail field where appropriate.
+2. Make Devices suitable for ongoing monitoring. Refresh saved card data,
+   display its check time, filter by Down/attention/outdated status and link an
+   abnormal status directly to the relevant monitoring details. Passive updates
+   must retain the existing idle-session expiry behavior.
+3. Give Collect, Poll and multi-device operations visible progress and
+   per-device outcomes. Support reviewing errors and retrying failed devices,
+   with distinct success, failure and partial-success feedback.
+4. Complete Application onboarding with HTTP/TLS tests appropriate to its device
+   type and an explicit Save and check now action. Retain the current SSH/SNMP
+   test behavior for managed Network/System devices.
+5. Consolidate the NetFlow setup and recovery journey. Present receiving,
+   saving, last successful write and failure actions together, with clear links
+   to the saved History connection and the existing November 23 read/write test.
+   Clarify that the History store serves both interface history and NetFlow.
+6. Show Traffic refresh state and last successful update. Explain pauses caused
+   by pending filter edits and show retries after refresh failures while keeping
+   the current data and selected filters visible.
+7. Distinguish saved settings from active settings when a restart is required,
+   and warn before leaving forms with unsaved edits. Preserve existing safe
+   draft handling and the separate treatment of secret inputs.
+
+The original review used source evidence. Current validation belongs to the
+implementation section above.
+
 
 ## NetFlow history continuation — 2026-10-22
 

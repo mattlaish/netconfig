@@ -1,5 +1,79 @@
 # NetConfig AI Handover
 
+## Approved 7+6 operator workflow — 2026-11-24
+
+The user approved all thirteen items. Their implementation map is at the top of
+DEVELOPMENT.md. The current source adds collection_operations.py,
+web_operator_workflow.py and web_operator_assets.py. Read-only collection jobs
+use the additive collection_tasks Core table and existing Manager methods.
+The table is part of SQLite bootstrap and PostgreSQL schema projection.
+
+Primary paths are Devices status/filter/selection, the sticky Device toolbar,
+the Add/Edit save actions, Collection tasks, and Settings → NetFlow. Task
+requests are session/CSRF protected, idempotent per owner/request key and checked
+against current per-device permissions. Progress polling reads saved state and
+does not extend the idle session deadline. Failed and unfinished work can be
+retried explicitly. Manual checks on disabled devices retain their existing
+behavior. HTTP/TLS errors flow through result detail, Sensors and Web display.
+A copied Application uses the same retargeted URL for both Test and Save.
+
+Final Windows source validation: 274 related regressions passed, one isolated
+PostgreSQL test skipped because NETCONFIG_TEST_FLOW_PG_DSN was not configured,
+and seven qualification/runner/POSIX-mode tests were deselected. This is not a
+full-suite or live qualification claim. All 17 headless Edge workflow checks
+passed with no page-script errors; browser probes used isolated fixture data.
+Legacy selftest is ALL PASS. Node syntax checks passed for all three console
+scripts; the changed runtime/test files passed Ruff. The two line-ending hygiene
+checks passed. Release metadata is regenerated and checked after these notes.
+No Git commands, RPM build, version bump or live deployment was performed.
+
+Preserve this completed 7+6 implementation. The next deployment step, only if
+requested, is package identity selection, RPM packaging and live
+AlmaLinux/PostgreSQL/vendor qualification. Do not redo the workflow baseline or
+treat this source validation as deployment evidence. The detailed behavior and
+acceptance scope are in DEVELOPMENT.md, WEBGUI.md and DATA_MODEL.md.
+
+
+## UI workflow findings recorded — 2026-11-24
+
+Historical planning record, superseded by the approved 7+6 implementation
+above. DEVELOPMENT.md retains the original seven findings and their implementation
+map. Preserve the November 23 NetFlow verdict and audit corrections below.
+
+
+## NetFlow verdicts and audit follow-up — 2026-11-23
+
+The History test now uses saved settings and the same saved Vault password as
+background NetFlow. Unsaved connection/password edits must be saved first. The
+test prepares the interface and flow tables, then uses the real flow insert SQL,
+reads back its probe and checks delete permission. Probe DML is rolled back so
+it does not appear in traffic history. A successful check does not replace the
+live worker counters as evidence that actual traffic is being saved.
+
+Background write, read, exporter-list and cleanup failures have a shared safe
+verdict with an operation stage, SQLSTATE when available, cause and operator
+action. Password-needed failures distinguish a locked Vault from a missing
+password. Other verdicts cover authentication, database access/name, schema,
+permissions, read-only connections, locks, timeouts, DNS/TLS/network failures and
+server capacity/availability. Unknown failures stay explicitly unclassified.
+Connection strings, passwords and arbitrary driver error text are not displayed.
+Retry buffering and the 24-hour retention policy remain in place.
+
+Changes Off gates change tabs and actions while Operations overview, Network
+Intelligence, Telemetry, Device Models and HA/DR remain accessible. Operations
+has an independent Collection navigation entry. The incident-to-change workflow
+requires both Incidents and Changes. Concurrent Vault password requests return
+a busy response with HTTP 409 without consuming a failed-password attempt.
+The shared incorrect-password throttle remains HTTP 429.
+
+.gitignore has explicit LF attributes and LF bytes. Source metadata is regenerated
+and checked after this entry and patch.md are finalized. Windows focused
+regressions passed 150 tests, with one real-PostgreSQL integration test skipped
+because NETCONFIG_TEST_FLOW_PG_DSN was not configured. Legacy selftest is ALL PASS. Real PostgreSQL and live
+AlmaLinux qualification remain pending. Final Operations/hygiene/release-metadata regressions passed 42 tests, with
+three Git/POSIX-mode checks excluded on Windows. This is a source update after 67.14.
+
+
 ## Branch Features work merged into workspaces — 2026-11-19
 
 See PATCH-20261119-01. `workspaces.py` is the single policy for optional areas;

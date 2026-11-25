@@ -1,5 +1,22 @@
 # Data Model
 
+## Operator collection tasks — 2026-11-24 source update
+
+The additive Core table `collection_tasks` stores an explicit read-only
+collection request: UUID, owner, node, kind, overall state, creation/update
+timestamps, owner-scoped request key and JSON per-device results. A unique
+(owner, request_key) index prevents duplicate submissions. Other indexes cover
+owner/creation time, creation time and node/state lookups. The table is included
+in SQLite bootstrap and the PostgreSQL schema projection.
+
+Per-device results retain queued/running/passed/failed state, safe messages and
+the appropriate Device destination tab. Finished tasks remain available after
+navigation. On the same configured node, unfinished work is marked interrupted
+when its task service starts again; retry is explicit. This is an operator
+progress ledger, separate from distributed automation execution and approval.
+It adds no device configuration-write authority. The schema lineage remains
+`mc11-topology-change-planning-1`; live PostgreSQL qualification remains pending.
+
 <!-- documentation-sync: 2026-10-13 -->
 > **Canonical project state — 2026-11-12:** **CURRENT IMPLEMENTATION BASELINE** = **Release 67.14 / Devices and Traffic Console Corrective RPM** (`2.0.0-67.14`, `IMPLEMENTED_TESTING_DEFERRED`). Release 67.14 adds Devices monitoring cards, Traffic auto-refresh and destination lookup, and consistent sign-in and footer package versions. Release 67.13 distinguishes configured static route intent from dynamic and route-table-only observations while preserving Release 67.12 shared-subnet next-hop display, Release 67.11 layered topology and operator UI corrections, Release 67.10 evidence-first topology, Release 67.9 grouped SNMP trends, Release 67.8 Enable credential precedence and Release 67.7 isolated legacy `ssh-rsa`/SHA-1 verification. Existing state is preserved across upgrade. **MC-11 Topology-Aware Change Planning** remains the final feature slice; **NI-7 L3/VRF Path & Route Dependency Intelligence** and schema `mc11-topology-change-planning-1` remain. **Do not create MC-12.** Offline verification does not replace live Cisco/AlmaLinux qualification. All twelve LIVE_RC gates and an explicit R68 decision remain required. Git stays user-managed.
 

@@ -62,9 +62,20 @@ def disabled_web_area(settings, path):
     pairs = (
         ("alerts", {"alerts", "op-alerts"}, ("alert-rule-", "op-alert-", "maintenance-", "report-schedule-")),
         ("incidents", {"incident", "incidents"}, ("incident-", "ops-workflow-")),
-        ("changes", {"operations", "request", "requests", "automation", "run-adhoc"},
+        ("changes", {"request", "requests", "automation", "run-adhoc"},
          ("request-", "script-", "ops-structured-", "ops-desired-", "ops-campaign-", "ops-change-", "ops-workflow-")),
         ("security_intake", set(), ("integration-source-",)),
     )
     return next((area for area, pages, prefixes in pairs
                  if (path in pages or path.startswith(prefixes)) and not enabled(settings, area)), None)
+
+
+
+def disabled_operations_area(settings, tab):
+    """Gate change tabs without disabling independent operations."""
+    areas = {
+        "workflow": ("incidents", "changes"),
+        "structured": ("changes",), "desired": ("changes",),
+        "intents": ("changes",), "campaigns": ("changes",),
+    }
+    return next((area for area in areas.get(tab, ()) if not enabled(settings, area)), None)

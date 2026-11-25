@@ -1,3 +1,57 @@
+## PATCH-20261124-02 — Implement the approved 7+6 operator workflow
+
+- Preserve redacted HTTP/TLS causes through monitoring storage, Sensors and Web.
+  Keep inconclusive UDP observations Unknown during explicit checks.
+- Add live Devices filters/check timestamps, direct status links, persistent
+  navigation context, a searchable device switcher and a sticky action toolbar.
+- Add owner-scoped durable collection progress, current-permission checks,
+  request idempotency, failed-only retry and same-node interruption recovery.
+- Add Application form tests, explicit save destinations and device copying.
+  Use the copied device's new HTTP target consistently for testing and saving.
+- Add selected-device review, monitoring and permission-checked tag/enable
+  operations, using isolated field updates and compare-and-swap tag additions.
+- Consolidate NetFlow setup/test/status, show Traffic refresh state and recovery,
+  and distinguish saved restart settings from service-start overrides.
+- Add unsaved-form protection and canonical Settings return paths, retaining
+  existing safe draft and secret-input handling.
+- Windows related regressions: 274 passed, one isolated-PostgreSQL check skipped,
+  seven qualification/runner/POSIX-mode cases deselected. Not a full-suite run.
+- All 17 isolated Edge workflow checks passed with no page-script errors.
+  Legacy selftest is ALL PASS. Three browser-script syntax checks, changed-file
+  Ruff and the two line-ending hygiene checks passed.
+- Source metadata regenerated and checked after the documentation update.
+- Source update after 67.14; no RPM build/version bump, Git operation or live
+  deployment. Real AlmaLinux/PostgreSQL/vendor qualification remains pending.
+
+## PATCH-20261124-01 — Record UI workflow review backlog
+
+- Record seven planned UI workflow corrections in DEVELOPMENT.md and link the
+  continuation from AI_HANDOFF.md. Prioritize HTTP/TLS failure details, Devices
+  monitoring workflow and progress/results for long operations.
+- Record source-review scope and the pending browser/live acceptance boundary.
+- Documentation-stage update with synchronized source metadata.
+
+## PATCH-20261123-01 — NetFlow failure verdicts and audit follow-up
+
+- Use saved History settings and the background Vault password for the History
+  test. Reject unsaved edits and verify the real NetFlow table insert, read and
+  delete permissions with rolled-back probe data.
+- Share actionable, secret-safe failure verdicts across the background writer,
+  reads, exporter listing, cleanup and the Traffic/History status displays.
+  Classify SQLSTATE and recognized libpq connection failures. Keep unknown causes
+  explicit and preserve pending-record retry and the fixed 24-hour retention.
+- Keep independent Operations pages and navigation available with Changes Off.
+  Gate change tabs/actions and the incident-to-change workflow at their entry points.
+- Distinguish concurrent Vault verification from wrong-password throttling.
+- Force .gitignore to LF and cover its attributes/bytes in hygiene checks before
+  regenerating the source SBOM and release manifests.
+- Windows focused regressions passed 150 tests. One real-PostgreSQL integration
+  check was skipped because no isolated test connection was configured. Legacy
+  selftest is ALL PASS.
+- Final Operations/hygiene/release-metadata checks passed 42 tests. Three
+  Git/POSIX-mode checks were excluded on Windows.
+- Source update after 67.14. Live PostgreSQL/AlmaLinux qualification is pending.
+
 ## PATCH-20261119-01 — Merge branch Features work into the workspace switches
 
 - Merged `claude/test-633sv0` (Settings → Features switches for Incidents and

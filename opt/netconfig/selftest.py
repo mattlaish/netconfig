@@ -499,6 +499,8 @@ class _AppInventory:
     }
     def get(self, name):
         return dict(self.device) if name == "portal" else None
+    def all(self):
+        return [dict(self.device)]
     def get_facts(self, name):
         raise AssertionError("application-only page must not read SNMP facts")
 class _AppPageManager:
@@ -517,7 +519,7 @@ _app_page._device_page({"name": ["portal"]}, {"username": "tester", "role": "adm
 _app_html = _app_rendered[0]
 _forbidden_app_sections = ("Platform", "Auth", "SNMP facts", "Collect now",
                            "Current raw", "Current configuration", "Config backups",
-                           "Run command")
+                           "Run command", "Poll SNMP")
 check("application-only page shows endpoint identity and application status",
       "Primary hostname" in _app_html and "Application" in _app_html and
       "APPSTATUS" in _app_html)
@@ -618,6 +620,8 @@ class _SystemInventory:
     }
     def get(self, name):
         return dict(self.device) if name == "server" else None
+    def all(self):
+        return [dict(self.device)]
     def get_facts(self, name):
         return None
 class _SystemPageManager:

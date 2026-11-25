@@ -156,11 +156,12 @@ UX_JS = r"""
       panels.forEach(function(p){ var on=p.getAttribute('data-tab')===key; p.classList.toggle('on',on); if(on) found=true; });
       if(!found){ key=links[0].getAttribute('data-tab'); panels[0].classList.add('on'); }
       links.forEach(function(a){ var on=a.getAttribute('data-tab')===key; a.classList.toggle('on',on); a.setAttribute('aria-current',on?'page':'false'); });
-      if(push){ try{ history.replaceState(null,'','#tab-'+key); }catch(e){} }
+      if(push){ try{ history.pushState(null,'','#tab-'+key); }catch(e){} }
     }
     links.forEach(function(a){ a.addEventListener('click',function(ev){ ev.preventDefault(); show(a.getAttribute('data-tab'),true); }); });
     var h=(location.hash||'').replace('#tab-','');
     show(h||links[0].getAttribute('data-tab'),false);
+    window.addEventListener('popstate',function(){ show((location.hash||'').replace('#tab-',''),false); });
   });
   // Sortable + filterable tables
   var UNITS={b:1,kb:1e3,mb:1e6,gb:1e9,tb:1e12,kib:1024,mib:1048576,gib:1073741824,bps:1,kbps:1e3,mbps:1e6,gbps:1e9,k:1e3,m:1e6,g:1e9};
@@ -297,13 +298,12 @@ def nav_groups(role, manager):
         ("Inventory", [("/", "Devices"), ("/groups", "Groups"), ("/endpoints", "Endpoints"),
                        ("/topology", "Topology"), ("/topology?view=l3", "Routing topology"), ("/dependencies", "Dependencies")]),
         ("Compliance", [("/compliance", "Compliance & drift")]),
-        ("Collection", [("/snmp", "SNMP"), ("/runs", "Run Log"),
-                        ("/diagnostics", "Diagnostics"), ("/traces", "Protocol Traces")]),
+        ("Collection", [("/operations", "Operations"), ("/snmp", "SNMP"), ("/runs", "Run Log"),
+                        ("/diagnostics", "Diagnostics"), ("/traces", "Protocol Traces"), ("/collection-tasks", "Collection tasks")]),
         ("Administration", admin),
     ]
     if workspaces.visible(manager, "changes"):
         groups.insert(4, ("Changes", [("/requests", "Change requests"),
-                                      ("/operations", "Change workspace"),
                                       ("/automation", "Scripts & quick runs")]))
     return groups
 
@@ -609,8 +609,11 @@ def saved_endpoint_checks(handler, dev, sess=None):
             tls_cell = f'<span class="badge {"b-chg" if warn else "b-ok"}">valid{left}</span>'
         else:
             tls_cell = '<span class="badge b-bad">invalid</span>'
+        if t and t.get("detail"):
+            tls_cell += f'<div class="muted">{_e(t["detail"])}</div>'
+        http_detail = f'<div class="muted">{_e(r.get("detail"))}</div>' if r.get("detail") else ""
         rows += (f'<tr><td class="break">{_e(target)}</td>'
-                 f'<td><span class="badge {tone}">{_e(code)}</span></td>'
+                 f'<td><span class="badge {tone}">{_e(code)}</span>{http_detail}</td>'
                  f'<td class="muted">{_e(ms)}</td><td>{tls_cell}</td><td class="muted">{_fmt_ts(r["ts"])}</td></tr>')
     table = (f'<table><tr><th>Endpoint</th><th>HTTP</th><th>Time</th><th>TLS cert</th><th>Checked</th></tr>{rows}</table>'
              if rows else '<p class="muted">Not checked yet.</p>')
@@ -643,10 +646,13 @@ class WebUxMixin:
                 '<button class=ghost>Sign out</button></form></div>')
 
     def _page(self, title, inner, sess, flash=None):
+        from .web_operator_assets import WORKFLOW_CSS, WORKFLOW_JS
+        from .web_operator_workflow import feedback_tone, restart_notice
         from .web_forms import take_feedback
         queued = take_feedback(self, sess)
         flash = flash or queued
-        f = f'<div class="flash">{_e(flash)}</div>' if flash else ""
+        f = f'<div class="flash {feedback_tone(flash)}" role="status">{_e(flash)}</div>' if flash else ""
+        f = (restart_notice(self.manager) if sess else "") + f
         right = self._topright(sess) if sess else ""
         shell = ""
         if sess:
@@ -656,9 +662,9 @@ class WebUxMixin:
                      f'<div class="side-groups" id="side-groups">{self._nav(sess, self.path)}</div></aside>')
         return (f"""<!doctype html><html><head><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1">
-<title>{_e(title)} · NetConfig</title><style>{_CSS}{UX_CSS}</style><script>document.documentElement.classList.add('js');</script>{_THEME_JS}</head><body>
+<title>{_e(title)} · NetConfig</title><style>{_CSS}{UX_CSS}{WORKFLOW_CSS}</style><script>document.documentElement.classList.add('js');</script>{_THEME_JS}</head><body data-operator-user="{_e(sess['username']) if sess else ''}">
 <header><div class="brand"><span class="logo">NC</span><span class="appname">Net<span>Config</span> · Network Configuration</span></div>{right}</header>
-<div class="app-shell">{shell}<div class="content-shell"><main><h1>{_e(title)}</h1>{f}{inner}</main><footer class="footer"><span>NetConfig v{_e(APP_VERSION)}</span><span>Times shown in {_e(time_zone_label())} · Internal — Restricted</span></footer></div></div><script>{UX_JS}</script></body></html>""")
+<div class="app-shell">{shell}<div class="content-shell"><main><h1>{_e(title)}</h1>{f}{inner}</main><footer class="footer"><span>NetConfig v{_e(APP_VERSION)}</span><span>Times shown in {_e(time_zone_label())} · Internal — Restricted</span></footer></div></div><script>{UX_JS}</script><script>{WORKFLOW_JS}</script></body></html>""")
 
     # ---- sign-in -----------------------------------------------------------
     def _login_page(self, error=None, status=200):
@@ -795,7 +801,17 @@ class WebUxMixin:
                           f'{n_alerts} open</span></a>') if show_alerts else ""
             state, label, summary = "dim", "Not checked", ""
             db = getattr(m, "db", None)
-            counts = saved_availability(m, d, now) if d["enabled"] and db is not None else {}
+            targets = saved_check_targets(d)
+            latest = db.latest_monitor_results(d["name"], targets) if d["enabled"] and db is not None else {}
+            counts = saved_availability(m, d, now, rows=latest) if d["enabled"] and db is not None else {}
+            stamps = [float(r["ts"]) for r in latest.values()]
+            checked = max(stamps) if stamps else fx.get("last_polled")
+            checked_text = f'<div class="sensor-detail">Last checked {_fmt_ts(checked)}</div>' if checked else ""
+            target_tab = "monitoring" if targets else "snmp" if d.get("snmp_version") else "overview"
+            status_target = f'/device?name={_q(d["name"])}#tab-{target_tab}'
+            select = (f'<input type=checkbox name=devices form=device-bulk data-select-device '
+                      f'value="{_e(d["name"])}" aria-label="Select {_e(d["name"])}">'
+                      if _can(sess["role"], "collect") or _can(sess["role"], "manage_devices") else "")
             if not d["enabled"]:
                 label = "Disabled"
             elif sum(counts.values()):
@@ -817,13 +833,16 @@ class WebUxMixin:
                           if managed else "")
             snmp_detail = f'<div class="sensor-detail">SNMP {snmp}</div>' if snmp else ""
             alert_detail = f'<div class="sensor-detail">Alerts {alert_cell}</div>' if show_alerts and n_alerts else ""
-            return (f'<article class="sensor-card device-card {state}" data-search="{_e(blob)}">'
-                    '<div class="sensor-head"><span class="sensor-dot"></span>'
+            card_state = {"Up": "up", "Down": "down", "Needs attention": "attention",
+                          "Out of date": "outdated", "Disabled": "disabled"}.get(label, "unknown")
+            return (f'<article class="sensor-card device-card {state}" data-search="{_e(blob)}" '
+                    f'data-state="{card_state}" data-status-target="{_e(status_target)}">'
+                    f'<div class="sensor-head">{select}<span class="sensor-dot"></span>'
                     f'<a class="device-card-link" href="/device?name={_q(d["name"])}">{_e(d["name"])}</a></div>'
                     f'<div class="sensor-value">{label}</div>'
                     + (f'<div class="sensor-detail">{_e(summary)}</div>' if summary else "")
                     + f'<div class="sensor-detail">{address}</div><div>{typ}</div>'
-                    + management + snmp_detail + alert_detail
+                    + checked_text + management + snmp_detail + alert_detail
                     + (f'<div class="device-card-actions">{collect_btn}</div>' if collect_btn else "")
                     + '</article>')
 
@@ -869,10 +888,28 @@ class WebUxMixin:
                            '<input type=hidden name=all value=1><button>Collect all enabled</button></form>')
         header_actions = ('<div style="margin-left:auto;display:flex;gap:10px;flex-wrap:wrap">'
                           + "".join(actions) + '</div>') if actions else ""
+        status_filter = ('<label>Status <select id=devstatus><option value=all>All devices</option>'
+                         '<option value=up>Up</option><option value=down>Down</option>'
+                         '<option value=attention>Needs attention</option><option value=outdated>Out of date</option>'
+                         '<option value=unknown>Not checked</option><option value=disabled>Disabled</option></select></label>')
+        bulk = ""
+        if _can(sess["role"], "collect") or can_manage:
+            choices = '<option value=check>Check selected</option>' if _can(sess["role"], "collect") else ""
+            if can_manage:
+                choices += '<option value=tags>Add tags</option><option value=enable>Enable selected</option><option value=disable>Disable selected</option>'
+            bulk = (f'<form method=post action="/devices-bulk" id=device-bulk class="bulk-controls">{self._csrf_field()}'
+                    '<label><input type=checkbox id=select-visible style="width:auto"> Select visible</label>'
+                    '<span id=selected-count>0 selected</span>'
+                    '<details id=selected-devices hidden><summary>Review selected devices</summary><ul data-selected-names></ul></details>'
+                    f'<select name=action aria-label="Selected device action">{choices}</select>'
+                    '<input name=tags placeholder="Tags to add" aria-label="Tags to add"><button>Apply to selected</button></form>')
+        controls = f'<div class="bulk-controls">{status_filter}<span id=devices-refresh-status role=status>Live · refreshes every 30 seconds</span></div>'
+        if urllib.parse.urlsplit(getattr(self, "path", "")).path == "/devices-live":
+            return self._send(listing)
         inner = (f'{vault_panel}{search_box}<div class="panel">'
                  '<div style="display:flex;align-items:center;margin-bottom:12px;gap:10px;flex-wrap:wrap">'
                  f'<h2 style="border:none;margin:0">Inventory · {len(devices)} devices</h2>{header_actions}</div>'
-                 f'{listing}</div>{_DASH_JS}')
+                 f'{controls}{bulk}<div id=devices-grid>{listing}</div></div>{_DASH_JS}')
         self._send(self._page("Devices", inner, sess, flash=flash))
 
     # ---- Audit / Run Log with paging ----------------------------------------
@@ -1149,6 +1186,15 @@ class WebUxMixin:
         name = (q.get("name") or [""])[0]
         d = self.manager.inv.get(name) if name else None
         editing = d is not None
+        copy_name = (q.get("copy") or (draft or {}).get("copy_from") or [""])[0]
+        if copy_name and not editing:
+            source = self.manager.inv.get(copy_name)
+            if not source:
+                return self._send(self._page("Copy device", '<div class="err">Source device not found.</div>', sess), 404)
+            d = dict(source)
+            for key in ("name", "host", "secret_ref", "snmp_ref", "enable_ref"):
+                d[key] = ""
+        return_to = safe_next_path((q.get("next") or (draft or {}).get("return_to") or [""])[0])
         if draft is not None:
             d = dict(d or {})
             d.setdefault("platform", "generic")
@@ -1246,7 +1292,11 @@ class WebUxMixin:
         port_val = self.manager.settings.get("netflow_port", 2055)
         host_example = _e((d.get("host") if d else "") or "app.example.com")
         body = f"""<div class="panel"><h2>{_e(title)}</h2>
-<form method=post action="/device-save" id=device_form>{self._csrf_field()}
+<form method=post action="/device-save" id=device_form data-unsaved-initial="{1 if draft is not None else 0}">{self._csrf_field()}
+<input type=hidden name=return_to value="{_e(return_to)}">
+<input type=hidden name=copy_from value="{_e(copy_name)}">
+{('<p class="muted">Copying settings from ' + _e(copy_name) + '. Enter a new name and address, then choose credentials. HTTP targets on the source host move to the new host for testing and saving.</p>') if copy_name else ''}
+
 <div class="row">
   <div><label>Name</label>{name_field}</div>
   <div><label id=host_label>Host / IP</label><input name=host value="{v('host')}" placeholder="10.0.0.11"></div>
@@ -1323,7 +1373,7 @@ class WebUxMixin:
 </div>
 <div id=portmon_section{" hidden" if "system" not in cur_types else ""}>
 <h2 style="margin-top:14px">TCP / UDP ports</h2>
-<p class="muted">Monitor port status on this system. List ports as <code>tcp/22, tcp/443, udp/53</code> (bare numbers default to TCP). Status is checked live when you open the device.</p>
+<p class="muted">Monitor port status on this system. List ports as <code>tcp/22, tcp/443, udp/53</code> (bare numbers default to TCP). Use Check now or enable background monitoring to save port results.</p>
 <label>Ports to monitor</label>
 <input name=monitor_ports value="{_e((d.get('monitor_ports') if d else '') or '')}" placeholder="tcp/22, tcp/80, tcp/443, udp/161">
 </div>
@@ -1333,6 +1383,8 @@ class WebUxMixin:
 <code>https://{host_example}/</code><br><code>https://{host_example}/api/health 200</code></p>
 <label>Endpoints to monitor</label>
 <textarea name=monitor_urls placeholder="https://host/&#10;https://host/api/health 200" style="min-height:90px">{_e((d.get('monitor_urls') if d else '') or '')}</textarea>
+<button type=button class=ghost data-test-application>Test HTTP / TLS</button>
+<pre data-application-test-result aria-live=polite></pre>
 </div>
 <script>
 (function(){{
@@ -1400,8 +1452,12 @@ class WebUxMixin:
   </div>
   <label style="color:var(--text)"><input type=checkbox name=enabled value=1 style="width:auto" {"checked" if (not editing or d.get('enabled')) else ""}> enabled<span class=hint>Disabled devices are skipped by collect-all and background polling</span></label>
 </div>
-<button>{"Save changes" if editing else "Add device"}</button>
-<a class="btn ghost" href="{('/device?name=' + _q(name)) if editing else '/'}" style="margin-left:8px">Cancel</a>
+<div class=form-actions>
+<button name=save_action value=return>{"Save and return" if editing else "Add device"}</button>
+<button name=save_action value=stay class=ghost>Save and continue editing</button>
+<button name=save_action value=check class=ghost>Save and check now</button>
+<a class="btn ghost" href="{_e(return_to) if return_to else ('/device?name=' + _q(name)) if editing else '/'}">Cancel</a>
+</div>
 </form></div>"""
         del_panel = ""
         if editing:
@@ -1413,6 +1469,8 @@ class WebUxMixin:
         self._send(self._page(title, body + del_panel, sess, flash=flash), status)
 
     def _do_device_monitor_check(self, form, sess):
+        if form.get("background"):
+            return self._start_collection(form, sess, "monitor")
         """Explicit, read-only port/HTTP/TLS check; results saved like background checks."""
         from .web_forms import feedback
         from . import monitor
@@ -1424,6 +1482,7 @@ class WebUxMixin:
         if not dev:
             return feedback(self, sess, "/", "Device not found.")
         results = monitor.run_device_checks(self.manager, dev)
+        monitor.normalize_results(self.manager, dev, results)
         self.manager.db.audit(sess["username"], "device_monitor_check", name, f"{len(results)} result(s)")
         return feedback(self, sess, target, f"{name}: {len(results)} check result(s) saved.")
 
@@ -1440,8 +1499,29 @@ class WebUxMixin:
         types = set(form.get("device_type") or ["network"])
         if not host:
             return out({"error": "Enter the host or IP address first."}, 400)
+        if "application" in types and (form.get("test_application") or not types & {"network", "system"}):
+            from . import appmon, monitor
+            results = []
+            spec = g("monitor_urls")
+            if g("copy_from"):
+                source = self.manager.inv.get(g("copy_from"))
+                if not source:
+                    return out({"error": "Source device no longer exists. Reload the copy form."}, 400)
+                from .web_forms import copied_monitor_urls
+                try:
+                    spec = copied_monitor_urls(spec, source["host"], host)
+                except ValueError:
+                    return out({"error": "Enter a valid new host and endpoint URL."}, 400)
+            for checked in appmon.check_all(spec, host, timeout=5.0):
+                results.append({"check": "HTTP " + checked["url"], "ok": bool(checked.get("ok")),
+                                "detail": monitor.endpoint_detail(checked) or f'HTTP {checked.get("status")}'})
+                if checked.get("tls"):
+                    results.append({"check": "TLS " + checked["url"], "ok": bool(checked["tls"].get("valid")),
+                                    "detail": monitor.endpoint_detail(checked, tls=True) or "Certificate verified."})
+            self.manager.db.audit(sess["username"], "application_connection_test", host, f"{len(results)} checks")
+            return out({"results": results})
         if not types & {"network", "system"}:
-            return out({"error": "Connection tests apply to network and system devices."}, 400)
+            return out({"error": "Choose a device type to test."}, 400)
         try:
             port = int(g("port", "22") or 22)
         except ValueError:

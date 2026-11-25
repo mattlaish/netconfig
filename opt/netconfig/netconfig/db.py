@@ -214,6 +214,23 @@ CREATE TABLE IF NOT EXISTS change_requests (
 );
 CREATE INDEX IF NOT EXISTS idx_cr_status ON change_requests(status, requested_ts);
 
+CREATE TABLE IF NOT EXISTS collection_tasks (
+    id TEXT PRIMARY KEY,
+    owner TEXT NOT NULL,
+    node TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    state TEXT NOT NULL,
+    created_ts REAL NOT NULL,
+    updated_ts REAL NOT NULL,
+    request_key TEXT NOT NULL,
+    results TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_collection_request ON collection_tasks (owner, request_key);
+CREATE INDEX IF NOT EXISTS idx_collection_owner_created ON collection_tasks (owner, created_ts);
+CREATE INDEX IF NOT EXISTS idx_collection_created ON collection_tasks (created_ts);
+CREATE INDEX IF NOT EXISTS idx_collection_node_state ON collection_tasks (node, state);
+
+
 CREATE TABLE IF NOT EXISTS jobs (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     request_id  INTEGER,                -- NULL for ad-hoc (read-only) jobs

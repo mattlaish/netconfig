@@ -695,3 +695,75 @@ def test_devices_home_uses_light_drift_check_not_full_diff(console, monkeypatch)
         assert code == 200, path
     _, _, home = console.request("GET", "/", token=console.session())
     assert "drift" in home
+
+
+def test_busy_vault_checks_are_distinct_from_password_guess_limits(console, monkeypatch):
+    from netconfig.security import LoginThrottle
+    m = console.m
+    m.vault.create("vault-master-123", iters=1000)
+    _device(m, "busy-vault", "192.0.2.86", secret_ref="ssh-main")
+    throttle = LoginThrottle(max_failures=3)
+    monkeypatch.setattr(web, "_VAULT_THROTTLE", throttle)
+    token = console.session()
+    assert web._VAULT_ATTEMPT_LOCK.acquire(blocking=False)
+    try:
+        for path in ("/unlock-vault", "/device-secret-reveal"):
+            code, headers, body = console.request("POST", path, {
+                "csrf": "ux-csrf", "name": "busy-vault", "master": "wrong",
+            }, token=token)
+            assert code == 409 and headers["Retry-After"] == "1"
+            assert "Another Vault password check is in progress" in body
+            assert "Too many incorrect attempts" not in body
+    finally:
+        web._VAULT_ATTEMPT_LOCK.release()
+    assert throttle.retry_after("vault", "master") == 0
+    actions = [row[0] for row in m.db.conn.execute("SELECT action FROM audit").fetchall()]
+    assert "unlock_vault_failed" not in actions and "vault_secret_reveal_failed" not in actions
+
+
+def test_saved_history_check_uses_background_password_and_checks_flow_sql(console, monkeypatch, tmp_path):
+    from test_netflow_history import SqlBridge
+    from netconfig import ifhistory, netflow_history
+
+    m = console.m
+    m.settings.update(if_history_pg_host="history", if_history_pg_dbname="flows", if_history_pg_user="writer")
+    m.vault.create("master-password", iters=1000)
+    m.unlock_vault("master-password")
+    m.vault.set_secret(ifhistory.VAULT_SECRET, password="saved-password")
+    path = str(tmp_path / "saved-flow-check.db")
+    connections = []
+
+    def connect(backend):
+        connections.append(dict(backend.params))
+        assert backend.params["password"] == "saved-password"
+        return SqlBridge(path)
+    monkeypatch.setattr(ifhistory.PgHistory, "_connect", connect)
+    monkeypatch.setattr(netflow_history.PgFlowHistory, "_connect", connect)
+    token = console.session()
+    code, _, body = console.request("POST", "/history-db-test", {
+        "csrf": "ux-csrf", "if_history_pg_password": "temporary-password",
+    }, token=token)
+    assert code == 200 and "Save History settings first" in body and not connections
+    code, _, body = console.request("POST", "/history-db-test", {
+        "csrf": "ux-csrf", "if_history_pg_host": "unsaved-host",
+    }, token=token)
+    assert "Save History settings first" in body and not connections
+    code, _, body = console.request("POST", "/history-db-test", {"csrf": "ux-csrf"}, token=token)
+    assert code == 200 and "passed NetFlow table setup, write, read and cleanup checks" in body
+    assert connections and all(c["password"] == "saved-password" for c in connections)
+    with SqlBridge(path) as c:
+        assert c.execute("SELECT COUNT(*) FROM netconfig_flow_history").fetchone()[0] == 0
+
+
+def test_saved_history_test_reports_locked_vault_without_using_form_password(console, monkeypatch):
+    from netconfig import ifhistory
+    m = console.m
+    m.vault.create("master-password", iters=1000)
+    m.settings.update(if_history_pg_host="history", if_history_pg_dbname="flows")
+    def no_password(backend):
+        assert not backend.params.get("password")
+        raise RuntimeError("fe_sendauth: no password supplied; host=private")
+    monkeypatch.setattr(ifhistory.PgHistory, "_connect", no_password)
+    code, _, body = console.request("POST", "/history-db-test",
+                                    {"csrf": "ux-csrf"}, token=console.session())
+    assert code == 200 and "Vault is locked" in body and "host=private" not in body

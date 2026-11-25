@@ -42,6 +42,9 @@ class SqlBridge:
     def commit(self):
         self.conn.commit()
 
+    def rollback(self):
+        self.conn.rollback()
+
 
 @pytest.fixture
 def store(tmp_path, monkeypatch):
@@ -303,3 +306,103 @@ def test_history_becomes_active_once_a_database_is_set(store):
     assert h.flush_once() is True and h.status()["configured"] is True
     h.submit([flow(), flow()])
     assert h.flush_once() is True and h.status()["written"] == 2
+
+
+@pytest.mark.parametrize("state,expected", [
+    ("28P01", "AUTHENTICATION_FAILED"), ("28000", "ACCESS_REJECTED"),
+    ("3D000", "DATABASE_MISSING"), ("42501", "PERMISSION_DENIED"),
+    ("25006", "DATABASE_READ_ONLY"), ("42P01", "SCHEMA_NOT_READY"),
+    ("42703", "SCHEMA_NOT_READY"), ("55P03", "LOCK_TIMEOUT"),
+    ("57014", "QUERY_CANCELLED"), ("53100", "STORAGE_FULL"),
+    ("53300", "SERVER_CAPACITY"), ("57P03", "SERVER_UNAVAILABLE"),
+    ("08006", "CONNECTION_FAILED"),
+])
+def test_failure_verdict_uses_server_code_without_disclosing_error(state, expected):
+    from netconfig.history_diagnostics import failure_verdict, verdict_text
+
+    error = RuntimeError("host=secret-host password=never-show-this <script>")
+    error.sqlstate = state
+    verdict = failure_verdict(error, "write flow records")
+    assert verdict["code"] == expected and verdict["stage"] == "write flow records"
+    assert state in verdict_text(verdict)
+    assert "never-show-this" not in str(verdict) and "<script>" not in str(verdict)
+    assert verdict["action"]
+
+
+@pytest.mark.parametrize("message,context,expected", [
+    ("fe_sendauth: no password supplied", "locked", "VAULT_LOCKED"),
+    ("fe_sendauth: no password supplied", "missing", "PASSWORD_MISSING"),
+    ("password authentication failed for user secret", "", "AUTHENTICATION_FAILED"),
+    ("could not translate host name secret", "", "DNS_FAILED"),
+    ("connection refused", "", "CONNECTION_REFUSED"),
+    ("connection timeout expired", "", "CONNECTION_TIMEOUT"),
+    ("SSL error: certificate verify failed", "", "TLS_FAILED"),
+    ("server does not support SSL, but SSL was required", "", "TLS_FAILED"),
+    ("SSL connection has been closed unexpectedly", "", "CONNECTION_FAILED"),
+    ("an unrecognized error with password=secret", "", "UNCLASSIFIED"),
+])
+def test_libpq_failures_have_actionable_safe_verdict(message, context, expected):
+    from netconfig.history_diagnostics import failure_verdict
+    verdict = failure_verdict(RuntimeError(message), "connect", credential_state=context)
+    assert verdict["code"] == expected and "secret" not in str(verdict)
+
+
+def test_flow_preflight_checks_real_sql_and_leaves_no_test_rows(store):
+    store.write([flow()])
+    result = store.check_flow_ready()
+    assert result["ok"], result
+    with store._connect() as c:
+        assert c.execute(f"SELECT COUNT(*) FROM {nh.TABLE}").fetchone()[0] == 1
+        assert c.execute(f"SELECT COUNT(*) FROM {nh.TABLE} WHERE proto='TEST'").fetchone()[0] == 0
+
+
+def test_preflight_rejects_missing_flow_permission_and_rolls_back_probe(store, monkeypatch):
+    original = store._connect
+
+    def connect():
+        c = original()
+        execute = c.execute
+
+        def deny_delete(sql, args=()):
+            if sql.startswith("DELETE"):
+                error = RuntimeError("permission denied; password=secret")
+                error.sqlstate = "42501"
+                raise error
+            return execute(sql, args)
+        c.execute = deny_delete
+        return c
+
+    monkeypatch.setattr(store, "_connect", connect)
+    result = store.check_flow_ready()
+    assert not result["ok"] and result["stage"] == "remove flow record"
+    assert result["verdict"]["code"] == "PERMISSION_DENIED"
+    assert "password=secret" not in str(result)
+    with original() as c:
+        assert c.execute(f"SELECT COUNT(*) FROM {nh.TABLE}").fetchone()[0] == 0
+
+
+def test_worker_verdict_is_shown_in_device_notice_and_clears_after_recovery(store, monkeypatch):
+    real = store.write
+    def fail(rows):
+        error = RuntimeError("do not show a connection string")
+        error.sqlstate = "42501"
+        raise error
+    monkeypatch.setattr(store, "write", fail)
+    worker = nh.FlowHistory(lambda: store)
+    worker.submit([flow()])
+    assert not worker.flush_once()
+    status = worker.status()
+    assert status["pending"] == 1
+    assert status["write_verdict"]["code"] == "PERMISSION_DENIED"
+    assert "required schema/table permissions" in history_notice({"status": status})
+    monkeypatch.setattr(store, "write", real)
+    assert worker.flush_once()
+    assert not worker.status()["write_verdict"] and not worker.status()["write_error"]
+
+
+
+def test_sqlstate_takes_precedence_over_quoted_error_text():
+    from netconfig.history_diagnostics import failure_verdict
+    exc = RuntimeError('permission denied for table "password authentication failed"')
+    exc.sqlstate = "42501"
+    assert failure_verdict(exc, "read flow records")["code"] == "PERMISSION_DENIED"

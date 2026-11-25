@@ -1,5 +1,28 @@
 # NetConfig
 
+## Operator workflow — 2026-11-24 source update
+
+- On **Devices**, search and filter saved status, then select devices for
+  **Check selected**, **Add tags**, **Enable selected** or **Disable selected**.
+  Review the selected names before applying a batch action.
+- Open **Collection → Collection tasks** to follow per-device progress, return
+  to a task after leaving the page, and retry failed or interrupted work.
+- In a Device page, search or switch devices while retaining the current tab.
+  The toolbar keeps **Check now**, collection, editing and copying within reach.
+- When editing, choose **Save and return**, **Save and continue editing** or
+  **Save and check now**. **Copy device settings** starts with a new name,
+  address and credential selection.
+- **Settings → NetFlow** connects receiving, saving status, History connection
+  settings and **Test saved History + NetFlow**. Settings that need a restart
+  stay visibly pending. Service-start overrides are shown separately.
+- **Traffic** shows the last successful refresh, pauses for unapplied filters
+  and provides explicit pause/resume and refresh-failure feedback.
+
+Devices auto-refresh reads saved results. Device polling happens through the
+configured schedules or an explicit check. This source update awaits packaging
+and live deployment qualification.
+
+
 ## Confirmed configured static routes RPM — 2026-11-11
 
 Normal configuration collection now compares configured IPv4 static routes

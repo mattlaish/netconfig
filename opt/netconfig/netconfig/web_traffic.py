@@ -97,14 +97,23 @@ TRAFFIC_JS = """
   initCharts(document);
   var region=document.getElementById('traffic-content');
   if(!region) return;
-  var pending=false, dirty=false, timer, lookupMessage='';
+  var pending=false, dirty=false, paused=false, timer, lookupMessage='', lastUpdate=new Date();
+  function liveStatus(message){
+    var el=region.querySelector('[data-nf-refresh-status]');
+    if(el)el.textContent=message+' · last updated '+lastUpdate.toLocaleTimeString();
+    var button=region.querySelector('[data-nf-pause]');
+    if(button)button.textContent=paused?'Resume updates':'Pause updates';
+  }
   function schedule(delay){
     clearTimeout(timer);
+    if(paused)return;
     timer=setTimeout(function(){ refresh(false); }, delay || Number(region.dataset.refresh)*1000);
   }
   async function refresh(lookup){
     if(pending) return;
-    if(!lookup && (document.hidden || dirty || region.contains(document.activeElement))){
+    if(!lookup && (paused || document.hidden || dirty || region.contains(document.activeElement))){
+      liveStatus(paused?'Updates paused':dirty?'Updates paused — apply your filter changes':
+                 document.hidden?'Updates paused while this tab is hidden':'Updates paused while you use the controls');
       schedule(); return;
     }
     pending=true;
@@ -135,7 +144,9 @@ TRAFFIC_JS = """
       region.dataset.refresh=updated.dataset.refresh;
       region.replaceChildren(...updated.childNodes);
       initCharts(region);
+      lastUpdate=new Date();liveStatus(paused?'Updates paused':'Live');
     } catch(err) {
+      liveStatus('Update failed — retrying; showing the last available data');
       var message=region.querySelector('[data-nf-lookup-status]');
       if(lookup && message) message.textContent='Could not look up names. Try again.';
     } finally {
@@ -145,14 +156,20 @@ TRAFFIC_JS = """
     }
   }
   region.addEventListener('input',function(e){
-    if(e.target.closest('.nf-toolbar')) dirty=true;
+    if(e.target.closest('.nf-toolbar')){dirty=true;liveStatus('Updates paused — apply your filter changes');}
   });
   region.addEventListener('change',function(e){
-    if(e.target.closest('.nf-toolbar')) dirty=true;
+    if(e.target.closest('.nf-toolbar')){dirty=true;liveStatus('Updates paused — apply your filter changes');}
   });
   region.addEventListener('click',function(e){
     if(e.target.closest('[data-nf-lookup]')) refresh(true);
+    if(e.target.closest('[data-nf-pause]')){
+      paused=!paused;liveStatus(paused?'Updates paused':'Live');
+      if(paused)clearTimeout(timer);else{e.target.closest('[data-nf-pause]').blur();refresh(false);}
+    }
   });
+  document.addEventListener('visibilitychange',function(){if(!document.hidden&&!paused)refresh(false);});
+  liveStatus('Live');
   schedule();
 })();
 """
@@ -518,7 +535,11 @@ def render_traffic_body(handler, q, *, lookup_destinations=False):
         )
         for key, message in problems:
             if storage_status.get(key) and storage_status[key] != "Waiting for database connection.":
-                notes.append(f'<p class="err">{message}</p>')
+                verdict = storage_status.get(key.replace("_error", "_verdict"))
+                if verdict:
+                    from .history_diagnostics import verdict_text
+                    message += f' {verdict_text(verdict)}'
+                notes.append(f'<p class="err">{_e(message)}</p>')
         if storage_status.get("dropped") or storage_status.get("expired"):
             notes.append('<p class="err">Some traffic records were lost before they could be saved.</p>')
     if not settings.get("netflow_enabled"):
@@ -584,8 +605,10 @@ def render_traffic_body(handler, q, *, lookup_destinations=False):
                 + (f'<p class="muted">{_e(hint)}</p>' if hint else "") + table
                 + '</div>')
     interval = {60: 20, 300: 30, 3600: 60, 86400: 120}[window]
+    refresh_controls = ('<div class="bulk-controls"><span data-nf-refresh-status role=status>Live</span>'
+                        '<button type=button class=ghost data-nf-pause>Pause updates</button></div>')
     return (f'<div id="traffic-content" data-refresh="{interval}">'
-            f'<div class="panel">{_toolbar(params, all_exporters, view)}{"".join(notes)}{chip}</div>'
+            f'<div class="panel">{refresh_controls}{_toolbar(params, all_exporters, view)}{"".join(notes)}{chip}</div>'
             + main + '</div>')
 
 
@@ -600,7 +623,7 @@ def history_notice(storage):
         return "".join(notes) + ('<p class=muted>24-hour flow history is not saved: no History PostgreSQL '
                                  'database is set. Add one in <a href="/settings?section=db">Database settings</a> '
                                  'to keep a full day.</p>')
-    for key in ("write_error", "read_error", "maintenance_error"):
+    for key in ("write_error", "read_error", "maintenance_error", "exporter_error"):
         if st.get(key):
             notes.append(f'<p class=err>{_e(st[key])}</p>')
     if st.get("enabled"):

@@ -272,6 +272,13 @@ def test_traffic_history_alerts_distinguish_unconfigured_and_failed_storage(traf
     assert status == 200
     assert "Saved traffic could not be read" in body and "New traffic could not be saved" in body
     assert "traffic records were lost" in body and "backend write error" not in body
+    from netconfig.history_diagnostics import failure_verdict
+    error = RuntimeError("password=private-value")
+    error.sqlstate = "42501"
+    h.current["write_verdict"] = failure_verdict(error, "write flow records")
+    status, body = get("/traffic")
+    assert status == 200 and "History account lacks permission" in body and "SQLSTATE 42501" in body
+    assert "private-value" not in body
 
 
 def test_device_page_netflow_section_uses_the_analytics_views(traffic_console):

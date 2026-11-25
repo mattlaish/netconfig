@@ -1,5 +1,33 @@
 # R67.2 corrective RC — current testing truth
 
+## Approved 7+6 operator workflow — 2026-11-24
+
+Final Windows source validation: 274 related regressions passed, one isolated
+PostgreSQL test skipped because NETCONFIG_TEST_FLOW_PG_DSN was not configured,
+and seven qualification/runner/POSIX-mode tests were deselected. This is not a
+full-suite or live qualification claim. All 17 headless Edge workflow checks
+passed with no page-script errors; browser probes used isolated fixture data.
+Legacy selftest is ALL PASS. Node syntax checks passed for all three console
+scripts; the changed runtime/test files passed Ruff. The two line-ending hygiene
+checks passed. Release metadata is regenerated and checked after these notes.
+No Git commands, RPM build, version bump or live deployment was performed.
+
+The 21 new HTTP/persistence regressions in test_operator_usability.py cover
+saved and redacted HTTP/TLS errors, unsaved Application tests, nonblocking and
+idempotent tasks, per-device failed-only retry, role/CSRF/owner boundaries,
+interruption recovery, passive refresh idle expiry, selected-device changes,
+concurrent tag updates, copy identity/HTTP retargeting, save destinations,
+canonical Settings return, disabled-device manual checks, service-start override
+feedback, inconclusive UDP normalization and History-test permission denial.
+
+Edge checks exercise filters, refreshed selection, selected-name review,
+batch tags/checks, direct status navigation, searchable device switching,
+tab-preserving return, progress/retry, copy/save paths, unsaved warnings,
+Application tests, restored search/scroll, Settings and Traffic
+pause/filter/failure-recovery feedback. They use fixture devices and a temporary
+data home, rather than real vendor probes or PostgreSQL. Temporary dependencies
+and browser artifacts stay outside the source tree.
+
 ## Release 67.13 configured-static route proof — 2026-11-11
 
 Focused direct checks PASS for Cisco static-config normalization, normal manager

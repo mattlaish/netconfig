@@ -37,13 +37,14 @@ from .web_supportability import WebSupportabilityMixin
 from .web_database import WebDatabaseMixin
 from .web_feature_controls import WebFeatureControlsMixin
 from .web_ux import WebUxMixin, render_tabs, safe_next_path
+from .web_operator_workflow import WebWorkflowMixin
 
 from .web_security_runtime import (
-    SESSION_IDLE_SECONDS, SESSION_ABSOLUTE_SECONDS, MAX_CONSOLE_SESSIONS,
-    MAX_SESSIONS_PER_USER, MAX_FORM_BODY_BYTES, MAX_MIB_UPLOAD_BODY_BYTES,
+    SESSION_IDLE_SECONDS as SESSION_IDLE_SECONDS, SESSION_ABSOLUTE_SECONDS as SESSION_ABSOLUTE_SECONDS, MAX_CONSOLE_SESSIONS as MAX_CONSOLE_SESSIONS,
+    MAX_SESSIONS_PER_USER as MAX_SESSIONS_PER_USER, MAX_FORM_BODY_BYTES, MAX_MIB_UPLOAD_BODY_BYTES,
     MAX_MIB_FILES_PER_REQUEST, MAX_MULTIPART_PARTS, MAX_MULTIPART_BOUNDARY_BYTES,
-    RequestRejected, _SESSIONS, _SESSIONS_LOCK, _auth_fingerprint,
-    _managed_session_expired, create_managed_session as _create_managed_session,
+    RequestRejected, _SESSIONS, _SESSIONS_LOCK, _auth_fingerprint as _auth_fingerprint,
+    _managed_session_expired as _managed_session_expired, create_managed_session as _create_managed_session,
     session_for as _session_for, content_length as _bounded_content_length,
 )
 
@@ -62,7 +63,7 @@ _VAULT_THROTTLE = LoginThrottle(max_failures=3, max_delay=60)
 _VAULT_ATTEMPT_LOCK = threading.Lock()
 
 
-class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupportabilityMixin, WebMC9Mixin, WebOpsMixin, WebApiMixin, WebDependenciesMixin, WebIntegrationsMixin, http.server.BaseHTTPRequestHandler):
+class Console(WebWorkflowMixin, WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupportabilityMixin, WebMC9Mixin, WebOpsMixin, WebApiMixin, WebDependenciesMixin, WebIntegrationsMixin, http.server.BaseHTTPRequestHandler):
     manager = None
     tls_enabled = False
     netflow = None
@@ -84,7 +85,7 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
     def _session(self):
         path = urllib.parse.urlsplit(getattr(self, "path", "")).path
         passive = getattr(self, "command", "") == "GET" and (
-            path in {"/device-monitoring-trends", "/snmp-series"} or
+            path in {"/device-monitoring-trends", "/snmp-series", "/devices-live", "/collection-status", "/netflow-saving-status"} or
             (path == "/traffic" and self.headers.get("X-NetConfig-Traffic") == "refresh"))
         return _session_for(self, touch=not passive)
 
@@ -754,6 +755,7 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
             "/help": lambda s: self._help_page(s),
             "/mib": lambda s: self._mib_page(q, s),
         }
+        routes.update(self._workflow_routes(q))
         h = routes.get(u.path)
         if not h:
             return self._send("not found", 404, "text/plain")
@@ -880,6 +882,7 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
             "/user-update": lambda: self._do_user_update(form, sess),
             "/user-access": lambda: self._do_user_access(form, sess),
         }
+        handlers.update(self._workflow_posts(form, sess))
         h = handlers.get(u.path)
         if h:
             return h()
@@ -926,7 +929,7 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
         source = self._client_ip()
         key = ("vault", "master")
         if not _VAULT_ATTEMPT_LOCK.acquire(blocking=False):
-            return 1, False, None
+            return None, False, None
         try:
             retry = _VAULT_THROTTLE.retry_after(*key)
             if retry:
@@ -953,6 +956,10 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
             return feedback(self, sess, target, "No Vault has been created.")
         retry, ok, _ = self._try_vault_password(
             sess, "unlock_vault", "", lambda: self.manager.unlock_vault(pw))
+        if retry is None:
+            return self._send(self._page("Vault",
+                              '<div class="err">Another Vault password check is in progress. Try again shortly.</div>',
+                              sess), 409, headers=[("Retry-After", "1")])
         if retry:
             return self._send(self._page("Vault", '<div class="err">Too many attempts. Try again shortly.</div>',
                                          sess), 429, headers=[("Retry-After", str(retry))])
@@ -1038,6 +1045,11 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
         retry, ok, revealed = self._try_vault_password(
             sess, "vault_secret_reveal", name,
             lambda: self.manager.vault.read_secrets_once(master, refs))
+        if retry is None:
+            return self._device_page(
+                {"name": [name]}, sess,
+                reveal_error="Another Vault password check is in progress. Try again shortly.",
+                reveal_status=409, reveal_headers=headers + [("Retry-After", "1")])
         if retry:
             return self._device_page({"name": [name]}, sess, reveal_error="Too many incorrect attempts. Try again shortly.",
                                      reveal_status=429, reveal_headers=headers + [("Retry-After", str(retry))])
@@ -1264,6 +1276,7 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
             ("monitoring", "Monitoring", portmon_panel + appmon_panel),
             ("addresses", "ARP / MAC", addresses),
         ], "device-tabs")
+        inner = self._device_tools(dev, sess) + inner
         self._send(self._page(f"Device \u00b7 {name}", inner, sess), reveal_status,
                    headers=reveal_headers)
 
@@ -1487,7 +1500,7 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
         menu = "".join(
             f'<a href="/settings?section={key}" class="{"active" if key == section else ""}">'
             f'{html.escape(label)}</a>' for key, label in sections)
-        form = (f'<form method=post action="/settings-save">{self._csrf_field()}'
+        form = (f'<form method=post action="/settings-save" data-unsaved-initial="{1 if draft is not None else 0}">{self._csrf_field()}'
                 f'<input type=hidden name=section value="{html.escape(section)}">')
         hostkey = "".join(
             f'<option value="{v}"{" selected" if s.get("host_key_policy")==v else ""}>{v}</option>'
@@ -1541,12 +1554,14 @@ class Console(WebUxMixin, WebFeatureControlsMixin, WebDatabaseMixin, WebSupporta
 <label style="color:var(--text);font-weight:400"><input type=checkbox name=netflow_resolve_names value=1 style="width:auto" {"checked" if s.get("netflow_resolve_names") else ""}> Look up host names (reverse DNS)</label>
 <div class=muted>Names are looked up in the background using this server's DNS resolver and cached; pages never wait for DNS.</div>
 <button>Save NetFlow settings</button></form></div>"""
+            content += self._netflow_setup()
             history = getattr(getattr(self, "netflow", None), "history", None)
             if history is not None:
                 from .web_traffic import history_notice
                 st = history.status()
-                content += history_notice({"source": "postgres" if st.get("last_write_ts") else "memory",
-                                           "status": st})
+                content += ('<details><summary>Saving details</summary>' +
+                            history_notice({"source": "postgres" if st.get("last_write_ts") else "memory",
+                                            "status": st}) + '</details>')
         elif section == "monitoring":
             content = f"""<div class="panel"><h2>Monitoring &amp; alerts</h2>
 <p class="muted">Background port, HTTP and TLS monitoring schedule and retention.</p>
@@ -1847,6 +1862,9 @@ The client secret is stored in the vault.</p>
         labels = {"general": "General & SSH", "features": "Optional workspaces", "snmp": "SNMP polling",
                   "netflow": "NetFlow", "monitoring": "Monitoring",
                   "email": "Email & OAuth"}
+        if form.get("ui_return_to"):
+            from .web_forms import feedback
+            return feedback(self, sess, "/settings?section=" + _q(section), f"{labels[section]} settings saved.")
         return self._settings_page_v2(
             sess, q={"section": [section]}, flash=f"{labels[section]} settings saved.")
 
@@ -3023,6 +3041,8 @@ The client secret is stored in the vault.</p>
         return self._redirect("/compliance" + (f"?standard={_q(standard)}" if standard else ""))
 
     def _do_collect(self, form, sess):
+        if form.get("background"):
+            return self._start_collection(form, sess, "collect")
         from .web_forms import feedback
         name = (form.get("name") or [""])[0]
         target = f"/device?name={_q(name)}#tab-config" if name else "/"
@@ -3058,6 +3078,8 @@ The client secret is stored in the vault.</p>
         return feedback(self, sess, target, f"{name}: {r.message}" + (" (changed)" if r.changed else "") + detail)
 
     def _do_snmp(self, form, sess):
+        if form.get("background"):
+            return self._start_collection(form, sess, "snmp")
         from .web_forms import feedback
         name = (form.get("name") or [""])[0]
         target = (f"/snmp?device={_q(name)}" if (form.get("back") or [""])[0] == "snmp"
@@ -3231,6 +3253,9 @@ def _check_writable(manager):
 
 
 def serve(manager, bind="127.0.0.1", port=8778):
+    manager._console_applied_settings = dict(manager.settings)
+    manager._console_start_overrides = {key: value for key, value in (
+        ("web_bind", bind), ("web_port", port)) if manager.settings.get(key) != value}
     Console.manager = manager
     _check_writable(manager)
     master, master_source = service_master_password()

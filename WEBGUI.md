@@ -1,5 +1,30 @@
 # NetConfig Web Console — Operations and UI
 
+## Everyday operation — 2026-11-24 source update
+
+Devices refreshes saved results every 30 seconds. Filter by status, select
+devices, review their names and run checks or update tags/enabled state with
+your existing permissions. Selecting a status opens the corresponding saved
+monitoring result. Returning to Devices restores the search and position.
+
+The Device toolbar keeps tabs and actions together. Find another device or use
+Previous/Next without losing the current tab. Copy an address or table IP/MAC
+with its Copy button. Copy device settings starts a new device with a new name,
+address and credential selection. For Applications, Test HTTP and TLS uses the
+new address before saving. Choose Save and return, Save and continue editing
+or Save and check now. Leaving an unsaved form warns before discarding edits.
+
+Collection → Collection tasks shows per-device progress and results. It remains
+available after leaving a running task and supports retrying failed or
+interrupted devices. Settings → NetFlow combines receiving and saving status
+with the saved History connection test. Pending restart settings and service
+start overrides are distinguished. Traffic exposes its last successful refresh,
+pause/resume, unapplied filters and retry feedback.
+
+Automatic refreshes read saved information and do not extend the idle sign-out
+deadline. Explicit collection and check actions contact devices. This source
+update awaits packaging and live deployment qualification.
+
 ## Confirmed configured static routes — 2026-11-11 corrective RPM
 
 Layer 3 evidence now separates **Route source**, **Route proof** and next-hop

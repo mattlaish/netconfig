@@ -80,6 +80,34 @@ class Inventory:
             self._conn.execute(f"INSERT INTO devices ({cols}) VALUES ({ph})", data)
         self._conn.commit()
 
+    def update_operator_fields(self, name, *, enabled=None, add_tags=()):
+        """Update only selected inventory fields; tag additions use compare-and-swap."""
+        if enabled is not None:
+            result = self._conn.execute(
+                "UPDATE devices SET enabled=?,updated=? WHERE name=?",
+                (int(bool(enabled)), time.time(), name))
+            self._conn.commit()
+            if not result.rowcount:
+                raise ValueError("Device no longer exists.")
+            return
+        for _ in range(5):
+            row = self._conn.execute("SELECT tags FROM devices WHERE name=?", (name,)).fetchone()
+            if row is None:
+                raise ValueError("Device no longer exists.")
+            before = row["tags"] or ""
+            try:
+                tags = json.loads(before) if before else []
+            except json.JSONDecodeError:
+                tags = []
+            updated = list(dict.fromkeys(tags + list(add_tags)))
+            result = self._conn.execute(
+                "UPDATE devices SET tags=?,updated=? WHERE name=? AND COALESCE(tags,'')=?",
+                (json.dumps(updated), time.time(), name, before))
+            self._conn.commit()
+            if result.rowcount:
+                return
+        raise ValueError("Device changed while adding tags. Retry this device.")
+
     def get(self, name):
         r = self._conn.execute("SELECT * FROM devices WHERE name=?", (name,)).fetchone()
         return self._row(r) if r else None

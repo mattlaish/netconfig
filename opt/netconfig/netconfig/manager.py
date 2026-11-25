@@ -1146,4 +1146,6 @@ class Manager:
         return out
 
     def close(self):
+        if hasattr(self, "_console_operations"):
+            self._console_operations.close()
         self.db.close()

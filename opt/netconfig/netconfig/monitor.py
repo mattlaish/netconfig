@@ -95,9 +95,10 @@ def snmp_availability(facts, settings, now=None):
     return "up" if facts.get("reachable") else "unreachable"
 
 
-def saved_availability(manager, dev, now):
+def saved_availability(manager, dev, now, rows=None):
     targets = saved_check_targets(dev)
-    rows = manager.db.latest_monitor_results(dev["name"], targets)
+    if rows is None:
+        rows = manager.db.latest_monitor_results(dev["name"], targets)
     interval = int(manager.settings.get("monitor_poll_interval") or 0)
     counts = dict(up=0, down=0, unknown=0)
     for key, expected in targets.items():
@@ -110,6 +111,45 @@ def saved_availability(manager, dev, now):
     return counts
 
 
+def safe_check_detail(text):
+    """Keep a bounded diagnostic while removing URL credentials and secret values."""
+    from urllib.parse import urlsplit
+    from .scrub import scrub
+    def url_host(match):
+        try:
+            parsed = urlsplit(match.group(0))
+            return parsed.scheme + "://" + (parsed.hostname or "[host]")
+        except ValueError:
+            return "[URL]"
+    text = re.sub(r"https?://[^\s<>\"']+", url_host, str(text or ""))
+    text = re.sub(r"(?i)\bauthorization\s*:\s*(?:Bearer|Basic)\s+\S+",
+                  "authorization=[redacted]", text)
+    text = re.sub(r"""(?i)\b(password|community|token|secret|authorization|snmp_auth_pass|snmp_priv_pass|key_passphrase|enable_password)["']?\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;]+)""",
+                  r"\1=[redacted]", text)
+    text, _ = scrub(text)
+    return text[:1500]
+
+
+def endpoint_detail(result, tls=False):
+    evidence = result.get("tls") or {} if tls else result
+    error = evidence.get("error") or evidence.get("handshake_error")
+    if error:
+        detail = safe_check_detail(error)
+        low = detail.lower()
+        if "issuer" in low or "self-signed" in low:
+            detail += " Check the server certificate chain and the monitor's trusted CA certificates."
+        elif "expired" in low:
+            detail += " Renew the server certificate."
+        elif "hostname" in low or "not valid for" in low:
+            detail += " Check the URL hostname and certificate names."
+        elif "timed out" in low or "timeout" in low:
+            detail += " Check reachability, firewall rules and server response time."
+        return detail
+    if not tls and not result.get("ok"):
+        return f'HTTP {result.get("status") or "unavailable"}; expected {result.get("expect") or "200–399"}.'
+    return ""
+
+
 def run_device_checks(manager, dev):
     """Run the checks appropriate to the device's type(s) and record history.
     Returns a list of result dicts: {kind, target, status, value}."""
@@ -119,22 +159,25 @@ def run_device_checks(manager, dev):
     if "system" in types and (dev.get("monitor_ports") or "").strip():
         for c in portmon.check_ports(host, dev["monitor_ports"], timeout=1.5):
             tgt = f'{c["proto"]}/{c["port"]}'
+            detail = (f"{tgt}: no UDP reply; the port may be open or filtered. Use an application-level check to confirm."
+                      if c["state"] == "open|filtered" else "")
             out.append({"kind": "port", "target": tgt, "status": c["state"],
-                        "value": c.get("ms")})
+                        "value": c.get("ms"), "detail": detail})
     if "application" in types:
         spec = (dev.get("monitor_urls") or "").strip() or f"https://{host}/"
         for r in appmon.check_all(spec, host, timeout=5.0):
             code = r.get("status")
             out.append({"kind": "http", "target": r["url"],
                         "status": str(code) if code is not None else "down",
-                        "value": r.get("ms")})
+                        "value": r.get("ms"), "detail": endpoint_detail(r)})
             tls = r.get("tls")
             if tls:
                 out.append({"kind": "tls", "target": r["url"],
                             "status": "valid" if tls.get("valid") else "invalid",
-                            "value": tls.get("expires_days")})
+                            "value": tls.get("expires_days"), "detail": endpoint_detail(r, tls=True)})
     for r in out:
-        manager.db.record_result(dev["name"], r["kind"], r["target"], r["status"], r.get("value"))
+        manager.db.record_result(dev["name"], r["kind"], r["target"], r["status"],
+                                 r.get("value"), detail=r.get("detail", ""))
     return out
 
 
@@ -210,6 +253,8 @@ def _sensor_status_for_metric(manager, dev, metric, result):
     status = str(result.get("status") or "").lower()
     value = result.get("value")
     if metric == "port_state":
+        if status == "open|filtered":
+            return "UNKNOWN", []
         return ("OK" if status == "open" else "CRITICAL"), []
     if metric == "http_status":
         if status == "down":
@@ -254,6 +299,8 @@ def _monitor_sensor_specs(manager, dev, results):
             threshold = "; ".join(
                 f'{r["metric"]} {r["op"]} {r["threshold"]}' for r in breached[:4])
             message = f'{metric} {status.lower()} for {target}'
+            if result.get("detail"):
+                message += ": " + result["detail"]
             specs.append({
                 "metric": metric, "sensor_type": sensor_type, "device": dev["name"],
                 "resource": target, "value": "" if value is None else value,

@@ -65,7 +65,7 @@ Main database credential status: <b>{core_secret_label}</b>.</p>
 <button>Save Core Database settings</button>
 <button formaction="/core-db-test" formmethod="post" class=ghost style="margin-left:8px">Test &amp; prepare Core PostgreSQL</button></form></div>
 
-<div class="panel"><h2>Interface History Store</h2>
+<div class="panel"><h2>History database · NetFlow &amp; interface graphs</h2>
 <p class="muted">Optional long-term interface-rate history. This connection is independent from
 the Core Database. Existing installations temporarily inherit legacy shared PostgreSQL fields until
 these History settings are saved.</p>
@@ -77,12 +77,13 @@ these History settings are saved.</p>
 <div class="row">{hfield("if_history_pg_dbname","pg_dbname","History database name")}
 {hfield("if_history_pg_user","pg_user","History database username")}
 <div><label>History SSL mode</label><select name=if_history_pg_sslmode>{history_sslmodes}</select></div></div>
-<div class="row"><div><label>Interface-history password{" ✓ set" if history_pw_set else ""}</label>
+<div class="row"><div><label>History database password{" ✓ set" if history_pw_set else ""}</label>
 <input type=password name=if_history_pg_password placeholder="interface and flow history; kept in vault"></div>
 {field("if_history_hours","History retention (hours)","default graph window; e.g. 24")}
 {field("if_history_bucket_seconds","Downsample bucket (s)","points averaged into this bucket")}</div>
+<p class=muted>The test uses saved connection settings and the saved Vault password. Save any edits first.</p>
 <button>Save Interface History settings</button>
-<button formaction="/history-db-test" formmethod="post" class=ghost style="margin-left:8px">Test History PostgreSQL</button></form></div>"""
+<button formaction="/history-db-test" formmethod="post" class=ghost style="margin-left:8px">Test saved History + NetFlow</button></form></div>"""
 
     def _save_database_settings(self, form, sess, g):
         from .web_forms import numeric_value, safe_draft, commit_settings
@@ -129,6 +130,9 @@ these History settings are saved.</p>
             suffix = " Restart NetConfig to activate the backend change."
             if backend == "postgres":
                 suffix = " Core PostgreSQL connection and setup checks passed." + suffix
+            if form.get("ui_return_to"):
+                from .web_forms import feedback
+                return feedback(self, sess, "/settings?section=db", "Core Database settings saved." + suffix)
             return self._settings_page_v2(sess, q={"section": ["db"]},
                                           flash="Core Database settings saved." + suffix)
 
@@ -159,8 +163,11 @@ these History settings are saved.</p>
                     flash += " History is enabled but host/database is incomplete."
                 else:
                     res = backend.ensure_ready()
-                    flash += (" History PostgreSQL ready." if res["ok"]
+                    flash += (" Interface history table ready. Run Test saved History + NetFlow to verify flow access." if res["ok"]
                               else " History connection failed: " + (res["error"] or "unknown error"))
+            if form.get("ui_return_to"):
+                from .web_forms import feedback
+                return feedback(self, sess, "/settings?section=db", flash)
             return self._settings_page_v2(sess, q={"section": ["db"]}, flash=flash)
 
         return self._settings_page_v2(sess, q={"section": ["db"]}, flash="Invalid Database settings scope.")
@@ -195,34 +202,43 @@ these History settings are saved.</p>
         return self._settings_page_v2(sess, q={"section": ["db"]}, flash=msg)
 
     def _do_history_db_test(self, form, sess):
+        section = "netflow" if (form.get("return_section") or [""])[0] == "netflow" else "db"
         if not self._database_settings_allowed(sess):
-            return self._settings_page_v2(sess, q={"section": ["db"]}, flash="Not permitted.")
-        from . import ifhistory as _ifh
-        def g(k):
-            return (form.get(k) or [""])[0].strip()
+            return self._settings_page_v2(sess, q={"section": [section]}, flash="Not permitted.")
+        from . import ifhistory
+        from .netflow_history import backend_for
+        from .history_diagnostics import failure_verdict, verdict_text
+
+        saved = ifhistory.build_backend(self.manager.settings, password=self.manager._pg_password())
         candidate = dict(self.manager.settings)
         for key in ("if_history_pg_host", "if_history_pg_dbname", "if_history_pg_user",
-                    "if_history_pg_sslmode"):
-            if g(key):
-                candidate[key] = g(key)
-        if g("if_history_pg_port"):
-            try:
-                candidate["if_history_pg_port"] = int(g("if_history_pg_port"))
-            except ValueError:
-                return self._settings_page_v2(sess, q={"section": ["db"]}, flash="Invalid History PostgreSQL port.")
-        pw = (form.get("if_history_pg_password") or [""])[0] or self.manager._pg_password()
-        backend = _ifh.build_backend(candidate, password=pw)
-        if backend is None:
-            return self._settings_page_v2(
-                sess, q={"section": ["db"]}, flash="Set History PostgreSQL host and database first.")
-        res = backend.ensure_ready()
-        if res["ok"]:
-            msg = ("History PostgreSQL OK — history table created." if res["created"]
-                   else "History PostgreSQL OK — history table already present.")
-            msg += " Interface history check only; see NetFlow settings for flow-saving status."
+                    "if_history_pg_sslmode", "if_history_pg_port"):
+            if key in form:
+                candidate[key] = (form[key] or [""])[0].strip()
+        proposed = ifhistory.build_backend(candidate, password=self.manager._pg_password())
+        typed_password = (form.get("if_history_pg_password") or [""])[0]
+        if typed_password or (proposed and saved and (
+                proposed.params != saved.params or proposed.conninfo != saved.conninfo)):
+            msg = "Save History settings first. This test uses the saved connection and saved Vault password."
+        elif saved is None or proposed is None:
+            msg = "Set and save History PostgreSQL host and database first."
         else:
-            msg = "History PostgreSQL failed: " + (res["error"] or "unknown error")
-        return self._settings_page_v2(sess, q={"section": ["db"]}, flash=msg)
+            stage = "prepare interface history table"
+            try:
+                saved.ensure_schema()
+                result = backend_for(self.manager).check_flow_ready()
+                msg = (result["message"] if result["ok"] else
+                       f'NetFlow check failed during {result["stage"]}. {result["message"]}')
+                if result["ok"]:
+                    msg += " Check NetFlow saving status to confirm that live records are being saved."
+            except Exception as exc:
+                context = "locked" if not self.manager.vault_ready() else "missing"
+                verdict = failure_verdict(exc, stage, credential_state=context)
+                msg = f'History check failed during {stage}. {verdict_text(verdict)}'
+        if section == "netflow":
+            from .web_forms import feedback
+            return feedback(self, sess, "/settings?section=netflow", msg)
+        return self._settings_page_v2(sess, q={"section": [section]}, flash=msg)
 
     def _database_settings_allowed(self, sess):
         from .users import can

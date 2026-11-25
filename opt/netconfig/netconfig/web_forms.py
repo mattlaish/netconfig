@@ -77,6 +77,8 @@ def commit_settings(manager, candidate, secrets=()):
     """Save secrets before publishing settings; compensate failed writes."""
     if secrets and (not manager.vault_ready() or not manager.vault.exists()):
         raise ValueError("Settings not saved. Unlock or create the vault before saving a new password or client secret. Re-enter secret fields after unlocking.")
+    if not hasattr(manager, "_console_applied_settings"):
+        manager._console_applied_settings = dict(manager.settings)
     before, attempted = {}, []
     try:
         for name, fields in secrets:
@@ -139,6 +141,20 @@ def _release_replaced_refs(m, old, names, keep):
             pass
 
 
+def copied_monitor_urls(spec, source_host, new_host):
+    """Retarget source-host endpoints when copying a device."""
+    from .appmon import parse_targets
+    source = urllib.parse.urlsplit(source_host if "://" in source_host else "//" + source_host)
+    target = urllib.parse.urlsplit(new_host if "://" in new_host else "//" + new_host)
+    rows = []
+    for url, expected in parse_targets(spec, source_host):
+        parsed = urllib.parse.urlsplit(url)
+        if parsed.hostname == source.hostname and target.netloc:
+            parsed = parsed._replace(netloc=target.netloc, scheme=target.scheme or parsed.scheme)
+        rows.append(urllib.parse.urlunsplit(parsed) + (f" {expected}" if expected is not None else ""))
+    return "\n".join(rows)
+
+
 def save_device(handler, form, sess):
     if not can(sess["role"], "manage_devices"):
         return handler._dashboard(sess, flash="Not permitted.")
@@ -146,6 +162,8 @@ def save_device(handler, form, sess):
     def g(key, default=""):
         return (form.get(key) or [default])[0]
     name, orig = g("name").strip(), g("orig_name").strip()
+    copy_from = g("copy_from")
+
     def error(message):
         return handler._device_form({"name": [orig]}, sess, draft=safe_draft(form),
                                     flash=message + " Secret fields must be re-entered.", status=400)
@@ -164,6 +182,14 @@ def save_device(handler, form, sess):
             raise ValueError("That device name is already in use. Open Edit device instead.")
         port = 22 if app else numeric_value("ssh_port", g("port", "22") or "22")
         command = "" if app else validate_config_collect_command(g("config_collect_command"))
+        if copy_from and not orig:
+            source = m.inv.get(copy_from)
+            if not source:
+                raise ValueError("The source device no longer exists. Reload the copy form.")
+            if g("monitor_urls").strip() or "application" in types:
+                form = dict(form)
+                form["monitor_urls"] = [copied_monitor_urls(g("monitor_urls"), source["host"], g("host").strip())]
+
         if mode not in {"manual", "saved"}:
             raise ValueError("Choose saved credentials or credentials for this device.")
         if not app and g("snmp_port"):
@@ -239,4 +265,11 @@ def save_device(handler, form, sess):
         _release_replaced_refs(m, old, {orig, name}, {ssh_ref, snmp_ref, enable_ref})
     else:
         _release_replaced_refs(m, old, {orig, name}, set())
-    return handler._redirect("/device?" + urllib.parse.urlencode({"name": name}))
+    from .web_ux import safe_next_path
+    target = safe_next_path(g("return_to")) or "/device?" + urllib.parse.urlencode({"name": name})
+    action = g("save_action")
+    if action == "stay":
+        return handler._redirect("/device-new?" + urllib.parse.urlencode({"name": name, "next": target}))
+    if action == "check":
+        return handler._start_collection({"name": [name], "return_to": [target]}, sess, "check")
+    return handler._redirect(target)
